@@ -54,6 +54,8 @@ import {
     RECONCILE_LOG_FAILED,
     RedisBroadcastDriver,
     SWEEP_INSTANCE_LOG_FAILED,
+    SWEEP_INSTANCE_RELEASED_LOG_FAILED,
+    SWEEP_INSTANCE_RENEWED_LOG_FAILED,
     SWEEP_LOG_FAILED,
 } from '../drivers/redis.ts'
 import { REVOCATION_LOG_FAILED } from '../drivers/enforcement_deadline.ts'
@@ -288,6 +290,8 @@ function captureLogs() {
                     PASS_SAMPLE_LOG_FAILED,
                     SWEEP_LOG_FAILED,
                     SWEEP_INSTANCE_LOG_FAILED,
+                    SWEEP_INSTANCE_RENEWED_LOG_FAILED,
+                    SWEEP_INSTANCE_RELEASED_LOG_FAILED,
                     RECONCILE_LOG_FAILED,
                     REVOCATION_LOG_FAILED,
                 ].some((marker) => l.startsWith(marker))
@@ -942,7 +946,7 @@ Deno.test("#360 P14 the sweep's next pass is armed before its sample is taken, e
     })
 })
 
-Deno.test('#360 P12 (ii) a ghost released while console.warn throws: failed, one marked line, and the loop goes on', async () => {
+Deno.test('#360 P12 (ii) a ghost released while console.warn throws: ok, one marked line at #sweepInstance, and the loop goes on', async () => {
     await withClock(async ({ time, logs, escaped }) => {
         const f = fleet()
         f.record()
@@ -953,20 +957,23 @@ Deno.test('#360 P12 (ii) a ghost released while console.warn throws: failed, one
         logs.failWarn(false)
         await settle()
         assertEquals(escaped, [], 'nothing escapes the sweep')
+        // #418 (second security review): the "released N hold(s)" WARN is a
+        // SUCCESS exit's own report, not a failure — it is now guarded, so its
+        // sink's own throw is contained right there and never reaches
+        // `#reconcile`'s `for` loop at all. The pass is `ok`: releasing the
+        // ghost genuinely succeeded, and only the report of it hit a broken
+        // sink.
         assertEquals(f.sweeps().map(shape), [{
             pass: 'sweep',
             trigger: 'timer',
-            outcome: 'failed',
+            outcome: 'ok',
             pages: 1,
         }])
-        // #418 (security review): the "released N hold(s)" WARN's own throw
-        // used to escape #sweepInstance uncaught, and #reconcile's own catch
-        // WARN was unguarded too, so BOTH escaped all the way to the sweep
-        // chain's generic tail (SWEEP_LOG_FAILED). #reconcile's catch is now
-        // guarded, so it is the one that reports this — RECONCILE_LOG_FAILED,
-        // not SWEEP_LOG_FAILED, which this fixture can no longer reach at all.
+        // Neither the reconcile-level nor the top-of-chain fallback fires —
+        // this fixture can no longer reach either.
+        assertEquals(logs.errored(RECONCILE_LOG_FAILED), [])
         assertEquals(logs.errored(SWEEP_LOG_FAILED), [])
-        const lines = logs.errored(RECONCILE_LOG_FAILED)
+        const lines = logs.errored(SWEEP_INSTANCE_RELEASED_LOG_FAILED)
         assertEquals(lines.length, 1)
         assertStringIncludes(lines[0], 'warn sink down')
         await advance(time, INTERVAL)

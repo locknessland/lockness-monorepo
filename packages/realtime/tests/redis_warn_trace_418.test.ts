@@ -1,7 +1,7 @@
 /**
- * @fileoverview #418 — the five catch sites in `drivers/redis.ts` the
+ * @fileoverview #418 — the seven catch sites in `drivers/redis.ts` the
  * security-review audit named as still calling `console.warn` directly,
- * traced and (all five) routed through `#guardedWarn`.
+ * traced and (all seven) routed through `#guardedWarn`.
  *
  * **Traced call chains** — what calls the enclosing function, and what a
  * throwing sink does to it:
@@ -46,14 +46,25 @@
  *   dead instance's sweep. Guarding it stops that housekeeping failure's WARN
  *   from erasing itself behind the generic top-of-chain fallback
  *   (`SWEEP_LOG_FAILED`) when the sink is what is down.
+ * - **T6** `#sweepInstance`'s "instance … renewed its liveness" WARN (second
+ *   security review): a SUCCESS exit, not a failure — the instance turned out
+ *   to be alive, mid-sweep — but bare all the same, and just as unwrapped by
+ *   any `try` as T4's site was.
+ * - **T7** `#sweepInstance`'s "released N hold(s)" WARN (second security
+ *   review): the other SUCCESS exit, same unwrapped shape.
  *
- * All five escape, so all five are now routed through `#guardedWarn` (#409's
- * #369 shape): a throwing sink writes one marked ERROR line instead of
- * escaping.
+ * All seven escape, so all seven are now routed through `#guardedWarn`
+ * (#409's #369 shape): a throwing sink writes one marked ERROR line instead
+ * of escaping. Once every exit of `#sweepInstance` goes through
+ * `#guardedWarn`, the method itself can never throw — `#reconcile` does NOT
+ * gain a per-id `try` around its call: with nothing left that can reject it,
+ * such a `try` would be dead code, or would relabel a real bug (one that
+ * reaches `#sweepInstance` from OUTSIDE this file's known exits) as a routine
+ * sweep failure.
  *
  * Red before this fix: T1 and T2 fail on `no synchronous throw`; T3 fails on
  * `no rejection reaches the runtime` after the second, well-formed departure
- * never gets reported; T4 fails the same way after the second dead
+ * never gets reported; T4, T6 and T7 fail the same way after the second dead
  * instance's departure never gets reported; T5 fails because
  * `SWEEP_LOG_FAILED`, not `RECONCILE_LOG_FAILED`, is the only marked line
  * written — proof the escape climbed past this site's own report.
@@ -70,6 +81,8 @@ import {
     RedisBroadcastDriver,
     SWEEP_DEPARTURE_LOG_FAILED,
     SWEEP_INSTANCE_LOG_FAILED,
+    SWEEP_INSTANCE_RELEASED_LOG_FAILED,
+    SWEEP_INSTANCE_RENEWED_LOG_FAILED,
     SWEEP_LOG_FAILED,
 } from '../drivers/redis.ts'
 import { type CommandFn, FakeRedis } from './fake_redis.ts'
@@ -499,6 +512,156 @@ Deno.test("#418 T5 #reconcile's own outer catch: every channel throwing, its OWN
             !lines.some((line) => line.startsWith(`${SWEEP_LOG_FAILED} `)),
             'the generic top-of-chain fallback never fires — this site ' +
                 `contained its own escape: ${JSON.stringify(lines)}`,
+        )
+    })
+})
+
+/**
+ * T6 — `#sweepInstance`'s "renewed" WARN (second security review): the
+ * dead-turned-alive instance's very first release is refused (the alive key
+ * is written right before that one `EVAL` runs, the same technique
+ * `reconcile_single_pass_355.test.ts`'s `renew()` uses), so its sweep ends
+ * `renewed` at 0 released. A SECOND, ordinary dead instance is planted
+ * alongside it, and its departure must still be reported in the same pass.
+ */
+Deno.test("#418 T6 #sweepInstance's renewed WARN: every channel throwing, a second dead instance is still swept in the same pass", async () => {
+    await watchingEscapes(async (escaped) => {
+        const time = new FakeTime(START)
+        const redis = new FakeRedis()
+        const DEAD_A = 'instance-dead-a'
+        const DEAD_B = 'instance-dead-b'
+        let renewedOnce = false
+        const command: CommandFn = async (...args) => {
+            if (
+                !renewedOnce && args[0] === 'EVAL' &&
+                args.includes(OWNED_KEY(DEAD_A)) &&
+                args.includes(ALIVE_KEY(DEAD_A))
+            ) {
+                // A renews right before its own release's `EVAL` runs — the
+                // release script reads the alive key inside that SAME call,
+                // so it sees A alive and refuses.
+                renewedOnce = true
+                await redis.command('SET', ALIVE_KEY(DEAD_A), '1', 'EX', '30')
+            }
+            return redis.command(...args)
+        }
+        const driver = redisDriver(redis, command)
+        const reported: (string | number)[] = []
+        driver.onRosterDeparture?.(
+            ({ member }) => void reported.push(member.id),
+        )
+        let thrown: unknown = undefined
+        let lines: readonly string[] = []
+        try {
+            await plantHold(redis, CHANNEL, '7', entry(7, DEAD_A), DEAD_A)
+            await plantHold(redis, CHANNEL, '8', entry(8, DEAD_B), DEAD_B)
+            await driver.holdMember(OTHER, { id: 9 })
+            using channels = everyChannelThrows()
+            try {
+                await time.tickAsync(3_500)
+                await settle()
+            } catch (error) {
+                thrown = error
+            }
+            lines = [...channels.errorLines()]
+        } finally {
+            await driver.close()
+            time.restore()
+        }
+        assertEquals(thrown, undefined, 'no synchronous throw')
+        assertEquals(escaped, [], 'no rejection reaches the runtime')
+        const marked = lines.filter((line) =>
+            line.startsWith(`${SWEEP_INSTANCE_RENEWED_LOG_FAILED} `)
+        )
+        assert(
+            marked.length >= 1,
+            `the site's own marked line was attempted: ${
+                JSON.stringify(lines)
+            }`,
+        )
+        assert(
+            marked.some((line) =>
+                line.split('; sink failure')[0].includes(
+                    'renewed its liveness',
+                )
+            ),
+            `its subject preserves the original line's text: ${
+                JSON.stringify(marked)
+            }`,
+        )
+        assertEquals(
+            reported,
+            [8],
+            "B's departure is still reported in the SAME pass — A's own " +
+                'renewed WARN losing its sink did not also cost ' +
+                "#reconcile's loop the rest of `ids`",
+        )
+    })
+})
+
+/**
+ * T7 — `#sweepInstance`'s "released N hold(s)" WARN (second security
+ * review): an ORDINARY successful sweep of one dead instance — no failure,
+ * no renewal — still reaches this WARN, and a second dead instance's
+ * departure must still be reported in the same pass when this one's sink
+ * throws.
+ */
+Deno.test("#418 T7 #sweepInstance's released WARN: every channel throwing, a second dead instance is still swept in the same pass", async () => {
+    await watchingEscapes(async (escaped) => {
+        const time = new FakeTime(START)
+        const redis = new FakeRedis()
+        const DEAD_A = 'instance-dead-a'
+        const DEAD_B = 'instance-dead-b'
+        const driver = redisDriver(redis)
+        const reported: (string | number)[] = []
+        driver.onRosterDeparture?.(
+            ({ member }) => void reported.push(member.id),
+        )
+        let thrown: unknown = undefined
+        let lines: readonly string[] = []
+        try {
+            await plantHold(redis, CHANNEL, '7', entry(7, DEAD_A), DEAD_A)
+            await plantHold(redis, CHANNEL, '8', entry(8, DEAD_B), DEAD_B)
+            await driver.holdMember(OTHER, { id: 9 })
+            using channels = everyChannelThrows()
+            try {
+                await time.tickAsync(3_500)
+                await settle()
+            } catch (error) {
+                thrown = error
+            }
+            lines = [...channels.errorLines()]
+        } finally {
+            await driver.close()
+            time.restore()
+        }
+        assertEquals(thrown, undefined, 'no synchronous throw')
+        assertEquals(escaped, [], 'no rejection reaches the runtime')
+        const marked = lines.filter((line) =>
+            line.startsWith(`${SWEEP_INSTANCE_RELEASED_LOG_FAILED} `)
+        )
+        assert(
+            marked.length >= 1,
+            `the site's own marked line was attempted: ${
+                JSON.stringify(lines)
+            }`,
+        )
+        assert(
+            marked.some((line) =>
+                line.split('; sink failure')[0].includes(
+                    'released 1 hold(s)',
+                )
+            ),
+            `its subject preserves the original line's text: ${
+                JSON.stringify(marked)
+            }`,
+        )
+        assertEquals(
+            reported,
+            [7, 8],
+            "both A's and B's departures are reported in the SAME pass — " +
+                "A's own released WARN losing its sink did not also cost " +
+                "#reconcile's loop the rest of `ids`",
         )
     })
 })

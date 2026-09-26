@@ -1,7 +1,7 @@
 /**
- * @fileoverview #418's mutation battery — the 5 traced catch sites this issue
- * routed through `#guardedWarn` stay guarded (3 from the original trace, 2
- * more from the security review of the same issue).
+ * @fileoverview #418's mutation battery — the 7 traced catch sites this issue
+ * routed through `#guardedWarn` stay guarded (3 from the original trace, 4
+ * more from two rounds of security review of the same issue).
  *
  * Each row puts one site's direct `console.warn` call back, the pre-#418
  * shape:
@@ -20,6 +20,10 @@
  * - M5: `#reconcile`'s own outer catch — unguarded, its throw escapes
  *   `#reconcile()` and is caught only by the generic top-of-chain fallback
  *   (`SWEEP_LOG_FAILED`), losing this site's own, more specific marker.
+ * - M6: `#sweepInstance`'s "renewed" WARN — a SUCCESS exit, unguarded the
+ *   same way M4's FAILURE exit was; its throw escapes just as far.
+ * - M7: `#sweepInstance`'s "released N hold(s)" WARN — the other SUCCESS
+ *   exit, same unguarded shape.
  *
  * The witness each row dies on:
  *
@@ -31,6 +35,10 @@
  *   assertion.
  * - M5: T5, either `no rejection reaches the runtime` or the "OWN marker
  *   fires, not the generic fallback" assertion.
+ * - M6: T6, the "site's own marked line" assertion — the mutant's escape is
+ *   caught only by `#reconcile`'s own marker (`RECONCILE_LOG_FAILED`), one
+ *   frame up from where T6 looks.
+ * - M7: T7, the same shape as M6, one row down.
  *
  * Every row was proven LIVE before it was trusted: with the mutant applied,
  * the killing witness was run alone and the stack of the escape it reported
@@ -202,12 +210,62 @@ const MUTATIONS: Mutation[] = [
         // the generic SWEEP_LOG_FAILED fallback fire instead).
         killedBy: '#418 T5 ',
     },
+    {
+        label:
+            'M6 — #sweepInstance: the renewed WARN back to a bare console.warn',
+        file: REDIS,
+        edits: [[
+            "        } else if (end === 'renewed') {\n" +
+            '            // #418 (second security review): a SUCCESS exit — the instance\n' +
+            '            // renewed, not crashed — but nothing wraps this WARN in a `try`\n' +
+            '            // either, so its own throw would escape this method exactly like\n' +
+            "            // the failed branch's used to. One marked line, through\n" +
+            "            // #guardedWarn's shared #369 shape.\n" +
+            '            this.#guardedWarn(\n' +
+            '                SWEEP_INSTANCE_RENEWED_LOG_FAILED,\n' +
+            '                `realtime: instance ${id} renewed its liveness while being ` +\n' +
+            '                    `swept — a lapse, not a crash; ${released} hold(s) ` +\n' +
+            '                    `released (${emptied} emptied) before it did`,\n' +
+            '            )\n' +
+            '        } else if (released > 0) {\n',
+            "        } else if (end === 'renewed') {\n" +
+            '            console.warn(\n' +
+            '                `realtime: instance ${id} renewed its liveness while being ` +\n' +
+            '                    `swept — a lapse, not a crash; ${released} hold(s) ` +\n' +
+            '                    `released (${emptied} emptied) before it did`,\n' +
+            '            )\n' +
+            '        } else if (released > 0) {\n',
+        ]],
+        // Witness: T6 — "the site's own marked line was attempted": the
+        // mutant's escape is caught one frame up, by RECONCILE_LOG_FAILED.
+        killedBy: '#418 T6 ',
+    },
+    {
+        label:
+            'M7 — #sweepInstance: the released WARN back to a bare console.warn',
+        file: REDIS,
+        edits: [[
+            '            // #418 (second security review): the other SUCCESS exit, the\n' +
+            '            // same unwrapped shape as `renewed` above.\n' +
+            '            this.#guardedWarn(\n' +
+            '                SWEEP_INSTANCE_RELEASED_LOG_FAILED,\n' +
+            '                `realtime: released ${released} hold(s) of dead instance ` +\n' +
+            '                    `${id} (${emptied} emptied their slot)${unfinished}`,\n' +
+            '            )\n',
+            '            console.warn(\n' +
+            '                `realtime: released ${released} hold(s) of dead instance ` +\n' +
+            '                    `${id} (${emptied} emptied their slot)${unfinished}`,\n' +
+            '            )\n',
+        ]],
+        // Witness: T7 — the same shape as M6, one row down.
+        killedBy: '#418 T7 ',
+    },
 ]
 
 if (import.meta.main) {
     Deno.exit(
         await runBattery(
-                '#418 — the 5 traced catch sites stay guarded',
+                '#418 — the 7 traced catch sites stay guarded',
                 SUITES,
                 MUTATIONS,
             ) >
