@@ -33,6 +33,7 @@ import { type FakeServer, startFakeServer } from './fake_server.ts'
  * | :--- | :--- |
  * | an EVENT — a reconnect, a handshake, a warning, a pushed frame, a count | `waitFor` |
  * | a TRANSFER to complete, whose duration scales with the payload | {@link waitWhileAdvancing} |
+ * | an ABSENCE — a count must have stopped changing before it is read | {@link waitUntilSettled} |
  *
  * A deadline is right for an event, because an event either happens promptly
  * or something is broken, and the deadline is a liveness bound. It is wrong for
@@ -101,6 +102,53 @@ async function waitWhileAdvancing(
                 `stalled waiting for ${message}: no progress for ${stallMs}ms, ` +
                     `stuck at ${last}`,
             )
+        }
+    }
+}
+
+/**
+ * Wait until `value()` has been UNCHANGED for `settleMs`, bounded by
+ * `maxWaitMs` overall.
+ *
+ * **A fixed sleep is the wrong instrument for "nothing more happens", for the
+ * same reason `waitWhileAdvancing` is the right one for "it is still
+ * happening"** (#413-sibling, macOS CI run 36234084608 — `FR-007/SC-005`).
+ * That test used to sleep a fixed `livenessMs * 4` and then compare a
+ * counter, which assumes every legitimate settling step finishes inside that
+ * window on every runner. A slow or loaded runner does not make illegitimate
+ * activity fire SOONER — it makes everything land LATER, legitimate
+ * settling included — so a window sized for a fast runner reads a
+ * still-settling value as final on a slow one. This polls instead, and only
+ * stops once `value` has held for a full `settleMs`, so a slow runner is
+ * given more real time rather than read too early. `maxWaitMs` is a liveness
+ * bound, not a tuning knob — it fires only if `value` never stops changing.
+ *
+ * @param value - The counter being watched for settlement.
+ * @param settleMs - How long `value` must be unchanged to call it settled.
+ * @param maxWaitMs - The outer bound; exceeding it without settling throws.
+ * @param message - What was being waited for, for the failure text.
+ */
+async function waitUntilSettled(
+    value: () => number,
+    settleMs: number,
+    maxWaitMs: number,
+    message: string,
+): Promise<void> {
+    let last = value()
+    let settledSince = Date.now()
+    const deadline = Date.now() + maxWaitMs
+    while (Date.now() - settledSince < settleMs) {
+        if (Date.now() > deadline) {
+            throw new Error(
+                `waitUntilSettled timed out after ${maxWaitMs}ms: ${message}, ` +
+                    `still changing — stuck at ${last}`,
+            )
+        }
+        await new Promise((r) => setTimeout(r, 5))
+        const now = value()
+        if (now !== last) {
+            last = now
+            settledSince = Date.now()
         }
     }
 }
@@ -1127,7 +1175,14 @@ Deno.test('FR-007/SC-005: a multi-attempt recovery fires the seam EXACTLY once',
         )
         server.reachable()
         await waitFor(() => fires >= 1, 'the seam fired on recovery', 4000)
-        await new Promise((r) => setTimeout(r, FAST.livenessMs * 4))
+        // `fires` must stop moving, not merely have moved once by a fixed
+        // real-clock deadline (#413-sibling) — see `waitUntilSettled`.
+        await waitUntilSettled(
+            () => fires,
+            FAST.livenessMs * 4,
+            FAST.livenessMs * 20,
+            'the recovery seam count must stop changing',
+        )
         assertEquals(
             fires,
             1,
