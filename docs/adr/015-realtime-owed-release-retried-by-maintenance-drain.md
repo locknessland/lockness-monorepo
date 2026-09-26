@@ -164,6 +164,12 @@ its two callers.
 - **A broker that never lets any command settle at all.** That is #362/ADR 011's
   port-contract duty; this remedy's writes go through the same port and inherit
   that bound.
+- **`close()` waiting on a drain whose command never settles.** The driver's
+  `close()` awaits the drain run in flight with no bound of its own — the same
+  hazard [#368](https://github.com/locknessland/lockness-monorepo/issues/368)
+  bounds for the sweep pass and the lapse run (ADR 014). Whichever of the two
+  lands second puts this wait under that same one-TTL budget; until then it
+  inherits only the port contract above.
 - **Cross-instance duplication of retry work**, the same way the ghost sweep
   already accepts it (ADR 006 §5).
 
