@@ -20,47 +20,19 @@ jobs:
               with:
                   deno-version: v2.x
 
-            # 1. Vérifie que le code respecte le formatage standard
-            - name: Check Formatting
-              run: deno fmt --check
+            # The same versioned gate the pre-push hook and test.yml run
+            # (#388, #396): the ordered step list lives in scripts/gate.ts
+            # only, so this workflow cannot drift from it the way it did
+            # before (its own hand-typed list had no docs:coverage step).
+            # `--registry` asks JSR whether each package already exists there
+            # for the publish:check step only. A package must be created on
+            # JSR before anything can be published to it, and `deno publish`
+            # is atomic across the workspace — one missing package aborts all
+            # 27. This is a pre-publish check only; CI and the pre-push hook
+            # run the same task without the flag.
+            - name: Quality gate
+              run: deno task gate --registry
 
-            # 2. Analyse statique pour trouver les erreurs courantes
-            - name: Lint
-              run: deno lint
-
-            # 3. Type-check the whole workspace
-            - name: Type check
-              run: deno check
-
-            # 4. Cycles and tier policy. Declarations are step 7's job.
-            - name: Dependency integrity
-              run: deno task deps:analyze
-
-            # 5. Package briefs must match the code they describe
-            - name: Agent briefs up to date
-              run: deno task agents:brief --check
-
-            # 6. Tests. `deno task test` already carries -A.
-            - name: Run Tests
-              run: deno task test
-
-            # 7. THE pre-publish gate.
-            #
-            # `deno publish --dry-run` runs inside the workspace, where a bare
-            # `@lockness/x` specifier resolves by workspace member *name*
-            # whether or not the importing package declares it — so it passes
-            # for a package that ships a manifest a consumer cannot resolve.
-            # This check copies each package out of the workspace and proves it
-            # resolves alone. It is the only step that catches that class of
-            # defect before the version is permanently on JSR.
-            # `--registry` also asks JSR whether each package exists. A package
-            # must be created there before anything can be published to it, and
-            # `deno publish` is atomic across the workspace — one missing
-            # package aborts all 27. This is a pre-publish gate only; CI and the
-            # pre-push hook run the same task without the flag.
-            - name: Published-shape resolution
-              run: deno task publish:check --registry
-
-            # 8. Publie seulement si tout est vert
+            # Publish only once the gate above is green.
             - name: Publish to JSR
               run: deno publish
