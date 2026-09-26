@@ -246,6 +246,15 @@ cleanup (a failed lock release, an abandoned retry chain): without the fallback,
 a throwing reporter there would have gone unhandled and taken the process down
 with it.
 
+**`msg` is CR/LF-safe on every channel, including your own reporter; `fields` is
+not.** A stray `\r`/`\n` in a task name or a message could otherwise forge a
+second log line, so `msg` is always encoded before your reporter (or `console`,
+or `Deno.stderr`) ever sees it. `fields` is different: your reporter receives it
+raw and structured — untouched, exactly as the scheduler built it — because your
+own logging sink owns how it encodes a field for its own output. Only the
+`console`/`Deno.stderr` fallbacks encode `fields` themselves, and only its
+string-valued entries.
+
 ## Discovery and the kernel
 
 ```ts
