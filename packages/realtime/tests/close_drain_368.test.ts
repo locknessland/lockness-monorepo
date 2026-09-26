@@ -1,11 +1,12 @@
 /**
  * @fileoverview #368 — `close()` waits at most one liveness TTL for the work
- * it has in flight (the ghost-sweep pass, then the lapse run, #349's order),
- * then logs one WARN and carries on with the rest of its teardown, whether or
- * not either has settled.
+ * it has in flight (the ghost-sweep pass, then the lapse run, then the
+ * roster-maintenance drain — #349's and #371's order), then logs one WARN and
+ * carries on with the rest of its teardown, whether or not any of the three
+ * has settled.
  *
- * W1–W3 and W7 drive one `RedisBroadcastDriver` over a `FakeRedis` behind a
- * serialised command port — one exchange in flight, as on the production
+ * W1–W3, W7 and W9 drive one `RedisBroadcastDriver` over a `FakeRedis` behind
+ * a serialised command port — one exchange in flight, as on the production
  * client — with FakeTime. A gate held and never released is a command that
  * never settles: none of these witnesses awaits a stalled `close()` without
  * first bounding the wait with FakeTime ticks, so a mutant that removes the
@@ -381,8 +382,13 @@ Deno.test('#368 W4 (i) a healthy drain resolves with nothing pending and clears 
             5_000,
             Promise.resolve(),
             Promise.resolve(),
+            Promise.resolve(),
         )
-        assertEquals(pending, { sweepPass: false, lapseRun: false })
+        assertEquals(pending, {
+            sweepPass: false,
+            lapseRun: false,
+            maintenanceDrain: false,
+        })
         assertEquals(created.length, 1, 'one timer armed')
         assertEquals(cleared, created, 'the same timer was cleared')
     } finally {
@@ -564,4 +570,52 @@ Deno.test("#368 W8 the drain's timer is ref'd: a caller that does not await clos
         'settled',
         "the ref'd timer let the unawaited call finish and print",
     )
+})
+
+// ---------------------------------------------------------------------------
+// W9 — the roster-maintenance drain alone is stalled (#371)
+// ---------------------------------------------------------------------------
+
+Deno.test('#368 W9 a stalled roster-maintenance drain: close() waits until the TTL and logs one WARN naming the drain', async () => {
+    const redis = new FakeRedis()
+    const time = new FakeTime(START)
+    const port = lapsingPort(redis)
+    const b = driverC(redis, port.command, { livenessTtlSeconds: 3 })
+    b.onRosterMaintenance(() => new Promise<void>(() => {}))
+    const logs = captureLogs()
+    try {
+        // The boot beat already fires the maintenance trigger (#371's own
+        // heartbeat tail, unconditional on any successful decode) — unlike
+        // the lapse run, no forced nil reply is needed.
+        await b.holdMember(OTHER, { id: 9 })
+
+        let closed = false
+        const closing = b.close().then(() => void (closed = true))
+        await time.tickAsync(2_999)
+        await settle()
+        assertEquals(closed, false, 'close() still waits at TTL - 1 ms')
+        await time.tickAsync(1)
+        await settle()
+        assertEquals(closed, true, 'close() resolves at the TTL')
+        await closing
+
+        assertEquals(logs.warns.length, 1, 'exactly one WARN')
+        assertStringIncludes(logs.warns[0], CLOSE_DRAIN_EXPIRED)
+        assertStringIncludes(logs.warns[0], 'the owed-release drain')
+        assert(
+            !logs.warns[0].includes('the ghost sweep pass'),
+            'no sweep pass ever started — not named',
+        )
+        assert(
+            !logs.warns[0].includes('the lapse run'),
+            'the lapse run was healthy — not named',
+        )
+    } finally {
+        // Not closed a second time: the maintenance handler above never
+        // settles, and close() would arm a second full budget waiting for
+        // it.
+        logs.restore()
+        time.restore()
+        redis.assertNoRejections()
+    }
 })

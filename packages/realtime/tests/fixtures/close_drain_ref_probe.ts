@@ -24,6 +24,7 @@ async function run(): Promise<void> {
         300,
         new Promise<void>(() => {}),
         Promise.resolve(),
+        Promise.resolve(),
     )
     console.log(`settled ${JSON.stringify(result)}`)
 }
