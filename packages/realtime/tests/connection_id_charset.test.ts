@@ -197,8 +197,9 @@ Deno.test('#304 reconcile drops a broker-injected id outside the charset', async
         'x\nGET /admin 200',
     ]
     const { command, subscriber, recording } = recordingPorts({
-        // The reap's `t`.
-        EVAL: bulk('1000'),
+        // The reap's `{t, kind}` (#405): a healthy `zset` floor, so nothing
+        // heals.
+        EVAL: array([bulk('1000'), bulk('zset')]),
         // One page, cursor `0`: every record scored past `t`.
         ZSCAN: array([
             bulk('0'),

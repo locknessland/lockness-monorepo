@@ -152,6 +152,15 @@ async function ingestOfOneSubscribe(
                 ? {}
                 : { maxPresenceSnapshotMembers }),
         })
+        // The manager's construction registers onRevocationReconcile, whose
+        // first-registration floor announce (#380) fires over this SAME
+        // counting port. Since #405 that announce's reply carries `kind`
+        // (never a payload before), so it must settle before the window
+        // below opens, or a few of its bytes land in "one subscribe's
+        // ingest" by a scheduling accident rather than by what a subscribe
+        // itself reads. A real timer, not `Promise.resolve()`, because the
+        // announce's chain is more than one microtask deep.
+        await new Promise<void>((resolve) => setTimeout(resolve, 0))
         const joiner = idOf(size)
         counting = true
         const cJoiner = conn('c-joiner', joiner)

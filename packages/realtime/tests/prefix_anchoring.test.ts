@@ -221,18 +221,25 @@ const CANNED = {
     // scripts declare 4 keys and the deregistration script 3 (#345, #355);
     // all three accept the integer 0 through their strict decoders. The one
     // 2-key script is the revocation reap (#359, #380: index, then floor),
-    // which answers the Redis second as a digit bulk. A 1-key script whose
-    // key is the revocation floor is the floor announce (#380), which answers
-    // nil. Every other 1-key script — the roster read (#341) and the
-    // revocation mark — gets the roster read's `{ HLEN, sample, selves }`
-    // shape.
+    // which answers `{t, kind}` (#405: a digit bulk, then the floor's prior
+    // Redis type — `zset` here, a healthy floor, so nothing heals). A 1-key
+    // script whose key is the revocation floor is the floor announce (#380),
+    // which answers `kind` alone since #405 (`zset`, same reasoning). Every
+    // other 1-key script — the roster read (#341) and the revocation mark —
+    // gets the roster read's `{ HLEN, sample, selves }` shape.
     EVAL: (args: string[]) =>
         Number(args[2]) >= 3
             ? { type: 'integer', value: 0 }
             : Number(args[2]) === 2
-            ? { type: 'bulk', value: '1757000000' }
+            ? {
+                type: 'array',
+                value: [
+                    { type: 'bulk', value: '1757000000' },
+                    { type: 'bulk', value: 'zset' },
+                ],
+            }
             : args[3].endsWith('__revocation-floor')
-            ? { type: 'nil' }
+            ? { type: 'bulk', value: 'zset' }
             : {
                 type: 'array',
                 value: [
