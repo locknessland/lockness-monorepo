@@ -37,6 +37,8 @@
  * @param caught - Whatever a `catch` bound.
  * @returns `caught` itself when it is already an `Error`; otherwise a new
  * `Error` whose message is `String(caught)`.
+ * @throws {TypeError} When `caught` is a revoked Proxy (the `instanceof`
+ * check) or has no usable `toString` (the `String()` call).
  *
  * @example
  * ```ts
