@@ -115,6 +115,7 @@ integrationTest(
             await awaitSubscribers(reader, namespace, 2)
 
             const listener = connection('b-listener', { id: 1, name: 'Bea' })
+            b.manager.register(listener)
             await b.manager.subscribe(listener, 'private-orders')
 
             a.manager.broadcast('private-orders', 'created', { id: 42 })
@@ -140,8 +141,10 @@ integrationTest(
             await awaitSubscribers(reader, namespace, 2)
 
             const rejected = connection('b-rejected', { id: 99, name: 'Mal' })
+            b.manager.register(rejected)
             await b.manager.subscribe(rejected, 'private-orders')
             const allowed = connection('b-allowed', { id: 3, name: 'Dee' })
+            b.manager.register(allowed)
             await b.manager.subscribe(allowed, 'private-orders')
 
             a.manager.broadcast('private-orders', 'created', { id: 7 })
@@ -179,6 +182,8 @@ integrationTest(
 
             const onA = connection('a-1', { id: 11, name: 'Ana' })
             const onB = connection('b-1', { id: 22, name: 'Bo' })
+            a.manager.register(onA)
+            b.manager.register(onB)
             await a.manager.subscribe(onA, 'presence-lobby')
             await b.manager.subscribe(onB, 'presence-lobby')
 
@@ -226,8 +231,10 @@ integrationTest(
             await awaitSubscribers(reader, namespace, 2)
 
             const onA = connection('a-2', { id: 33, name: 'Cai' })
+            a.manager.register(onA)
             await a.manager.subscribe(onA, 'presence-lobby')
             const onB = connection('b-2', { id: 44, name: 'Di' })
+            b.manager.register(onB)
             await b.manager.subscribe(onB, 'presence-lobby')
 
             // Asserted on the ACTION, not a bare id: a `left` frame carries the
@@ -273,10 +280,13 @@ integrationTest(
 
             const watcherOnA = connection('watch-a', { id: 51, name: 'Wa' })
             const watcherOnB = connection('watch-b', { id: 52, name: 'Wb' })
+            a.manager.register(watcherOnA)
+            b.manager.register(watcherOnB)
             await a.manager.subscribe(watcherOnA, 'presence-lobby')
             await b.manager.subscribe(watcherOnB, 'presence-lobby')
 
             const target = connection('owned-by-a', { id: 55, name: 'Eli' })
+            a.manager.register(target)
             await a.manager.subscribe(target, 'presence-lobby')
 
             // Positive read FIRST, so the absence assertion below cannot pass
@@ -531,6 +541,7 @@ integrationTest(
             await awaitSubscribers(reader, namespace, 1)
 
             const watcher = connection('watcher', { id: 1, name: 'Wat' })
+            a.manager.register(watcher)
             await a.manager.subscribe(watcher, 'presence-lobby')
             const joinsSeen = () =>
                 watcher.frames.filter((f) =>
@@ -733,16 +744,25 @@ integrationTest(
                 // All three in the SAME channel. One channel, three owners: a sweep
                 // that deletes the whole presence hash rather than the dead
                 // instance's fields would pass a single-owner test perfectly.
-                await survivor.manager.subscribe(
-                    connection('survivor-conn', { id: 1, name: 'Ada' }),
-                    'presence-ops',
-                )
-                await doomed.manager.subscribe(
-                    connection('doomed-conn', { id: 2, name: 'Boris' }),
-                    'presence-ops',
-                )
+                const survivorConn = connection('survivor-conn', {
+                    id: 1,
+                    name: 'Ada',
+                })
+                const doomedConn = connection('doomed-conn', {
+                    id: 2,
+                    name: 'Boris',
+                })
+                const bystanderConn = connection('bystander-conn', {
+                    id: 3,
+                    name: 'Cleo',
+                })
+                survivor.manager.register(survivorConn)
+                doomed.manager.register(doomedConn)
+                bystander.manager.register(bystanderConn)
+                await survivor.manager.subscribe(survivorConn, 'presence-ops')
+                await doomed.manager.subscribe(doomedConn, 'presence-ops')
                 await bystander.manager.subscribe(
-                    connection('bystander-conn', { id: 3, name: 'Cleo' }),
+                    bystanderConn,
                     'presence-ops',
                 )
 
@@ -911,10 +931,12 @@ integrationTest(
         await withFaultyInstance(
             namespace,
             async ({ manager }, fault) => {
-                await manager.subscribe(
-                    connection('resident-conn', { id: 1, name: 'Ada' }),
-                    'presence-ops',
-                )
+                const residentConn = connection('resident-conn', {
+                    id: 1,
+                    name: 'Ada',
+                })
+                manager.register(residentConn)
+                await manager.subscribe(residentConn, 'presence-ops')
                 await waitFor(
                     async () =>
                         (await reader.roster(namespace, 'presence-ops'))
@@ -956,10 +978,12 @@ integrationTest(
                 // has to reach the authoritative roster while the fault is
                 // still on — only the liveness `SET` is refused, every other
                 // command goes to the broker.
-                await manager.subscribe(
-                    connection('late-conn', { id: 2, name: 'Boris' }),
-                    'presence-ops',
-                )
+                const lateConn = connection('late-conn', {
+                    id: 2,
+                    name: 'Boris',
+                })
+                manager.register(lateConn)
+                await manager.subscribe(lateConn, 'presence-ops')
                 await waitFor(
                     async () =>
                         (await reader.roster(namespace, 'presence-ops'))
@@ -1027,14 +1051,18 @@ integrationTest(
                     1,
                     namespace,
                     async ([b]) => {
-                        await b.manager.subscribe(
-                            connection('b-observer', { id: 1, name: 'Ada' }),
-                            'presence-ops',
-                        )
-                        await a.manager.subscribe(
-                            connection('a7', { id: 7, name: 'Boris' }),
-                            'presence-ops',
-                        )
+                        const bObserver = connection('b-observer', {
+                            id: 1,
+                            name: 'Ada',
+                        })
+                        const a7Conn = connection('a7', {
+                            id: 7,
+                            name: 'Boris',
+                        })
+                        b.manager.register(bObserver)
+                        a.manager.register(a7Conn)
+                        await b.manager.subscribe(bObserver, 'presence-ops')
+                        await a.manager.subscribe(a7Conn, 'presence-ops')
                         await waitFor(
                             async () =>
                                 (await reader.roster(namespace, 'presence-ops'))
@@ -1246,14 +1274,12 @@ integrationTest(
                 return reply.type === 'integer' ? reply.value : -1
             }
 
-            await a.manager.subscribe(
-                connection('a1', { id: 1, name: 'a1' }),
-                'alpha',
-            )
-            await b.manager.subscribe(
-                connection('b1', { id: 2, name: 'b1' }),
-                'beta',
-            )
+            const a1Conn = connection('a1', { id: 1, name: 'a1' })
+            const b1Conn = connection('b1', { id: 2, name: 'b1' })
+            a.manager.register(a1Conn)
+            b.manager.register(b1Conn)
+            await a.manager.subscribe(a1Conn, 'alpha')
+            await b.manager.subscribe(b1Conn, 'beta')
             // Both watches have to have LANDED before a count means anything.
             // The probe channel every instance holds is already proof the
             // sockets are up; this waits for these two specific subscriptions.
@@ -1305,14 +1331,12 @@ integrationTest(
                 return reply.type === 'integer' ? reply.value : -1
             }
 
-            await a.manager.subscribe(
-                connection('a1', { id: 1, name: 'a1' }),
-                'alpha',
-            )
-            await a.manager.subscribe(
-                connection('a2', { id: 3, name: 'a2' }),
-                'alpha',
-            )
+            const a1Conn = connection('a1', { id: 1, name: 'a1' })
+            const a2Conn = connection('a2', { id: 3, name: 'a2' })
+            a.manager.register(a1Conn)
+            a.manager.register(a2Conn)
+            await a.manager.subscribe(a1Conn, 'alpha')
+            await a.manager.subscribe(a2Conn, 'alpha')
             await waitFor(
                 async () => await receivers() === 1,
                 'alpha is hosted',
@@ -1355,14 +1379,12 @@ integrationTest(
                 return reply.type === 'integer' ? reply.value : -1
             }
 
-            await a.manager.subscribe(
-                connection('keep', { id: 1, name: 'keep' }),
-                'kept',
-            )
-            await a.manager.subscribe(
-                connection('drop', { id: 2, name: 'drop' }),
-                'dropped',
-            )
+            const keepConn = connection('keep', { id: 1, name: 'keep' })
+            const dropConn = connection('drop', { id: 2, name: 'drop' })
+            a.manager.register(keepConn)
+            a.manager.register(dropConn)
+            await a.manager.subscribe(keepConn, 'kept')
+            await a.manager.subscribe(dropConn, 'dropped')
             await waitFor(
                 async () =>
                     await receivers('kept') === 1 &&
@@ -1417,6 +1439,7 @@ integrationTest(
             const index = keys(namespace).revocations
             const room = 'private-room'
             const victim = connection('c1', { id: 71, name: 'Vic' })
+            b.manager.register(victim)
             const kicks = () =>
                 victim.frames.filter((f) => f.includes('"unsubscribed"'))
                     .length

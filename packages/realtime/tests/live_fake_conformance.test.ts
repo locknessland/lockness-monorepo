@@ -1346,8 +1346,12 @@ Deno.test({
         const A = instance('A')
         const B = instance('B')
         try {
-            await A.manager.subscribe(connection('a1'), CH)
-            await B.manager.subscribe(connection('b1'), CH)
+            const a1 = connection('a1')
+            const b1 = connection('b1')
+            A.manager.register(a1)
+            B.manager.register(b1)
+            await A.manager.subscribe(a1, CH)
+            await B.manager.subscribe(b1, CH)
             assertEquals(
                 published.filter((c) => c.kind === 'presence-join').length,
                 1,
