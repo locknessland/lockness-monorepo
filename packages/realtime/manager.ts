@@ -12,6 +12,7 @@
  */
 
 import { renderError, safeForLog } from '@lockness/contract'
+import { triggerDeprecation } from '@lockness/deprecation-contracts'
 import { isPresenceMemberWire, isValidName } from './protocol.ts'
 import { admitPresenceMember } from './presence_member.ts'
 import { writeMarkedFallback } from './marked_fallback.ts'
@@ -1174,7 +1175,9 @@ export class ChannelManager<Identity = unknown> {
      * links here rather than restating it):
      *
      * - **Retired** means a `disconnect` has begun for this connection
-     *   **object**. {@link disconnect} is the only writer, at its entry.
+     *   **object**. {@link #teardown} is the only writer, at its entry — the
+     *   public {@link disconnect} and `revokeLocal`'s direct internal call
+     *   (#392) both reach it, and neither writes here any other way.
      * - It is **terminal** and **per-manager**: nothing ever removes an entry,
      *   and another manager knows nothing of it.
      * - It is **keyed by object**, so an entry lives exactly as long as someone
@@ -1185,7 +1188,7 @@ export class ChannelManager<Identity = unknown> {
      *   owned — `connections` answers that, for every reader that asks it —
      *   and is only no longer admissible. {@link #assertAdmissible} is the one
      *   reader, and it still asks only `.has(connection)` — the value stored
-     *   alongside is {@link disconnect}'s own business.
+     *   alongside is {@link #teardown}'s own business.
      * - **The value is the retiring teardown's promise, not a boolean.** A
      *   second `disconnect` of an object already present here joins that
      *   promise instead of running its own copy of the reverse-index loop
@@ -1197,6 +1200,16 @@ export class ChannelManager<Identity = unknown> {
         Connection<Identity>,
         Promise<DisconnectOutcome>
     >()
+    /**
+     * Whether {@link disconnect}'s id-form deprecation notice has already
+     * fired for THIS manager instance (#392). Written only by
+     * {@link #warnIdForm}, `disconnect`'s own helper. A line per socket close
+     * under connection churn would be worse than one line ever, so the notice
+     * is per-manager, not per-call — unlike `#retired`, this flag is never
+     * per-object: every id-form call after the first, for any id, sees it
+     * already `true`.
+     */
+    #idFormWarned = false
     /** The driver's per-channel watch ops, or `undefined` — one guard (#295). */
     #watcher: ChannelWatchCapableDriver | undefined
     /**
@@ -3222,8 +3235,22 @@ export class ChannelManager<Identity = unknown> {
      * later ones are WARNed, and a failure is recorded by a flag, so a
      * rejection carrying `undefined` is re-thrown too.
      *
+     * **The id form is deprecated for application callers** (#392). Passing a
+     * bare id — instead of the `Connection` object your close hook received —
+     * now raises one `triggerDeprecation` notice
+     * (`@lockness/deprecation-contracts`) per `ChannelManager` instance, never
+     * a second one for that instance and never one for the object form. This
+     * is a visibility change only: the id form still does exactly what it did
+     * above, tearing down whoever holds that id when it runs — narrowing the
+     * signature, or fixing that hazard itself, is later work the issue
+     * defers. `evict`'s own internal id-form call bypasses this method
+     * entirely (see {@link #teardown}) and never raises the notice: it is for
+     * application code choosing the id form, not for the shape the framework
+     * still uses itself.
+     *
      * @param target - The registered connection object (from a close hook),
-     *   or a connection id (the form `evict` uses).
+     *   or a connection id (the form `evict` uses — deprecated for
+     *   application callers, #392).
      * @returns `'disconnected'` when this instance owned the socket and tore it
      *   down, `'not-owned'` when the socket lives elsewhere, or when the object
      *   passed is not the one that owns its id — nothing local was touched.
@@ -3235,12 +3262,80 @@ export class ChannelManager<Identity = unknown> {
      * ```ts
      * const hooks = {
      *     onOpen: (conn) => manager.register(conn),
-     *     // The object you registered, not `conn.id`.
+     *     // The object you registered, not `conn.id` — passing the id here
+     *     // still works, but now logs a one-time deprecation notice (#392).
      *     onClose: (conn) => manager.disconnect(conn),
      * }
      * ```
      */
     disconnect(
+        target: string | Connection<Identity>,
+    ): Promise<DisconnectOutcome> {
+        if (typeof target === 'string') this.#warnIdForm()
+        return this.#teardown(target)
+    }
+
+    /**
+     * Fires {@link disconnect}'s id-form deprecation notice (#392) — at most
+     * ONCE per manager instance, never per call. A line per socket close under
+     * connection churn would be worse than one line ever, so `#idFormWarned`
+     * is checked and set here, and nowhere else. {@link disconnect} is the
+     * only caller; `revokeLocal`'s own id-form call reaches {@link #teardown}
+     * directly and never this method, which is what keeps the framework's own
+     * use of the shape silent.
+     *
+     * @returns void
+     */
+    #warnIdForm(): void {
+        if (this.#idFormWarned) return
+        this.#idFormWarned = true
+        triggerDeprecation(
+            '@lockness/realtime',
+            '0.4.0',
+            'disconnect() called with a connection id is deprecated — pass ' +
+                'the Connection object your close hook received instead',
+        )
+    }
+
+    /**
+     * `disconnect`'s engine, and `revokeLocal`'s own id-form entry point
+     * (#392) — split out of the public method's body, unchanged, so the
+     * public wrapper can raise its deprecation notice without this, the part
+     * that actually retires and tears down, ever running twice for one call.
+     *
+     * **The object form acts only for the owner** (#363), asked before
+     * anything is retired, copied or awaited: a socket that does not own its
+     * id must not tear down the one that does.
+     *
+     * **It retires the connection object first** (#361), in the synchronous
+     * turn that copies the connection's channels: from then on `register` and
+     * `subscribe` refuse that object with {@link ConnectionDisconnectedError},
+     * and a different object under its id with {@link ConnectionIdInUseError}
+     * while the teardown runs. A join that committed before this call is torn
+     * down with the rest; one resolving after it is refused before it writes.
+     * The connection stays in `connections` — still owned — until the teardown
+     * ends. An id this instance does not own retires nothing.
+     *
+     * **One teardown per object, ever** (#393). A second call for an object
+     * already retiring — `evict`'s id form racing the transport's own close
+     * event with the object form, both entered while the object still owned
+     * the id — joins the first call's promise instead of computing its own
+     * copy of the reverse index and running a second, independent loop: the id
+     * stays bound to the one retiring object until its own, single teardown
+     * ends.
+     *
+     * @param target - The registered connection object (from a close hook,
+     *   or `disconnect`'s object form), or a connection id (`disconnect`'s id
+     *   form, and `revokeLocal`'s own direct call).
+     * @returns `'disconnected'` when this instance owned the socket and tore it
+     *   down, `'not-owned'` when the socket lives elsewhere, or when the object
+     *   passed is not the one that owns its id — nothing local was touched.
+     * @throws Whatever the first channel teardown threw — unchanged; the
+     *   connection is still forgotten, and the outcome is not reported in that
+     *   case because the throw is the report. A second, joining call throws
+     *   the same rejection the first call did.
+     */
+    #teardown(
         target: string | Connection<Identity>,
     ): Promise<DisconnectOutcome> {
         // THE OBJECT FORM ACTS ONLY FOR THE OWNER (#363), asked before
@@ -3251,8 +3346,8 @@ export class ChannelManager<Identity = unknown> {
         }
         const clientId = typeof target === 'string' ? target : target.id
         // READ BEFORE ANY AWAIT, exactly as #361 always did: this is the one
-        // read every later decision in this call (and #teardown's) is taken
-        // from.
+        // read every later decision in this call (and #teardownChannels's) is
+        // taken from.
         const bound = this.connections.get(clientId)
         // JOIN, RATHER THAN RUN (#393): an object already retiring has a
         // teardown in flight, keyed by the object itself — never by
@@ -3263,32 +3358,32 @@ export class ChannelManager<Identity = unknown> {
             const joining = this.#retired.get(bound)
             if (joining !== undefined) return joining
         }
-        const teardown = this.#teardown(clientId, bound)
+        const teardown = this.#teardownChannels(clientId, bound)
         // RETIRED, synchronously, in the same turn that read `bound` above
-        // (the #361 rule, unchanged): `#teardown` already ran synchronously up
-        // to its own first await, so nothing has run between that read and
-        // this write that could have observed `bound` retiring with no entry
-        // here — a second, same-turn call for this very object still finds
-        // it and joins.
+        // (the #361 rule, unchanged): `#teardownChannels` already ran
+        // synchronously up to its own first await, so nothing has run between
+        // that read and this write that could have observed `bound` retiring
+        // with no entry here — a second, same-turn call for this very object
+        // still finds it and joins.
         if (bound !== undefined) this.#retired.set(bound, teardown)
         return teardown
     }
 
     /**
-     * The reverse-index loop and forgetting `finally` for one `disconnect`
-     * call, extracted so a second teardown of an already-retiring object can
-     * await this very run instead of executing a copy of its own (#393) —
-     * {@link disconnect} is the only caller, and the only writer of
+     * The reverse-index loop and forgetting `finally` for one teardown call,
+     * extracted so a second teardown of an already-retiring object can await
+     * this very run instead of executing a copy of its own (#393) —
+     * {@link #teardown} is the only caller, and the only writer of
      * {@link #retired}.
      *
-     * @param clientId - The id `disconnect` was called with.
-     * @param bound - The object `disconnect` read `connections` as holding
+     * @param clientId - The id `#teardown` was called with.
+     * @param bound - The object `#teardown` read `connections` as holding
      *   `clientId`, or `undefined` when this instance did not own it.
      * @returns `'disconnected'` when `bound` was owned and torn down here,
      *   `'not-owned'` otherwise.
      * @throws Whatever the first channel's teardown threw — unchanged.
      */
-    async #teardown(
+    async #teardownChannels(
         clientId: string,
         bound: Connection<Identity> | undefined,
     ): Promise<DisconnectOutcome> {
@@ -3395,8 +3490,8 @@ export class ChannelManager<Identity = unknown> {
      * @throws Whatever the durable revocation write rejected with, after the
      *   revocation itself was applied or published — recorded by a flag, so a
      *   rejection carrying `undefined` is re-thrown too (#361). A local evict
-     *   retires the connection through `disconnect`, so a later `subscribe`
-     *   with that object is refused.
+     *   retires the connection through `revokeLocal`'s direct `#teardown` call
+     *   (#392), so a later `subscribe` with that object is refused.
      * @example
      * ```ts
      * // A revoked token: kick the connection off every instance.
@@ -3470,8 +3565,14 @@ export class ChannelManager<Identity = unknown> {
      * reach the caller, where the revocation re-check counts it, rather than
      * become a WARN that reads like the contained teardown failure below.
      *
+     * **Calls {@link #teardown} directly, never the public `disconnect`**
+     * (#392). This is the framework's own id-form caller — the shape
+     * `disconnect`'s id form now warns application code about — so it must
+     * stay silent: going through the public wrapper here would raise a
+     * deprecation notice for the framework's own use of its own primitive.
+     *
      * @param clientId - The owned connection id to revoke.
-     * @returns `true` once `disconnect` fulfilled — `'disconnected'`, or
+     * @returns `true` once the teardown fulfilled — `'disconnected'`, or
      *   `'not-owned'` when nothing is left to tear down here — and `false`
      *   when the teardown threw, after its WARN (#384). `evict` and the
      *   control-frame path drop it; the revocation re-check counts it.
@@ -3482,7 +3583,7 @@ export class ChannelManager<Identity = unknown> {
         // roster teardown settles (Q2 — safe even if `authorize()` lags).
         this.connections.get(clientId)?.close(4403, 'evicted')
         try {
-            await this.disconnect(clientId)
+            await this.#teardown(clientId)
         } catch (error) {
             console.warn(
                 `realtime: evict teardown for ${safeForLog(clientId)} failed ` +
