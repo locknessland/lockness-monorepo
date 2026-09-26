@@ -13,6 +13,7 @@ import {
     assertStrictEquals,
     assertThrows,
 } from '@std/assert'
+import { stub } from '@std/testing/mock'
 import { FakeTime } from '@std/testing/time'
 import {
     MAX_RETRIES,
@@ -25,6 +26,12 @@ import { everyMinute, hourly, yearly } from '../presets.ts'
 import { MAX_DELAY_MS } from '../timer_registry.ts'
 
 const quiet = { error: () => {}, warn: () => {} }
+
+/**
+ * The real `setTimeout`, captured before any test installs `FakeTime` — so a
+ * wait through it always yields a real macrotask, even under a faked clock.
+ */
+const REAL_SET_TIMEOUT = globalThis.setTimeout
 
 // ============================================================================
 // Identity and uniqueness
@@ -1017,6 +1024,67 @@ Deno.test('getStats - every field is asserted, and a FAILED run still counts as 
         assertEquals(s.getStats().stopped, true)
         assertEquals(s.getStats().pendingTimers, 0)
     } finally {
+        time.restore()
+    }
+})
+
+// ============================================================================
+// Reporter guard — #394
+// ============================================================================
+
+Deno.test('reporter guard - a throwing warn inside the run finally does not become an unhandled rejection', async () => {
+    // The defect #394 fixed: `#warn` read `reporter ?? console` unguarded. The
+    // lock-release warning fires from inside `#run`'s `finally`, and `#run` is
+    // reached from `#arm`'s timer callback as `void this.#run(name)` — a throw
+    // there has no caller left to catch it, and becomes an unhandled rejection,
+    // which terminates the process on Deno.
+    const time = new FakeTime(new Date('2026-03-01T10:00:00Z'))
+    const consoleWarn = stub(console, 'warn')
+    const escaped: unknown[] = []
+    const onRejection = (event: PromiseRejectionEvent) => {
+        event.preventDefault()
+        escaped.push(event.reason)
+    }
+    globalThis.addEventListener('unhandledrejection', onRejection)
+    try {
+        const s = new Scheduler(
+            {
+                warn: () => {
+                    throw new Error('reporter is down')
+                },
+                error: () => {},
+            },
+            {
+                acquire: () => Promise.resolve(true),
+                release: () => Promise.reject(new Error('release lost')),
+            },
+        )
+        s.register({
+            expression: everyMinute,
+            body: () => {},
+            options: { name: 'nightly', onOneServer: true },
+        })
+        s.start()
+
+        await time.tickAsync(60_000)
+        // `unhandledrejection` is dispatched once the microtask queue drains,
+        // which a virtual clock does not itself force — yield one real
+        // macrotask before asking what escaped.
+        await new Promise((resolve) => REAL_SET_TIMEOUT(resolve, 0))
+
+        assertEquals(
+            escaped,
+            [],
+            'a throwing reporter must not escape as an unhandled rejection',
+        )
+        assert(
+            consoleWarn.calls.length > 0,
+            'the warning still reached the console fallback',
+        )
+        s.stop()
+    } finally {
+        globalThis.removeEventListener('unhandledrejection', onRejection)
+        consoleWarn.restore()
         time.restore()
     }
 })

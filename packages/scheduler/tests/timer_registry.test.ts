@@ -9,6 +9,7 @@
  */
 
 import { assertEquals } from '@std/assert'
+import { stub } from '@std/testing/mock'
 import { FakeTime } from '@std/testing/time'
 import { MAX_DELAY_MS, MIN_DELAY_MS, TimerRegistry } from '../timer_registry.ts'
 
@@ -194,6 +195,36 @@ Deno.test('TimerRegistry - has() distinguishes a pending timer from an absent on
         r.cancel('a')
         assertEquals(r.has('a'), false, 'cancelling clears it')
     } finally {
+        time.restore()
+    }
+})
+
+// ============================================================================
+// Reporter guard — #394
+// ============================================================================
+
+Deno.test('TimerRegistry - a reporter that throws on the clamp warning does not escape arm()', () => {
+    // `arm()` calls `#warn()` SYNCHRONOUSLY, from `register()`'s call chain,
+    // outside any promise — a throw here used to be an uncaught exception the
+    // caller had no way to catch, not a rejection something could handle.
+    const time = new FakeTime()
+    const consoleWarn = stub(console, 'warn')
+    try {
+        const r = new TimerRegistry({
+            error: () => {},
+            warn: () => {
+                throw new Error('reporter is down')
+            },
+        })
+        r.arm('a', 5, () => {})
+        assertEquals(
+            consoleWarn.calls.length,
+            1,
+            'the clamp still reached the console fallback',
+        )
+        r.clear()
+    } finally {
+        consoleWarn.restore()
         time.restore()
     }
 })

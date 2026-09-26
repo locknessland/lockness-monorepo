@@ -7,6 +7,7 @@
  */
 
 import { assertEquals } from '@std/assert'
+import { stub } from '@std/testing/mock'
 import { runTask, TaskTimeoutError } from '../task_runner.ts'
 import type { SchedulerReporter, TaskFailure } from '../types.ts'
 
@@ -218,6 +219,78 @@ Deno.test('runTask - the reported line carries no raw error object', async () =>
         false,
         'the message names the failure, not the stack',
     )
+})
+
+// ============================================================================
+// Reporter guard — #394
+// ============================================================================
+
+Deno.test('runTask - a reporter that throws on the failure report does not escape runTask', async () => {
+    // task_runner.ts's `report()`: previously `if (reporter) reporter.error(…)`
+    // was unguarded, so a throwing reporter escaped the one catch this package
+    // permits — runTask() is documented as never throwing.
+    const consoleError = stub(console, 'error')
+    try {
+        const outcome = await runTask(
+            'flaky-reporter',
+            () => {
+                throw new Error('boom')
+            },
+            {},
+            {
+                warn: () => {},
+                error: () => {
+                    throw new Error('reporter is down')
+                },
+            },
+            noSleep,
+        )
+        assertEquals(outcome.ok, false)
+        assertEquals(
+            consoleError.calls.length,
+            1,
+            'the failure still reached the console fallback',
+        )
+    } finally {
+        consoleError.restore()
+    }
+})
+
+Deno.test('runTask - a reporter that throws while containing a throwing onError does not escape runTask', async () => {
+    // task_runner.ts's `guard()`: same unguarded `if (reporter) reporter.error(…)`,
+    // reached from the containment path rather than the failure report.
+    const consoleError = stub(console, 'error')
+    try {
+        let onErrorCalls = 0
+        const outcome = await runTask(
+            'nested-reporter-down',
+            () => {
+                throw new Error('task failed')
+            },
+            {
+                onError: () => {
+                    onErrorCalls++
+                    throw new Error('the logger is down too')
+                },
+            },
+            {
+                warn: () => {},
+                error: () => {
+                    throw new Error('reporter is down')
+                },
+            },
+            noSleep,
+        )
+        assertEquals(onErrorCalls, 1, 'the retry chain still ran onError')
+        assertEquals(outcome.ok, false)
+        assertEquals(
+            consoleError.calls.length,
+            2,
+            'both the failure report and the onError containment fell back to console',
+        )
+    } finally {
+        consoleError.restore()
+    }
 })
 
 Deno.test('TaskTimeoutError - names the task and the elapsed budget', () => {
