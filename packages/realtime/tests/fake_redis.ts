@@ -1179,6 +1179,25 @@ export class FakeRedis {
                 else this.#keyExpiry.set(key, expireAt)
                 return previous ?? { type: 'simple', value: 'OK' }
             }
+            case 'TYPE': {
+                // TYPE key -> a status reply naming the key's Redis type, or
+                // 'none' for an absent (or lapsed) key (#405). This fake never
+                // models a `list` or a `stream`, so those two kinds are never
+                // produced here — only on a live broker, which is why #405's
+                // list/stream rows are live-only.
+                const [key] = rest
+                if (this.#expired(key)) this.#dropKey(key)
+                const kind = this.#strings.has(key)
+                    ? 'string'
+                    : this.#sets.has(key)
+                    ? 'set'
+                    : this.#hashes.has(key)
+                    ? 'hash'
+                    : this.#zsets.has(key)
+                    ? 'zset'
+                    : 'none'
+                return { type: 'simple', value: kind }
+            }
             case 'EXISTS': {
                 // EXISTS key [key ...] -> a COUNT, and across every type. It
                 // read `rest[0]` and consulted only `#strings`, so it answered
