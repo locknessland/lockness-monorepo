@@ -3364,20 +3364,16 @@ export class RedisBroadcastDriver implements BroadcastDriver {
                     priority: true,
                 }),
             ).catch((error: unknown) => {
-                try {
-                    console.warn(
-                        'realtime: the control subscription could not be ' +
-                            "issued — the driver's own retry is what restores " +
-                            `it: ${renderError(error)}`,
-                    )
-                } catch (sink) {
-                    // #395: this promise is `void`ed, so a throwing sink would
-                    // escape as an unhandled rejection. One marked line.
-                    writeMarkedFallback(CONTROL_SUBSCRIBE_LOG_FAILED, error, {
-                        label: 'sink failure',
-                        error: sink,
-                    })
-                }
+                // #395: this promise is `void`ed, so a throwing sink would
+                // escape as an unhandled rejection. One marked line, through
+                // #guardedWarn's shared #369 shape.
+                this.#guardedWarn(
+                    CONTROL_SUBSCRIBE_LOG_FAILED,
+                    'realtime: the control subscription could not be ' +
+                        "issued — the driver's own retry is what restores " +
+                        `it: ${renderError(error)}`,
+                    error,
+                )
             })
             return
         }
@@ -3530,18 +3526,45 @@ export class RedisBroadcastDriver implements BroadcastDriver {
 
     /**
      * Write the one {@link PASS_SAMPLE_FAILED} WARN for a handler that failed,
-     * in the #369 shape: when `console.warn` itself throws, one
-     * {@link PASS_SAMPLE_LOG_FAILED} ERROR line carries both halves instead,
-     * so the failure never escapes into a pass — and that line never throws
-     * past itself either (#391).
+     * in the #369 shape, through {@link #guardedWarn}: when `console.warn`
+     * itself throws, one {@link PASS_SAMPLE_LOG_FAILED} ERROR line carries
+     * both halves instead, so the failure never escapes into a pass — and
+     * that line never throws past itself either (#391).
      *
      * @param failure - What the handler threw, or rejected with.
      */
     #warnPassSample(failure: unknown): void {
+        this.#guardedWarn(
+            PASS_SAMPLE_LOG_FAILED,
+            `${PASS_SAMPLE_FAILED} ${renderError(failure)}`,
+            failure,
+        )
+    }
+
+    /**
+     * Write one self-guarded WARN, in the #369 shape (#409): `console.warn`
+     * first; if the console itself throws, one marked fallback line through
+     * {@link writeMarkedFallback} instead, which never throws past itself
+     * (#391). **The one home of the pattern every self-guarded WARN in this
+     * class shares** — {@link #warnFloor}, {@link #warnPassSample},
+     * {@link #warnReconcileFailed}, {@link #warnMalformedTally},
+     * {@link #warnCloseDrainExpired}, the control subscription's `.catch` in
+     * {@link onControl} and the failure branch of {@link #heartbeat} — so a
+     * caller whose promise is `void`ed or whose callback runs on a bare
+     * interval never calls `console.warn` unguarded again.
+     *
+     * @param marker - The fixed prefix {@link writeMarkedFallback} writes
+     *   verbatim when the WARN itself could not be.
+     * @param line - The whole WARN line attempted on `console.warn`.
+     * @param subject - What the marked fallback line renders in `line`'s
+     *   place when the caller's own failure/error value, not the constructed
+     *   line, is the right thing to render. Defaults to `line`.
+     */
+    #guardedWarn(marker: string, line: string, subject: unknown = line): void {
         try {
-            console.warn(`${PASS_SAMPLE_FAILED} ${renderError(failure)}`)
+            console.warn(line)
         } catch (sink) {
-            writeMarkedFallback(PASS_SAMPLE_LOG_FAILED, failure, {
+            writeMarkedFallback(marker, subject, {
                 label: 'sink failure',
                 error: sink,
             })
@@ -4099,23 +4122,17 @@ export class RedisBroadcastDriver implements BroadcastDriver {
     }
 
     /**
-     * Write one revocation-floor WARN (#380), in the #391 shape: when
-     * `console.warn` itself throws, one {@link REVOCATION_FLOOR_LOG_FAILED}
-     * ERROR line carries both halves instead. It never throws, so a log sink
-     * can never fail a mark whose record is already written, nor escape the
-     * announce, which no caller awaits.
+     * Write one revocation-floor WARN (#380), in the #391 shape, through
+     * {@link #guardedWarn}: when `console.warn` itself throws, one
+     * {@link REVOCATION_FLOOR_LOG_FAILED} ERROR line carries both halves
+     * instead. It never throws, so a log sink can never fail a mark whose
+     * record is already written, nor escape the announce, which no caller
+     * awaits.
      *
      * @param line - The whole WARN line, constant first.
      */
     #warnFloor(line: string): void {
-        try {
-            console.warn(line)
-        } catch (sink) {
-            writeMarkedFallback(REVOCATION_FLOOR_LOG_FAILED, line, {
-                label: 'sink failure',
-                error: sink,
-            })
-        }
+        this.#guardedWarn(REVOCATION_FLOOR_LOG_FAILED, line)
     }
 
     /**
@@ -4706,9 +4723,10 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * Write the "revocation reconcile failed" WARN of a pass whose handler
      * rejected — **its one write site**, called only by
      * {@link #runRevocationReconcile}'s catch, before the trigger decides
-     * whether a retry follows. In the #391 shape, like its three siblings
-     * ({@link #warnFloor}, {@link #warnMalformedTally}, {@link
-     * #warnPassSample}): a `console.warn` that throws becomes one marked
+     * whether a retry follows. In the #391 shape, through {@link
+     * #guardedWarn}, the one helper its siblings ({@link #warnFloor},
+     * {@link #warnMalformedTally}, {@link #warnPassSample}) share (#409): a
+     * `console.warn` that throws becomes one marked
      * {@link REVOCATION_LOG_FAILED} line instead (#383).
      *
      * **Self-guarding here, not only at the tail `.catch`, restores the #308
@@ -4731,14 +4749,7 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         const line = `realtime: revocation reconcile failed (${trigger}): ${
             renderError(error)
         }`
-        try {
-            console.warn(line)
-        } catch (sink) {
-            writeMarkedFallback(REVOCATION_LOG_FAILED, line, {
-                label: 'sink failure',
-                error: sink,
-            })
-        }
+        this.#guardedWarn(REVOCATION_LOG_FAILED, line)
     }
 
     /**
@@ -4746,10 +4757,10 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * handler resolved a malformed tally (#384) — **its one write site**,
      * called only by {@link #runRevocationReconcile}, where the value is
      * decoded, and so before the pass's end site starts any trailing pass. It
-     * names the trigger and the contract, never the value. In the #391 shape:
-     * a `console.warn` that throws becomes one marked
-     * {@link REVOCATION_LOG_FAILED} line, which never throws past itself, so
-     * a refusing sink can neither fail the pass nor escape it.
+     * names the trigger and the contract, never the value. In the #391 shape,
+     * through {@link #guardedWarn}: a `console.warn` that throws becomes one
+     * marked {@link REVOCATION_LOG_FAILED} line, which never throws past
+     * itself, so a refusing sink can neither fail the pass nor escape it.
      *
      * @param trigger - What started the pass.
      */
@@ -4759,14 +4770,7 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             'A handler resolving { attempted, failed } owes two safe ' +
             'integers with 0 <= failed <= attempted (RevocationTally in ' +
             'packages/realtime/driver.ts).'
-        try {
-            console.warn(line)
-        } catch (sink) {
-            writeMarkedFallback(REVOCATION_LOG_FAILED, line, {
-                label: 'sink failure',
-                error: sink,
-            })
-        }
+        this.#guardedWarn(REVOCATION_LOG_FAILED, line)
     }
 
     /** Compute the FR-015 MAC over a control message's canonical payload. */
@@ -5088,21 +5092,17 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             failure ??= { error }
         }
         if (failure) {
-            try {
-                console.warn(
-                    `realtime: instance-liveness heartbeat failed: ${
-                        renderError(failure.error)
-                    }`,
-                )
-            } catch (sink) {
-                // #395: the interval discards this promise, so a throwing sink
-                // would escape as an unhandled rejection — and would skip the
-                // lapse decision below. One marked line, then on.
-                writeMarkedFallback(HEARTBEAT_LOG_FAILED, failure.error, {
-                    label: 'sink failure',
-                    error: sink,
-                })
-            }
+            // #395: the interval discards this promise, so a throwing sink
+            // would escape as an unhandled rejection — and would skip the
+            // lapse decision below. One marked line, then on, through
+            // #guardedWarn's shared #369 shape.
+            this.#guardedWarn(
+                HEARTBEAT_LOG_FAILED,
+                `realtime: instance-liveness heartbeat failed: ${
+                    renderError(failure.error)
+                }`,
+                failure.error,
+            )
         }
         // The owed-release drain (#371): fired after every beat whose OWN
         // liveness `SET` succeeded and decoded — never on a beat that just
@@ -5647,9 +5647,9 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      */
     /**
      * Write the one WARN {@link close}'s bounded drain logs when it expires
-     * (#368), in the #369 shape: `console.warn` first, a marked
-     * `console.error` line through {@link writeMarkedFallback} when that
-     * throws. Names what was still pending — the sweep pass, with its age
+     * (#368), through {@link #guardedWarn}'s #369 shape: `console.warn` first,
+     * a marked `console.error` line through {@link writeMarkedFallback} when
+     * that throws. Names what was still pending — the sweep pass, with its age
      * read from {@link #sweepPass} when known, and/or the lapse run, and/or
      * the owed-release drain (#371) — and the budget. Points at the
      * {@link RedisCommandClient} contract and at the handlers this instance
@@ -5682,14 +5682,7 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             'the driver does not cancel one. The departure, lapse-run and ' +
             'roster-maintenance handlers are dropped, and the owned ' +
             'connections are still closed, regardless.'
-        try {
-            console.warn(text)
-        } catch (failure) {
-            writeMarkedFallback(CLOSE_LOG_FAILED, text, {
-                label: 'sink failure',
-                error: failure,
-            })
-        }
+        this.#guardedWarn(CLOSE_LOG_FAILED, text)
     }
 
     async close(): Promise<void> {
