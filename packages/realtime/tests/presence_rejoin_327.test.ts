@@ -327,10 +327,24 @@ Deno.test('#327 a reconnect re-binds the socket, and frames follow the NEW one',
         undefined,
         'not while the dropped socket still holds the id',
     )
-    await m.disconnect(dropped) // the old socket's close
+    await m.disconnect(dropped) // the old socket's close, which releases the
+    // hold `dropped` took — so `reconnected`'s own subscribe below is a real
+    // first join, not a re-join riding the dropped socket's leftover entry.
     m.register(reconnected)
+    const beforeAgain = calls.holdMember
     const again = await m.subscribe(reconnected, CHANNEL)
     assertEquals(again.ok, true, 'the reconnect is answered, not refused')
+    assertEquals(
+        calls.holdMember,
+        beforeAgain + 1,
+        // (#403 review MEDIUM) the row below reads "no write on the SECOND
+        // subscribe" as proof of the re-join exit — which means nothing
+        // unless a write is shown here, on the FIRST one, to compare it
+        // against. Without this, a `holdMember` that silently stopped firing
+        // for EVERY subscribe (first join included) would leave both counts
+        // equal and this test green.
+        "the reconnect's own first join DOES take a fresh hold",
+    )
 
     const holdsBefore = calls.holdMember
     const rejoin = await m.subscribe(reconnected, CHANNEL)
