@@ -252,6 +252,7 @@ Deno.test('installing from a worktree writes the shared hooks, and an inherited 
             assertEquals(leaked, false, `${name} was written to the decoy`)
         }
         assertStringIncludes(hooks['pre-push'], 'deno task gate')
+        assertStringIncludes(hooks['pre-push'], 'prepush_secret_scan.ts')
     } finally {
         await Deno.remove(root, { recursive: true })
     }
