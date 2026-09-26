@@ -15,7 +15,7 @@
  * @module @lockness/realtime/tests/deprecate_disconnect_id_392
  */
 
-import { assert, assertEquals } from '@std/assert'
+import { assert, assertEquals, assertRejects } from '@std/assert'
 import {
     type DeprecationEntry,
     getCollector,
@@ -121,6 +121,75 @@ Deno.test(
                 entries.length,
                 0,
                 "evict's own id-form call is framework-internal and stays silent",
+            )
+        } finally {
+            unregisterCollector()
+        }
+    },
+)
+
+Deno.test(
+    '#392 W4 under STRICT_DEPRECATIONS, disconnect(id) rejects with the deprecation error AND the connection is retired and its channels released (review HIGH)',
+    async () => {
+        const manager = managerOver()
+        const a0 = conn('c1')
+        manager.register(a0)
+        assert((await manager.subscribe(a0, 'news')).ok)
+
+        Deno.env.set('STRICT_DEPRECATIONS', 'true')
+        try {
+            await assertRejects(
+                () => manager.disconnect('c1'),
+                Error,
+                '[DEPRECATION] Since @lockness/realtime 0.4.0',
+                'the notice becomes a rejection of THIS call, not a swallowed side effect',
+            )
+        } finally {
+            Deno.env.delete('STRICT_DEPRECATIONS')
+        }
+
+        // The teardown ran to completion despite the rejection above: the id
+        // is free — a second disconnect reports not-owned rather than tearing
+        // down again, and a fresh registration under it succeeds, which only
+        // holds if the first connection's channel was actually released.
+        assertEquals(
+            await manager.disconnect('c1'),
+            'not-owned',
+            'the connection was retired and forgotten even though the notice rejected',
+        )
+        const a1 = conn('c1')
+        manager.register(a1)
+        assert(
+            (await manager.subscribe(a1, 'news')).ok,
+            "a fresh registration under the freed id succeeds — the old one's channel was released",
+        )
+    },
+)
+
+Deno.test(
+    '#392 W5 a throwing collector cannot prevent the teardown that already started (review HIGH)',
+    async () => {
+        registerCollector({
+            addDeprecation: () => {
+                throw new Error('boom: a buggy collector')
+            },
+        })
+        try {
+            const manager = managerOver()
+            const a0 = conn('c1')
+            manager.register(a0)
+            assert((await manager.subscribe(a0, 'news')).ok)
+
+            await assertRejects(
+                () => manager.disconnect('c1'),
+                Error,
+                'boom: a buggy collector',
+                "the collector's own error still reaches this call's caller",
+            )
+            assertEquals(
+                await manager.disconnect('c1'),
+                'not-owned',
+                'teardown still ran to completion despite the collector throwing',
             )
         } finally {
             unregisterCollector()
