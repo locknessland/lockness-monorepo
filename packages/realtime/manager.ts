@@ -154,6 +154,32 @@ export const DISCONNECT_TEARDOWN_LOG_FAILED = markedFallbackMarker(
 )
 
 /**
+ * The marker that starts the one ERROR line written when `evict`'s own
+ * durable-revocation WARN could not be (#395 part 2): a `console.warn` that
+ * throws inside the catch around `markRevocation`, before the revocation is
+ * applied locally or published to the owning instance. Without a guard, that
+ * throw would abort `evict` right there — the durability write already
+ * failed, and skipping the apply too would leave the connection revoked
+ * NOWHERE, local or remote, breaking the very contract this method documents:
+ * a failed durability write never cancels the revocation. Exported for the
+ * test suite only — not re-exported from `mod.ts`.
+ */
+export const EVICT_DURABILITY_LOG_FAILED = markedFallbackMarker(
+    'realtime: an evict durability-failure WARN could not be logged (#395):',
+)
+
+/**
+ * The marker that starts the one ERROR line written when `revokeChannel`'s own
+ * durable-revocation WARN could not be (#395 part 2) — the same hazard as
+ * {@link EVICT_DURABILITY_LOG_FAILED}, one channel scope over: a throwing sink
+ * here must not skip the local apply or the control-frame publish that follow.
+ * Exported for the test suite only — not re-exported from `mod.ts`.
+ */
+export const REVOKE_CHANNEL_DURABILITY_LOG_FAILED = markedFallbackMarker(
+    'realtime: a revokeChannel durability-failure WARN could not be logged (#395):',
+)
+
+/**
  * Refuse a cap that is not a positive integer, at construction.
  *
  * @param option - The option's name, so the message names what to fix.
