@@ -53,12 +53,45 @@ The fragment has exactly two callers:
 
 - **the reap**, which every revocation pass already runs: the floor write rides
   on it, with no new round trip per pass. The reap now takes two keys (index,
-  then floor) and two arguments; its reply is unchanged, and it is still the
-  pass's only index delete;
+  then floor) and two arguments; it is still the pass's only index delete;
 - **the announce**, a one-key script sent once, at a driver's first
   registration, so a new reader is on the floor before its first pass. It
   **never carries the index key**, so nothing that picks out the reap on the
   wire can pick up the announce.
+
+### Self-heal: a wrong-typed floor key no longer stops enforcement (#405)
+
+The floor key is on the shared bus, not this driver's alone to trust: a
+`string`, `list`, `set`, `hash` or `stream` written there by anything else with
+bus access used to raise `WRONGTYPE` on `FLOOR_WRITE`'s first call and abort the
+whole reap or announce — halting revocation enforcement fleet-wide for as long
+as the key stayed wrong-typed, the exact class of gap this record exists to
+close for the mark. `FLOOR_WRITE` now opens with
+`local kind =
+redis.call('TYPE', floor)['ok']` and five independently-gated
+`if kind ==
+'<X>' then redis.call('DEL', floor) end` blocks, one per type other
+than `zset`/`none`, before the `ZADD`/`ZREMRANGEBYSCORE`/`EXPIRE` body above
+runs — so a corrupt key heals inside the SAME atomic `EVAL` that already writes
+the floor, not in a second round trip, and the pass that hit the corruption is
+the one that recovers from it. **`DEL` never touches anything but the floor key
+itself — never the revocation index.** No `pcall`, `else`, `~=` or reassignment:
+the shared Lua evaluator (`packages/redis/tests/lua_eval.ts`, also depended on
+by `session`, `queue` and `core`'s scheduler locks) proves all four unsupported,
+and extending it further for one driver's edge case would be the same "second,
+weaker home" this record already rejected for the floor's own decode (§3). The
+evaluator gained one narrow, additive construct instead —
+`redis.call(...)['ok']`, reading the flattened text a real broker's status reply
+carries at `.ok` — needed because `TYPE`'s reply is itself a status reply, and
+no earlier script had ever read one's content rather than ignore it.
+
+**Both callers' replies changed to carry `kind`.** The reap now returns
+`{t, kind}` (`decodeReapReply` widened to the pair) instead of `t` alone; the
+announce returns `kind` alone instead of nothing. `kind` is `FLOOR_WRITE`'s
+`TYPE` read, taken before any heal — `zset`/`none` on the healthy path, the
+prior wrong type on a heal. `listRevocations` and `#announceFloor` each WARN
+once through the existing `#warnFloor` when they see a heal, naming only the
+prior Redis type; the hot path never WARNs.
 
 ### The announce, and its retry
 
@@ -169,8 +202,18 @@ and moves only where it is computed:
 - **A floor lost after a successful announce** (a failover, a `volatile-*`
   eviction) leaves up to one interval of short records, until the reader's next
   reap rewrites its entry. The index key has the same exposure.
-- **A wrong-typed floor key fails every reap**, not only the mark's read — the
-  same class as a wrong-typed index key; ADR 011's deadline reports it.
+- **A refill-window under-score, right after a heal** (#405). The heal makes
+  this pass's own entry current again, but every OTHER live instance's entry is
+  momentarily missing from the floor until each re-reaps its own — bounded to
+  one reconcile interval per peer, the same bound this section already accepts
+  for a stalled reader below. A mark scored in that window could compute a
+  smaller max than the true fleet ceiling: strictly better than the pre-#405
+  alternative (enforcement halted fleet-wide, forever, until an operator
+  intervened), but a real, bounded reopening of the narrower defect this record
+  exists to close. Repeated corruption costs one WARN per pass, fleet-wide, for
+  as long as it recurs — a log-volume concern under sustained abuse, not a
+  blackout. The wrong-typed revocation **index** and bus write access in general
+  are unaffected and stay out of scope (#405).
 - **A stalled reader drops out of the floor** one TTL after its last reap, when
   its ADR 011 deadline fires. The loss is reported, not prevented.
 - **Records outlive their writer's TTL**, which costs index size, paid in pages
