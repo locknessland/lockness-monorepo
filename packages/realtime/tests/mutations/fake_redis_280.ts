@@ -198,11 +198,13 @@ const MUTATIONS: Mutation[] = [
         killedBy: 'HSET and HDEL take many field/value pairs',
     },
     {
+        // Re-anchored for #414: `#assertHashKey(key)` sits between the
+        // destructure and the arity check.
         label: 'HSET half-applies an odd argument list again',
         file: FAKE,
         edits: [[
-            'const [key, ...pairs] = rest\n                if (pairs.length === 0 || pairs.length % 2 !== 0) {',
-            'const [key, ...pairs] = rest\n                if (pairs.length === 0) {',
+            'this.#assertHashKey(key)\n                if (pairs.length === 0 || pairs.length % 2 !== 0) {',
+            'this.#assertHashKey(key)\n                if (pairs.length === 0) {',
         ]],
         killedBy: 'an odd HSET argument list is refused',
     },
