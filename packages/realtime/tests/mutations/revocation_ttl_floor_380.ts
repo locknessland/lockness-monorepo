@@ -60,8 +60,8 @@ const READ_FAILED_WARN = '        if (unreadable !== undefined) {\n' +
     '            )\n' +
     '        }\n'
 
-/** The head of the mark's EVAL. */
-const MARK_EVAL = '        await this.command.command(\n' +
+/** The head of the mark's EVAL. Re-anchored after #411: the reply is now captured. */
+const MARK_EVAL = '        const reply = await this.command.command(\n' +
     "            'EVAL',\n" +
     '            MARK_REVOKED_SCRIPT,\n'
 
@@ -71,9 +71,10 @@ const ANNOUNCE_HEAD =
     '        try {\n' +
     '            const reply = await this.command.command(\n'
 
+// Re-anchored after #411's folded LOW replaced the bare `asBulk(reply)` read
+// with the strict `decodeAnnounceReply`; the announce's own catch is unchanged.
 const ANNOUNCE_CATCH = '            )\n' +
-    '            const kind = asBulk(reply)\n' +
-    '            if (kind !== undefined) this.#warnIfFloorHealed(kind)\n' +
+    '            this.#warnIfFloorHealed(decodeAnnounceReply(reply))\n' +
     '        } catch (error) {\n' +
     '            this.#warnFloor(\n' +
     '                `${REVOCATION_FLOOR_ANNOUNCE_FAILED} ${renderError(error)}`,\n' +
@@ -178,14 +179,17 @@ const MUTATIONS: Mutation[] = [
         killedBy: '#380 F12 ',
     },
     {
+        // Re-anchored after #411 spliced INDEX_HEAL in ahead of this line and
+        // widened the return to a triple; the FLOOR_WRITE-removal this row
+        // proves is unchanged.
         label: 'N9 FLOOR_WRITE removed from REAP_REVOKED_SCRIPT',
         file: REDIS,
         edits: [[
             "    'local keyTtl = ARGV[2]',\n" +
             '    FLOOR_WRITE,\n' +
-            "    'return {t, kind}',\n",
+            "    'return {t, indexKind, kind}',\n",
             "    'local keyTtl = ARGV[2]',\n" +
-            "    'return {t, kind}',\n",
+            "    'return {t, indexKind, kind}',\n",
         ]],
         killedBy: '#380 F3 ',
     },

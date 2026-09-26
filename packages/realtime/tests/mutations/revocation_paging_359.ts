@@ -80,10 +80,12 @@ const SUITES = [
 /**
  * The reap, from `listRevocations`' first `now` to the reply's decode — in
  * its two-key form since #380 (index, then the revocation floor it also
- * refreshes), widened to the `{t, kind}` pair and the heal WARN since #405.
+ * refreshes), widened to the `{t, kind}` pair and the heal WARN since #405,
+ * widened again to the `{t, indexKind, floorKind}` triple and the index's own
+ * heal WARN since #411.
  * Re-anchored, never deleted: the source moved, the guard remains.
  */
-const REAP = '        const { t, kind } = decodeReapReply(\n' +
+const REAP = '        const { t, indexKind, floorKind } = decodeReapReply(\n' +
     '            await this.command.command(\n' +
     "                'EVAL',\n" +
     '                REAP_REVOKED_SCRIPT,\n' +
@@ -94,7 +96,8 @@ const REAP = '        const { t, kind } = decodeReapReply(\n' +
     '                String(this.revocationTtlSeconds + INDEX_TTL_SLACK_SECONDS),\n' +
     '            ),\n' +
     '        )\n' +
-    '        this.#warnIfFloorHealed(kind)\n'
+    '        this.#warnIfIndexHealed(indexKind)\n' +
+    '        this.#warnIfFloorHealed(floorKind)\n'
 
 /** The closing check before a page read, plus the read it guards. */
 const CLOSING_BEFORE_PAGE_READ =
@@ -245,13 +248,13 @@ const MUTATIONS: Mutation[] = [
             [
                 REAP,
                 REAP.replace(
-                    '        const { t, kind } = ',
-                    '        let { t, kind } = ',
+                    '        const { t, indexKind, floorKind } = ',
+                    '        let { t, indexKind, floorKind } = ',
                 ),
             ],
             [
                 SKIP_SUM,
-                '            ;({ t, kind } = decodeReapReply(\n' +
+                '            ;({ t, indexKind, floorKind } = decodeReapReply(\n' +
                 '                await this.command.command(\n' +
                 "                    'EVAL',\n" +
                 '                    REAP_REVOKED_SCRIPT,\n' +

@@ -4,7 +4,8 @@
  *
  * The decisions live in `drivers/redis.ts`: `FLOOR_WRITE`'s `TYPE` read and its
  * five type-gated `DEL` blocks; `decodeReapReply`, widened to the `{t, kind}`
- * pair; `REVOCATION_FLOOR_WRONG_TYPE`, the one heal WARN.
+ * pair (#411: `{t, indexKind, floorKind}` triple, `kind` renamed `floorKind`);
+ * `REVOCATION_FLOOR_WRONG_TYPE`, the one heal WARN.
  *
  * Each row drops one clause a refactor could drop while the rest of the suite
  * stays green. Every row was proven LIVE by the harness run that recorded it:
@@ -85,15 +86,20 @@ const MUTATIONS: Mutation[] = [
         killedBy: '#405 an absent or already-healthy floor never WARNs',
     },
     {
-        label: "N7 decodeReapReply's pair-decode inverted: t and kind swapped",
+        // Re-anchored after #411 widened the reap's decode from a {t, kind}
+        // pair to a {t, indexKind, floorKind} triple: `kind` is now
+        // `floorKind`, and the source moved, but the guard this row proves —
+        // the floor's own field misread — remains.
+        label:
+            "N7 decodeReapReply's triple-decode inverted: indexKind and floorKind swapped",
         file: REDIS,
         edits: [[
-            '    const t = asBulk(items[0])\n' +
-            '    const kind = asBulk(items[1])\n',
-            '    const t = asBulk(items[1])\n' +
-            '    const kind = asBulk(items[0])\n',
+            '    const indexKind = asBulk(items[1])\n' +
+            '    const floorKind = asBulk(items[2])\n',
+            '    const indexKind = asBulk(items[2])\n' +
+            '    const floorKind = asBulk(items[1])\n',
         ]],
-        killedBy: '#405 an absent or already-healthy floor never WARNs',
+        killedBy: '#405 a string-typed revocation floor self-heals',
     },
     {
         label: 'N8 the heal WARN text changed',
