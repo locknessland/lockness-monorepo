@@ -1064,7 +1064,7 @@ of what the re-check's counts mean.
 
 <!-- generated:tests -->
 
-98 test files for 26 source files:
+99 test files for 28 source files:
 
 - `packages/realtime/tests/apply_revocation_376.test.ts`
 - `packages/realtime/tests/authorize_denial_331.test.ts`
@@ -1078,6 +1078,7 @@ of what the re-check's counts mean.
 - `packages/realtime/tests/channels.test.ts`
 - `packages/realtime/tests/churn_cost_329.test.ts`
 - `packages/realtime/tests/client.test.ts`
+- `packages/realtime/tests/close_drain_368.test.ts`
 - `packages/realtime/tests/connection_id_charset.test.ts`
 - `packages/realtime/tests/control_auth.test.ts`
 - `packages/realtime/tests/control_mac_coverage.test.ts`
@@ -1165,7 +1166,7 @@ of what the re-check's counts mean.
 - `packages/realtime/tests/websocket.test.ts`
 - `packages/realtime/tests/websocket_close_guard_369.test.ts`
 
-48 mutation batteries — **`deno test` does not run these.** Each is an
+49 mutation batteries — **`deno test` does not run these.** Each is an
 executable that mutates a source file and re-runs the suites that should notice.
 Run them with `deno task mutate` (all of them, one at a time) or
 `deno task mutate <name>` (one); nightly CI runs the full sweep. See
@@ -1176,6 +1177,7 @@ Run them with `deno task mutate` (all of them, one at a time) or
 - `packages/realtime/tests/mutations/authorize_result_357.ts`
 - `packages/realtime/tests/mutations/channel_name_314.ts`
 - `packages/realtime/tests/mutations/channel_revoke_332.ts`
+- `packages/realtime/tests/mutations/close_drain_368.ts`
 - `packages/realtime/tests/mutations/connection_id_304.ts`
 - `packages/realtime/tests/mutations/disconnect_admission_361.ts`
 - `packages/realtime/tests/mutations/escaping_sinks_395.ts`
@@ -1233,7 +1235,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 98 test files directly —
+Then, specific to this package: run its 99 test files directly —
 
 ```bash
 deno test -A packages/realtime/
