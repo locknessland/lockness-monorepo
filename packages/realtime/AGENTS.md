@@ -1307,7 +1307,7 @@ of what the re-check's counts mean.
 - `packages/realtime/tests/websocket.test.ts`
 - `packages/realtime/tests/websocket_close_guard_369.test.ts`
 
-58 mutation batteries — **`deno test` does not run these.** Each is an
+59 mutation batteries — **`deno test` does not run these.** Each is an
 executable that mutates a source file and re-runs the suites that should notice.
 Run them with `deno task mutate` (all of them, one at a time) or
 `deno task mutate <name>` (one); nightly CI runs the full sweep. See
@@ -1369,6 +1369,7 @@ Run them with `deno task mutate` (all of them, one at a time) or
 - `packages/realtime/tests/mutations/subscription_identity_315.ts`
 - `packages/realtime/tests/mutations/sweep_paging_358.ts`
 - `packages/realtime/tests/mutations/sweep_parse_316.ts`
+- `packages/realtime/tests/mutations/timer_suppression_narrowing_415.ts`
 - `packages/realtime/tests/mutations/websocket_close_guard_369.ts`
 - `packages/realtime/tests/mutations/websocket_error_routing_352.ts`
 
