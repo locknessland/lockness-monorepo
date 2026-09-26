@@ -504,6 +504,9 @@ Deno.test('writeBaseIgnoreFile with null content leaves the worktree checkout (t
     })
 })
 
+/** The tail of the fake key, split so no literal in this file is a key. */
+const FAKE_KEY_TAIL = 'FAKEFAKEFAKEFAKE' + 'FAKEFAKEFAKE0000'
+
 /**
  * Write a fake Stripe test-mode key gitleaks reliably flags
  * (`stripe-access-token`), never a real secret.
@@ -514,7 +517,9 @@ Deno.test('writeBaseIgnoreFile with null content leaves the worktree checkout (t
 async function writeFakeSecret(dir: string, file: string): Promise<void> {
     await Deno.writeTextFile(
         join(dir, file),
-        'STRIPE_KEY=sk_test_FAKEFAKEFAKEFAKEFAKEFAKEFAKE0000\n',
+        // Assembled at runtime: a literal key in this file would itself be
+        // a gitleaks finding in every commit that touches the line.
+        `STRIPE_KEY=${['sk', 'test', FAKE_KEY_TAIL].join('_')}\n`,
     )
 }
 
