@@ -40,6 +40,14 @@ async function fakeGh(
         'other-error':
             `echo 'HTTP 403: Resource not accessible by integration' >&2; exit 1`,
     }[mode]
+    // The recovery query (`project_item_id` in `_config.sh`) matches on
+    // `project.id` against the board's node id. On a collision the item IS on
+    // this board; on any other failure it is not, which is what makes upstream
+    // warn instead of placing.
+    const recoveredNodes = mode === 'other-error'
+        ? `{"id":"PVTI_other_board","project":{"id":"PVT_other"}}`
+        : `{"id":"PVTI_other_board","project":{"id":"PVT_other"}},
+      {"id":"${EXISTING_ITEM_ID}","project":{"id":"PVT_board"}}`
 
     await Deno.writeTextFile(
         `${dir}/gh`,
@@ -56,11 +64,16 @@ case "$1 $2" in
     echo '{"fields":[{"id":"F_status","name":"Status","type":"ProjectV2SingleSelectField","options":[{"id":"OPT_backlog","name":"Backlog"},{"id":"OPT_done","name":"Done"}]}]}'
     exit 0 ;;
   'project view')
-    echo '{"id":"PVT_board"}'; exit 0 ;;
+    # Honour \`--jq '.id'\` the way the real gh does: callers either pipe
+    # the JSON through jq themselves or ask gh to extract the id.
+    case " $* " in
+      *" --jq "*) echo 'PVT_board' ;;
+      *) echo '{"id":"PVT_board"}' ;;
+    esac
+    exit 0 ;;
   'api graphql')
     echo '{"data":{"repository":{"issue":{"projectItems":{"nodes":[
-      {"id":"PVTI_other_board","project":{"number":99}},
-      {"id":"${EXISTING_ITEM_ID}","project":{"number":2}}
+      ${recoveredNodes}
     ]}}}}}'
     exit 0 ;;
 esac
@@ -154,10 +167,20 @@ Deno.test('#289: the ordinary attach path is unchanged', async () => {
     assert(edit && edit.includes('PVTI_fresh_item'), `wrong id edited: ${edit}`)
 })
 
-Deno.test('#289: any OTHER attach failure still reaches the caller', async () => {
-    const { code, stderr } = await runAdd('other-error')
-    // Swallowing every failure would trade this defect for a worse one — an
-    // item that is not on the board at all, reported only in a warning.
-    assert(code !== 0, 'a 403 on attach was swallowed')
-    assertStringIncludes(stderr, 'Resource not accessible')
+Deno.test('#289: any OTHER attach failure warns with the URL and never aborts', async () => {
+    const { code, stderr, log } = await runAdd('other-error')
+    // Upstream contract since Specnaut 4.4.0 (#603, re-synced by #311): once
+    // the issue exists, NOTHING may abort the script. A non-zero exit would
+    // leave the caller unsure whether it was created, and a re-run would
+    // duplicate it. The failure surfaces as a warning naming the live URL.
+    assertEquals(code, 0, 'add.sh aborted after the issue already existed')
+    assertStringIncludes(stderr, 'could not attach to Project #')
+    assertStringIncludes(
+        stderr,
+        'the issue exists at https://github.com/acme/widgets/issues/4242',
+    )
+    assert(
+        !log.split('\n').some((l) => l.startsWith('project item-edit')),
+        'an item that is not on the board was "placed" anyway',
+    )
 })
