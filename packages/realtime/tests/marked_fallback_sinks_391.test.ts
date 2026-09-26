@@ -20,8 +20,14 @@
  *   in a timer callback, where a throw is an uncaught exception, not a
  *   rejection, and FakeTime's `tickAsync` surfaces it;
  * - no rejection reaches the runtime ({@link watchingEscapes});
- * - the `console.error` stub was called at least once, so the row reached the
- *   fallback rather than passing because nothing failed.
+ * - the row's OWN marker was written to `console.error` (#399) — not merely
+ *   that `console.error` was called at least once, which passes on any
+ *   row's line, including one that escaped from a DIFFERENT sink.
+ *
+ * A separate test below proves the fallback reaches PAST a refusing console,
+ * onto stderr (#399): none of S1–S7 can, because {@link everyChannelThrows}
+ * makes stderr throw too, by design — that is what proves H3's "last resort"
+ * is reachable at all, not merely that `console.error` was attempted.
  *
  * Each row's path is chosen so that it is the ONLY path to its sink: the
  * pass-sample row drives the handler's REJECTION, not a synchronous throw,
@@ -35,15 +41,28 @@
 
 import { assert, assertEquals } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
-import { buildEvents } from '../websocket.ts'
-import { ChannelManager } from '../manager.ts'
+import {
+    buildEvents,
+    HOOK_FAILED_TOO,
+    UNHANDLED_WEBSOCKET_ERROR,
+} from '../websocket.ts'
+import { ChannelManager, REVOCATION_APPLY_LOG_FAILED } from '../manager.ts'
 import { MemoryBroadcastDriver } from '../drivers/memory.ts'
-import { RedisBroadcastDriver } from '../drivers/redis.ts'
-import { EnforcementDeadline } from '../drivers/enforcement_deadline.ts'
+import {
+    PASS_SAMPLE_LOG_FAILED,
+    RedisBroadcastDriver,
+    SWEEP_LOG_FAILED,
+} from '../drivers/redis.ts'
+import {
+    EnforcementDeadline,
+    REVOCATION_LOG_FAILED,
+} from '../drivers/enforcement_deadline.ts'
 import type { BroadcastDriver, ControlMessage } from '../driver.ts'
 import type { Connection, WebSocketHooks, WSContext } from '../types.ts'
+import type { MarkedFallbackMarker } from '../marked_fallback.ts'
 import { type CommandFn, FakeRedis } from './fake_redis.ts'
 import {
+    consoleRefuses,
     everyChannelThrows,
     settle,
     watchingEscapes,
@@ -71,6 +90,8 @@ interface Armed {
 /** One sink: its name, and how to build a fixture that reaches it. */
 interface SinkRow {
     name: string
+    /** The marker this row's own line must start with (#399). */
+    marker: MarkedFallbackMarker
     /** Build the fixture. Runs with the real log channels. */
     arm: () => Promise<Armed>
 }
@@ -184,6 +205,7 @@ async function managerRow(): Promise<Armed> {
 const SINKS: SinkRow[] = [
     {
         name: "websocket reportError's #369 marked line (onError throws)",
+        marker: HOOK_FAILED_TOO,
         arm: () =>
             websocketRow({
                 onError: () => {
@@ -193,10 +215,12 @@ const SINKS: SinkRow[] = [
     },
     {
         name: "websocket reportError's default line (no onError)",
+        marker: UNHANDLED_WEBSOCKET_ERROR,
         arm: () => websocketRow({}),
     },
     {
         name: 'redis revocation-pass chain (REVOCATION_LOG_FAILED)',
+        marker: REVOCATION_LOG_FAILED,
         arm: () =>
             redisRow((driver) =>
                 driver.onRevocationReconcile(() => {
@@ -206,6 +230,7 @@ const SINKS: SinkRow[] = [
     },
     {
         name: 'redis ghost-sweep chain (SWEEP_LOG_FAILED)',
+        marker: SWEEP_LOG_FAILED,
         // The instance-set read is refused, so the sweep WARNs; the WARN
         // throws, so the pass rejects into the chain's last handler.
         arm: () =>
@@ -222,6 +247,7 @@ const SINKS: SinkRow[] = [
     {
         name:
             "redis #warnPassSample (PASS_SAMPLE_LOG_FAILED, handler's rejection)",
+        marker: PASS_SAMPLE_LOG_FAILED,
         arm: () =>
             redisRow((driver) => {
                 driver.onRevocationReconcile(async () => {
@@ -235,6 +261,7 @@ const SINKS: SinkRow[] = [
     {
         name:
             "enforcement deadline #write (REVOCATION_LOG_FAILED, the fire's WARN)",
+        marker: REVOCATION_LOG_FAILED,
         arm: () => {
             const time = new FakeTime(START)
             const deadline = new EnforcementDeadline({
@@ -259,6 +286,7 @@ const SINKS: SinkRow[] = [
     },
     {
         name: 'manager #dispatchRevocation (REVOCATION_APPLY_LOG_FAILED)',
+        marker: REVOCATION_APPLY_LOG_FAILED,
         arm: managerRow,
     },
 ]
@@ -268,7 +296,7 @@ for (const [index, row] of SINKS.entries()) {
         await watchingEscapes(async (escaped) => {
             const armed = await row.arm()
             let thrown: unknown = undefined
-            let errorCalls = 0
+            let lines: readonly string[] = []
             try {
                 using channels = everyChannelThrows()
                 try {
@@ -277,16 +305,54 @@ for (const [index, row] of SINKS.entries()) {
                 } catch (error) {
                     thrown = error
                 }
-                errorCalls = channels.errorCalls()
+                lines = channels.errorLines()
             } finally {
                 await armed.dispose()
             }
             assertEquals(thrown, undefined, 'no synchronous throw')
             assertEquals(escaped, [], 'no rejection reaches the runtime')
             assert(
-                errorCalls >= 1,
-                'the console.error stub was reached: the fallback ran',
+                lines.some((line) => line.startsWith(`${row.marker} `)),
+                `this row's OWN marker was written, not another row's: ${
+                    JSON.stringify(lines)
+                }`,
             )
         })
     })
 }
+
+/**
+ * The fallback reaches PAST a refusing console, onto stderr (#399): none of
+ * S1–S7 above can prove this — {@link everyChannelThrows} makes stderr throw
+ * too, on purpose, so H3's "last resort" catch is reachable at all. One row
+ * (S2's fixture: the simplest, no driver, no FakeTime) is driven again here
+ * with stderr left working, and the write it received is asserted on
+ * directly.
+ */
+Deno.test('#391 stderr fallback: a refusing console still reaches stderr', async () => {
+    await watchingEscapes(async (escaped) => {
+        const armed = await websocketRow({})
+        let thrown: unknown = undefined
+        let lines: readonly string[] = []
+        try {
+            using channels = consoleRefuses()
+            try {
+                await armed.fire()
+                await settle()
+            } catch (error) {
+                thrown = error
+            }
+            lines = channels.stderrLines()
+        } finally {
+            await armed.dispose()
+        }
+        assertEquals(thrown, undefined, 'no synchronous throw')
+        assertEquals(escaped, [], 'no rejection reaches the runtime')
+        assert(
+            lines.some((line) =>
+                line.startsWith(`${UNHANDLED_WEBSOCKET_ERROR} `)
+            ),
+            `stderr carried the default line: ${JSON.stringify(lines)}`,
+        )
+    })
+})

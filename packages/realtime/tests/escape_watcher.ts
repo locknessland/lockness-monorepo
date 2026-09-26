@@ -103,6 +103,52 @@ export interface ThrowingChannels extends Disposable {
 }
 
 /**
+ * `console.warn` and `console.error` refusing, but `Deno.stderr.writeSync`
+ * left working and recording — the one shape a witness needs to prove the
+ * fallback reaches PAST the console (#391, #399), not merely that
+ * `console.error` was attempted. `everyChannelThrows` cannot answer that: it
+ * makes stderr throw too, so no row driven under it ever observes what
+ * reached stderr. Restored on scope exit.
+ */
+export interface ConsoleRefusesChannels extends Disposable {
+    /** Each line `Deno.stderr.writeSync` actually received, decoded UTF-8. */
+    stderrLines(): readonly string[]
+}
+
+/**
+ * Make `console.warn` and `console.error` throw, and record every write
+ * `Deno.stderr.writeSync` receives instead — so a witness can tell that the
+ * marked fallback line reached stderr, and read what it carried.
+ *
+ * @returns The recorder; dispose it (`using`) to restore the channels.
+ */
+export function consoleRefuses(): ConsoleRefusesChannels {
+    const realWarn = console.warn
+    const realError = console.error
+    const realWrite = Deno.stderr.writeSync
+    const decoder = new TextDecoder()
+    const lines: string[] = []
+    console.warn = () => {
+        throw new Error('warn sink down')
+    }
+    console.error = () => {
+        throw new Error('error sink down')
+    }
+    Deno.stderr.writeSync = (chunk: Uint8Array) => {
+        lines.push(decoder.decode(chunk))
+        return chunk.length
+    }
+    return {
+        stderrLines: () => lines,
+        [Symbol.dispose]: () => {
+            console.warn = realWarn
+            console.error = realError
+            Deno.stderr.writeSync = realWrite
+        },
+    }
+}
+
+/**
  * Make `console.warn`, `console.error` and `Deno.stderr.writeSync` all throw,
  * recording each `console.error` attempt before it throws — so a witness can
  * tell the fallback it reached from one it did not. Restored on scope exit.
