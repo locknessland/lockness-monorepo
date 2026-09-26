@@ -690,6 +690,57 @@ Deno.test('#362 D7 (v) a decided SKEWED line survives a rerun that succeeds befo
     })
 })
 
+Deno.test('#362 D7 (vi) an overdue MISSED carry suppresses a coinciding SKEWED: one line, not two (#383 item 5)', async () => {
+    await withClock(async (time, logs) => {
+        const { redis, port, driver, listen, reconnect } = instance({
+            interval: 1_000,
+        })
+        listen()
+        await advance(time, 1_000) // s_prev = 1 s succeeds, readAt = NOW_S
+        const reply = port.hold(isReap)
+        await advance(time, 1_000) // s = 2 s, held
+        assert(await reachedNow(reply, time))
+        await reconnect() // recorded: the end site starts the trailing pass
+        await advance(time, 12_000) // past s_prev + TTL: STALLED, once
+        assertEquals(logs.count(REVOCATION_DEADLINE_STALLED), 1)
+        // The broker clock steps a full TTL AFTER the held pass's own reap
+        // already ran (it reads NOW_S, unmoved) — so releasing it is clean
+        // but overdue (12 s > TTL): its own passSucceeded call carries a
+        // MISSED, never a SKEWED of its own (its readAt matches the previous
+        // one exactly).
+        redis.setTime(NOW_S + TTL)
+        const trailing = port.hold(isReap)
+        reply.release()
+        await time.runMicrotasks()
+        assertEquals(
+            logs.count(REVOCATION_DEADLINE_MISSED),
+            0,
+            'not flushed yet',
+        )
+        // The trailing 'reconnect' pass reads the STEPPED broker clock: on
+        // its own, a gap of one full TTL against the held pass's readAt
+        // would be SKEWED-eligible. But the carried MISSED is still pending
+        // when this pass's passSucceeded runs, so the #383 item-5 gate must
+        // suppress it — the overdue MISSED already reports this episode.
+        assert(await reachedNow(trailing, time), 'the trailing pass runs')
+        trailing.release()
+        await time.runMicrotasks()
+        await time.tickAsync(0)
+        assertEquals(
+            logs.count(REVOCATION_DEADLINE_MISSED),
+            1,
+            'the carry lands',
+        )
+        assertEquals(logs.count(REVOCATION_DEADLINE_SKEWED), 0, 'suppressed')
+        assertEquals(
+            logs.deadlineLines().length,
+            2,
+            'STALLED once, MISSED once — never a second line for one episode',
+        )
+        await driver.close()
+    })
+})
+
 Deno.test("#362 D9 the deadline timer is unref'd, never what keeps the process alive", async () => {
     await withClock(async (time) => {
         const { driver, listen } = instance({ interval: 1_000 })
