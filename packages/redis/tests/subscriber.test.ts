@@ -18,6 +18,7 @@ import {
     assertRejects,
     assertStringIncludes,
 } from '@std/assert'
+import { FakeTime } from '@std/testing/time'
 import { RedisSubscribeConnection } from '../subscriber.ts'
 import { RespFramingError } from '../resp.ts'
 import { type FakeServer, startFakeServer } from './fake_server.ts'
@@ -2110,17 +2111,28 @@ Deno.test({
  * Slow writes are what let a SECOND write queue behind an in-flight one — the
  * only way to build a backlog, since `#activate` awaits its PSUBSCRIBEs one at
  * a time. The keepalive is the concurrent writer that supplies it.
+ *
+ * `writeCalls` counts every call to `conn.write`, i.e. every write that has
+ * actually STARTED. A write still queued behind an in-flight one never calls
+ * `conn.write` at all — that absence is the whole point of "queued" — so this
+ * counter can prove a write has started, never that a later one is waiting.
+ * Telling the two apart needs the caller to know the schedule that produced
+ * them, which is exactly what `FakeTime` supplies below.
  */
 function slowWriteConn(writeMs: number): {
     conn: Deno.Conn
     faultRead: (error: Error) => void
+    writeCalls: () => number
 } {
     let rejectRead: ((error: Error) => void) | undefined
+    let calls = 0
     const conn = {
-        write: (bytes: Uint8Array) =>
-            new Promise<number>((resolve) =>
+        write: (bytes: Uint8Array) => {
+            calls++
+            return new Promise<number>((resolve) =>
                 setTimeout(() => resolve(bytes.byteLength), writeMs)
-            ),
+            )
+        },
         read: () =>
             new Promise<number | null>((_, reject) => {
                 rejectRead = reject
@@ -2129,7 +2141,11 @@ function slowWriteConn(writeMs: number): {
         localAddr: { transport: 'tcp', hostname: '127.0.0.1', port: 0 },
         remoteAddr: { transport: 'tcp', hostname: '127.0.0.1', port: 0 },
     } as unknown as Deno.Conn
-    return { conn, faultRead: (error) => rejectRead?.(error) }
+    return {
+        conn,
+        faultRead: (error) => rejectRead?.(error),
+        writeCalls: () => calls,
+    }
 }
 
 Deno.test('#286: a write queued against a socket that is then discarded REJECTS, and reaches no socket', async () => {
@@ -2144,7 +2160,28 @@ Deno.test('#286: a write queued against a socket that is then discarded REJECTS,
     // closure re-checks its generation and rejects. Rejects, not resolves — a
     // silently-dropped write leaves the caller's await unsettled, which is
     // #286's own defect relocated into the queue reset.
-    const { conn, faultRead } = slowWriteConn(200)
+    //
+    // A fixed 320ms real sleep used to stand in for "PING #2 is queued behind
+    // PING #1 by now" (#413). That is a fact about the interleaving of a
+    // 200ms write and a 40ms keepalive on THIS runner, not a fact the test
+    // controls — a loaded macOS runner reached the fault before the interval
+    // had ticked twice, so the queued write was never created and the
+    // `waitFor` below timed out proving nothing.
+    //
+    // `FakeTime` is not the file-wide exception carved out for the read-loop
+    // tests above (#245's block comment): those drive a REAL loopback socket
+    // through `fake_server.ts`, whose `conn.read` no virtual clock can
+    // advance. `slowWriteConn` is entirely promise- and `setTimeout`-driven,
+    // so a virtual clock drives it exactly as a real one would. And it is the
+    // only instrument that fits: "PING #2 is queued" means its closure has
+    // been appended to the write chain WITHOUT calling `conn.write` — the
+    // queued state is defined by that absence, so nothing the connection
+    // exposes can be polled for it. Only knowing the schedule (two keepalive
+    // periods after PSUBSCRIBE lands) can tell the difference, and a virtual
+    // clock is what lets the test know it exactly rather than guess it.
+    const WRITE_MS = 200
+    const KEEPALIVE_MS = 40
+    const { conn, faultRead, writeCalls } = slowWriteConn(WRITE_MS)
     const real = Deno.connect
     Object.defineProperty(Deno, 'connect', {
         value: () => Promise.resolve(conn),
@@ -2154,28 +2191,84 @@ Deno.test('#286: a write queued against a socket that is then discarded REJECTS,
     const sub = new RedisSubscribeConnection({
         hostname: '127.0.0.1',
         port: 1,
-        keepaliveMs: 40, // fires while the PSUBSCRIBE write is still in flight
+        keepaliveMs: KEEPALIVE_MS, // fires while the PSUBSCRIBE write is in flight
         livenessMs: 5000, // long, so the deadline is not what ends this
         retryBaseMs: 60_000, // no re-dial: the point is the ABANDONED write
         retryMaxMs: 60_000,
     })
     using warn = liveWarnings()
     const messages = warn.messages
+    using time = new FakeTime()
     try {
         sub.psubscribe('app:*', () => {})
-        // Wait past activation. The keepalive is armed and the read loop
-        // started only AFTER the PSUBSCRIBE writes — an earlier version of this
-        // test faulted at 80ms, when neither existed yet, and timed out proving
-        // nothing. With a 200ms write and a 40ms keepalive, PING #2 is queued
-        // behind PING #1 by the time we fault.
-        await new Promise((r) => setTimeout(r, 320))
+        // Step the virtual clock 1ms at a time and re-check after every step.
+        // A single large `tickAsync` jump can land between two dependent
+        // promise settlements when a fired timer's continuation needs more
+        // than one microtask flush to run — `tickAsync` is not guaranteed to
+        // flush microtasks after every `.then` hop a timer chains into, only
+        // between due timers. Stepping removes the need to know how many hops
+        // a given jump needs, while staying entirely on the virtual clock: no
+        // real time passes, so this cannot flake under CPU load the way the
+        // 320ms sleep it replaces did.
+        const advanceUntil = async (
+            cond: () => boolean,
+            message: string,
+            maxSteps = 10_000,
+        ): Promise<void> => {
+            for (let i = 0; i < maxSteps && !cond(); i++) {
+                await time.tickAsync(1)
+            }
+            assert(cond(), `advanceUntil timed out: ${message}`)
+        }
+        // Land the PSUBSCRIBE write. The keepalive arms only AFTER it lands
+        // (`#activate` calls `#armKeepalive` after this await), so this is
+        // also the only write that can land before the keepalive exists.
+        await advanceUntil(
+            () => writeCalls() >= 1,
+            'PSUBSCRIBE reaches the socket',
+        )
+        assertEquals(
+            writeCalls(),
+            1,
+            'PSUBSCRIBE must be the only write so far',
+        )
+        // PING #1 starts: the keepalive's first fire, now that it is armed.
+        await advanceUntil(
+            () => writeCalls() >= 2,
+            'PING #1 starts (keepalive fires once)',
+        )
+        assertEquals(
+            writeCalls(),
+            2,
+            'PING #1 must be the only write that started',
+        )
+        // One more keepalive period so PING #2's `#write` call lands on the
+        // chain behind PING #1 — queued, not started, because PING #1 has not
+        // resolved yet. This state has no external signal: "queued" means a
+        // write was appended to the chain WITHOUT calling `conn.write`, so
+        // `writeCalls` cannot move for it by definition — it is the one step
+        // driven by the schedule (a fixed number of virtual keepalive
+        // periods) rather than by a polled condition, and it is exact because
+        // the clock is virtual rather than guessed at over a real one.
+        await time.tickAsync(KEEPALIVE_MS + 1)
+        assertEquals(
+            writeCalls(),
+            2,
+            'PING #2 must still be queued, not started — the socket must not see it',
+        )
         // Now the socket dies. The read loop faults, `#discardSocket` runs, and
         // the queued PING's closure has its generation pulled out from under it.
         faultRead(new Error('socket fault'))
-        await waitFor(
+        // Land PING #1. The chain then runs PING #2's closure, which re-checks
+        // its generation and rejects rather than reaching the dead socket.
+        await advanceUntil(
             () => messages.some((m) => /abandoned/i.test(m)),
             'the queued write was abandoned rather than sent to a dead socket',
-            3000,
+        )
+        assertEquals(
+            writeCalls(),
+            2,
+            'PING #2 must never have called conn.write — it was rejected, not sent',
         )
         const line = messages.find((m) => /abandoned/i.test(m))!
         assert(
