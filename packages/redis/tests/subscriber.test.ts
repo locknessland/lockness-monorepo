@@ -1480,6 +1480,18 @@ Deno.test('FR-022: the activation that ENDS an outage is a reconnect, whichever 
             'the activation that healed the broker fired the seam',
             4000,
         )
+        // And the converse gate before sampling the SERVER's log: the client's
+        // latch can resume before the fake server has parsed the re-issued
+        // `app:*` frame, so the count below read 1 on correct code (CI, macOS,
+        // c0519436). Waiting for the floor and then asserting the exact value
+        // keeps the attribution check: a duplicate activation still reads 3.
+        await waitFor(
+            () =>
+                psubscribeCount(server, 'app:*') >= 2 &&
+                psubscribeCount(server, 'late:*') >= 1,
+            'the re-issued patterns reached the server',
+            4000,
+        )
         // ATTRIBUTION, which the `fires === 0` pin above cannot give: full
         // jitter puts the pending retry anywhere in [1, 3000)ms, so it CAN
         // land in this window and heal the broker itself — passing this test
