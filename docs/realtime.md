@@ -242,12 +242,18 @@ the subscribe rejects, nothing was announced, and the attempt leaves no trace â€
 the same connection can retry the same channel and produces exactly one member.
 **One exception:** when the write committed but its reply was lost, the rollback
 releases the slot it cannot see, and that release sends a truthful `left` for a
-member no `joined` was sent for. **A crash is the second cause**: an instance
-that committed a hold and died before announcing it leaves a slot the ghost
-sweep later empties, and that sweep announces a `left` for a member nobody was
-told had arrived (see [the ghost sweep](#the-authoritative-presence-roster)).
-Treat an unknown `left` as a no-op. A connection never receives `joined` **or
-`left`** for its own member id
+member no `joined` was sent for. **That release runs whether or not the
+rollback's own local leave also fails** â€” the same broker fault that loses the
+write's reply can just as easily fail the leave's `unwatchChannel`, and neither
+failure changes what the subscribe rejects with: the original roster error,
+always, with each failure logged at WARN rather than thrown or swallowed
+([#373](https://github.com/locknessland/lockness-monorepo/issues/373)). **A
+crash is the second cause**: an instance that committed a hold and died before
+announcing it leaves a slot the ghost sweep later empties, and that sweep
+announces a `left` for a member nobody was told had arrived (see
+[the ghost sweep](#the-authoritative-presence-roster)). Treat an unknown `left`
+as a no-op. A connection never receives `joined` **or `left`** for its own
+member id
 ([#349](https://github.com/locknessland/lockness-monorepo/issues/349)).
 
 **A `joined` frame on any OTHER instance reflects an announcement, not a roster
