@@ -23,6 +23,13 @@
 import { type Mutation, runBattery } from '@mutations/harness.ts'
 
 const SCHEDULER = new URL('../../scheduler.ts', import.meta.url)
+// #394 moved `#warn`'s own two-channel fallback (reporter, else console) into
+// the shared `report()` in `reporting.ts` — see `report_guard_394.ts`. Rows 2
+// and 6 below repair their anchors to that new location rather than being
+// deleted: the property each proves (console still fires with no reporter;
+// a successful reporter is not ALSO echoed to console) is unchanged, only
+// where the code lives moved.
+const REPORTING = new URL('../../reporting.ts', import.meta.url)
 const SUITES = [
     new URL('../distributed_lock.test.ts', import.meta.url).pathname,
 ]
@@ -47,12 +54,19 @@ const MUTATIONS: Mutation[] = [
     {
         // The same defect one level down: with no reporter installed, the
         // three pre-#389 warnings were silent too.
+        //
+        // #394 re-anchor: this lived in scheduler.ts's own `#warn` as
+        // `console.warn(...)`; it is now `console[level](...)` inside the
+        // shared `report()`, reached by all four guarded call sites, not
+        // only this one. The property is the same — console still fires
+        // when there is no reporter to prefer.
         label: 'the console fallback is deleted — a scheduler with no ' +
             'reporter warns nobody',
-        file: SCHEDULER,
+        file: REPORTING,
         edits: [[
-            'console.warn(`⚠️  ${message}`, fields)',
-            'void [message, fields]',
+            '        console[level](`⚠️  ${message}`, fields)\n' +
+            '        return\n',
+            '        void [level, message, fields]\n',
         ]],
         killedBy: 'falls back to console.warn',
     },
@@ -114,13 +128,18 @@ const MUTATIONS: Mutation[] = [
         // Review finding: a reporter REPLACES the console. Without the
         // `return`, every warning is written twice — once to the
         // application's logger, once to stdout around it.
+        //
+        // #394 re-anchor: this lived in scheduler.ts as
+        // `this.#reporter.warn(...)`; it is now `reporter[level](...)`
+        // inside the shared `report()`. Same property: a reporter that
+        // succeeds is not ALSO echoed to console.
         label: "the reporter branch's return is deleted — the console " +
             'echoes every reported warning',
-        file: SCHEDULER,
+        file: REPORTING,
         edits: [[
-            '            this.#reporter.warn(message, fields)\n' +
+            '            reporter[level](message, fields)\n' +
             '            return\n',
-            '            this.#reporter.warn(message, fields)\n',
+            '            reporter[level](message, fields)\n',
         ]],
         killedBy: 'a failed release does not mask the outcome, and is ' +
             'reported once',
