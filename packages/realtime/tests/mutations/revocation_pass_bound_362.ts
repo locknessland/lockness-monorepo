@@ -14,14 +14,32 @@
  *   line (N30); the pass chain's final handler is in `redis.ts` (N29).
  *
  * N30–N34 are not in the plan's table. N30 and N31 pin the architect's
- * ruling on the fix cycle: a decided line (`SKEWED`, an overdue `MISSED`) is
- * carried through `arm()` — written on a 0 ms timer, then the remaining time
- * armed — and only `close()` drops it (D7 (iv), D7 (v)). N32–N34 are review
- * findings: the first-registration gate's `#closing` half, the `'failed'`
- * default of an unrecorded outcome, and `Deno.unrefTimer`.
+ * ruling on the fix cycle: a decided line is carried through `arm()` —
+ * written on a 0 ms timer, then the remaining time armed — and only
+ * `close()` drops it. **Correction (#383, 2026-09-26):** this comment and
+ * plan §11 previously said that carry covered "a decided `MISSED` or
+ * `SKEWED`" on the strength of D7 (iv)/D7 (v) alone — those two witnesses
+ * exercise only the `SKEWED` half. The overdue-`MISSED` half of the SAME
+ * carry had no witness until #383's D4c/N38. N32–N34 are review findings:
+ * the first-registration gate's `#closing` half, the `'failed'` default of
+ * an unrecorded outcome, and `Deno.unrefTimer`.
+ *
+ * N35–N39 are #383's fix-cycle rows (the architect's disposition on that
+ * issue): the `SKEWED` comparison scoped to the pass's own
+ * `RevocationPassRecord.readAt` (N35, N36), `#warnReconcileFailed`'s
+ * self-guard (N37), the overdue-`MISSED` carry (N38), and the one-line-per-
+ * episode gate on a coinciding `SKEWED` (N39). **N37's self-guard closes off
+ * the one path D8 (ii) used to reach `#runRevocationReconcile`'s outer
+ * rejection** — N29 and N33 now `SURVIVED*` for that reason, recorded below
+ * with why, not silently dropped.
  *
  * `killedBy` strings end in a space, or in a closing parenthesis, where a
- * shorter witness id is a prefix of a longer one (`D4 ` vs `D4b`).
+ * shorter witness id is a prefix of a longer one (`D4 ` vs `D4b`, and now
+ * `D4c`, which is a prefix of neither).
+ *
+ * SUITES now runs TWO files: this battery's own, and #383's
+ * `revocation_lastreadat_383.test.ts`, whose (i)/(ii)/(iii) attribute N35 and
+ * N36.
  *
  * Every row was proven LIVE by the harness run that recorded it: the mutant
  * ran and turned its named witness red (`KILLED`, attributed).
@@ -42,6 +60,8 @@ const DEADLINE = new URL(
 )
 const SUITES = [
     new URL('../revocation_pass_bound_362.test.ts', import.meta.url).pathname,
+    // #383's own suite: N35 and N36 (item 1) are attributed to its (i)/(ii).
+    new URL('../revocation_lastreadat_383.test.ts', import.meta.url).pathname,
 ]
 
 const RELATION =
@@ -173,13 +193,16 @@ const MUTATIONS: Mutation[] = [
     {
         label: 'N14 the deadline anchored at the end of the pass',
         file: REDIS,
+        // Re-anchored for #383 (row 18 became `pass.readAt`, not
+        // `this.#lastReadAt`): the anchor text moved, the meaning — the
+        // deadline's START argument — did not.
         edits: [[
             '                        startedAt,\n' +
             '                        endedAt,\n' +
-            '                        this.#lastReadAt,\n',
+            '                        pass.readAt,\n',
             '                        endedAt,\n' +
             '                        endedAt,\n' +
-            '                        this.#lastReadAt,\n',
+            '                        pass.readAt,\n',
         ]],
         killedBy: '#362 D4 (a)',
     },
@@ -327,6 +350,14 @@ const MUTATIONS: Mutation[] = [
             '            })\n',
         ]],
         killedBy: '#362 D8 (ii)',
+        expectSurvival:
+            'SURVIVES since #383 item 2: #warnReconcileFailed self-guards ' +
+            "every WARN inside #runRevocationReconcile's catch (the ONE " +
+            'path that used to let a throwing console.warn reject the ' +
+            "promise past D8 (ii)'s handler-rejects scenario). Nothing " +
+            'inside #runRevocationReconcile can escape it any more, so the ' +
+            'outer .catch stays defence-in-depth for a throw this suite does ' +
+            'not currently model — ADR 011 §2 says so.',
     },
     {
         label: 'N30 a carried line is not followed by the remaining arm',
@@ -338,12 +369,23 @@ const MUTATIONS: Mutation[] = [
         killedBy: '#362 D7 (iv)',
     },
     {
-        label: 'N31 the carry dropped: arm() erases a decided line',
+        label: 'N31 the carry dropped: passSucceeded erases a decided line',
         file: DEADLINE,
+        // Re-anchored for #383 item 4 (second-review finding): mutating
+        // arm()'s own `#unwritten.length > 0` check erased a line THIS
+        // call's own SKEWED push had just made, before arm() ever saw it —
+        // so the old anchor killed D7 (i) and D7 (iv) too, not only D7 (v).
+        // Moved to the top of passSucceeded, it can only erase a line
+        // CARRIED IN from an earlier call — the one property D7 (v) tests.
+        // #383's D4c and D7 (vi) test that SAME property for MISSED and for
+        // the coinciding case, so both also die here; that is not
+        // over-kill, since all three share the one defect this row plants.
         edits: [[
-            '        if (this.#unwritten.length > 0) {\n',
+            '        this.#ended = false\n' +
+            '        const previous = this.#previousReadAt\n',
             '        this.#unwritten = []\n' +
-            '        if (this.#unwritten.length > 0) {\n',
+            '        this.#ended = false\n' +
+            '        const previous = this.#previousReadAt\n',
         ]],
         killedBy: '#362 D7 (v)',
     },
@@ -366,12 +408,92 @@ const MUTATIONS: Mutation[] = [
             "        let outcome: PassOutcome = 'ok'\n",
         ]],
         killedBy: '#362 D8 (ii)',
+        expectSurvival: 'SURVIVES since #383 item 2, the same reason as N29: ' +
+            "#runRevocationReconcile no longer rejects in D8 (ii)'s " +
+            'scenario, so `.then()` always runs and overwrites `outcome` ' +
+            'explicitly — the DEFAULT this row mutates is never read by ' +
+            'this suite any more.',
     },
     {
         label: "N34 the deadline timer is not unref'd",
         file: DEADLINE,
         edits: [['        Deno.unrefTimer(id)\n', '']],
         killedBy: '#362 D9 ',
+    },
+    {
+        label: 'N35 readAt never written on the pass (a no-op)',
+        file: REDIS,
+        // #383 item 1. This turns SKEWED off outright (readAt always
+        // undefined), so it kills (ii) — the "still raises SKEWED" control
+        // — rather than proving the fix; a weak kill on its own, measured,
+        // which is why N36 exists beside it to prove the real defect.
+        edits: [[
+            '        if (this.#revocationPass) this.#revocationPass.readAt = t\n',
+            '        if (this.#revocationPass) this.#revocationPass.readAt = undefined\n',
+        ]],
+        killedBy: '#383 (ii)',
+    },
+    {
+        label: 'N36 the end site reverted to reading #lastReadAt',
+        file: REDIS,
+        // #383 item 1: the original bug — a driver-level handler that skips
+        // enumeration on some passes compares a fresh readAt against a
+        // STALE this.#lastReadAt left by an unrelated earlier pass.
+        edits: [[
+            '                        pass.readAt,\n',
+            '                        this.#lastReadAt,\n',
+        ]],
+        killedBy: '#383 (i)',
+    },
+    {
+        label: 'N37 #warnReconcileFailed reverted to a bare console.warn',
+        file: REDIS,
+        // #383 item 2. Reverting the self-guard reopens the pre-#383 defect:
+        // the throwing console.warn escapes #runRevocationReconcile's catch
+        // before either D8 (ii)'s new assertion or the #308 retry runs.
+        edits: [[
+            '        try {\n' +
+            '            console.warn(line)\n' +
+            '        } catch (sink) {\n' +
+            '            writeMarkedFallback(REVOCATION_LOG_FAILED, line, {\n' +
+            "                label: 'sink failure',\n" +
+            '                error: sink,\n' +
+            '            })\n' +
+            '        }\n' +
+            '    }\n' +
+            '\n' +
+            '    /**\n' +
+            '     * Write the one {@link REVOCATION_TALLY_MALFORMED} WARN of a pass whose\n',
+            '        console.warn(line)\n' +
+            '    }\n' +
+            '\n' +
+            '    /**\n' +
+            '     * Write the one {@link REVOCATION_TALLY_MALFORMED} WARN of a pass whose\n',
+        ]],
+        killedBy: '#362 D8 (ii)',
+    },
+    {
+        label: 'N38 the overdue-MISSED carry reverted to a direct write',
+        file: DEADLINE,
+        // #383 item 3 (second-review MEDIUM): D4b alone let this survive —
+        // it holds the trailing pass, so nothing races the pending 0 ms
+        // timer before it fires either way. D4c does not hold it.
+        edits: [[
+            '        this.#unwritten.push(this.#missed())\n' +
+            '        this.#setTimer(0, () => this.#flush())\n',
+            '        this.#setTimer(0, () => this.#write(this.#missed()))\n',
+        ]],
+        killedBy: '#362 D4c ',
+    },
+    {
+        label: 'N39 the #383 no-second-line gate dropped',
+        file: DEADLINE,
+        edits: [[
+            '            this.#timer !== undefined &&\n' +
+            '            this.#unwritten.length === 0 &&\n',
+            '            this.#timer !== undefined &&\n',
+        ]],
+        killedBy: '#362 D7 (vi)',
     },
 ]
 
