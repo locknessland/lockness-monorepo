@@ -2107,18 +2107,57 @@ export const CONTROL_DECODE_LOG_FAILED = markedFallbackMarker(
  * page for the SAME dead instance this pass), exactly the "escapes a loop and
  * skips the rest of it" shape #395 named. `#sweepInstance`'s own `try` around
  * `#sweepOwned` turns an ordinary rejection there into one WARN and a normal
- * return — so a departure HANDLER that merely throws never travels past this
- * site, or past `#sweepInstance`, once this site's own WARN is guarded. But
- * `#sweepInstance`'s "sweep … failed" line is itself a bare, unguarded
- * `console.warn` (a different, out-of-scope site): when the SINK is what is
- * down, THIS site's own unguarded throw used to keep climbing — past
- * `#sweepInstance`'s failed attempt to report it, past `#reconcile`'s own
- * catch, to the top of the whole reconcile chain ({@link SWEEP_LOG_FAILED}),
- * costing every dead instance still left in `ids` its sweep this pass, not
- * only this one's remaining slots. Exported for the test suite only.
+ * return, so a departure HANDLER that merely throws never travels past this
+ * site, or past `#sweepInstance`. `#sweepInstance`'s own "sweep … failed"
+ * line ({@link SWEEP_INSTANCE_LOG_FAILED}) and `#reconcile`'s own catch
+ * ({@link RECONCILE_LOG_FAILED}) are guarded too (security review, same
+ * issue) — before that, when the SINK itself was down, an escape from THIS
+ * site climbed past both of theirs in turn, all the way to the top of the
+ * whole reconcile chain ({@link SWEEP_LOG_FAILED}), costing every dead
+ * instance still left in `ids` its sweep this pass, not only this one's
+ * remaining slots (#355 A3). With all three guarded, one dead instance's
+ * failure — sweep, sweep-report or reconcile-report — ends only that
+ * instance's sweep, never a peer's. Exported for the test suite only.
  */
 export const SWEEP_DEPARTURE_LOG_FAILED = markedFallbackMarker(
     'realtime: a roster-departure WARN could not be logged (#418):',
+)
+
+/**
+ * The marker that starts the one ERROR line written when `#sweepInstance`'s
+ * "sweep of dead instance … failed" WARN could not be, because `console.warn`
+ * threw (#418, security review of the same issue). `#sweepInstance`'s own
+ * `try` around `#sweepOwned` already turns an ordinary sweep failure into this
+ * one WARN and a normal return — the invariant #355 A3 states ("one
+ * instance's failure ends only that instance's sweep"). Before this site was
+ * guarded, that invariant held for an ordinary failure but not for a BROKEN
+ * SINK: the WARN's own throw escaped `#sweepInstance`, reached `#reconcile`'s
+ * `for` loop with no per-iteration `try` to stop it, and skipped every
+ * instance still left in `ids` — the opposite of what A3 promises. Exported
+ * for the test suite only.
+ */
+export const SWEEP_INSTANCE_LOG_FAILED = markedFallbackMarker(
+    'realtime: a sweep-failure WARN could not be logged (#418):',
+)
+
+/**
+ * The marker that starts the one ERROR line written when `#reconcile`'s own
+ * catch — the "roster reconcile failed" WARN — could not be, because
+ * `console.warn` threw (#418, security review of the same issue). That catch
+ * wraps the whole pass: the `SMEMBERS` read, and the `for` loop's `EXISTS`
+ * checks and `#sweepInstance` calls. `#sweepInstance` itself never rejects
+ * once its own WARN is guarded ({@link SWEEP_INSTANCE_LOG_FAILED}), so this
+ * catch now fires only for a failure in the pass's OWN housekeeping — a
+ * broker round trip or a decode failure on `SMEMBERS`/`EXISTS` — never for a
+ * single dead instance's own sweep. Guarding it stops that housekeeping
+ * failure's own WARN from being the thing that turns a resolved `'failed'`
+ * pass into a rejected one: `#armReconcile`'s `.finally` re-arms the next
+ * pass either way, but a rejection here used to erase this WARN's specific
+ * text behind the generic {@link SWEEP_LOG_FAILED} fallback instead. Exported
+ * for the test suite only.
+ */
+export const RECONCILE_LOG_FAILED = markedFallbackMarker(
+    'realtime: a reconcile-failure WARN could not be logged (#418):',
 )
 
 /**
@@ -3620,9 +3659,13 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * class shares** — {@link #warnFloor}, {@link #warnPassSample},
      * {@link #warnReconcileFailed}, {@link #warnMalformedTally},
      * {@link #warnCloseDrainExpired}, the control subscription's `.catch` in
-     * {@link onControl} and the failure branch of {@link #heartbeat} — so a
-     * caller whose promise is `void`ed or whose callback runs on a bare
-     * interval never calls `console.warn` unguarded again.
+     * {@link onControl}, the failure branch of {@link #heartbeat}, `onMessage`'s
+     * `#deliver`, {@link #verifyAndDecode}, {@link #announceSwept},
+     * {@link #sweepInstance} and {@link #reconcile}'s own catch (#418) — so a
+     * caller whose promise is `void`ed, whose callback runs on a bare
+     * interval, or whose call site is a handler the `RedisSubscriber` port
+     * invokes with no `try` of its own, never calls `console.warn` unguarded
+     * again.
      *
      * @param marker - The fixed prefix {@link writeMarkedFallback} writes
      *   verbatim when the WARN itself could not be.
@@ -5251,7 +5294,13 @@ export class RedisBroadcastDriver implements BroadcastDriver {
                 if (alive === 0) await this.#sweepInstance(id)
             }
         } catch (error) {
-            console.warn(
+            // #418 (security review): this catch wraps the whole pass, with
+            // no per-id try inside the loop — so an unguarded WARN here that
+            // ALSO throws would escape `#reconcile()` itself, skipping every
+            // id still left in `ids` this pass (#355 A3). One marked line,
+            // through #guardedWarn's shared #369 shape.
+            this.#guardedWarn(
+                RECONCILE_LOG_FAILED,
                 `realtime: roster reconcile failed: ${renderError(error)}`,
             )
             return 'failed'
@@ -5398,7 +5447,13 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         if (typeof end === 'object') {
             // Counted BEFORE the WARN, so a sink that throws cannot skip it.
             if (this.#sweepPass) this.#sweepPass.failures++
-            console.warn(
+            // #418 (security review): nothing between here and #reconcile's
+            // `for` loop catches a throw — an unguarded WARN that ALSO threw
+            // used to escape this method and abort the loop, skipping every
+            // id still left in `ids` (#355 A3). One marked line, through
+            // #guardedWarn's shared #369 shape.
+            this.#guardedWarn(
+                SWEEP_INSTANCE_LOG_FAILED,
                 `realtime: sweep of dead instance ${id} failed after ` +
                     `${released} hold(s) released (${emptied} emptied): ` +
                     renderError(end.failed),
