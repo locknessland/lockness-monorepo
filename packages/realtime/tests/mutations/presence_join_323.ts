@@ -86,17 +86,23 @@ const MUTATIONS: Mutation[] = [
     {
         label: '#323 the failed join keeps its local membership',
         file: MANAGER,
+        // RE-ANCHORED for #373: the bare `await this.#leaveLocal(...)` moved
+        // into `#collectLeaveOutcome`, the helper this compensation now shares
+        // with `unsubscribe` (#361), so dropping the call outright no longer
+        // type-checks — `leaveOutcome` would be read before it is declared.
+        // The mutant that reaches the SAME state (the local leave, and its
+        // `unwatchChannel`, never runs) without breaking the type is a
+        // synthesized outcome that skips the call underneath it. A literal
+        // typed `LocalLeaveOutcome` still does not compile — TS narrows
+        // `failed: false` to `never` in the branch below that reads `.error`
+        // — so the literal is asserted through `unknown` to keep that branch
+        // reachable at the type level, exactly as an untyped hand would.
         edits: [[
-            // RE-ANCHORED by #327. This used to wrap the call in
-            // `if (!wasSubscribed) {`, and the anchor had to be multi-line
-            // because the 20-space form was a SUBSTRING of the 24-space form
-            // inside that guard — a single-line anchor matched once, passed the
-            // harness's exactly-once check, and amputated a deeper line. The
-            // re-join guard removed the conditional, so the deeper form no
-            // longer exists and one line is now both unique and unambiguous.
-            // Verified: exactly one occurrence, at no other indent.
-            '                await this.#leaveLocal(channel, connection.id)\n',
-            '',
+            '                const leaveOutcome = await this.#collectLeaveOutcome(\n' +
+            '                    channel,\n' +
+            '                    connection.id,\n' +
+            '                )\n',
+            '                const leaveOutcome = { left: false, failed: false } as unknown as LocalLeaveOutcome\n',
         ]],
         // The channel stays hosted with no members — a broker subscription
         // taken by a join that failed and never released.

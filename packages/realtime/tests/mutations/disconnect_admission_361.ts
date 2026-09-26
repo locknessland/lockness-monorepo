@@ -43,6 +43,12 @@
  * N12's anchor and its replacement carry #404's open/close pairing, so the
  * mutant still changes only the order it names.
  * Every `killedBy` ends in a space, so `W1 ` is not a prefix of `W10`–`W13`.
+ * N6 and N7 were re-anchored again for #373: `unsubscribe`'s own flag-and-
+ * try/catch leave collection moved into `#collectLeaveOutcome`, the helper it
+ * now shares with `#joinPresence`'s compensation, so N6's `LEAVE` constant and
+ * N7's `leaveFailed` reference moved with it — the mutants still change only
+ * the order and the release-skip they always named; their killers are
+ * unchanged.
  *
  * Every row was proven LIVE by the harness run that recorded it: the mutant
  * ran and turned its named witness red (`KILLED`, attributed).
@@ -78,18 +84,17 @@ const CAPS = '            connection.identity !== null,\n' +
     '\n' +
     '        // `member` is set on a presence admission'
 
-/** `unsubscribe`'s leave, with its flag. */
-const LEAVE = '        let left = false\n' +
-    '        // The failure is recorded by a FLAG, never by its value: a rejection\n' +
-    '        // may carry `undefined`.\n' +
-    '        let leaveFailed = false\n' +
-    '        let leaveError: unknown\n' +
-    '        try {\n' +
-    '            left = await this.#leaveLocal(channel, clientId)\n' +
-    '        } catch (error) {\n' +
-    '            leaveFailed = true\n' +
-    '            leaveError = error\n' +
-    '        }\n'
+/**
+ * `unsubscribe`'s leave, with its comment — collected through
+ * `#collectLeaveOutcome`, the helper #373 shares with `#joinPresence`'s
+ * compensation. Re-anchored here for #373: the flag-and-try/catch this used to
+ * match moved into that shared helper, so N6's anchor moved with it.
+ */
+const LEAVE =
+    '        // Collected through `#collectLeaveOutcome`, the one helper this\n' +
+    "        // shares with `#joinPresence`'s #323 compensation (#373) — a\n" +
+    '        // rejection here must not skip the release below.\n' +
+    '        const outcome = await this.#collectLeaveOutcome(channel, clientId)\n'
 
 /** `handlerHooks.onClose`'s body, from the app flag to the re-throw. */
 const ON_CLOSE_BODY = '                let appFailed = false\n' +
@@ -189,11 +194,13 @@ const MUTATIONS: Mutation[] = [
     },
     {
         label: 'N7 — the release skipped when the leave failed',
+        // Re-anchored for #373: the flag `leaveFailed` moved into
+        // `#collectLeaveOutcome`'s returned `outcome.failed`.
         file: MANAGER,
         edits: [[
             '        if (member) {\n' +
             '            // Released through the per-slot projection (#330), WHETHER OR NOT\n',
-            '        if (member && !leaveFailed) {\n' +
+            '        if (member && !outcome.failed) {\n' +
             '            // Released through the per-slot projection (#330), WHETHER OR NOT\n',
         ]],
         killedBy: '#361 W6 (i) ',
