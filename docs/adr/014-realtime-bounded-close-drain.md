@@ -1,13 +1,16 @@
 # ADR 014 — `close()` bounds its drain at the liveness TTL
 
-**Status:** Accepted **Date:** 2026-09-25 **Owner:** architect **Affects:**
-`packages/realtime/drivers/redis.ts`,
-`packages/realtime/drivers/close_drain.ts`, `docs/realtime.md`,
+**Status:** Accepted **Date:** 2026-09-25 (updated 2026-09-26 for #371)
+**Owner:** architect **Affects:** `packages/realtime/drivers/redis.ts`,
+`packages/realtime/drivers/close_drain.ts`,
+`packages/realtime/drivers/roster_maintenance_run.ts`, `docs/realtime.md`,
 `packages/realtime/AGENTS.md` **Amends:** ADR
 [006](006-realtime-sweep-writes-only-while-dead.md) §2, §5, ADR
 [007](007-realtime-lapsed-instance-reasserts.md) §5 (S5) **Strikes as closed:**
 ADR [011](011-realtime-revocation-bound-is-checked.md) §4's "`close()` still
-hangs on a stalled port" residue
+hangs on a stalled port" residue, and ADR
+[015](015-realtime-owed-release-retried-by-maintenance-drain.md) §5's "`close()`
+waiting on a drain whose command never settles" residue
 
 ---
 
@@ -47,6 +50,15 @@ The options the issue named were not a closed set. This is a third shape:
 bounded, but the bound is not a new timeout — it is the driver's **existing**
 definition of when a silent instance counts as dead.
 
+> **Updated 2026-09-26 for #371.** ADR
+> [015](015-realtime-owed-release-retried-by-maintenance-drain.md) landed a
+> third piece of in-flight work `close()` awaits: the owed-release
+> (`RosterMaintenanceRun`) drain. Its own §5 named the residue — that wait had
+> no bound of its own — and put it on whichever of #368 and #371 landed second.
+> #368 landed second: the drain now shares this record's one budget as a
+> **third** argument, in the same order `close()` already used (sweep pass, then
+> lapse run, now then the maintenance drain), never a fourth timer.
+
 ### The bound
 
 `Math.min(this.livenessTtlSeconds * 1000, MAX_TIMER_MS)`, computed by `close()`
@@ -60,26 +72,28 @@ work has already been overtaken by the fleet's own crash handling.
 
 A new internal module, following the precedent of `lapse_run.ts` and
 `enforcement_deadline.ts`: concrete, not exported from `mod.ts`, full JSDoc. It
-exposes one function, `awaitCloseDrain(budgetMs, sweepPass, lapseRun)`.
+exposes one function,
+`awaitCloseDrain(budgetMs, sweepPass, lapseRun,
+maintenanceDrain)`.
 
 - It arms **one** timer, deliberately **ref'd** — unlike every other timer this
   driver holds. Its job is to let an awaited call finish: a stall that holds no
   I/O must still let `close()` resolve, and an unref'd timer is not guaranteed
   to fire when nothing else keeps the event loop alive.
-- It awaits the sweep pass, then the lapse run (ADR 007's order), both against
-  that **one shared** expiry. The order now lives in one place instead of two
-  sequential `await` lines.
-- It clears the timer once both have settled, and returns which of the two were
-  still pending when the timer expired.
+- It awaits the sweep pass, then the lapse run, then the roster-maintenance
+  drain (#349's and #371's order), each against that **one shared** expiry. The
+  order now lives in one place instead of three sequential `await` lines.
+- It clears the timer once all three have settled, and returns which were still
+  pending when the timer expired.
 
 ### `close()`
 
 Everything up to and including `this.revocationHandler = undefined` is
 unchanged: `#closing` first, #355 A1 (the revocation handler dropped
-synchronously, before any wait), and the synchronous `#lapse.close()`. The two
-sequential awaits become one `awaitCloseDrain` call. The handler drops and the
-owned-connection closes then run exactly as before, **whether or not the timer
-expired**.
+synchronously, before any wait), and the synchronous `#lapse.close()` and
+`#rosterMaintenance.close()`. The three sequential awaits become one
+`awaitCloseDrain` call. The handler drops and the owned-connection closes then
+run exactly as before, **whether or not the timer expired**.
 
 ### The log
 
@@ -87,9 +101,9 @@ One WARN, marker `CLOSE_DRAIN_EXPIRED`, in the #369 shape: `console.warn` first;
 if that throws, one marked `console.error` line through `writeMarkedFallback`
 (`CLOSE_LOG_FAILED`, #391) — never a throw that escapes `close()`. It names what
 was still pending — the sweep pass, with its age read from `#sweepPass`, and/or
-the lapse run — and the budget. It points at the `RedisCommandClient` contract
-and at the handlers this instance drops regardless. It carries no member,
-channel or instance id.
+the lapse run, and/or the owed-release drain — and the budget. It points at the
+`RedisCommandClient` contract and at the handlers this instance drops
+regardless. It carries no member, channel or instance id.
 
 ### The pending pass after `close()` returns
 
@@ -154,6 +168,11 @@ read at call time, so no hook fires after `close()` returns (#348, #349).
 9. **No deadline on the sweep pass itself.** This bounds `close()`'s wait, never
    the pass — the #362 disposition's ruling that the sweep enforces no TTL-bound
    guarantee is unchanged.
+10. **A late-settling roster-maintenance drain** (#371). Its re-issued releases
+    apply after `close()` returns, through the manager's normal write path — the
+    same "only removes access, or re-derives at drain time" reasoning ADR 015 §2
+    already gives; a late drain grants nothing new, and #371's own §5 residue (a
+    retry that keeps failing forever) is unaffected by this bound.
 
 ## 5. Related
 
@@ -170,3 +189,7 @@ read at call time, so no hook fires after `close()` returns (#348, #349).
   restated here.
 - ADR [005](005-realtime-swept-departures-announced.md): what a swept departure
   means; unchanged by this record's residue 2.
+- ADR [015](015-realtime-owed-release-retried-by-maintenance-drain.md) §5: its
+  "`close()` waiting on a drain whose command never settles" residue is closed
+  by this record's 2026-09-26 update — the drain now shares the same budget as
+  the sweep pass and the lapse run.
