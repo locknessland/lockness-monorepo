@@ -670,12 +670,12 @@ export const REFUSED = 3
  * {@link decodeReleaseReply}, which WARNs once through
  * {@link RedisBroadcastDriver.#warnIfOwnedHealed} when it is healed.
  *
- * Four reply SHAPES since #414 (each a `{value, ownedKind}` pair, except
- * *refused*, which the liveness gate answers before `owned` is ever read):
- * the released entry as a non-empty bulk string (**emptied**), {@link KEPT}
+ * Four reply SHAPES since #414, each a `{value, ownedKind}` pair: the
+ * released entry as a non-empty bulk string (**emptied**), {@link KEPT}
  * (**kept**), 0 (**absent** — the releaser held nothing there) or
- * {@link REFUSED} alone (**refused**) — decoded by {@link decodeReleaseReply}
- * and nowhere else.
+ * {@link REFUSED} (**refused**). A refusal is answered by the liveness gate
+ * before `owned` is ever read, so its kind is always `'none'` —
+ * `{REFUSED, 'none'}`. Decoded by {@link decodeReleaseReply} and nowhere else.
  */
 const RELEASE_MEMBER_SCRIPT: string = [
     "if ARGV[4] == '1' then",
@@ -1366,7 +1366,7 @@ type ReleaseOutcome =
 export const RELEASE_REPLY_REFUSED =
     'realtime: the release script answered none of its four replies — a ' +
     `{value, ownedKind} pair whose value is a released entry, 0 (absent) or ` +
-    `${KEPT} (kept), or ${REFUSED} alone (refused)`
+    `${KEPT} (kept), or ${REFUSED} paired with 'none' (refused)`
 
 /**
  * Decode a {@link RELEASE_MEMBER_SCRIPT} reply into its {@link ReleaseOutcome}
