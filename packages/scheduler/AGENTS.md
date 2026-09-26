@@ -59,6 +59,7 @@ Anything not listed is internal and free to change.
 | Timers, the delay cap and floor, `unref`    | `timer_registry.ts`                                                             |
 | Timeout, retries, `onError` / `onSuccess`   | `task_runner.ts`                                                                |
 | Task identity, uniqueness, lifecycle, stats | `scheduler.ts`                                                                  |
+| Hostile-input error normalisation           | `errors.ts`                                                                     |
 | Decoration-time validation, metadata        | `decorators.ts`                                                                 |
 | Option and stat shapes                      | `types.ts`                                                                      |
 | Discovery and the boot step                 | `packages/core/scheduler/`, `packages/core/kernel/bootstrap/steps/scheduler.ts` |
@@ -86,12 +87,13 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-9 test files for 10 source files:
+10 test files for 11 source files:
 
 - `packages/scheduler/tests/cron_parser.test.ts`
 - `packages/scheduler/tests/cron_parser_errors.test.ts`
 - `packages/scheduler/tests/decorators.test.ts`
 - `packages/scheduler/tests/distributed_lock.test.ts`
+- `packages/scheduler/tests/errors.test.ts`
 - `packages/scheduler/tests/presets.test.ts`
 - `packages/scheduler/tests/reporting.test.ts`
 - `packages/scheduler/tests/scheduler.test.ts`
@@ -120,7 +122,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 9 test files directly —
+Then, specific to this package: run its 10 test files directly —
 
 ```bash
 deno test -A packages/scheduler/
