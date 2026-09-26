@@ -120,6 +120,13 @@ function wrongTypeRow(
                     warns[0].endsWith(kind),
                     `the WARN names the prior kind: ${warns[0]}`,
                 )
+                // A literal fragment, hardcoded rather than read off the
+                // imported constant: a mutation to REVOCATION_FLOOR_WRONG_TYPE's
+                // own wording must fail THIS line, not merely re-match itself.
+                assert(
+                    warns[0].includes('Prior type:'),
+                    `the WARN's own wording: ${warns[0]}`,
+                )
                 assertEquals(
                     await redis.command('TYPE', FLOOR),
                     { type: 'simple', value: 'zset' },
