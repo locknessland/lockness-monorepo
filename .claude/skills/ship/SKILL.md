@@ -342,9 +342,10 @@ permissions are not bypassed, with `/ship` active. Run `gh release edit` on
 spelled plainly, once quote-split as above. **No Release may exist for that
 tag.** The permission check happens before the command runs, and the command
 then fails on the missing Release. A tag that has a Release would be published
-the moment a prompt fails to fire. Each run must raise a permission prompt. If one does not, the fallback is a `PreToolUse` hook that
-returns `"ask"`, tracked as its own item. Record the result by rewriting this
-section, and drop each residual the probe closes.
+the moment a prompt fails to fire. Each run must raise a permission prompt. If
+one does not, the fallback is a `PreToolUse` hook that returns `"ask"`, tracked
+as its own item. Record the result by rewriting this section, and drop each
+residual the probe closes.
 
 **Retry rules.**
 
