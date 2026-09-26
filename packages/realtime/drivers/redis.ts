@@ -96,6 +96,64 @@ import {
 const INDEX_TTL_SLACK_SECONDS = 60
 
 /**
+ * Self-heal a wrong-typed revocation INDEX key, inside the same atomic `EVAL`
+ * as the caller's own body (#411) — the `FLOOR_WRITE`-shaped heal (#405)
+ * generalised to the index, spliced into both write sites that touch it with
+ * a type-sensitive command: {@link REAP_REVOKED_SCRIPT} (before its
+ * `ZREMRANGEBYSCORE`) and {@link MARK_REVOKED_SCRIPT} (before its `ZADD`).
+ *
+ * `local indexKind = redis.call('TYPE', index)['ok']` reads the key's current
+ * Redis type — `['ok']` because a live broker wraps `TYPE`'s reply as a Lua
+ * table, `{ ok = '<kind>' }`, never a bare string (measured for #405, not
+ * assumed). Five independently-gated blocks, one per type other than
+ * `zset`/`none`, then `DEL` the key before the caller's own body runs.
+ *
+ * **Why `DEL` is safe here, for a DIFFERENT reason than the floor's.** The
+ * floor's heal is safe because the floor is fully re-derivable — every entry
+ * is rewritten by the next reap or announce. The index holds primary,
+ * non-derived revocation records, and DEL is safe here for a narrower, harder
+ * reason: **any command able to change a key's TYPE has already discarded the
+ * prior value, unconditionally, before Redis ever raises `WRONGTYPE`** — a
+ * `SET`/`RENAME`/`COPY REPLACE`/`RESTORE REPLACE` overwrites the value first,
+ * and a WRONGTYPE-refusing write (`SADD`/`HSET`/`LPUSH`) never gets far enough
+ * to reach this script at all. So the former zset is already gone, at the
+ * Redis layer, the instant `TYPE` disagrees — before any remedy here runs.
+ * Quarantining the key (renaming it aside) would therefore preserve nothing
+ * recoverable: no forensic value beyond the WARN's own "prior type" word, at
+ * the cost of an unbounded, un-TTL'd key an attacker can keep spawning under
+ * repeated corruption. Rebuilding from per-record keys is inapplicable, not
+ * merely rejected: every revocation is a member of this ONE sorted set, no
+ * per-record key is ever written, and manufacturing one now would double
+ * every mark's round trips.
+ *
+ * Runs over the bound local `index`, never `KEYS`/`ARGV` directly — the same
+ * discipline as `FLOOR_WRITE`'s `floor`, because the two callers bind it from
+ * different `KEYS` positions (the reap's `KEYS[1]`, the mark's own `KEYS[1]`).
+ * **Never `pcall`, `else`, `~=` or reassignment**: `packages/redis/tests/lua_eval.ts`
+ * (the shared Lua subset three other packages also depend on) proves all four
+ * unsupported. Both callers' replies carry `indexKind`, so their caller can
+ * WARN once on a heal through {@link RedisBroadcastDriver.#warnIfIndexHealed}.
+ */
+const INDEX_HEAL: string = [
+    "local indexKind = redis.call('TYPE', index)['ok']",
+    "if indexKind == 'string' then",
+    "    redis.call('DEL', index)",
+    'end',
+    "if indexKind == 'list' then",
+    "    redis.call('DEL', index)",
+    'end',
+    "if indexKind == 'set' then",
+    "    redis.call('DEL', index)",
+    'end',
+    "if indexKind == 'hash' then",
+    "    redis.call('DEL', index)",
+    'end',
+    "if indexKind == 'stream' then",
+    "    redis.call('DEL', index)",
+    'end',
+].join('\n')
+
+/**
  * Record a revocation: ONE operation, expiring at a Redis-decided instant.
  *
  * `TIME` is read inside the script, so the expiry is set from Redis's clock
@@ -123,14 +181,23 @@ const INDEX_TTL_SLACK_SECONDS = 60
  * TTL and every floor entry, or the maximum TTL when the floor cannot be read.
  * The script itself does not know the floor exists.
  *
+ * **Self-heals a wrong-typed index key, inside the same atomic `EVAL`**
+ * (#411): {@link INDEX_HEAL} runs first, over the bound local `index`, and its
+ * `DEL` — when it fires — lands before this script's own `ZADD` ever runs, so
+ * the heal and the mark it was about to perform land in ONE round trip. The
+ * reply widens to `{indexKind}`, decoded by {@link decodeMarkReply}.
+ *
  * `KEYS[1]` index key · `ARGV[1]` ttl seconds · `ARGV[2]` connection id ·
  * `ARGV[3]` the index key's own TTL.
  */
 const MARK_REVOKED_SCRIPT: string = [
+    'local index = KEYS[1]',
     "local t = redis.call('TIME')[1]",
-    "redis.call('ZADD', KEYS[1], 'GT', t + ARGV[1], ARGV[2])",
-    "redis.call('EXPIRE', KEYS[1], ARGV[3], 'NX')",
-    "redis.call('EXPIRE', KEYS[1], ARGV[3], 'GT')",
+    INDEX_HEAL,
+    "redis.call('ZADD', index, 'GT', t + ARGV[1], ARGV[2])",
+    "redis.call('EXPIRE', index, ARGV[3], 'NX')",
+    "redis.call('EXPIRE', index, ARGV[3], 'GT')",
+    'return {indexKind}',
 ].join('\n')
 
 /**
@@ -179,9 +246,15 @@ const MARK_REVOKED_SCRIPT: string = [
  * further for one driver's edge case would be a second, weaker home for the
  * same reasoning ADR013 already used to reject extending it for the floor's
  * own decode. Both callers now return `kind`, so their caller can WARN once on
- * a heal — {@link REAP_REVOKED_SCRIPT}'s pair and
+ * a heal — {@link REAP_REVOKED_SCRIPT}'s triple and
  * {@link ANNOUNCE_FLOOR_SCRIPT}'s bare reply. **The `DEL` never touches
- * anything but the floor key itself — never the revocation index.**
+ * anything but the floor key itself — never the revocation index.** The
+ * index gets the SAME heal, but never through this fragment: it is a
+ * different structure with a different write pattern (#411), and
+ * {@link INDEX_HEAL} is its own, separate fragment for exactly that reason —
+ * generalising this `DEL`'s reach "while we're in there" would let a floor
+ * heal destroy live revocations instead of leaving that to the index's own,
+ * narrower fragment.
  *
  * - `ZADD … GT` writes the entry at `t + ttl`, and never pulls an existing
  *   entry for the same TTL back in (a broker clock that steps back).
@@ -241,23 +314,36 @@ const FLOOR_WRITE: string = [
  * keeps its TTL on the floor with no extra round trip. The reap is still the
  * pass's only delete of the INDEX; the floor write prunes only floor entries.
  *
- * **The reply is `{t, kind}` since #405**, not `t` alone: `kind` is
- * {@link FLOOR_WRITE}'s `TYPE` read, so the caller can WARN once when it
- * healed a wrong-typed floor key (`kind` outside `zset`/`none`) — decoded by
- * {@link decodeReapReply}, its one caller `listRevocations`.
+ * **The index self-heals here too, before the delete above** (#411):
+ * {@link INDEX_HEAL} runs first, over the bound local `index`, so a
+ * wrong-typed index no longer aborts the whole pass with `WRONGTYPE` — the
+ * SAME gap #405 closed for the floor, generalised to the index by the same
+ * disposition. Unlike the mark, this script never `ZADD`s the index, so a
+ * heal here leaves it ABSENT (`none`) rather than a fresh `zset` — "usable
+ * again", not "a zset again": the next mark or a raw write succeeds against
+ * it with nothing left to work around.
+ *
+ * **The reply is `{t, indexKind, floorKind}` since #411** (`{t, kind}` since
+ * #405, `kind` renamed `floorKind` on decode): `indexKind` is
+ * {@link INDEX_HEAL}'s `TYPE` read and `floorKind` is {@link FLOOR_WRITE}'s,
+ * so the caller can WARN once for each key it healed (a kind outside
+ * `zset`/`none`) — decoded by {@link decodeReapReply}, its one caller
+ * `listRevocations`.
  *
  * Called as `EVAL <script> 2 <index> <floor> <ttl> <ttl + slack>`:
  * `KEYS[1]` index key · `KEYS[2]` floor key · `ARGV[1]` this instance's
  * `revocationTtlSeconds` · `ARGV[2]` the floor key's own TTL.
  */
 const REAP_REVOKED_SCRIPT: string = [
+    'local index = KEYS[1]',
     "local t = redis.call('TIME')[1]",
-    "redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', t)",
+    INDEX_HEAL,
+    "redis.call('ZREMRANGEBYSCORE', index, '-inf', t)",
     'local floor = KEYS[2]',
     'local ttl = ARGV[1]',
     'local keyTtl = ARGV[2]',
     FLOOR_WRITE,
-    'return {t, kind}',
+    'return {t, indexKind, kind}',
 ].join('\n')
 
 /**
@@ -1310,41 +1396,47 @@ export function decodeExistsReply(reply: unknown): 0 | 1 {
 export const EPOCH_SECONDS = /^(0|[1-9][0-9]{0,14})$/
 
 /**
- * The one message {@link decodeReapReply} throws (#359, widened #405). It
- * names the shape it expected and never carries the reply, its type or its
- * length. Exported for the test suite only.
+ * The one message {@link decodeReapReply} throws (#359, widened #405, widened
+ * again #411). It names the shape it expected and never carries the reply,
+ * its type or its length. Exported for the test suite only.
  */
 export const REAP_REPLY_REFUSED =
-    'realtime: the revocation reap did not answer a {t, kind} pair — t a ' +
-    'bulk string of at most 15 decimal digits with no leading zero, kind a ' +
-    "bulk string naming the floor key's Redis type"
+    'realtime: the revocation reap did not answer a {t, indexKind, floorKind} ' +
+    'triple — t a bulk string of at most 15 decimal digits with no leading ' +
+    'zero, indexKind and floorKind bulk strings naming the index and floor ' +
+    "keys' Redis types"
 
 /**
- * The reap's decoded reply (#405): the pass's one `now`, and the Redis type
- * {@link FLOOR_WRITE} found at the floor key before it healed anything.
+ * The reap's decoded reply (#405, widened #411): the pass's one `now`, the
+ * Redis type {@link INDEX_HEAL} found at the index key, and the Redis type
+ * {@link FLOOR_WRITE} found at the floor key — each read before it healed
+ * anything.
  */
 export interface ReapReply {
     /** The Redis second the reap used. */
     readonly t: number
+    /** The index key's prior Redis type — `'zset'`/`'none'` iff no heal ran. */
+    readonly indexKind: string
     /** The floor key's prior Redis type — `'zset'`/`'none'` iff no heal ran. */
-    readonly kind: string
+    readonly floorKind: string
 }
 
 /**
  * Decode the reply of {@link REAP_REVOKED_SCRIPT} (#359 FR-002, widened by
- * #405): a two-element array whose first element is a bulk string matching
- * {@link EPOCH_SECONDS}, read as the pass's one `now`, and whose second is a
- * bulk string naming the floor key's prior Redis type.
+ * #405, widened again by #411): a three-element array whose first element is
+ * a bulk string matching {@link EPOCH_SECONDS}, read as the pass's one `now`,
+ * and whose second and third are bulk strings naming the index key's and the
+ * floor key's prior Redis type, respectively.
  *
  * **The single home of what a reap reply means.** Anything else — an array of
- * the wrong length, an integer reply for either element, a nil, or a
+ * the wrong length, an integer reply for any element, a nil, or a
  * non-canonical or over-long `t` — throws {@link REAP_REPLY_REFUSED}, so a
  * pass never judges liveness against a `now` it guessed (`?? 0` would read
  * every record as live, forever). Exported for the test suite only; `mod.ts`
  * does not re-export it.
  *
  * @param reply - The reap's `EVAL` reply.
- * @returns The Redis second the reap used, and the floor key's prior kind.
+ * @returns The Redis second the reap used, and each key's prior kind.
  * @throws {Error} {@link REAP_REPLY_REFUSED}, for any other reply.
  * @example
  * ```ts
@@ -1353,21 +1445,110 @@ export interface ReapReply {
  *     value: [
  *         { type: 'bulk', value: '1790157600' },
  *         { type: 'bulk', value: 'zset' },
+ *         { type: 'bulk', value: 'zset' },
  *     ],
- * }) // { t: 1790157600, kind: 'zset' }
+ * }) // { t: 1790157600, indexKind: 'zset', floorKind: 'zset' }
  * ```
  */
 export function decodeReapReply(reply: unknown): ReapReply {
     const items = asArray(reply)
-    if (items === undefined || items.length !== 2) {
+    if (items === undefined || items.length !== 3) {
         throw new Error(REAP_REPLY_REFUSED)
     }
     const t = asBulk(items[0])
-    const kind = asBulk(items[1])
-    if (t === undefined || !EPOCH_SECONDS.test(t) || kind === undefined) {
+    const indexKind = asBulk(items[1])
+    const floorKind = asBulk(items[2])
+    if (
+        t === undefined || !EPOCH_SECONDS.test(t) ||
+        indexKind === undefined || floorKind === undefined
+    ) {
         throw new Error(REAP_REPLY_REFUSED)
     }
-    return { t: Number(t), kind }
+    return { t: Number(t), indexKind, floorKind }
+}
+
+/**
+ * The one message {@link decodeMarkReply} throws (#411). It names the shape
+ * it expected and never carries the reply, its type or its length. Exported
+ * for the test suite only.
+ */
+export const MARK_REPLY_REFUSED =
+    'realtime: the revocation mark did not answer a {indexKind} singleton — ' +
+    "a bulk string naming the index key's Redis type"
+
+/**
+ * The mark's decoded reply (#411): the Redis type {@link INDEX_HEAL} found at
+ * the index key before it healed anything.
+ */
+export interface MarkReply {
+    /** The index key's prior Redis type — `'zset'`/`'none'` iff no heal ran. */
+    readonly kind: string
+}
+
+/**
+ * Decode the reply of {@link MARK_REVOKED_SCRIPT} (#411): a one-element array
+ * whose element is a bulk string naming the index key's prior Redis type.
+ *
+ * **The single home of what a mark reply means.** Anything else — an array of
+ * the wrong length, an integer reply, or a nil — throws
+ * {@link MARK_REPLY_REFUSED}, the same discipline {@link REAP_REPLY_REFUSED}
+ * keeps. Exported for the test suite only; `mod.ts` does not re-export it.
+ *
+ * @param reply - The mark's `EVAL` reply.
+ * @returns The index key's prior kind.
+ * @throws {Error} {@link MARK_REPLY_REFUSED}, for any other reply.
+ * @example
+ * ```ts
+ * decodeMarkReply({
+ *     type: 'array',
+ *     value: [{ type: 'bulk', value: 'zset' }],
+ * }) // { kind: 'zset' }
+ * ```
+ */
+export function decodeMarkReply(reply: unknown): MarkReply {
+    const items = asArray(reply)
+    if (items === undefined || items.length !== 1) {
+        throw new Error(MARK_REPLY_REFUSED)
+    }
+    const kind = asBulk(items[0])
+    if (kind === undefined) throw new Error(MARK_REPLY_REFUSED)
+    return { kind }
+}
+
+/**
+ * The one message {@link decodeAnnounceReply} throws (#411 folded LOW). It
+ * names the shape it expected and never carries the reply, its type or its
+ * length. Exported for the test suite only.
+ */
+export const ANNOUNCE_REPLY_REFUSED =
+    'realtime: the floor announce did not answer a bulk string naming the ' +
+    "floor key's Redis type"
+
+/**
+ * Decode the reply of {@link ANNOUNCE_FLOOR_SCRIPT} (#405, made strict by
+ * #411): a bulk string naming the floor key's prior Redis type.
+ *
+ * **Strict on purpose, mirroring {@link decodeReapReply}.** The bare
+ * `asBulk(reply)` this replaced read a non-bulk reply as `undefined` and
+ * silently skipped the heal check — no throw, no WARN, and
+ * {@link RedisBroadcastDriver.#announceFloor} could not tell a healthy
+ * announce from a decode it could not trust. Throwing instead lands the
+ * failure in `#announceFloor`'s own `catch`, which already WARNs and retries
+ * for a rejected command — a decode failure now gets the same treatment
+ * rather than a silent no-op.
+ *
+ * @param reply - The announce's `EVAL` reply.
+ * @returns The floor key's prior kind.
+ * @throws {Error} {@link ANNOUNCE_REPLY_REFUSED}, for any other reply.
+ * @example
+ * ```ts
+ * decodeAnnounceReply({ type: 'bulk', value: 'zset' }) // 'zset'
+ * ```
+ */
+export function decodeAnnounceReply(reply: unknown): string {
+    const kind = asBulk(reply)
+    if (kind === undefined) throw new Error(ANNOUNCE_REPLY_REFUSED)
+    return kind
 }
 
 /**
@@ -1677,6 +1858,21 @@ export const REVOCATION_FLOOR_LOG_FAILED =
 export const REVOCATION_FLOOR_WRONG_TYPE =
     'realtime: the revocation floor key held the wrong Redis type and was ' +
     'healed (#405); the pass completed normally. Prior type:'
+
+/**
+ * The words of the one WARN written when {@link INDEX_HEAL} healed a
+ * wrong-typed revocation INDEX key (#411) — followed by the prior Redis type
+ * (`string`, `list`, `set`, `hash` or `stream`), never a member, channel or
+ * instance id — wording twin to {@link REVOCATION_FLOOR_WRONG_TYPE}. Written
+ * once per healed pass, from `listRevocations` when the reap healed it or
+ * from `markRevocation` when the mark did — every occurrence WARNs, including
+ * a repeatedly-recorrupted key. The pass or mark completed normally: the heal
+ * ran inside the same atomic `EVAL` that already touches the index, so
+ * nothing here means the write failed. Exported for the test suite only.
+ */
+export const REVOCATION_INDEX_WRONG_TYPE =
+    'realtime: the revocation index key held the wrong Redis type and was ' +
+    'healed (#411); the pass completed normally. Prior type:'
 
 /**
  * What one heartbeat's `SET <alive key> 1 EX <ttl> GET` reported (#349):
@@ -3559,6 +3755,12 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * Any floor WARN is written after the record, through a helper that never
      * throws.
      *
+     * **The index self-heals here too** (#411): {@link INDEX_HEAL} runs inside
+     * the same `EVAL`, before the `ZADD` below, so a wrong-typed index no
+     * longer fails the mark with `WRONGTYPE` — heal and write land in one
+     * round trip. `decodeMarkReply` reads which prior kind it found;
+     * `#warnIfIndexHealed` WARNs once when that is outside `zset`/`none`.
+     *
      * @param revocation - What is revoked: a whole connection, or a connection
      *   in one channel.
      * @throws {Error} If the record's `EVAL` fails, or if either half of the
@@ -3589,7 +3791,7 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             // longest lifetime instead, and one WARN says so after the write.
             unreadable = { error }
         }
-        await this.command.command(
+        const reply = await this.command.command(
             'EVAL',
             MARK_REVOKED_SCRIPT,
             '1',
@@ -3598,6 +3800,7 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             member,
             String(eff + INDEX_TTL_SLACK_SECONDS),
         )
+        this.#warnIfIndexHealed(decodeMarkReply(reply).kind)
         if (unreadable !== undefined) {
             this.#warnFloor(
                 `${REVOCATION_FLOOR_READ_FAILED} ${
@@ -3645,6 +3848,23 @@ export class RedisBroadcastDriver implements BroadcastDriver {
     }
 
     /**
+     * WARN once when {@link INDEX_HEAL} healed a wrong-typed index key
+     * (#411): `kind` is its `TYPE` read, taken BEFORE the heal's `DEL`. A
+     * `zset` (the index's own shape) or `none` (no key yet) means nothing was
+     * healed, so nothing WARNs on the hot path — every other kind is this
+     * key's Redis type just before this call deleted it. Reuses
+     * {@link #warnFloor}'s sink rather than a sibling: the #391 marked
+     * fallback and its own log-failure line are shared machinery, not
+     * floor-specific.
+     *
+     * @param kind - The index key's Redis type, as {@link INDEX_HEAL} read it.
+     */
+    #warnIfIndexHealed(kind: string): void {
+        if (kind === 'zset' || kind === 'none') return
+        this.#warnFloor(`${REVOCATION_INDEX_WRONG_TYPE} ${kind}`)
+    }
+
+    /**
      * OPTIONAL (S1/FR-014). One revocation pass's read half (#359): reap the
      * expired records, then read the index in bounded pages and return the
      * live, decodable records `owns` keeps. The contract an implementation
@@ -3679,6 +3899,13 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * method still reaps the index and reads every page. `#warnIfFloorHealed`
      * WARNs once, right after the reap's reply decodes, when that happened.
      *
+     * **Neither does a wrong-typed INDEX key** (#411): the reap self-heals it
+     * too, inside the same `EVAL` ({@link INDEX_HEAL}), before the delete
+     * above. Unlike the floor, the reap never `ZADD`s the index, so a healed
+     * index is ABSENT rather than a fresh `zset` — the next page read simply
+     * sees an empty index, and the next mark or a raw write finds it usable.
+     * `#warnIfIndexHealed` WARNs once, right after the reap's reply decodes.
+     *
      * **A completed enumeration records its reap time** on the pass in
      * flight, if there is one — {@link RevocationPassRecord.readAt} (#383) —
      * and in {@link #lastReadAt} (#362 S1), its only writer; a pass that
@@ -3706,7 +3933,7 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         owns?: (target: string) => boolean,
     ): Promise<Revocation[]> {
         if (this.#closing) throw new Error(REVOCATION_PASS_CLOSING)
-        const { t, kind } = decodeReapReply(
+        const { t, indexKind, floorKind } = decodeReapReply(
             await this.command.command(
                 'EVAL',
                 REAP_REVOKED_SCRIPT,
@@ -3717,7 +3944,8 @@ export class RedisBroadcastDriver implements BroadcastDriver {
                 String(this.revocationTtlSeconds + INDEX_TTL_SLACK_SECONDS),
             ),
         )
-        this.#warnIfFloorHealed(kind)
+        this.#warnIfIndexHealed(indexKind)
+        this.#warnIfFloorHealed(floorKind)
         const live = new Map<string, Revocation>()
         let skipped = 0
         let cursor = '0'
@@ -3917,6 +4145,13 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * heal runs inside the same `EVAL` ({@link FLOOR_WRITE}), and
      * `#warnIfFloorHealed` inspects the reply for it once the write succeeds.
      *
+     * **The reply is strictly decoded** (#411 folded LOW): `decodeAnnounceReply`
+     * throws on anything but a bulk string, instead of the bare `asBulk` this
+     * used to read directly — which silently skipped the heal check on a
+     * non-bulk reply, no throw and no WARN. A decode failure now lands in the
+     * `catch` below, exactly like a rejected command: one WARN, and the same
+     * retry.
+     *
      * @param backoffMs - The delay before the retry a failure arms.
      * @returns Resolves once this attempt has settled; never rejects.
      */
@@ -3930,8 +4165,7 @@ export class RedisBroadcastDriver implements BroadcastDriver {
                 String(this.revocationTtlSeconds),
                 String(this.revocationTtlSeconds + INDEX_TTL_SLACK_SECONDS),
             )
-            const kind = asBulk(reply)
-            if (kind !== undefined) this.#warnIfFloorHealed(kind)
+            this.#warnIfFloorHealed(decodeAnnounceReply(reply))
         } catch (error) {
             this.#warnFloor(
                 `${REVOCATION_FLOOR_ANNOUNCE_FAILED} ${renderError(error)}`,
