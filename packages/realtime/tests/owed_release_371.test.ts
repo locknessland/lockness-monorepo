@@ -91,7 +91,14 @@ function warnCalls(): { readonly lines: string[] } & Disposable {
 function presenceDriver() {
     const roster = new Map<string, Map<string, PresenceMember>>()
     const releaseFaults = new Map<string, number>()
+    const releaseCalls = new Map<string, number>()
     let maintenance: (() => void | Promise<void>) | undefined
+    // Concurrency gauge (W3c): every `releaseMember` yields once on a real
+    // microtask before it settles, so two calls issued without awaiting the
+    // first would genuinely overlap — a `Promise.all` in `#drainOwedReleases`
+    // is observable here, where a fully synchronous double could not show it.
+    let inFlight = 0
+    let peak = 0
     const slot = (channel: string, id: string | number) =>
         `${channel}\0${String(id)}`
     const driver: BroadcastDriver = {
@@ -105,16 +112,24 @@ function presenceDriver() {
             members.set(field, member)
             return { arrived }
         },
-        releaseMember(channel, memberId) {
+        async releaseMember(channel, memberId) {
             const field = String(memberId)
             const key = slot(channel, field)
-            const remaining = releaseFaults.get(key) ?? 0
-            if (remaining > 0) {
-                releaseFaults.set(key, remaining - 1)
-                return Promise.reject(new Error('ROSTER_RELEASE_REFUSED'))
+            releaseCalls.set(key, (releaseCalls.get(key) ?? 0) + 1)
+            inFlight++
+            peak = Math.max(peak, inFlight)
+            try {
+                await Promise.resolve()
+                const remaining = releaseFaults.get(key) ?? 0
+                if (remaining > 0) {
+                    releaseFaults.set(key, remaining - 1)
+                    throw new Error('ROSTER_RELEASE_REFUSED')
+                }
+                const gone = roster.get(channel)?.delete(field) ?? false
+                return { gone }
+            } finally {
+                inFlight--
             }
-            const gone = roster.get(channel)?.delete(field) ?? false
-            return { gone }
         },
         readRoster(channel, limit, selfIds) {
             return asWindow(
@@ -138,6 +153,17 @@ function presenceDriver() {
         failReleaseTimes(channel: string, id: string | number, times = 1) {
             const key = slot(channel, id)
             releaseFaults.set(key, (releaseFaults.get(key) ?? 0) + times)
+        },
+        /** How many times `releaseMember` has been called for this slot. */
+        releaseCallCount(channel: string, id: string | number): number {
+            return releaseCalls.get(slot(channel, id)) ?? 0
+        },
+        /** The most `releaseMember` calls ever in flight at once. */
+        peakConcurrency(): number {
+            return peak
+        },
+        resetPeakConcurrency(): void {
+            peak = 0
         },
         /** Invoke the captured `onRosterMaintenance` handler once. */
         async drain(): Promise<void> {
@@ -342,12 +368,55 @@ Deno.test(
                 'exactly one left',
             )
 
+            const callsAfterSuccess = driver.releaseCallCount(CHANNEL, 7)
             await driver.drain()
             assertEquals(
                 actions(observer, 7),
                 ['joined', 'left'],
                 'no duplicate on a further tick: the ledger is now empty',
             )
+            assertEquals(
+                driver.releaseCallCount(CHANNEL, 7),
+                callsAfterSuccess,
+                'the ledger entry was actually cleared: a further drain ' +
+                    'does not retry an already-settled slot',
+            )
+            assertEquals(escaped, [], 'no rejection escapes to the runtime')
+        })
+    },
+)
+
+Deno.test(
+    '#371 W3c the drain issues releases sequentially, never concurrently',
+    async () => {
+        await watchingEscapes(async (escaped) => {
+            const driver = presenceDriver()
+            const m = new ChannelManager<User>({
+                driver: driver.driver,
+                authorize,
+            })
+            const c7 = conn('c7', 7)
+            m.register(c7)
+            await m.subscribe(c7, CHANNEL)
+            const c9 = conn('c9', 9)
+            m.register(c9)
+            await m.subscribe(c9, CHANNEL)
+
+            driver.failReleaseTimes(CHANNEL, 7, 1)
+            await assertRejects(() => m.unsubscribe(c7.id, CHANNEL))
+            driver.failReleaseTimes(CHANNEL, 9, 1)
+            await assertRejects(() => m.unsubscribe(c9.id, CHANNEL))
+
+            driver.resetPeakConcurrency()
+            await driver.drain()
+
+            assertEquals(
+                driver.peakConcurrency(),
+                1,
+                'never Promise.all: the drain issues one release at a time',
+            )
+            assertEquals(driver.roster.get(CHANNEL)?.has('7'), false)
+            assertEquals(driver.roster.get(CHANNEL)?.has('9'), false)
             assertEquals(escaped, [], 'no rejection escapes to the runtime')
         })
     },
