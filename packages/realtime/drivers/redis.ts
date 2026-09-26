@@ -2141,6 +2141,36 @@ export const SWEEP_INSTANCE_LOG_FAILED = markedFallbackMarker(
 )
 
 /**
+ * The marker that starts the one ERROR line written when `#sweepInstance`'s
+ * "instance … renewed its liveness" WARN could not be, because `console.warn`
+ * threw (#418, second security review of the same issue). This is a SUCCESS
+ * exit — the instance turned out to be alive, not a crash — so nothing wraps
+ * it in a `try` the way the failure branch's own WARN is wrapped: an
+ * unguarded throw here escaped `#sweepInstance` exactly as {@link
+ * SWEEP_INSTANCE_LOG_FAILED}'s did, reaching `#reconcile`'s `for` loop and
+ * skipping every instance still left in `ids` — #355 A3 broken by a
+ * SUCCESSFUL sweep's own report, not a failed one. Exported for the test
+ * suite only.
+ */
+export const SWEEP_INSTANCE_RENEWED_LOG_FAILED = markedFallbackMarker(
+    'realtime: a sweep-renewed WARN could not be logged (#418):',
+)
+
+/**
+ * The marker that starts the one ERROR line written when `#sweepInstance`'s
+ * "released N hold(s) of dead instance …" WARN could not be, because
+ * `console.warn` threw (#418, second security review of the same issue). The
+ * control-flow twin of {@link SWEEP_INSTANCE_RENEWED_LOG_FAILED}: also a
+ * SUCCESS exit (every owned entry was released, `completed`/`kept`/`closed`),
+ * also unwrapped by any `try`, and also capable of skipping every instance
+ * still left in `ids` when its own sink is what is down. Exported for the
+ * test suite only.
+ */
+export const SWEEP_INSTANCE_RELEASED_LOG_FAILED = markedFallbackMarker(
+    'realtime: a sweep-released WARN could not be logged (#418):',
+)
+
+/**
  * The marker that starts the one ERROR line written when `#reconcile`'s own
  * catch — the "roster reconcile failed" WARN — could not be, because
  * `console.warn` threw (#418, security review of the same issue). That catch
@@ -5431,6 +5461,13 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * first statement of the failed branch, before that branch's WARN. What
      * the two counts mean is {@link PassSample}'s to say.
      *
+     * **Every exit's WARN goes through {@link #guardedWarn}, so this method
+     * never throws** (#418, second security review): a `#reconcile` that
+     * called it inside a per-id `try` would either sit dead — since nothing
+     * here can reject it any more — or, worse, relabel a genuine bug as a
+     * routine sweep failure the first time one is added without the same
+     * guard. A WARN added to a future exit follows this rule too.
+     *
      * @param deadId - The instance whose liveness lapsed.
      */
     async #sweepInstance(deadId: string): Promise<void> {
@@ -5459,7 +5496,13 @@ export class RedisBroadcastDriver implements BroadcastDriver {
                     renderError(end.failed),
             )
         } else if (end === 'renewed') {
-            console.warn(
+            // #418 (second security review): a SUCCESS exit — the instance
+            // renewed, not crashed — but nothing wraps this WARN in a `try`
+            // either, so its own throw would escape this method exactly like
+            // the failed branch's used to. One marked line, through
+            // #guardedWarn's shared #369 shape.
+            this.#guardedWarn(
+                SWEEP_INSTANCE_RENEWED_LOG_FAILED,
                 `realtime: instance ${id} renewed its liveness while being ` +
                     `swept — a lapse, not a crash; ${released} hold(s) ` +
                     `released (${emptied} emptied) before it did`,
@@ -5469,7 +5512,10 @@ export class RedisBroadcastDriver implements BroadcastDriver {
                 ? ' — unfinished: it stays registered and a later pass ' +
                     'resumes it'
                 : ''
-            console.warn(
+            // #418 (second security review): the other SUCCESS exit, the
+            // same unwrapped shape as `renewed` above.
+            this.#guardedWarn(
+                SWEEP_INSTANCE_RELEASED_LOG_FAILED,
                 `realtime: released ${released} hold(s) of dead instance ` +
                     `${id} (${emptied} emptied their slot)${unfinished}`,
             )
