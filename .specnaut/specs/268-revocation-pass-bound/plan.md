@@ -780,6 +780,12 @@ The per-file list was not itemised in the relay.
   `#unwritten`; an `arm()` that finds one writes it on a 0 ms timer, then arms the remaining time;
   the `SKEWED` branch is "decide, then `arm(delayMs)`"; only `close()` drops them (witness D7 (v),
   row N31). Residue: a `close()` inside that window still drops the line, which is accepted.
+  **Correction (#383, 2026-09-26):** the sentence above claimed D7 (v)/N31 covered "a decided
+  `MISSED` or `SKEWED`"; they cover only the `SKEWED` half. The overdue-`MISSED` half of the same
+  carry had no witness — #362's own D4b holds the trailing pass, so it never races the carry's 0 ms
+  flush timer. #383 adds D4c (the race, unheld) and battery row N38 (reverts the carry to a direct
+  write), and relocates N31 from `arm()`'s own check to the top of `passSucceeded`, so it can only
+  erase a line CARRIED IN from an earlier call rather than one this same call had just decided.
 - **`startedAt` comes from the start site's closure** (FR-008.3.1 amended), and
   `REVOCATION_LOG_FAILED` stays internal to `enforcement_deadline.ts` (not exported from `mod.ts`;
   in `redis.ts` it would be a cycle).
