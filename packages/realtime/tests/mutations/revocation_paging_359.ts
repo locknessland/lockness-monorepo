@@ -34,8 +34,9 @@
  * - M12 the Redis driver ignores `owns`.
  * - M13 the manager stops handing `owns` over.
  * - M14 the manager's own `connections.has` check deleted — a recorded
- *   equivalent mutant since #361: no membership can name an id absent from
- *   `connections` any more, so applying there is a no-op (R13 (d), which
+ *   equivalent mutant: unreachable for a transport that registers on open;
+ *   #370 enforces it for every caller, so no membership can name an id
+ *   absent from `connections` and applying there is a no-op (R13 (d), which
  *   built that state, is retired).
  * - M15 the revocation timer back on `setInterval`.
  * - M16 a reconnect during a pass dropped (no rerun recorded).
@@ -352,13 +353,14 @@ const MUTATIONS: Mutation[] = [
         ]],
         // Killed until #361 by R13 (d), which built a membership stranded by a
         // `subscribe` resolving during a `disconnect` of the same id. #361
-        // made that state unreachable, retired R13 (d) and moved this row to
-        // its recorded survival. Kept, never deleted: if applying to an id
-        // absent from `connections` ever becomes observable again, R13 (b, c)
-        // is the fixture that would kill it.
+        // narrowed that window for a transport that registers on open; #370
+        // (register-only admission) enforces it at runtime, retiring R13 (d)
+        // and moving this row to its recorded survival. Kept, never deleted:
+        // if applying to an id absent from `connections` ever becomes
+        // observable again, R13 (b, c) is the fixture that would kill it.
         killedBy: '(none — equivalent)',
         expectSurvival:
-            "Equivalent since #361, for a transport that honours the documented register-on-open contract: an id absent from `connections` is then named by no membership and no presence entry. A retired connection is refused at admission (#361 W1, W3, W8), and `unsubscribe` forgets presence before its awaited leave (#361 W9). The contract is documented, not enforced at runtime: an unregistered first subscribe racing its own disconnect can still strand such a membership, and #370 (retiring implicit registration) is what would make the equivalence enforced. Against such an id, applying is otherwise a no-op. The fixture that would kill it is R13 (b, c)'s foreign id, if applying there ever became observable.",
+            "Unreachable for a transport that registers on open; #370 enforces it: `subscribe` now refuses admission (`ConnectionNotRegisteredError`) to any id `connections` does not already hold, before its authorizer runs and before anything is written, so no membership can name an id absent from `connections`. A retired connection is refused the same way (#361 W1, W3, W8), and `unsubscribe` forgets presence before its awaited leave (#361 W9). Against such an id, applying is a no-op. The fixture that would kill it is R13 (b, c)'s foreign id, if applying there ever became observable.",
     },
     {
         label: 'M15 — the revocation timer back on setInterval',
