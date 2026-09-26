@@ -48,7 +48,11 @@ other socket on it
 ([#369](https://github.com/locknessland/lockness-monorepo/issues/369)). With
 `manager.handlerHooks(...)`, the close awaits `manager.disconnect`, which
 re-throws a teardown failure such as a broker unwatch or a roster release that
-did not complete. That failure now reaches `onError` like any other. The
+did not complete. That failure now reaches `onError` like any other — **unless
+your own `onClose` threw first.** Then your error is what the close rejects with
+and reaches `onError`, and a teardown failure that follows it is only logged as
+a WARN, never a second `onError` call (see
+[item 17](#17-a-disconnected-connection-is-refused-at-admission)). The
 connection is still forgotten, and the manager keeps serving.
 
 `onError` is covered as well. If your `onError` throws or rejects, the handler
