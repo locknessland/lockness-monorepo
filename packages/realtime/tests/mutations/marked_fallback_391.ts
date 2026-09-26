@@ -4,9 +4,13 @@
  *
  * Each row puts back one way the #391 containment can be wrong:
  *
- * - G1: `writeMarkedFallback`'s console guard removed — its `catch` turned into
- *   a `finally`, so a throwing `console.error` propagates (after the stderr
- *   write is still attempted, so ONLY the guard is gone).
+ * - G1: `writeMarkedFallback`'s console guard removed — `consoleFailure` now
+ *   escapes the catch (after the stderr write is still attempted, exactly as
+ *   it is today), so ONLY the guard is gone. **Re-shaped for #399**: the
+ *   original mutant swapped `catch` for `finally`, which runs on every path,
+ *   not only a throwing one — it also broke H1, a WORKING console, which
+ *   then wrote to stderr too. This one changes nothing about when the block
+ *   runs, only that it no longer swallows what it catches.
  * - G2: the stderr guard removed — `Deno.stderr.writeSync` called bare, so a
  *   throwing stderr propagates out of the console's catch.
  * - S1–S7: one per sink, the inline, unguarded `console.error` put back in
@@ -32,8 +36,14 @@
  *
  * Every row was proven LIVE before it was trusted: with the mutant applied,
  * the killing witness was run alone and the stack of the error it reported
- * was seen to pass through the row's mutated line. A row whose line never
- * runs reports a kill it did not cause.
+ * was seen to pass through the row's mutated line. **That is a one-time,
+ * manual check** (#399) — the artefact that stands behind it on every run
+ * after is this battery's own printed output: `runBattery` names, per row,
+ * `KILLED <label>` with the witness `killedBy` required, or `SURVIVED`/
+ * `SURVIVED*` when it did not, so a row's claim to reach its sink is backed
+ * by that line every time the battery runs, not only by this comment. A row
+ * whose line never runs reports a kill it did not cause — which is exactly
+ * what re-running the battery after touching a row is for.
  *
  * Runs under the shared harness: green baseline before anything is mutated, an
  * atomic per-file lock, anchors matched exactly once (a stale anchor reports
@@ -62,34 +72,48 @@ const SUITES = [
     new URL('../marked_fallback_sinks_391.test.ts', import.meta.url).pathname,
 ]
 
-/** The helper's import, where a row re-adds `renderError` beside it. */
-const HELPER_IMPORT = (from: string) =>
-    `import { writeMarkedFallback } from '${from}'\n`
-const WITH_RENDER = (from: string) =>
-    "import { renderError } from '@lockness/contract'\n" + HELPER_IMPORT(from)
+/**
+ * The helper's import in websocket.ts and enforcement_deadline.ts, where a
+ * row re-adds `renderError` beside it (#399: re-anchored onto the combined
+ * `markedFallbackMarker` + `writeMarkedFallback` import each now uses, since
+ * both files still declare their marker constants through
+ * `markedFallbackMarker`, unaffected by a row that only mutates one CALL
+ * site).
+ */
+const WEBSOCKET_IMPORT =
+    "import { markedFallbackMarker, writeMarkedFallback } from './marked_fallback.ts'\n"
+const WEBSOCKET_WITH_RENDER =
+    "import { renderError } from '@lockness/contract'\nimport { markedFallbackMarker, writeMarkedFallback } from './marked_fallback.ts'\n"
+const DEADLINE_IMPORT =
+    "import {\n    markedFallbackMarker,\n    writeMarkedFallback,\n} from '../marked_fallback.ts'\n"
+const DEADLINE_WITH_RENDER =
+    "import { renderError } from '@lockness/contract'\nimport {\n    markedFallbackMarker,\n    writeMarkedFallback,\n} from '../marked_fallback.ts'\n"
 
 const MUTATIONS: Mutation[] = [
     {
-        label: "G1 — the helper's console guard removed (catch → finally)",
+        label: "G1 — the helper's console guard removed (a throw now escapes)",
+        // #399: the prior mutant swapped `catch` for `finally`, which runs on
+        // EVERY path, not only a throwing console — so it also broke H1 (a
+        // WORKING console), which then wrote to stderr too. This mutant keeps
+        // the catch's OWN behaviour (stderr is still attempted, exactly once,
+        // only when the console throws) and removes only the one thing the
+        // label claims: the guard that stops `consoleFailure` from escaping.
         file: HELPER,
         edits: [[
-            '    } catch {\n' +
-            '        // The console refused the ERROR line: write it past the console.\n',
-            '    } finally {\n' +
-            '        // The console refused the ERROR line: write it past the console.\n',
+            '    } catch (consoleFailure) {\n        // The console refused the ERROR line: write it past the console,\n        // naming what the console itself threw (#399) \u2014 the prior line named\n        // only what console.error was given, never why it refused it.\n        try {\n            Deno.stderr.writeSync(\n                new TextEncoder().encode(\n                    `${line}; console failure: ${\n                        renderError(consoleFailure)\n                    }\\n`,\n                ),\n            )\n        } catch {\n            // #391 THE LAST RESORT: the console and stderr both refused, so\n            // no channel is left to log this on, and a re-throw would reach\n            // a caller that has none \u2014 an unhandled rejection or an uncaught\n            // timer exception, which terminates the process on Deno. Dropping\n            // one log line is the lesser harm.\n        }\n    }\n',
+            '    } catch (consoleFailure) {\n        // The console refused the ERROR line: write it past the console,\n        // naming what the console itself threw (#399) \u2014 the prior line named\n        // only what console.error was given, never why it refused it.\n        try {\n            Deno.stderr.writeSync(\n                new TextEncoder().encode(\n                    `${line}; console failure: ${\n                        renderError(consoleFailure)\n                    }\\n`,\n                ),\n            )\n        } catch {\n            // #391 THE LAST RESORT: the console and stderr both refused, so\n            // no channel is left to log this on, and a re-throw would reach\n            // a caller that has none \u2014 an unhandled rejection or an uncaught\n            // timer exception, which terminates the process on Deno. Dropping\n            // one log line is the lesser harm.\n        }\n        throw consoleFailure\n    }\n',
         ]],
         // Witness: H2 — a throwing console.error escapes the helper.
         killedBy: '#391 H2 (marker and subject)',
     },
     {
         label: "G2 — the helper's stderr guard removed (a bare writeSync)",
+        // Re-anchored for #399: the stderr write now also names what the
+        // console threw, so its call spans several lines.
         file: HELPER,
         edits: [[
-            '        try {\n' +
-            '            Deno.stderr.writeSync(new TextEncoder().encode(`${line}\\n`))\n' +
-            '        } catch {\n',
-            '        Deno.stderr.writeSync(new TextEncoder().encode(`${line}\\n`))\n' +
-            '        {\n',
+            '        try {\n            Deno.stderr.writeSync(\n                new TextEncoder().encode(\n                    `${line}; console failure: ${\n                        renderError(consoleFailure)\n                    }\\n`,\n                ),\n            )\n        } catch {\n',
+            '            Deno.stderr.writeSync(\n                new TextEncoder().encode(\n                    `${line}; console failure: ${\n                        renderError(consoleFailure)\n                    }\\n`,\n                ),\n            )\n        {\n',
         ]],
         // Witness: H3 — a throwing stderr escapes the helper.
         killedBy: '#391 H3 (marker and subject)',
@@ -99,8 +123,8 @@ const MUTATIONS: Mutation[] = [
         file: WEBSOCKET,
         edits: [
             [
-                HELPER_IMPORT('./marked_fallback.ts'),
-                WITH_RENDER('./marked_fallback.ts'),
+                WEBSOCKET_IMPORT,
+                WEBSOCKET_WITH_RENDER,
             ],
             [
                 '                writeMarkedFallback(HOOK_FAILED_TOO, error, {\n' +
@@ -121,8 +145,8 @@ const MUTATIONS: Mutation[] = [
         file: WEBSOCKET,
         edits: [
             [
-                HELPER_IMPORT('./marked_fallback.ts'),
-                WITH_RENDER('./marked_fallback.ts'),
+                WEBSOCKET_IMPORT,
+                WEBSOCKET_WITH_RENDER,
             ],
             [
                 '        writeMarkedFallback(UNHANDLED_WEBSOCKET_ERROR, error)\n',
@@ -188,8 +212,8 @@ const MUTATIONS: Mutation[] = [
         file: DEADLINE,
         edits: [
             [
-                HELPER_IMPORT('../marked_fallback.ts'),
-                WITH_RENDER('../marked_fallback.ts'),
+                DEADLINE_IMPORT,
+                DEADLINE_WITH_RENDER,
             ],
             [
                 '            writeMarkedFallback(REVOCATION_LOG_FAILED, text, {\n' +
