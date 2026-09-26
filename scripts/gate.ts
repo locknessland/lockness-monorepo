@@ -10,9 +10,10 @@
  * The steps run in order and the gate stops at the first one that fails,
  * exiting with that step's code. It is judged by its exit status only.
  *
- * | Flag       | Effect |
- * | :--------- | :----- |
- * | `--leaks`  | runs `deno task test:leaks` (`--trace-leaks`) instead of `deno task test` — what CI runs |
+ * | Flag         | Effect |
+ * | :----------- | :----- |
+ * | `--leaks`    | runs `deno task test:leaks` (`--trace-leaks`) instead of `deno task test` — what CI runs |
+ * | `--registry` | passes `--registry` to the `publish:check` step only — what `publish.yml` runs before `deno publish` |
  *
  * Any other argument is refused rather than ignored: a typo must not silently
  * run a different gate from the one that was asked for.
@@ -24,6 +25,7 @@
  * ```bash
  * deno task gate
  * deno task gate --leaks
+ * deno task gate --registry
  * ```
  *
  * @module
@@ -41,6 +43,8 @@ export interface GateStep {
 export interface GateOptions {
     /** Run the suite with `--trace-leaks` (`deno task test:leaks`). */
     leaks?: boolean
+    /** Pass `--registry` to the `publish:check` step only. */
+    registry?: boolean
 }
 
 /**
@@ -53,10 +57,13 @@ export interface GateOptions {
  * ```ts
  * gateSteps().at(-1)?.label                  // 'test'
  * gateSteps({ leaks: true }).at(-1)?.label   // 'test:leaks'
+ * gateSteps({ registry: true })[6].args      // ['task', 'publish:check', '--registry']
  * ```
  */
 export function gateSteps(options: GateOptions = {}): GateStep[] {
     const suite = options.leaks === true ? 'test:leaks' : 'test'
+    const publishCheckArgs = ['task', 'publish:check']
+    if (options.registry === true) publishCheckArgs.push('--registry')
     return [
         { label: 'fmt --check', args: ['fmt', '--check'] },
         { label: 'lint', args: ['lint'] },
@@ -67,7 +74,7 @@ export function gateSteps(options: GateOptions = {}): GateStep[] {
             args: ['task', 'agents:brief', '--check'],
         },
         { label: 'docs:coverage', args: ['task', 'docs:coverage'] },
-        { label: 'publish:check', args: ['task', 'publish:check'] },
+        { label: 'publish:check', args: publishCheckArgs },
         { label: suite, args: ['task', suite] },
     ]
 }
@@ -81,15 +88,21 @@ export function gateSteps(options: GateOptions = {}): GateStep[] {
  *
  * @example
  * ```ts
- * parseGateArgs(['--leaks'])   // { leaks: true }
- * parseGateArgs(['--leak'])    // throws
+ * parseGateArgs(['--leaks'])      // { leaks: true }
+ * parseGateArgs(['--registry'])   // { registry: true }
+ * parseGateArgs(['--leak'])       // throws
  * ```
  */
 export function parseGateArgs(args: string[]): GateOptions {
     const options: GateOptions = {}
     for (const arg of args) {
         if (arg === '--leaks') options.leaks = true
-        else throw new Error(`unknown argument: ${arg} (known: --leaks)`)
+        else if (arg === '--registry') options.registry = true
+        else {
+            throw new Error(
+                `unknown argument: ${arg} (known: --leaks, --registry)`,
+            )
+        }
     }
     return options
 }
