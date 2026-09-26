@@ -1101,7 +1101,7 @@ of what the re-check's counts mean.
 
 <!-- generated:tests -->
 
-101 test files for 28 source files:
+102 test files for 28 source files:
 
 - `packages/realtime/tests/apply_revocation_376.test.ts`
 - `packages/realtime/tests/authorize_denial_331.test.ts`
@@ -1206,7 +1206,7 @@ of what the re-check's counts mean.
 - `packages/realtime/tests/websocket.test.ts`
 - `packages/realtime/tests/websocket_close_guard_369.test.ts`
 
-50 mutation batteries — **`deno test` does not run these.** Each is an
+51 mutation batteries — **`deno test` does not run these.** Each is an
 executable that mutates a source file and re-runs the suites that should notice.
 Run them with `deno task mutate` (all of them, one at a time) or
 `deno task mutate <name>` (one); nightly CI runs the full sweep. See
@@ -1277,7 +1277,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 101 test files directly —
+Then, specific to this package: run its 102 test files directly —
 
 ```bash
 deno test -A packages/realtime/
