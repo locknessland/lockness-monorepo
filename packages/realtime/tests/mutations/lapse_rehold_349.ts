@@ -459,14 +459,26 @@ const REHOLD_ROWS: Mutation[] = [
     {
         label: 'M27 — a revocation that throws stops the reconcile again',
         file: MANAGER,
+        // Re-anchored by #395 (security review HIGH): the WARN gained its
+        // own try/catch guard. The injected re-throw goes AFTER that guard's
+        // closing brace now, still inside the outer `catch (error)` — inside
+        // the guard itself, the fix's own `catch (sink)` would absorb it and
+        // the mutant would prove nothing about the reconcile-pass defect it
+        // exists to reinject.
         edits: [[
-            "                        'the reconcile goes on with the next one: ' +\n" +
-            '                        renderError(error),\n' +
-            '                )\n',
-            "                        'the reconcile goes on with the next one: ' +\n" +
-            '                        renderError(error),\n' +
-            '                )\n' +
-            '                throw error\n',
+            '                    writeMarkedFallback(RECHECK_REVOCATION_LOG_FAILED, error, {\n' +
+            "                        label: 'sink failure',\n" +
+            '                        error: sink,\n' +
+            '                    })\n' +
+            '                }\n' +
+            '            }\n',
+            '                    writeMarkedFallback(RECHECK_REVOCATION_LOG_FAILED, error, {\n' +
+            "                        label: 'sink failure',\n" +
+            '                        error: sink,\n' +
+            '                    })\n' +
+            '                }\n' +
+            '                throw error\n' +
+            '            }\n',
         ]],
         killedBy: '#349 W15c',
     },

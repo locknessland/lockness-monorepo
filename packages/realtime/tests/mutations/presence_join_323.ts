@@ -224,15 +224,22 @@ const MUTATIONS: Mutation[] = [
     {
         label: '#323 one unusable socket aborts the whole fan-out again',
         file: MANAGER,
+        // Re-anchored by #395 (security review LOW): the WARN gained its own
+        // try/catch guard, one indent level deeper. The injected throw goes
+        // BEFORE that new inner `try` now, not inside it — inside it, the
+        // fix's own `catch (sink)` would absorb the throw and the mutant
+        // would prove nothing about the fan-out defect it exists to reinject.
         edits: [[
             // Anchored through the message, not the `catch` shape: the two
             // post-write dispositions in `subscribe` have the same first two
             // lines, and the harness refuses an ambiguous anchor.
-            '                console.warn(\n' +
-            '                    `realtime: a presence frame could not be delivered on ${',
+            '                try {\n' +
+            '                    console.warn(\n' +
+            '                        `realtime: a presence frame could not be delivered on ${',
             '                if (error) throw error\n' +
-            '                console.warn(\n' +
-            '                    `realtime: a presence frame could not be delivered on ${',
+            '                try {\n' +
+            '                    console.warn(\n' +
+            '                        `realtime: a presence frame could not be delivered on ${',
         ]],
         // NEUTRALISED by re-throwing, not by dismantling the `try`. The first
         // attempt spliced the send out of the block and did not type-check, and
