@@ -21,15 +21,20 @@ import {
 } from './gate.ts'
 
 Deno.test('the gate runs the suite last, after every static check', () => {
-    assertEquals(gateSteps().map((s) => s.label), [
-        'fmt --check',
-        'lint',
-        'check',
-        'deps:analyze',
-        'agents:brief --check',
-        'docs:coverage',
-        'publish:check',
-        'test',
+    // Asserts each step's args, not only its label (#397): a step that kept
+    // its label while running the wrong command used to pass this test.
+    assertEquals(gateSteps(), [
+        { label: 'fmt --check', args: ['fmt', '--check'] },
+        { label: 'lint', args: ['lint'] },
+        { label: 'check', args: ['check'] },
+        { label: 'deps:analyze', args: ['task', 'deps:analyze'] },
+        {
+            label: 'agents:brief --check',
+            args: ['task', 'agents:brief', '--check'],
+        },
+        { label: 'docs:coverage', args: ['task', 'docs:coverage'] },
+        { label: 'publish:check', args: ['task', 'publish:check'] },
+        { label: 'test', args: ['task', 'test'] },
     ])
 })
 
