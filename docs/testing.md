@@ -641,15 +641,37 @@ app.use('*', actingAs(fakeUser({ id: 1, isAdmin: true })))
   (`scripts/prepush_secret_scan.ts`) that runs after `deno task gate`, over
   exactly the commits about to be pushed (`remote_sha..local_sha`, or
   `origin/main..local_sha` for a new branch). Both share one pinned gitleaks
-  release (`scripts/gitleaks_manifest.ts`, installed by
-  `scripts/install_gitleaks.ts`) and the same fail-closed rules: an ERR/FTL log
-  line, a report that cannot be read, a non-empty report paired with a zero exit
-  status, or "0 commits scanned" over a range known to hold commits all refuse.
-  `.gitleaksignore` applies to both — a reviewed false positive is suppressed
-  there, by fingerprint (`commit:file:rule:line`), never by allowlisting a path
-  and never with a repository-level `.gitleaks.toml` (refused outright). Values
-  are always `--redact`ed, so a real secret is never echoed to a terminal or a
-  CI log.
+  release (`scripts/gitleaks_manifest.json`, installed locally by
+  `scripts/install_gitleaks.ts` — CI reads the same JSON with `jq`, no Deno
+  setup needed for a scan-only job) and the same fail-closed rules: an ERR/FTL
+  log line, a report that cannot be read, a non-empty report paired with a zero
+  exit status, or "0 commits scanned" over a range known to hold commits all
+  refuse.
+
+  **`.gitleaksignore` is read as it stood at the BASE, never at the tip.** A
+  push (or a same-branch PR) cannot suppress its own new secret by adding the
+  fingerprint in a later commit of the same push — both the leak's commit and
+  the tip would otherwise read the same (already-suppressed) file and pass.
+  Concretely, both the hook and the workflow temporarily overwrite the
+  checked-out `.gitleaksignore` with the base's version for the scan only
+  (gitleaks reads that file live off disk, not from a git blob — confirmed
+  against the real binary, since its own `--gitleaks-ignore-path` flag does NOT
+  override a file already present in the scan's working directory) and restore
+  the original content afterward. The base is `remote_sha` locally (or the
+  `origin/main` merge-base for a new branch), and
+  `github.event.pull_request.base.sha` / `github.event.before` in CI. With no
+  base at all (a rootless push, or `workflow_dispatch`), the tip's file is kept
+  — the one named residue of this rule.
+
+  **The legitimate false-positive flow necessarily goes red once.** Suppress a
+  reviewed false positive by fingerprint (`commit:file:rule:line`) in
+  `.gitleaksignore`, never by allowlisting a path and never with a
+  repository-level `.gitleaks.toml` (refused outright) — but the fingerprint can
+  only be added in a **follow-up** push or PR, after the flagged commit is
+  already pushed: push the offending commit first (the scan refuses it — that
+  refusal is expected, not a bug), then add its `.gitleaksignore` entry in a
+  second push/PR. Values are always `--redact`ed, so a real secret is never
+  echoed to a terminal or a CI log.
 - **Mock at the seam.** Prefer an injected fake (a command-runner, a
   seeder-loader, a fake connection) over reaching into internals; the code under
   test should expose the seam.
