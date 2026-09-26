@@ -13,6 +13,12 @@
  *   the promise is `void`ed.
  * - R4: the Redis heartbeat's WARN, unguarded — the interval discards the
  *   promise.
+ * - R5 (#402): LapseRun's marked line written under the WRONG marker —
+ *   proves E1's marker assertion is load-bearing, not merely redundant with
+ *   the escape-safety checks every row shares. Containment is UNCHANGED (the
+ *   line still reaches its sink, still carries a second half); only the
+ *   marker argument differs, so this is the one row that must die on the
+ *   marker assertion specifically, not on an escaped rejection.
  *
  * The witness each row dies on — the assertion that fails, not only the test
  * (`escaping_sinks_395.test.ts`):
@@ -22,6 +28,8 @@
  *   throw`).
  * - R3: E5, `no rejection reaches the runtime`.
  * - R4: E6, `no rejection reaches the runtime`.
+ * - R5: E1, `the site's own marked line was attempted` — nothing escapes,
+ *   nothing throws; only the marker no longer matches.
  *
  * Every row was proven LIVE before it was trusted: with the mutant applied,
  * the killing witness was run alone and the stack of the rejection it
@@ -143,6 +151,25 @@ const MUTATIONS: Mutation[] = [
         // Witness: `no rejection reaches the runtime` — the interval's
         // heartbeat promise rejects, and nothing holds it.
         killedBy: '#395 E6 ',
+    },
+    {
+        label:
+            "R5 — LapseRun's marked line written under the WRONG marker (#402)",
+        // Containment is UNCHANGED: the line still reaches console.error (or
+        // its stderr fallback) with a full second half — only the marker
+        // argument differs, so the ONLY thing that can catch this is E1's
+        // marker assertion, never an escaped rejection or a synchronous
+        // throw. That is the point: it proves the marker check is
+        // load-bearing, not merely redundant with the escape-safety checks
+        // every row in the suite already shares.
+        file: LAPSE_RUN,
+        edits: [[
+            'writeMarkedFallback(LAPSE_RUN_LOG_FAILED, error, {\n',
+            "writeMarkedFallback(markedFallbackMarker('WRONG MARKER (#402" +
+            " mutant):'), error, {\n",
+        ]],
+        // Witness: E1 — its own marker was never written.
+        killedBy: '#395 E1 ',
     },
 ]
 
