@@ -206,6 +206,11 @@ Create a new issue, attach to Project #2, classify per the contract. Use
 `add.sh` (or `add.sh --parent <num>` for a sub-task). Ask clarifying questions
 to fill body sections (Why, AC, Out of scope, Notes, Domain Model on briefs).
 
+`add.sh` exits 0 once the issue exists, even if attaching it to the board
+failed, so that a re-run cannot duplicate it. Read its stderr: a
+`⚠ could not attach to Project #2` line means the issue is off the board. Attach
+it (`gh project item-add`) and place it before you report the item as created.
+
 All persisted backlog artifacts — titles, bodies, AC, etc. — MUST be written in
 English. You may reply in chat in the user's conversation language.
 
