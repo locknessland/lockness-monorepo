@@ -102,7 +102,11 @@ Records expire on the broker's clock, which the local deadline cannot see.
 at least one TTL apart while the local deadline is still pending, the deadline
 writes `SKEWED`, naming both. A step after the local deadline already fired adds
 nothing to that episode. The `SKEWED` timer then arms the ordinary deadline, so
-a failure run right after a skewed success is still reported. **Only `close()`
+a failure run right after a skewed success is still reported. **Amended
+2026-09-26 (#383):** what `passSucceeded` compares pass-to-pass is
+`RevocationPassRecord.readAt`, scoped to the pass that reports it —
+`#lastReadAt` stays `#announceFloor`'s own sticky "has any pass ever completed
+an enumeration" flag, a separate reader of the same write. **Only `close()`
 drops a line that is decided but not yet written**: an `arm()` that finds one —
 a fast rerun ending before the 0 ms timer, as a failover's reconnect pass does —
 writes it first and then arms the remaining time, because a 0 ms timer lands
