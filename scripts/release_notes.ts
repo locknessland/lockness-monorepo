@@ -24,7 +24,11 @@
  * missing tag, or output that could not be written. On a refusal stdout is
  * empty; when stdout itself breaks mid-body the exit is 2, so a caller that
  * judges the exit status can never paste half a body. Every path on stderr is
- * repo-relative.
+ * repo-relative. One path escapes this table: if stderr itself cannot be
+ * written, {@linkcode writeResult} has nowhere left to report the failure and
+ * lets the rejection propagate (documented on its own `@throws`), so the
+ * process exits with Deno's uncaught-rejection code, `1`, not the `2` a
+ * write failure otherwise gets.
  *
  * Runs with `--allow-read --allow-run=git`: it reads files and git objects,
  * never the network, and never writes a file.
