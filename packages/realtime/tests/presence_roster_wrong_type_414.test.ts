@@ -158,6 +158,13 @@ for (const kind of SET_WRONG_KINDS) {
             const warns = warnings.having(OWNED_SET_WRONG_TYPE)
             assertEquals(warns.length, 1, 'exactly one heal WARN')
             assert(warns[0].endsWith(kind), `names the prior kind: ${warns[0]}`)
+            // A literal fragment, hardcoded rather than read off the
+            // imported constant: a mutation to the WARN's own wording must
+            // fail THIS line, not merely re-match itself.
+            assert(
+                warns[0].includes('Prior type:'),
+                `the WARN's own wording: ${warns[0]}`,
+            )
 
             // "Usable again": a plain SADD against the healed key succeeds,
             // and the hot path never WARNs again.
@@ -190,6 +197,13 @@ for (const kind of SET_WRONG_KINDS) {
             const warns = warnings.having(OWNED_SET_WRONG_TYPE)
             assertEquals(warns.length, 1, 'exactly one heal WARN')
             assert(warns[0].endsWith(kind), `names the prior kind: ${warns[0]}`)
+            // A literal fragment, hardcoded rather than read off the
+            // imported constant: a mutation to the WARN's own wording must
+            // fail THIS line, not merely re-match itself.
+            assert(
+                warns[0].includes('Prior type:'),
+                `the WARN's own wording: ${warns[0]}`,
+            )
         } finally {
             warnings.restore()
             await d.close()
@@ -217,6 +231,13 @@ for (const kind of SET_WRONG_KINDS) {
             const warns = warnings.having(INSTANCES_SET_WRONG_TYPE)
             assertEquals(warns.length, 1, 'exactly one heal WARN')
             assert(warns[0].endsWith(kind), `names the prior kind: ${warns[0]}`)
+            // A literal fragment, hardcoded rather than read off the
+            // imported constant: a mutation to the WARN's own wording must
+            // fail THIS line, not merely re-match itself.
+            assert(
+                warns[0].includes('Prior type:'),
+                `the WARN's own wording: ${warns[0]}`,
+            )
 
             await redis.command('SADD', INSTANCES_KEY, 'x')
             await d.holdMember(CHANNEL, { id: 8, info: {} })
@@ -258,6 +279,13 @@ for (const kind of SET_WRONG_KINDS) {
             const warns = warnings.having(INSTANCES_SET_WRONG_TYPE)
             assertEquals(warns.length, 1, 'exactly one heal WARN')
             assert(warns[0].endsWith(kind), `names the prior kind: ${warns[0]}`)
+            // A literal fragment, hardcoded rather than read off the
+            // imported constant: a mutation to the WARN's own wording must
+            // fail THIS line, not merely re-match itself.
+            assert(
+                warns[0].includes('Prior type:'),
+                `the WARN's own wording: ${warns[0]}`,
+            )
             const instances = await redis.command(
                 'SMEMBERS',
                 INSTANCES_KEY,
@@ -395,6 +423,34 @@ Deno.test('#414 a presence-only corruption aborts BEFORE the holders write: no o
             "only the heartbeat's own registration, nothing from the script",
         )
     } finally {
+        await d.close()
+    }
+})
+
+Deno.test('#414 a healthy or absent owned/instances key never WARNs on hold, release or deregister', async () => {
+    const redis = new FakeRedis()
+    const DEAD = 'dead-instance-414-healthy'
+    const entry = JSON.stringify({ member: { id: 9 }, owner: DEAD })
+    await redis.command('HSET', HOLDERS_KEY(CHANNEL, 9), DEAD, entry)
+    await redis.command('HSET', PRESENCE_KEY(CHANNEL), '9', entry)
+    await redis.command('SADD', OWNED_KEY(DEAD), `${CHANNEL} 9`)
+    await redis.command('SADD', INSTANCES_KEY, DEAD)
+
+    const warnings = captureWarnings()
+    const time = new FakeTime(new Date('2026-09-15T10:00:00Z'))
+    const d = driver(redis)
+    try {
+        await d.holdMember(CHANNEL, { id: 7, info: {} }) // owned/instances: 'none' then 'set'
+        await d.releaseMember(CHANNEL, 7) // owned already 'set'
+        // A healthy sweep of the dead instance: both keys are already 'set'.
+        await time.tickAsync(3_500)
+        for (let i = 0; i < 100; i++) await Promise.resolve()
+
+        assertEquals(warnings.having(OWNED_SET_WRONG_TYPE), [])
+        assertEquals(warnings.having(INSTANCES_SET_WRONG_TYPE), [])
+    } finally {
+        warnings.restore()
+        time.restore()
         await d.close()
     }
 })
