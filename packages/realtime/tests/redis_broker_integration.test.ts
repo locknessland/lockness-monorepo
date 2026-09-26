@@ -1151,8 +1151,20 @@ integrationTest(
         const outerGot: string[] = []
         const innerGot: string[] = []
         try {
-            outer.onMessage((m) => outerGot.push(`${m.channel}/${m.event}`))
-            inner.onMessage((m) => innerGot.push(`${m.channel}/${m.event}`))
+            // The readiness probe is filtered where it is recorded, not cleared
+            // afterwards. `awaitSubscribers` counts receivers from PUBLISH's
+            // reply, which proves the broker queued the frame, not that this
+            // handler has run it. It may also publish more than one round. A
+            // late probe landed after the clear below and failed the exact-set
+            // assertion (CI, 8d8532e3). The probe channel is the harness's, never
+            // the scenario's, so dropping it here keeps every assertion exact.
+            const record =
+                (into: string[]) => (m: { channel: string; event: string }) => {
+                    if (m.channel === keys(outerPrefix).probeChannel) return
+                    into.push(`${m.channel}/${m.event}`)
+                }
+            outer.onMessage(record(outerGot))
+            inner.onMessage(record(innerGot))
             // Instrumented, not stubbed. An empty handler proves the seam
             // exists; it cannot say whether a control frame CROSSED. #288's
             // second half is that routing must never hand a control frame to
@@ -1181,14 +1193,6 @@ integrationTest(
             await outer.watchChannel('own')
             await awaitSubscribers(reader, outerPrefix, 1)
             await awaitSubscribers(reader, innerPrefix, 1)
-            // The readiness gate PUBLISHes a real event on each deployment's
-            // OWN topic and counts receivers, so both handlers have already
-            // fired once by now — `probe-ready/probe-ready`, from itself, not
-            // from the other. Dropping it here keeps the assertion below an
-            // exact set rather than a filter, which is what makes an extra
-            // arrival impossible to explain away.
-            outerGot.length = 0
-            innerGot.length = 0
 
             await inner.publish({
                 channel: 'orders',
