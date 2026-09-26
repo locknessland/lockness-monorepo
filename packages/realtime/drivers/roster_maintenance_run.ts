@@ -28,7 +28,10 @@
  */
 
 import { renderError } from '@lockness/contract'
-import { writeMarkedFallback } from '../marked_fallback.ts'
+import {
+    markedFallbackMarker,
+    writeMarkedFallback,
+} from '../marked_fallback.ts'
 
 /**
  * The marker that starts the one ERROR line written when a failed run's WARN
@@ -38,8 +41,9 @@ import { writeMarkedFallback } from '../marked_fallback.ts'
  * fixed prefix, so an error text cannot forge it. Exported for the test suite
  * only.
  */
-export const ROSTER_MAINTENANCE_RUN_LOG_FAILED =
-    'realtime: a roster-maintenance run failure could not be logged (#391):'
+export const ROSTER_MAINTENANCE_RUN_LOG_FAILED = markedFallbackMarker(
+    'realtime: a roster-maintenance run failure could not be logged (#391):',
+)
 
 /** The maintenance handler: drains the owed-release ledger. */
 export type RosterMaintenanceHandler = () => void | Promise<void>

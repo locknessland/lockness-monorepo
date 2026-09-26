@@ -15,9 +15,18 @@
 
 import { assertEquals } from '@std/assert'
 import { renderError } from '@lockness/contract'
-import { writeMarkedFallback } from '../marked_fallback.ts'
+import {
+    markedFallbackMarker,
+    writeMarkedFallback,
+} from '../marked_fallback.ts'
 
-const MARKER = 'realtime: a test line could not be written (#391):'
+const MARKER = markedFallbackMarker(
+    'realtime: a test line could not be written (#391):',
+)
+/** What `channels()` throws from `console.error`, rendered (#399). */
+const CONSOLE_FAILURE_RENDERED = renderError(
+    new Error('console refused (#391)'),
+)
 /** A subject whose text would break the line if it were not rendered. */
 const SUBJECT = new Error('refused\r\nrealtime: forged line')
 const FAILURE = {
@@ -77,11 +86,13 @@ for (const shape of SHAPES) {
         assertEquals(sink.writes, [])
     })
 
-    Deno.test(`#391 H2 (${shape.name}) a throwing console: one stderr line, the same bytes`, () => {
+    Deno.test(`#391 H2 (${shape.name}) a throwing console: one stderr line naming what it threw, the same original bytes`, () => {
         using sink = channels({ console: true, stderr: false })
         writeMarkedFallback(MARKER, SUBJECT, shape.failure)
         assertEquals(sink.errors, [[shape.line]], 'the console was tried first')
-        assertEquals(sink.writes, [`${shape.line}\n`])
+        assertEquals(sink.writes, [
+            `${shape.line}; console failure: ${CONSOLE_FAILURE_RENDERED}\n`,
+        ])
     })
 
     Deno.test(`#391 H3 (${shape.name}) console and stderr both throwing: it still returns`, () => {
@@ -91,6 +102,8 @@ for (const shape of SHAPES) {
             undefined,
         )
         assertEquals(sink.errors.length, 1, 'the console was tried')
-        assertEquals(sink.writes, [`${shape.line}\n`], 'then stderr')
+        assertEquals(sink.writes, [
+            `${shape.line}; console failure: ${CONSOLE_FAILURE_RENDERED}\n`,
+        ], 'then stderr, naming what the console threw')
     })
 }

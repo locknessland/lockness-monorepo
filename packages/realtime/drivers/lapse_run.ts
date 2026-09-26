@@ -25,7 +25,10 @@
  */
 
 import { renderError } from '@lockness/contract'
-import { writeMarkedFallback } from '../marked_fallback.ts'
+import {
+    markedFallbackMarker,
+    writeMarkedFallback,
+} from '../marked_fallback.ts'
 
 /**
  * The marker that starts the one ERROR line written when a failed run's WARN
@@ -35,8 +38,9 @@ import { writeMarkedFallback } from '../marked_fallback.ts'
  * fixed prefix, so an error text cannot forge it. Exported for the test suite
  * only.
  */
-export const LAPSE_RUN_LOG_FAILED =
-    'realtime: a lapse-run failure could not be logged (#395):'
+export const LAPSE_RUN_LOG_FAILED = markedFallbackMarker(
+    'realtime: a lapse-run failure could not be logged (#395):',
+)
 
 /** The lapse handler: writes this process's holds again, stopping on `signal`. */
 export type LapseHandler = (signal: AbortSignal) => void | Promise<void>

@@ -14,7 +14,7 @@ import type { Context, MiddlewareHandler } from '@lockness/hono'
 import { upgradeWebSocket } from '@lockness/hono/deno'
 import type { WSEvents } from '@lockness/hono/network'
 import type { Connection, Socket, WebSocketHooks } from './types.ts'
-import { writeMarkedFallback } from './marked_fallback.ts'
+import { markedFallbackMarker, writeMarkedFallback } from './marked_fallback.ts'
 
 /**
  * The marker that starts the DEFAULT websocket error line: an error reached
@@ -22,14 +22,18 @@ import { writeMarkedFallback } from './marked_fallback.ts'
  * is rendered after it. Exported for the test suite only — not re-exported
  * from `mod.ts`.
  */
-export const UNHANDLED_WEBSOCKET_ERROR = 'realtime: unhandled websocket error:'
+export const UNHANDLED_WEBSOCKET_ERROR = markedFallbackMarker(
+    'realtime: unhandled websocket error:',
+)
 
 /**
  * The marker that starts the #369 fallback line: the application's `onError`
- * hook threw or rejected. Both failures are rendered after it.
+ * hook threw or rejected. Both failures are rendered after it. Exported for
+ * the test suite only — not re-exported from `mod.ts`.
  */
-const HOOK_FAILED_TOO =
-    'realtime: unhandled websocket error (the onError hook failed too):'
+export const HOOK_FAILED_TOO = markedFallbackMarker(
+    'realtime: unhandled websocket error (the onError hook failed too):',
+)
 
 /** Options for {@link createWebSocketHandler}. */
 export interface WebSocketHandlerOptions<Identity = unknown> {

@@ -37,7 +37,10 @@
  * @module @lockness/realtime/drivers/enforcement_deadline
  */
 
-import { writeMarkedFallback } from '../marked_fallback.ts'
+import {
+    markedFallbackMarker,
+    writeMarkedFallback,
+} from '../marked_fallback.ts'
 
 /**
  * The WARN written when the deadline expires with a pass still in flight and
@@ -78,8 +81,9 @@ export const REVOCATION_DEADLINE_SKEWED =
  * the end of the driver's pass chain. The marker is the fixed prefix, so an
  * error text cannot forge it.
  */
-export const REVOCATION_LOG_FAILED =
-    'realtime: a revocation log line could not be written (#362):'
+export const REVOCATION_LOG_FAILED = markedFallbackMarker(
+    'realtime: a revocation log line could not be written (#362):',
+)
 
 /** Where every deadline line sends a reader. */
 const SEE =

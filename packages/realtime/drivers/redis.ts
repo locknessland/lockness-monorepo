@@ -68,7 +68,11 @@ import {
 import { sameMemberId } from '../presence_snapshot.ts'
 import { freezePresenceMember } from '../presence_member.ts'
 import { ControlReplayWindow } from '../control_replay_window.ts'
-import { writeMarkedFallback } from '../marked_fallback.ts'
+import {
+    type MarkedFallbackMarker,
+    markedFallbackMarker,
+    writeMarkedFallback,
+} from '../marked_fallback.ts'
 import { LapseRun } from './lapse_run.ts'
 import { RosterMaintenanceRun } from './roster_maintenance_run.ts'
 import { awaitCloseDrain, type CloseDrainPending } from './close_drain.ts'
@@ -2006,8 +2010,9 @@ export const PASS_SAMPLE_FAILED =
  * each rendered; the marker is the fixed prefix, so an error text cannot forge
  * it (#369). Exported for the test suite only.
  */
-export const PASS_SAMPLE_LOG_FAILED =
-    'realtime: a pass-sample failure could not be logged (#360):'
+export const PASS_SAMPLE_LOG_FAILED = markedFallbackMarker(
+    'realtime: a pass-sample failure could not be logged (#360):',
+)
 
 /**
  * The marker that starts the one ERROR line written when a rejection reaches
@@ -2016,8 +2021,9 @@ export const PASS_SAMPLE_LOG_FAILED =
  * fixed prefix, so an error text cannot forge it (#369). Exported for the test
  * suite only.
  */
-export const SWEEP_LOG_FAILED =
-    'realtime: a ghost-sweep log line could not be written (#360):'
+export const SWEEP_LOG_FAILED = markedFallbackMarker(
+    'realtime: a ghost-sweep log line could not be written (#360):',
+)
 
 /**
  * The WARN {@link RedisBroadcastDriver.close} writes once when its bounded
@@ -2037,8 +2043,9 @@ export const CLOSE_DRAIN_EXPIRED =
  * {@link writeMarkedFallback}, which never throws. Exported for the test
  * suite only.
  */
-export const CLOSE_LOG_FAILED =
-    "realtime: close()'s drain WARN could not be logged (#368):"
+export const CLOSE_LOG_FAILED = markedFallbackMarker(
+    "realtime: close()'s drain WARN could not be logged (#368):",
+)
 
 /**
  * The marker that starts the one ERROR line written when the control
@@ -2047,8 +2054,9 @@ export const CLOSE_LOG_FAILED =
  * an unhandled rejection. The line carries the subscription's failure and the
  * sink's, each rendered. Exported for the test suite only.
  */
-export const CONTROL_SUBSCRIBE_LOG_FAILED =
-    'realtime: a control-subscription failure could not be logged (#395):'
+export const CONTROL_SUBSCRIBE_LOG_FAILED = markedFallbackMarker(
+    'realtime: a control-subscription failure could not be logged (#395):',
+)
 
 /**
  * The marker that starts the one ERROR line written when a failed heartbeat's
@@ -2057,8 +2065,9 @@ export const CONTROL_SUBSCRIBE_LOG_FAILED =
  * an unhandled rejection. The line carries the beat's failure and the sink's,
  * each rendered. Exported for the test suite only.
  */
-export const HEARTBEAT_LOG_FAILED =
-    'realtime: a heartbeat failure could not be logged (#395):'
+export const HEARTBEAT_LOG_FAILED = markedFallbackMarker(
+    'realtime: a heartbeat failure could not be logged (#395):',
+)
 
 /**
  * The words that start the one WARN written when the floor announce failed
@@ -2096,8 +2105,9 @@ export const REVOCATION_FLOOR_READ_FAILED =
  * the sink's failure, each rendered; the marker is the fixed prefix, so an
  * error text cannot forge it (#369). Exported for the test suite only.
  */
-export const REVOCATION_FLOOR_LOG_FAILED =
-    'realtime: a revocation floor WARN could not be logged (#380):'
+export const REVOCATION_FLOOR_LOG_FAILED = markedFallbackMarker(
+    'realtime: a revocation floor WARN could not be logged (#380):',
+)
 
 /**
  * The words of the one WARN written when {@link FLOOR_WRITE} healed a
@@ -3560,7 +3570,11 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      *   place when the caller's own failure/error value, not the constructed
      *   line, is the right thing to render. Defaults to `line`.
      */
-    #guardedWarn(marker: string, line: string, subject: unknown = line): void {
+    #guardedWarn(
+        marker: MarkedFallbackMarker,
+        line: string,
+        subject: unknown = line,
+    ): void {
         try {
             console.warn(line)
         } catch (sink) {

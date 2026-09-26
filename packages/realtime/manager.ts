@@ -15,7 +15,7 @@ import { renderError, safeForLog } from '@lockness/contract'
 import { triggerDeprecation } from '@lockness/deprecation-contracts'
 import { isPresenceMemberWire, isValidName } from './protocol.ts'
 import { admitPresenceMember } from './presence_member.ts'
-import { writeMarkedFallback } from './marked_fallback.ts'
+import { markedFallbackMarker, writeMarkedFallback } from './marked_fallback.ts'
 
 /**
  * The DEFAULT per-instance watched-channel cap (#295/FR-017, #322).
@@ -99,8 +99,9 @@ export const MAX_PENDING_ROSTER_RELEASES = 1_000
  * text cannot forge it (#369). Exported for the test suite only — not
  * re-exported from `mod.ts`.
  */
-export const REVOCATION_APPLY_LOG_FAILED =
-    'realtime: a control-frame revocation log line could not be written (#376):'
+export const REVOCATION_APPLY_LOG_FAILED = markedFallbackMarker(
+    'realtime: a control-frame revocation log line could not be written (#376):',
+)
 
 /**
  * The marker that starts the default `onPublishError` line: a broadcast's
@@ -109,7 +110,9 @@ export const REVOCATION_APPLY_LOG_FAILED =
  * `writeMarkedFallback`, which never throws (#395). Exported for the test
  * suite only — not re-exported from `mod.ts`.
  */
-export const PUBLISH_FAILED = 'realtime: broadcast publish failed:'
+export const PUBLISH_FAILED = markedFallbackMarker(
+    'realtime: broadcast publish failed:',
+)
 
 /**
  * The marker that starts the one ERROR line written when a #323 join
@@ -121,8 +124,9 @@ export const PUBLISH_FAILED = 'realtime: broadcast publish failed:'
  * sink's, each rendered. Exported for the test suite only — not re-exported
  * from `mod.ts`.
  */
-export const JOIN_COMPENSATION_LOG_FAILED =
-    'realtime: a #323 join-compensation failure could not be logged (#373):'
+export const JOIN_COMPENSATION_LOG_FAILED = markedFallbackMarker(
+    'realtime: a #323 join-compensation failure could not be logged (#373):',
+)
 
 /**
  * The marker that starts the one ERROR line written when an owed-release
@@ -132,8 +136,9 @@ export const JOIN_COMPENSATION_LOG_FAILED =
  * their own, so a throwing sink here must not replace it. Exported for the
  * test suite only — not re-exported from `mod.ts`.
  */
-export const OWED_RELEASE_LOG_FAILED =
-    'realtime: an owed-release enqueue log line could not be written (#371):'
+export const OWED_RELEASE_LOG_FAILED = markedFallbackMarker(
+    'realtime: an owed-release enqueue log line could not be written (#371):',
+)
 
 /**
  * The marker that starts the one ERROR line written when a `disconnect(id)`
@@ -144,8 +149,9 @@ export const OWED_RELEASE_LOG_FAILED =
  * throwing sink must not drop it silently. Exported for the test suite only —
  * not re-exported from `mod.ts`.
  */
-export const DISCONNECT_TEARDOWN_LOG_FAILED =
-    'realtime: a disconnect teardown failure could not be logged (#392):'
+export const DISCONNECT_TEARDOWN_LOG_FAILED = markedFallbackMarker(
+    'realtime: a disconnect teardown failure could not be logged (#392):',
+)
 
 /**
  * Refuse a cap that is not a positive integer, at construction.

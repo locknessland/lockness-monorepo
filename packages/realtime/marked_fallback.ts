@@ -39,9 +39,64 @@ export interface MarkedFallbackFailure {
 }
 
 /**
+ * A brand carried by every marker this module hands out (#399) — assignable
+ * to `string` (it IS one; nothing here is boxed or copied), but not the other
+ * way around, so `writeMarkedFallback`'s `marker` parameter rejects a string
+ * built ad hoc at a call site and accepts only a value that passed through
+ * {@link markedFallbackMarker}.
+ *
+ * **Why a brand and not a literal union of every marker constant.** This
+ * module is imported by every sink in the package (websocket.ts, manager.ts,
+ * every driver); a union would need a type-only import of each of their
+ * marker constants IN RETURN, so the one home of the marked-fallback line
+ * would name every caller it has, and adding a caller's marker would mean
+ * editing this file too. The brand keeps the invariant — no ad hoc string
+ * reaches `writeMarkedFallback` — without that inversion: a new marker is
+ * declared once, at its own call site, through {@link markedFallbackMarker}.
+ * What it does not solve: two constants with identical text still both
+ * type-check as valid markers — nominal branding narrows the TYPE a marker
+ * must have, not the VALUE two different call sites choose. A literal union
+ * would carry the same residual.
+ */
+export type MarkedFallbackMarker = string & {
+    readonly __markedFallbackMarker: unique symbol
+}
+
+/**
+ * Declare a marker line prefix — the only way to produce
+ * {@link MarkedFallbackMarker}, so every constant `writeMarkedFallback` ever
+ * receives is declared, once, next to the text it names.
+ *
+ * @param text - The fixed prefix, written verbatim by
+ *   {@link writeMarkedFallback}; never rendered, so no error text can forge
+ *   it.
+ * @returns `text`, unchanged at runtime — branding is a compile-time-only
+ *   cast, not a wrapper.
+ *
+ * @example
+ * ```ts
+ * export const SWEEP_LOG_FAILED = markedFallbackMarker(
+ *     'realtime: a ghost-sweep log line could not be written (#360):',
+ * )
+ * ```
+ */
+export function markedFallbackMarker(text: string): MarkedFallbackMarker {
+    return text as MarkedFallbackMarker
+}
+
+/**
  * Write one marked fallback line, and never throw.
  *
- * @param marker - The fixed prefix; written verbatim, never rendered.
+ * **Relies on `renderError` never throwing.** Both calls below run inside the
+ * one `try` that also guards `console.error`, so if `renderError` itself
+ * threw, this function would still contain it the same way — but the stderr
+ * fallback's own text (built from `line`, computed before `console.error` is
+ * even reached) would then still be the marker alone rather than the full
+ * line. `renderError` is `@lockness/contract`'s own guarantee never to throw;
+ * this module trusts it and does not re-guard it here.
+ *
+ * @param marker - The fixed prefix; written verbatim, never rendered. Only
+ *   {@link markedFallbackMarker} produces one.
  * @param subject - What the line reports, rendered after the marker.
  * @param failure - The second half, when the line carries two failures.
  * @returns Nothing: it cannot fail, only fail to be seen.
@@ -56,21 +111,29 @@ export interface MarkedFallbackFailure {
  * ```
  */
 export function writeMarkedFallback(
-    marker: string,
+    marker: MarkedFallbackMarker,
     subject: unknown,
     failure?: MarkedFallbackFailure,
 ): void {
-    let line = marker
+    let line: string = marker
     try {
         line = `${marker} ${renderError(subject)}` +
             (failure === undefined
                 ? ''
                 : `; ${failure.label}: ${renderError(failure.error)}`)
         console.error(line)
-    } catch {
-        // The console refused the ERROR line: write it past the console.
+    } catch (consoleFailure) {
+        // The console refused the ERROR line: write it past the console,
+        // naming what the console itself threw (#399) — the prior line named
+        // only what console.error was given, never why it refused it.
         try {
-            Deno.stderr.writeSync(new TextEncoder().encode(`${line}\n`))
+            Deno.stderr.writeSync(
+                new TextEncoder().encode(
+                    `${line}; console failure: ${
+                        renderError(consoleFailure)
+                    }\n`,
+                ),
+            )
         } catch {
             // #391 THE LAST RESORT: the console and stderr both refused, so
             // no channel is left to log this on, and a re-throw would reach
