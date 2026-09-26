@@ -192,6 +192,47 @@ of what the re-check's counts mean.
   rows: `string`/`hash`/`set` × {reap, mark}; live-broker rows, gated on
   `LOCKNESS_REDIS_INTEGRATION`: `list`/`stream` × {reap, mark}); battery
   `tests/mutations/revocation_index_wrong_type_411.ts`.
+- **The presence roster's five keys do NOT all get the same remedy — presence
+  and holders fail closed, owned and instances self-heal**
+  ([#414](https://github.com/locknessland/lockness-monorepo/issues/414), ADR
+  [016](../../docs/adr/016-realtime-presence-roster-key-remedy.md)). The
+  standing rule: a key self-heals only if it feeds no `arrived`/`gone` decision
+  AND is either single-writer-scoped or fully re-derived on a bounded cadence —
+  otherwise it fails closed, loudly. Presence (`presence:<channel>`) and holders
+  (`holders:<channel> <id>`) hold live membership or decide `HLEN` (ADR 006), so
+  **neither may ever gain a `TYPE`-gated `DEL`** — a refactor that "generalises
+  INDEX_HEAL to the roster too" is the defect, not a cleanup. The owned set
+  (`owned:<instanceId>`) and the instances set (`instances`) DO self-heal,
+  through `OWNED_HEAL` / `INSTANCES_HEAL` — the `INDEX_HEAL` shape spliced into
+  `HOLD_MEMBER_SCRIPT` (both), `RELEASE_MEMBER_SCRIPT` (owned only) and
+  `DEREGISTER_INSTANCE_SCRIPT` (instances only, before its gated `SREM`).
+  **`HOLD_MEMBER_SCRIPT` also gained an up-front, NO-HEAL presence guard** — a
+  bare `HGET` of the field it is about to write, as its literal first statement,
+  before the holders `HSET`: without it, a presence-only corruption let the
+  holders write commit and only THEN abort on presence, orphaning a holder entry
+  with no owned/instances entry (ADR 004 §5's shape, a different cause). **Never
+  reorder that guard below the holders write "to keep related writes together"**
+  — that reintroduces the exact orphan the ordering witness pins.
+  `RELEASE_MEMBER_SCRIPT` needed no equivalent change: its own presence read
+  already runs before its first write, an existing-order accident now
+  load-bearing. Reply shapes widened: `HOLD_MEMBER_SCRIPT` to
+  `{arrived, ownedKind, instancesKind}`, `RELEASE_MEMBER_SCRIPT` to
+  `{value, ownedKind}` (bare on _refused_), `DEREGISTER_INSTANCE_SCRIPT` to
+  `{code, instancesKind}` — decoded by `decodeHoldReply` / `decodeReleaseReply`
+  / `decodeDeregisterReply`, WARN'd through the SAME `#warnFloor` sink via
+  `#warnIfOwnedHealed` / `#warnIfInstancesHealed` — never a sibling.
+  **`fake_redis.ts` gained `#assertHashKey` / `#assertSetKey`**, and a plain
+  `SET` now clears the other three type maps first: before this, every hash/set
+  arm wrote into its own map unconditionally, so a corrupted presence/holders
+  key read as merely ABSENT to a later `HGET` — indistinguishable from one that
+  never existed — and the boot heartbeat's own raw `SADD` on the instances key
+  could silently "heal" a corruption before the script's own `TYPE` read ever
+  saw it. Witness: `presence_roster_wrong_type_414.test.ts` (fake rows:
+  `string`/`hash`/`zset` for owned/instances self-heal on
+  HOLD/RELEASE/DEREGISTER, and for presence/holders fail-closed on
+  holdMember/releaseMember/readRoster; one row pinning the ordering fix;
+  live-broker rows, gated on `LOCKNESS_REDIS_INTEGRATION`: `list`/`stream` on
+  HOLD_MEMBER_SCRIPT); battery `tests/mutations/presence_key_guards_414.ts`.
 - **The local presence view is deduplicated in ONE place, `#localRoster`, and
   nowhere else**
   ([#343](https://github.com/locknessland/lockness-monorepo/issues/343)). The
@@ -1132,7 +1173,7 @@ of what the re-check's counts mean.
 
 <!-- generated:tests -->
 
-103 test files for 28 source files:
+104 test files for 28 source files:
 
 - `packages/realtime/tests/apply_revocation_376.test.ts`
 - `packages/realtime/tests/authorize_denial_331.test.ts`
@@ -1206,6 +1247,7 @@ of what the re-check's counts mean.
 - `packages/realtime/tests/presence_rejoin_327.test.ts`
 - `packages/realtime/tests/presence_roster_guard.test.ts`
 - `packages/realtime/tests/presence_roster_read_333.test.ts`
+- `packages/realtime/tests/presence_roster_wrong_type_414.test.ts`
 - `packages/realtime/tests/presence_snapshot_bound_339.test.ts`
 - `packages/realtime/tests/presence_snapshot_unit_339.test.ts`
 - `packages/realtime/tests/presence_sweep.test.ts`
@@ -1238,7 +1280,7 @@ of what the re-check's counts mean.
 - `packages/realtime/tests/websocket.test.ts`
 - `packages/realtime/tests/websocket_close_guard_369.test.ts`
 
-52 mutation batteries — **`deno test` does not run these.** Each is an
+53 mutation batteries — **`deno test` does not run these.** Each is an
 executable that mutates a source file and re-runs the suites that should notice.
 Run them with `deno task mutate` (all of them, one at a time) or
 `deno task mutate <name>` (one); nightly CI runs the full sweep. See
@@ -1268,6 +1310,7 @@ Run them with `deno task mutate` (all of them, one at a time) or
 - `packages/realtime/tests/mutations/prefix_288.ts`
 - `packages/realtime/tests/mutations/presence_eviction_334.ts`
 - `packages/realtime/tests/mutations/presence_join_323.ts`
+- `packages/realtime/tests/mutations/presence_key_guards_414.ts`
 - `packages/realtime/tests/mutations/presence_local_member_343.ts`
 - `packages/realtime/tests/mutations/presence_member_306.ts`
 - `packages/realtime/tests/mutations/presence_member_admission_350.ts`
@@ -1310,7 +1353,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 103 test files directly —
+Then, specific to this package: run its 104 test files directly —
 
 ```bash
 deno test -A packages/realtime/

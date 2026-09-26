@@ -1726,6 +1726,20 @@ operator statement of it; other sections link here.
 - **Each hold and each release is one `EVAL`** (over four keys and three keys),
   so the commands per subscribe and unsubscribe are unchanged. Those keys hash
   to different slots: Redis Cluster is not supported.
+- **A wrong-typed presence or holders key halts that channel or slot until an
+  operator clears it — by design**
+  ([#414](https://github.com/locknessland/lockness-monorepo/issues/414), ADR
+  [016](adr/016-realtime-presence-roster-key-remedy.md)). Both hold live
+  membership state, so neither self-heals: a heal-`DELETE` on presence would
+  silently erase every OTHER member's shown entry with zero `left` frames, and
+  on holders would falsify the one `arrived`/`gone` signal `HLEN` decides. The
+  owned set and the instances set DO self-heal, the same `TYPE`-gated shape ADR
+  013 established for the revocation floor and index — neither carries live
+  membership, and the instances set is re-derived by every instance's heartbeat
+  within one `heartbeatIntervalMs` regardless. The same Redis ACL ADR 013 §2
+  already recommends is the only control against the narrower gap neither
+  self-heal nor fail-closed can close: a `RENAME`/`COPY REPLACE` landing another
+  key's live data under one of these five names.
 
 ### Writing a presence driver
 
