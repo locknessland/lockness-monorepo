@@ -276,16 +276,12 @@ const MUTATIONS: Mutation[] = [
     },
     {
         label: "N18 #warnFloor's try and marked fallback removed",
+        // Re-anchored for #409: #warnFloor's own try/catch moved into a call
+        // to #guardedWarn — its marker (REVOCATION_FLOOR_LOG_FAILED) is
+        // unique to this call, so no disambiguation is needed.
         file: REDIS,
         edits: [[
-            '        try {\n' +
-            '            console.warn(line)\n' +
-            '        } catch (sink) {\n' +
-            '            writeMarkedFallback(REVOCATION_FLOOR_LOG_FAILED, line, {\n' +
-            "                label: 'sink failure',\n" +
-            '                error: sink,\n' +
-            '            })\n' +
-            '        }\n',
+            '        this.#guardedWarn(REVOCATION_FLOOR_LOG_FAILED, line)\n',
             '        console.warn(line)\n',
         ]],
         killedBy: '#380 F5 (ii)',

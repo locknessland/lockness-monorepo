@@ -162,15 +162,20 @@ const MUTATIONS: Mutation[] = [
         killedBy: '#391 S4 ',
     },
     {
-        label: 'S5 — redis #warnPassSample back to a bare console.error',
+        label:
+            "S5 — redis #guardedWarn's marked fallback back to a bare console.error",
+        // Re-anchored for #409: #warnPassSample's own writeMarkedFallback
+        // call moved into #guardedWarn, the one helper every self-guarded
+        // WARN in the file now shares — so this mutates the shared call
+        // itself, using #guardedWarn's own parameter names.
         file: REDIS,
         edits: [[
-            '            writeMarkedFallback(PASS_SAMPLE_LOG_FAILED, failure, {\n' +
+            '            writeMarkedFallback(marker, subject, {\n' +
             "                label: 'sink failure',\n" +
             '                error: sink,\n' +
             '            })\n',
             '            console.error(\n' +
-            '                `${PASS_SAMPLE_LOG_FAILED} ${renderError(failure)}; ` +\n' +
+            '                `${marker} ${renderError(subject)}; ` +\n' +
             '                    `sink failure: ${renderError(sink)}`,\n' +
             '            )\n',
         ]],

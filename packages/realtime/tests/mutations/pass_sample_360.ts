@@ -123,15 +123,16 @@ const CALL = '        try {\n' +
     '            this.#warnPassSample(failure)\n' +
     '        }\n'
 
-/** `#warnPassSample`'s #369-shaped body. */
-const WARN_BODY = '        try {\n' +
-    '            console.warn(`${PASS_SAMPLE_FAILED} ${renderError(failure)}`)\n' +
-    '        } catch (sink) {\n' +
-    '            writeMarkedFallback(PASS_SAMPLE_LOG_FAILED, failure, {\n' +
-    "                label: 'sink failure',\n" +
-    '                error: sink,\n' +
-    '            })\n' +
-    '        }\n'
+/**
+ * `#warnPassSample`'s #369-shaped body. Re-anchored for #409: the try/catch
+ * moved into a call to #guardedWarn, the one helper every self-guarded WARN
+ * in the file now shares.
+ */
+const WARN_BODY = '        this.#guardedWarn(\n' +
+    '            PASS_SAMPLE_LOG_FAILED,\n' +
+    '            `${PASS_SAMPLE_FAILED} ${renderError(failure)}`,\n' +
+    '            failure,\n' +
+    '        )\n'
 const BARE_WARN =
     '        console.warn(`${PASS_SAMPLE_FAILED} ${renderError(failure)}`)\n'
 

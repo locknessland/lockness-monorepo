@@ -126,19 +126,12 @@ const CLEAN = "                const clean = outcome === 'ok' &&\n" +
 
 /**
  * The malformed WARN's #391-shaped write. Prefixed with the `line`
- * construction's last, distinctive segment: #383 added a second method
- * (`#warnReconcileFailed`) with the identical try/catch shape, so the bare
- * shape alone now matches twice.
+ * construction's last, distinctive segment: since #409, both this method and
+ * `#warnReconcileFailed` call the identical `this.#guardedWarn
+ * (REVOCATION_LOG_FAILED, line)`, so the bare call alone now matches twice.
  */
 const MALFORMED_WRITE = "            'packages/realtime/driver.ts).'\n" +
-    '        try {\n' +
-    '            console.warn(line)\n' +
-    '        } catch (sink) {\n' +
-    '            writeMarkedFallback(REVOCATION_LOG_FAILED, line, {\n' +
-    "                label: 'sink failure',\n" +
-    '                error: sink,\n' +
-    '            })\n' +
-    '        }\n'
+    '        this.#guardedWarn(REVOCATION_LOG_FAILED, line)\n'
 
 /** The malformed WARN's one call. */
 const WARN_MALFORMED = '                this.#warnMalformedTally(trigger)\n'

@@ -451,15 +451,13 @@ const MUTATIONS: Mutation[] = [
         // #383 item 2. Reverting the self-guard reopens the pre-#383 defect:
         // the throwing console.warn escapes #runRevocationReconcile's catch
         // before either D8 (ii)'s new assertion or the #308 retry runs.
+        //
+        // Re-anchored for #409: #warnReconcileFailed's own try/catch moved
+        // into a call to #guardedWarn, the one helper it now shares with
+        // #warnMalformedTally (same marker, same `line` — the next method's
+        // JSDoc still disambiguates which call this row mutates).
         edits: [[
-            '        try {\n' +
-            '            console.warn(line)\n' +
-            '        } catch (sink) {\n' +
-            '            writeMarkedFallback(REVOCATION_LOG_FAILED, line, {\n' +
-            "                label: 'sink failure',\n" +
-            '                error: sink,\n' +
-            '            })\n' +
-            '        }\n' +
+            '        this.#guardedWarn(REVOCATION_LOG_FAILED, line)\n' +
             '    }\n' +
             '\n' +
             '    /**\n' +

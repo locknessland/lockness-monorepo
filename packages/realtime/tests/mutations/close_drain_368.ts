@@ -105,10 +105,14 @@ const MUTATIONS: Mutation[] = [
     },
     {
         label: 'N4 — no WARN written on expiry',
+        // Re-anchored for #409: #warnCloseDrainExpired's own console.warn
+        // call moved into a call to #guardedWarn — its marker
+        // (CLOSE_LOG_FAILED) is unique to this call, so no disambiguation is
+        // needed.
         file: REDIS,
         edits: [[
-            '            console.warn(text)\n',
-            '            undefined\n',
+            '        this.#guardedWarn(CLOSE_LOG_FAILED, text)\n',
+            '        undefined\n',
         ]],
         killedBy: '#368 W1 ',
     },
@@ -177,16 +181,12 @@ const MUTATIONS: Mutation[] = [
     {
         label:
             'N9 — the marked fallback removed: a throwing console.warn escapes uncaught',
+        // Re-anchored for #409: the try/catch moved into #guardedWarn — this
+        // reverts the ONE call to a bare, unguarded console.warn (the
+        // pre-#369 shape), same as N4's marker-uniqueness reasoning.
         file: REDIS,
         edits: [[
-            '        try {\n' +
-            '            console.warn(text)\n' +
-            '        } catch (failure) {\n' +
-            '            writeMarkedFallback(CLOSE_LOG_FAILED, text, {\n' +
-            "                label: 'sink failure',\n" +
-            '                error: failure,\n' +
-            '            })\n' +
-            '        }\n',
+            '        this.#guardedWarn(CLOSE_LOG_FAILED, text)\n',
             '        console.warn(text)\n',
         ]],
         // W6's throwing console.warn now escapes `close()` as an unhandled

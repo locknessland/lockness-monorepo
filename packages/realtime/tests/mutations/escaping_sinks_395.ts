@@ -86,23 +86,23 @@ const MUTATIONS: Mutation[] = [
     {
         label:
             "R3 — the redis control subscription's catch back to a bare console.warn",
+        // Re-anchored for #409: the inline try/catch moved into a call to
+        // #guardedWarn, the one shared helper — this reverts that ONE call to
+        // a bare, unguarded console.warn (the pre-#395 shape), not a
+        // try/catch (there is no site-local try/catch left to remove).
         file: REDIS,
         edits: [[
             '            ).catch((error: unknown) => {\n' +
-            '                try {\n' +
-            '                    console.warn(\n' +
-            "                        'realtime: the control subscription could not be ' +\n" +
-            '                            "issued — the driver\'s own retry is what restores " +\n' +
-            '                            `it: ${renderError(error)}`,\n' +
-            '                    )\n' +
-            '                } catch (sink) {\n' +
-            '                    // #395: this promise is `void`ed, so a throwing sink would\n' +
-            '                    // escape as an unhandled rejection. One marked line.\n' +
-            '                    writeMarkedFallback(CONTROL_SUBSCRIBE_LOG_FAILED, error, {\n' +
-            "                        label: 'sink failure',\n" +
-            '                        error: sink,\n' +
-            '                    })\n' +
-            '                }\n' +
+            '                // #395: this promise is `void`ed, so a throwing sink would\n' +
+            '                // escape as an unhandled rejection. One marked line, through\n' +
+            "                // #guardedWarn's shared #369 shape.\n" +
+            '                this.#guardedWarn(\n' +
+            '                    CONTROL_SUBSCRIBE_LOG_FAILED,\n' +
+            "                    'realtime: the control subscription could not be ' +\n" +
+            '                        "issued — the driver\'s own retry is what restores " +\n' +
+            '                        `it: ${renderError(error)}`,\n' +
+            '                    error,\n' +
+            '                )\n' +
             '            })\n',
             '            ).catch((error: unknown) =>\n' +
             '                console.warn(\n' +
@@ -118,23 +118,22 @@ const MUTATIONS: Mutation[] = [
     },
     {
         label: "R4 — the redis heartbeat's WARN back to a bare console.warn",
+        // Re-anchored for #409: the inline try/catch moved into a call to
+        // #guardedWarn — reverts that ONE call to a bare, unguarded
+        // console.warn, the pre-#395 shape.
         file: REDIS,
         edits: [[
-            '            try {\n' +
-            '                console.warn(\n' +
-            '                    `realtime: instance-liveness heartbeat failed: ${\n' +
-            '                        renderError(failure.error)\n' +
-            '                    }`,\n' +
-            '                )\n' +
-            '            } catch (sink) {\n' +
-            '                // #395: the interval discards this promise, so a throwing sink\n' +
-            '                // would escape as an unhandled rejection — and would skip the\n' +
-            '                // lapse decision below. One marked line, then on.\n' +
-            '                writeMarkedFallback(HEARTBEAT_LOG_FAILED, failure.error, {\n' +
-            "                    label: 'sink failure',\n" +
-            '                    error: sink,\n' +
-            '                })\n' +
-            '            }\n',
+            '            // #395: the interval discards this promise, so a throwing sink\n' +
+            '            // would escape as an unhandled rejection — and would skip the\n' +
+            '            // lapse decision below. One marked line, then on, through\n' +
+            "            // #guardedWarn's shared #369 shape.\n" +
+            '            this.#guardedWarn(\n' +
+            '                HEARTBEAT_LOG_FAILED,\n' +
+            '                `realtime: instance-liveness heartbeat failed: ${\n' +
+            '                    renderError(failure.error)\n' +
+            '                }`,\n' +
+            '                failure.error,\n' +
+            '            )\n',
             '            console.warn(\n' +
             '                `realtime: instance-liveness heartbeat failed: ${\n' +
             '                    renderError(failure.error)\n' +
