@@ -375,16 +375,30 @@ Deno.test('#370 W5 once the holder itself disconnects, the id is free and B is a
 
 Deno.test('#370 W15 a refused presence join takes no roster hold and announces no joined', async () => {
     const { manager, driver, o } = await liveHolder()
-    const heldBefore = driver.readRoster(ROOM, 1_000, []).members.length
+    // A presence channel A does NOT hold (#403 review MEDIUM). B shares A's
+    // id, and ROOM is a channel A already holds under that SAME id — so
+    // #327's own re-join guard (`members.has(connection.id)`) would mask
+    // clause 2's refusal under test: remove clause 2 and B reaches
+    // `#joinPresence`, but the re-join guard still reads B's (== A's) id as
+    // already a member THERE and still takes no new hold and announces
+    // nothing, for a wholly different reason. UNHELD is a channel neither A
+    // nor B has ever joined, so once C controls that an admitted join DOES
+    // move both readings, nothing but the admission refusal can explain B
+    // leaving them unchanged.
+    const UNHELD = 'presence-unheld'
+    assert((await manager.subscribe(o, UNHELD)).ok)
+    await tick()
+
+    const heldBefore = driver.readRoster(UNHELD, 1_000, []).members.length
     const framesBefore = o.received.length
     const b = conn('c1', MALLORY)
     await assertRejects(
-        () => manager.subscribe(b, ROOM),
+        () => manager.subscribe(b, UNHELD),
         ConnectionIdInUseError,
     )
     await tick()
     assertEquals(
-        driver.readRoster(ROOM, 1_000, []).members.length,
+        driver.readRoster(UNHELD, 1_000, []).members.length,
         heldBefore,
         'no roster hold was taken for B',
     )
@@ -393,10 +407,10 @@ Deno.test('#370 W15 a refused presence join takes no roster hold and announces n
     // CONTROL: an admitted join moves both readings.
     const c3 = conn('c3', { id: 4, name: 'carol' })
     manager.register(c3)
-    assert((await manager.subscribe(c3, ROOM)).ok)
+    assert((await manager.subscribe(c3, UNHELD)).ok)
     await tick()
     assertEquals(
-        driver.readRoster(ROOM, 1_000, []).members.length,
+        driver.readRoster(UNHELD, 1_000, []).members.length,
         heldBefore + 1,
     )
     assert(
