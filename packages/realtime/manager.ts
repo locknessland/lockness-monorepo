@@ -3248,16 +3248,46 @@ export class ChannelManager<Identity = unknown> {
      * application code choosing the id form, not for the shape the framework
      * still uses itself.
      *
+     * **The teardown is started BEFORE the notice, and its outcome never
+     * depends on the notice** (#392 review HIGH). `STRICT_DEPRECATIONS=true`
+     * makes `@lockness/deprecation-contracts` throw synchronously
+     * (`trigger.ts`'s `triggerWithHandler`), and that mode exists precisely so
+     * a deprecated call surfaces loudly in CI — but a caller who then never
+     * reaches {@link #teardown} at all would leave the connection registered,
+     * still owning its channels, with nothing torn down: strict mode would
+     * have turned a visibility notice into a functional regression. So
+     * `#teardown(target)` is called FIRST — which keeps #393's synchronous,
+     * same-turn retirement write exactly where it always was, since nothing
+     * here runs before it — and the notice is raised after, wrapped in a
+     * `try`. When it throws, this call's own promise rejects with that
+     * deprecation error once the teardown settles, whichever way it settles:
+     * the deprecation error wins even over a teardown failure. The
+     * alternative — the teardown's failure winning when both occur — would
+     * make `STRICT_DEPRECATIONS` unreliable for the CI use it exists for: an
+     * unrelated, co-occurring teardown fault would silently swallow the one
+     * signal strict mode promises to never miss. A rejection is used rather
+     * than a synchronous throw so this method's contract stays uniform
+     * (a `Promise` always, never a throw before one exists) and so the
+     * teardown's own promise is never left with only a rejection reaction —
+     * both of `.then`'s callbacks are supplied, and both discard the
+     * teardown's settlement in favour of the deprecation error, so neither
+     * settlement goes unhandled.
+     *
      * @param target - The registered connection object (from a close hook),
      *   or a connection id (the form `evict` uses — deprecated for
      *   application callers, #392).
      * @returns `'disconnected'` when this instance owned the socket and tore it
      *   down, `'not-owned'` when the socket lives elsewhere, or when the object
      *   passed is not the one that owns its id — nothing local was touched.
-     * @throws Whatever the first channel teardown threw — unchanged; the
-     *   connection is still forgotten, and the outcome is not reported in that
-     *   case because the throw is the report. A second, joining call throws
-     *   the same rejection the first call did.
+     * @throws Whatever the first channel teardown threw, when the id-form
+     *   notice did not also throw — unchanged; the connection is still
+     *   forgotten, and the outcome is not reported in that case because the
+     *   throw is the report. A second, joining call throws the same rejection
+     *   the first call did.
+     * @throws The id-form deprecation error, when `STRICT_DEPRECATIONS=true`
+     *   and `target` is a string (#392) — in preference to a teardown failure,
+     *   which is WARNed instead (see above); the teardown itself still ran to
+     *   completion first.
      * @example
      * ```ts
      * const hooks = {
@@ -3271,8 +3301,29 @@ export class ChannelManager<Identity = unknown> {
     disconnect(
         target: string | Connection<Identity>,
     ): Promise<DisconnectOutcome> {
-        if (typeof target === 'string') this.#warnIdForm()
-        return this.#teardown(target)
+        // STARTED FIRST (#392 review HIGH): #teardown's own synchronous
+        // prefix — the #393 retirement write included — must run whatever the
+        // notice below does. Nothing above this line can throw.
+        const teardown = this.#teardown(target)
+        if (typeof target === 'string') {
+            try {
+                this.#warnIdForm()
+            } catch (deprecationError) {
+                // Both reactions re-throw the SAME error: it wins even over a
+                // teardown failure (see the JSDoc above for why), and
+                // supplying both means `teardown` never carries an
+                // unhandled rejection either way.
+                return teardown.then(
+                    () => {
+                        throw deprecationError
+                    },
+                    () => {
+                        throw deprecationError
+                    },
+                )
+            }
+        }
+        return teardown
     }
 
     /**
@@ -3284,7 +3335,14 @@ export class ChannelManager<Identity = unknown> {
      * directly and never this method, which is what keeps the framework's own
      * use of the shape silent.
      *
+     * **Called AFTER `disconnect` has already started the teardown** (#392
+     * review HIGH) — this method's own possible throw must never be able to
+     * pre-empt it; see `disconnect`'s JSDoc for why and how the two settle
+     * together.
+     *
      * @returns void
+     * @throws Whatever `triggerDeprecation` throws when
+     *   `STRICT_DEPRECATIONS=true` — a plain `Error`, unmodified.
      */
     #warnIdForm(): void {
         if (this.#idFormWarned) return
