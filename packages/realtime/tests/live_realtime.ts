@@ -643,6 +643,89 @@ export async function awaitSubscribers(
 }
 
 /**
+ * Block until a specific channel's watch is actually live on the broker —
+ * the **readiness signal `manager.subscribe()` does not give you** (#412).
+ *
+ * `ChannelManager.subscribe()` resolves once the underlying
+ * `SUBSCRIBE`/`PSUBSCRIBE` frame has reached the socket, never once the
+ * broker has acknowledged it —
+ * `RedisSubscribeConnection.subscribeOne`'s own JSDoc calls this out by name:
+ * "the frame reached the socket, or you were told it did not — never
+ * 'delivery has started'". A caller that needs delivery, this function's
+ * whole reason to exist, must observe delivery itself, exactly as
+ * {@link awaitSubscribers} already does for "is any instance listening at
+ * all" — this is the same technique aimed at ONE channel's watch instead.
+ *
+ * **Measured, not assumed (#412).** Instrumenting the exact sequence
+ * `awaitSubscribers` → `manager.subscribe(listener, channel)` → immediate
+ * `manager.broadcast(...)` against a local Redis 7 container: the `subscribe`
+ * call itself resolves in ~0.1 ms (confirming it returns at the WRITE, not
+ * the acknowledgement), while the broker's own receiver count for the
+ * channel's topic took a further 0.2–4.8 ms after that to report a live
+ * subscriber. A broadcast issued in that window is not merely delayed —
+ * Redis pub/sub has no replay, so it is dropped forever. Over 30
+ * back-to-back runs with no barrier, 4 (~13%) never delivered within 300 ms
+ * — consistent with the reported "1 failure in 2" once CI's shared runner
+ * widens the same window. Every run that DID deliver did so in 1.5–3.0 ms,
+ * which is why widening the 5 s `waitFor` would have hidden the loss rather
+ * than fixed it: a genuinely lost publish times out at any deadline.
+ *
+ * Uses the same PUBLISH-and-count-receivers technique as
+ * {@link awaitSubscribers} and the `#295` suites, on the channel's own event
+ * topic (`keys(namespace).presence` is presence-specific; a plain data
+ * channel's topic is `${namespace}__event:${channel}`, the same format
+ * `probeTopic` uses for the reserved probe channel). The probe event name is
+ * deliberately never `'created'` or any name a scenario asserts on, so a
+ * caller's own `sawEvent` check cannot be satisfied by the probe itself.
+ *
+ * @param reader - A raw client to publish the probe on.
+ * @param namespace - The run namespace.
+ * @param channel - The channel whose watch must be live on the broker.
+ * @param count - How many receivers the broker must report.
+ * @param timeoutMs - How long to wait before giving up.
+ * @throws {Error} When the deadline passes with the count still short.
+ * @example
+ * ```typescript
+ * await b.manager.subscribe(listener, 'private-orders')
+ * await awaitChannelSubscribers(reader, namespace, 'private-orders', 1)
+ * a.manager.broadcast('private-orders', 'created', { id: 42 })
+ * ```
+ */
+export async function awaitChannelSubscribers(
+    reader: Reader,
+    namespace: string,
+    channel: string,
+    count: number,
+    timeoutMs = 10_000,
+): Promise<void> {
+    const topic = `${namespace}__event:${channel}`
+    let seen = 0
+    try {
+        await waitFor(
+            async () => {
+                const reply = await reader.command(
+                    'PUBLISH',
+                    topic,
+                    JSON.stringify({
+                        event: '__readiness_probe__',
+                        data: null,
+                    }),
+                )
+                seen = reply.type === 'integer' ? reply.value : 0
+                return seen >= count
+            },
+            `${count} subscriber(s) on channel ${channel} under ${namespace}`,
+            timeoutMs,
+        )
+    } catch {
+        throw new Error(
+            `[live-realtime] channel ${channel} never reached ${count} ` +
+                `subscriber(s) under ${namespace}: last saw ${seen}`,
+        )
+    }
+}
+
+/**
  * A raw client for read-backs and teardown, closed by {@link withReader}.
  *
  * Separate from every driver's own client on purpose: an assertion issued on

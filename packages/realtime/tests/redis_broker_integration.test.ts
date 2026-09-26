@@ -40,6 +40,7 @@ import {
 import { hmacSha256Hex } from '../../redis/mod.ts'
 import { RedisBroadcastDriver } from '../drivers/redis.ts'
 import {
+    awaitChannelSubscribers,
     awaitSubscribers,
     connection,
     controlSecret,
@@ -117,6 +118,17 @@ integrationTest(
             const listener = connection('b-listener', { id: 1, name: 'Bea' })
             b.manager.register(listener)
             await b.manager.subscribe(listener, 'private-orders')
+            // `subscribe()` resolves once the frame is on the wire, not once
+            // the broker acknowledges it (#412) — a broadcast issued right
+            // after it can race the acknowledgement and be silently dropped,
+            // since Redis pub/sub never replays. Wait for the observable
+            // signal instead of widening the deadline below.
+            await awaitChannelSubscribers(
+                reader,
+                namespace,
+                'private-orders',
+                1,
+            )
 
             a.manager.broadcast('private-orders', 'created', { id: 42 })
 
@@ -146,6 +158,15 @@ integrationTest(
             const allowed = connection('b-allowed', { id: 3, name: 'Dee' })
             b.manager.register(allowed)
             await b.manager.subscribe(allowed, 'private-orders')
+            // Only `allowed`'s subscribe reaches the broker — `rejected` was
+            // denied before the driver was ever touched — so this waits for
+            // exactly the one real watch to land (#412).
+            await awaitChannelSubscribers(
+                reader,
+                namespace,
+                'private-orders',
+                1,
+            )
 
             a.manager.broadcast('private-orders', 'created', { id: 7 })
             await waitFor(
