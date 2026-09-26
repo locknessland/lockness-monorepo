@@ -180,6 +180,45 @@ export const REVOKE_CHANNEL_DURABILITY_LOG_FAILED = markedFallbackMarker(
 )
 
 /**
+ * The marker that starts the one ERROR line written when `#recheckRevocations`'s
+ * own wrapper WARN could not be (#395, security review HIGH): a `console.warn`
+ * that throws inside the `apply` closure's catch, after `#applyRevocation`
+ * itself already failed (its own WARN included). Without a guard, that throw
+ * would escape `apply`, abort the `for` loop mid-pass, and skip every
+ * revocation still queued behind the failing one — breaking #349's "one
+ * revocation that throws never stops the ones after it". Exported for the
+ * test suite only — not re-exported from `mod.ts`.
+ */
+export const RECHECK_REVOCATION_LOG_FAILED = markedFallbackMarker(
+    'realtime: a durable-revocation recheck failure could not be logged (#395):',
+)
+
+/**
+ * The marker that starts the one ERROR line written when `#teardownChannels`'s
+ * "also failed" WARN could not be (#395, security review LOW): a
+ * `console.warn` that throws inside the catch for a SECOND (or later) channel
+ * whose teardown failed. Without a guard, that throw would abort the loop
+ * before any later channel's roster release / `left` announcement / cap
+ * release ran. Exported for the test suite only — not re-exported from
+ * `mod.ts`.
+ */
+export const TEARDOWN_CHANNEL_LOG_FAILED = markedFallbackMarker(
+    'realtime: a teardown channel-failure WARN could not be logged (#395):',
+)
+
+/**
+ * The marker that starts the one ERROR line written when `emitPresence`'s
+ * per-connection delivery WARN could not be (#395, security review LOW): a
+ * `console.warn` that throws inside the catch around one socket's `send`.
+ * Without a guard, that throw would abort the fan-out loop before any later
+ * local subscriber received the frame. Exported for the test suite only — not
+ * re-exported from `mod.ts`.
+ */
+export const EMIT_PRESENCE_LOG_FAILED = markedFallbackMarker(
+    'realtime: a presence fan-out WARN could not be logged (#395):',
+)
+
+/**
  * Refuse a cap that is not a positive integer, at construction.
  *
  * @param option - The option's name, so the message names what to fix.
