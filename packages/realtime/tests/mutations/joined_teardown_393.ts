@@ -21,6 +21,16 @@
  * - (c) `#retired`'s write deferred past a microtask — a same-turn double
  *   call no longer finds it, so it joins nothing and races instead.
  *
+ * **Re-anchored for #392.** `disconnect` is now a thin public wrapper that
+ * raises an id-form deprecation notice, then delegates to a private
+ * `#teardown(target)` — the body described above (the join, the retired-write
+ * and the delegation) moved into it verbatim. The "extracted loop+`finally`"
+ * this fileoverview calls `#teardown` is, since #392, one level deeper: it is
+ * now `#teardownChannels`, called from inside `#teardown`. All three of (a),
+ * (b) and (c)'s edits are plain source text, unmoved and unchanged, so they
+ * still match and still kill the same way; only the surrounding method names
+ * moved.
+ *
  * Every row was proven LIVE: the harness ran the mutant and its named witness
  * went red, attributed.
  *

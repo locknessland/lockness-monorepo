@@ -41,6 +41,13 @@
  * through the same private-map reflection this suite's `state()` helper
  * already uses. Neither guard's own code moved; only the path to it did.
  *
+ * **Re-anchored for #392.** `disconnect` is now a thin public wrapper; the
+ * body M10's and M11's edits sit in — the object-form owner check and the
+ * loop's `finally` guard — moved verbatim into private methods (`#teardown`
+ * and, one level deeper, `#teardownChannels`) `disconnect` delegates to. Both
+ * edits are plain source text, unmoved and unchanged, so M10 and M11 still
+ * match and still kill the same way; only the surrounding method names moved.
+ *
  * ```bash
  * deno task mutate register_only_admission_370
  * ```

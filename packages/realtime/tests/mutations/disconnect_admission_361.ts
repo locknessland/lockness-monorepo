@@ -67,6 +67,15 @@
  * a real one, because the mutant's whole point is that nothing should have
  * been recorded yet; the value is never read on this path.
  *
+ * **Re-anchored for #392.** `disconnect` is now a thin wrapper: the body N3
+ * describes above — the join, the retired-write and the loop's `finally` —
+ * moved verbatim into a private `#teardown(target)`, and the loop+`finally`
+ * itself (what N3's text still calls "`#teardown`'s `finally`") is now
+ * `#teardownChannels`, called from inside `#teardown`. Both of N3's edits are
+ * plain source text, unmoved and unchanged, so the mutant still matches and
+ * still kills the same way — only the surrounding method names moved, which
+ * this note records rather than rewriting N3's label.
+ *
  * Every row was proven LIVE by the harness run that recorded it: the mutant
  * ran and turned its named witness red (`KILLED`, attributed).
  *
