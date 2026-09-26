@@ -10,6 +10,7 @@
  */
 
 import { nextRun } from './cron_parser.ts'
+import { normalizeError } from './errors.ts'
 import { report } from './reporting.ts'
 import { runTask, type TaskBody } from './task_runner.ts'
 import { TimerRegistry } from './timer_registry.ts'
@@ -32,40 +33,6 @@ export const NAME_PATTERN = /^[A-Za-z0-9._:-]{1,64}$/
 
 /** The most retries a schedule may declare. */
 export const MAX_RETRIES = 10
-
-/** What {@link flatten} logs for a rejection value `String()` cannot render. */
-const UNPRINTABLE = '<unprintable>'
-
-/**
- * An error reduced to its name and message, the way `task_runner.ts` logs one.
- *
- * A lock adapter may reject with anything, and the raw object must never reach
- * a log line: a driver error's stack or `cause` can carry a connection string.
- *
- * **Total — it never throws.** It runs inside a `catch` in the run's `finally`,
- * and on the cron path the run is `void`ed, so a throw here is an unhandled
- * rejection that kills the process. Every read of the value is hostile input:
- * `instanceof` runs a Proxy's `getPrototypeOf` trap and throws on a revoked
- * Proxy, `name` and `message` may be throwing getters or non-strings, and
- * `String()` throws on a value with no usable `toString`. All of it sits in one
- * `try`, and anything unexpected becomes the {@link UNPRINTABLE} placeholder.
- */
-function flatten(caught: unknown): { name: string; message: string } {
-    try {
-        if (!(caught instanceof Error)) {
-            return { name: 'Error', message: String(caught) }
-        }
-        const { name, message } = caught
-        if (typeof name === 'string' && typeof message === 'string') {
-            return { name, message }
-        }
-        return { name: 'Error', message: UNPRINTABLE }
-    } catch (_hostile) {
-        // Not swallowed: the placeholder IS the report of this failure, and it
-        // reaches the log line the caller is about to write.
-        return { name: 'Error', message: UNPRINTABLE }
-    }
-}
 
 /** One registered task, as the scheduler holds it. */
 interface Task {
@@ -545,7 +512,7 @@ export class Scheduler {
             } catch (error) {
                 // Lock store unreachable: skip (never split-brain), but make it
                 // observable — a fleet-wide miss must not look like a lost race.
-                const { name: errorName, message } = flatten(error)
+                const { name: errorName, message } = normalizeError(error)
                 this.#warn(
                     'Scheduled task skipped: the distributed lock store is unreachable.',
                     { task: name, error: errorName, message },
@@ -611,7 +578,7 @@ export class Scheduler {
                 try {
                     await this.#lock.release(name, claimed)
                 } catch (error) {
-                    const { name: errorName, message } = flatten(error)
+                    const { name: errorName, message } = normalizeError(error)
                     this.#warn(
                         'Scheduled task lock release failed; the claim stands until its TTL expires.',
                         {

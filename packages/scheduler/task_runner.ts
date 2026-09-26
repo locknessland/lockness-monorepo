@@ -9,6 +9,7 @@
  * @module @lockness/scheduler/task_runner
  */
 
+import { toError } from './errors.ts'
 import { report as guardedReport } from './reporting.ts'
 import type {
     ScheduleOptions,
@@ -117,9 +118,7 @@ export async function runTask(
             return { ok: true, attempts: attempt, error: null }
         } catch (caught) {
             if (timer !== undefined) clearTimeout(timer)
-            lastError = caught instanceof Error
-                ? caught
-                : new Error(String(caught))
+            lastError = toError(caught)
 
             const failure: TaskFailure = {
                 task: name,
@@ -200,9 +199,7 @@ async function guard(
     try {
         await fn()
     } catch (caught) {
-        const error = caught instanceof Error
-            ? caught
-            : new Error(String(caught))
+        const error = toError(caught)
         const message = `Scheduler callback ${which} threw and was contained.`
         const fields = {
             task,
