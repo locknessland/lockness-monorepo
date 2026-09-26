@@ -198,6 +198,52 @@ Deno.test(
 )
 
 Deno.test(
+    '#392 W6 under STRICT_DEPRECATIONS a failing teardown is WARNed, never dropped, while the deprecation error wins',
+    async () => {
+        // A per-channel driver: `unwatchChannel` is only called when
+        // `watchChannel` exists too (driver.ts), so both are declared.
+        class FailingUnwatch extends MemoryBroadcastDriver {
+            watchChannel(): void {}
+            unwatchChannel(): Promise<void> {
+                return Promise.reject(new Error('BROKER_UNWATCH_FAILED'))
+            }
+        }
+        const manager = new ChannelManager<User>({
+            driver: new FailingUnwatch(),
+            authorize: () => true,
+        })
+        const a0 = conn('c1')
+        manager.register(a0)
+        assert((await manager.subscribe(a0, 'news')).ok)
+
+        const warned: string[] = []
+        const realWarn = console.warn
+        console.warn = (...args: unknown[]) => void warned.push(args.join(' '))
+        Deno.env.set('STRICT_DEPRECATIONS', 'true')
+        try {
+            await assertRejects(
+                () => manager.disconnect('c1'),
+                Error,
+                '[DEPRECATION] Since @lockness/realtime 0.4.0',
+                'the deprecation error still wins the rejection',
+            )
+        } finally {
+            Deno.env.delete('STRICT_DEPRECATIONS')
+            console.warn = realWarn
+        }
+
+        assertEquals(
+            warned.filter((line) =>
+                line.includes('a disconnect teardown failed') &&
+                line.includes('BROKER_UNWATCH_FAILED')
+            ).length,
+            1,
+            'the teardown failure the rejection does not carry is WARNed exactly once',
+        )
+    },
+)
+
+Deno.test(
     '#392 pin — the id form still tears the connection down exactly as before',
     async () => {
         assertEquals(getCollector(), null, 'no collector leaked from above')

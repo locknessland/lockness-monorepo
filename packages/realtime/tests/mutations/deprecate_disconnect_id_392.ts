@@ -62,7 +62,26 @@ const DISCONNECT_BODY = '        const teardown = this.#teardown(target)\n' +
     '                    () => {\n' +
     '                        throw deprecationError\n' +
     '                    },\n' +
-    '                    () => {\n' +
+    '                    (teardownError: unknown) => {\n' +
+    '                        // The deprecation error wins the rejection, but the\n' +
+    "                        // teardown's own failure is never dropped silently:\n" +
+    '                        // it is WARNed, and a throwing sink falls back to the\n' +
+    '                        // marked line, which never throws (#391).\n' +
+    '                        try {\n' +
+    '                            console.warn(\n' +
+    "                                'realtime: a disconnect teardown failed while ' +\n" +
+    "                                    'its id-form deprecation notice also ' +\n" +
+    '                                    `threw (#392): ${\n' +
+    '                                        renderError(teardownError)\n' +
+    '                                    }`,\n' +
+    '                            )\n' +
+    '                        } catch (sink) {\n' +
+    '                            writeMarkedFallback(\n' +
+    '                                DISCONNECT_TEARDOWN_LOG_FAILED,\n' +
+    '                                teardownError,\n' +
+    "                                { label: 'sink failure', error: sink },\n" +
+    '                            )\n' +
+    '                        }\n' +
     '                        throw deprecationError\n' +
     '                    },\n' +
     '                )\n' +
@@ -124,6 +143,18 @@ const MUTATIONS: Mutation[] = [
             '        return this.#teardown(target)\n',
         ]],
         killedBy: '#392 W4 ',
+    },
+    {
+        label:
+            'M6 — the teardown failure dropped silently: its WARN removed while the deprecation error wins',
+        file: MANAGER,
+        edits: [[
+            '                            console.warn(\n' +
+            "                                'realtime: a disconnect teardown failed while ' +\n",
+            '                            String(\n' +
+            "                                'realtime: a disconnect teardown failed while ' +\n",
+        ]],
+        killedBy: '#392 W6 ',
     },
 ]
 
