@@ -145,9 +145,15 @@ app.get(
   [20](../../docs/realtime.md#20-subscribe-requires-register) and
   [21](../../docs/realtime.md#21-an-id-held-by-a-live-connection-is-refused) of
   Upgrading to v0.4.0.
-- **The local verbs report.** `unsubscribe` and `disconnect` take a connection
-  id but act only on sockets this instance owns, and they now say which:
-  `'left'` / `'not-subscribed'` / `'not-owned'`. Server-side values — never
+- **The local verbs report.** `unsubscribe` takes a connection id. `disconnect`
+  takes the registered `Connection` object — the form above — or, still accepted
+  but deprecated for application callers (#392), a bare id. All three act only
+  on what this instance owns, and say which: `'left'` / `'not-subscribed'` /
+  `'not-owned'`. `'not-owned'` means one of two things depending on the caller:
+  for `unsubscribe` and `disconnect`'s id form, no socket registered under that
+  id lives on this instance at all; for `disconnect`'s object form, the id may
+  well be owned here, but not by the object passed — it is not (or is no longer)
+  the one that owns it, so nothing local was touched. Server-side values — never
   relay them to a client.
 - **Durable revocation** — a revoke outlives a lost pub/sub frame. A custom
   `BroadcastDriver` opts in by implementing `markRevocation(revocation)`,

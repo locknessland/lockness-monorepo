@@ -3283,9 +3283,12 @@ export class ChannelManager<Identity = unknown> {
      * single teardown ends.
      *
      * One channel's failure never aborts the rest: the first failure is
-     * re-thrown after every channel was tried and the connection forgotten,
-     * later ones are WARNed, and a failure is recorded by a flag, so a
-     * rejection carrying `undefined` is re-thrown too.
+     * re-thrown once the loop above ends — whether it tried every channel or
+     * stopped early because the object lost the id (#370), whichever failure
+     * that already accumulated wins — later failures are WARNed, and a
+     * failure is recorded by a flag, so a rejection carrying `undefined` is
+     * re-thrown too. Whether the connection itself is forgotten follows the
+     * `finally` rule above: only while the object still owns the id.
      *
      * **The id form is deprecated for application callers** (#392). Passing a
      * bare id — instead of the `Connection` object your close hook received —
@@ -3343,11 +3346,11 @@ export class ChannelManager<Identity = unknown> {
      *   still ran to completion first.
      * @example
      * ```ts
-     * const hooks = {
-     *     onOpen: (conn) => manager.register(conn),
+     * const hooks: WebSocketHooks<Identity> = {
+     *     onOpen: (conn: Connection<Identity>) => manager.register(conn),
      *     // The object you registered, not `conn.id` — passing the id here
      *     // still works, but now logs a one-time deprecation notice (#392).
-     *     onClose: (conn) => manager.disconnect(conn),
+     *     onClose: (conn: Connection<Identity>) => manager.disconnect(conn),
      * }
      * ```
      */
