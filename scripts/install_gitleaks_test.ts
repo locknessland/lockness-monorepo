@@ -12,12 +12,12 @@ import { join } from '@std/path'
 import {
     cacheDir,
     type EnvReader,
+    type GitleaksManifest,
     install,
     pinnedSha256,
     platformKey,
     sha256Hex,
 } from './install_gitleaks.ts'
-import type { GitleaksManifest } from './gitleaks_manifest.ts'
 
 /** A fixed manifest so tests never depend on the real pinned values. */
 const TEST_MANIFEST: GitleaksManifest = {
@@ -204,6 +204,119 @@ Deno.test('install verifies, extracts, and caches a matching tarball', async () 
         assertEquals(second, first)
         assertEquals(fetchCalls, 1, 'redownloaded a cached, verified binary')
         assertEquals(extractCalls, 1, 're-extracted a cached, verified binary')
+    })
+})
+
+Deno.test('install creates the cache directory owner-only (0o700)', async () => {
+    await withCache(async (cacheHome) => {
+        const bytes = new TextEncoder().encode('a fake gitleaks tarball')
+        const manifest: GitleaksManifest = {
+            version: '9.9.9-mode',
+            sha256: { linux_x64: await sha256Hex(bytes), darwin_arm64: 'x' },
+        }
+        const gitleaks = await install({
+            manifest,
+            os: 'linux',
+            arch: 'x86_64',
+            env: envOf({ LOCKNESS_CACHE_HOME: cacheHome }),
+            fetcher: () => Promise.resolve(bytes),
+            extract: async (_tarballPath, destDir) => {
+                await Deno.writeTextFile(
+                    join(destDir, 'gitleaks'),
+                    '#!/bin/sh\n',
+                )
+            },
+        })
+        const dirMode =
+            (await Deno.stat(join(cacheHome, 'gitleaks', '9.9.9-mode')))
+                .mode ?? 0
+        assertEquals(dirMode & 0o777, 0o700)
+        assert(gitleaks.endsWith('gitleaks'))
+    })
+})
+
+Deno.test('install rejects a tampered cached binary and re-installs', async () => {
+    await withCache(async (cacheHome) => {
+        const goodBytes = new TextEncoder().encode('a fake gitleaks tarball')
+        const manifest: GitleaksManifest = {
+            version: '9.9.9-tamper',
+            sha256: {
+                linux_x64: await sha256Hex(goodBytes),
+                darwin_arm64: 'x',
+            },
+        }
+        let fetchCalls = 0
+        const options = {
+            manifest,
+            os: 'linux',
+            arch: 'x86_64',
+            env: envOf({ LOCKNESS_CACHE_HOME: cacheHome }),
+            fetcher: () => {
+                fetchCalls++
+                return Promise.resolve(goodBytes)
+            },
+            extract: async (_tarballPath: string, destDir: string) => {
+                await Deno.writeTextFile(
+                    join(destDir, 'gitleaks'),
+                    '#!/bin/sh\necho original\n',
+                )
+            },
+        }
+
+        const first = await install(options)
+        assertEquals(fetchCalls, 1)
+        const originalContent = await Deno.readTextFile(first)
+
+        // Tamper with the cached binary directly, bypassing install().
+        await Deno.writeTextFile(first, '#!/bin/sh\necho tampered\n')
+
+        const second = await install(options)
+        assertEquals(second, first)
+        assertEquals(fetchCalls, 2, 'did not re-install after tampering')
+        assertEquals(
+            await Deno.readTextFile(second),
+            originalContent,
+            'served the tampered content instead of re-installing',
+        )
+    })
+})
+
+Deno.test('install rejects a cached binary with no recorded hash (pre-upgrade cache)', async () => {
+    await withCache(async (cacheHome) => {
+        const bytes = new TextEncoder().encode('a fake gitleaks tarball')
+        const manifest: GitleaksManifest = {
+            version: '9.9.9-nosidecar',
+            sha256: { linux_x64: await sha256Hex(bytes), darwin_arm64: 'x' },
+        }
+        const dir = join(cacheHome, 'gitleaks', '9.9.9-nosidecar')
+        await Deno.mkdir(dir, { recursive: true })
+        // A binary present with no `.sha256` sidecar at all (as a cache
+        // written before this check existed would look).
+        await Deno.writeTextFile(join(dir, 'gitleaks'), '#!/bin/sh\n')
+        await Deno.chmod(join(dir, 'gitleaks'), 0o755)
+
+        let fetchCalls = 0
+        const gitleaks = await install({
+            manifest,
+            os: 'linux',
+            arch: 'x86_64',
+            env: envOf({ LOCKNESS_CACHE_HOME: cacheHome }),
+            fetcher: () => {
+                fetchCalls++
+                return Promise.resolve(bytes)
+            },
+            extract: async (_tarballPath, destDir) => {
+                await Deno.writeTextFile(
+                    join(destDir, 'gitleaks'),
+                    '#!/bin/sh\necho reinstalled\n',
+                )
+            },
+        })
+        assertEquals(fetchCalls, 1, 'trusted a sidecar-less cache entry')
+        assertEquals(
+            await Deno.readTextFile(gitleaks),
+            '#!/bin/sh\necho reinstalled\n',
+        )
     })
 })
 

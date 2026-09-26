@@ -14,10 +14,13 @@ import {
     commitCount,
     isDelete,
     parseRefUpdates,
+    readIgnoreAtBase,
     type RefUpdate,
+    resolveBase,
     resolveRange,
     runPrepushScan,
     scanRange,
+    withIgnoreFileOverride,
 } from './prepush_secret_scan.ts'
 
 const ZERO = '0'.repeat(40)
@@ -213,7 +216,12 @@ Deno.test('scanRange passes on a clean, non-empty report', async () => {
             report: '[]',
             exitCode: 0,
         })
-        const result = await scanRange('HEAD~2..HEAD', dir, bin, 3)
+        const result = await scanRange(
+            'HEAD~2..HEAD',
+            dir,
+            bin,
+            3,
+        )
         assertEquals(result, { ok: true })
     })
 })
@@ -225,7 +233,12 @@ Deno.test('scanRange fails closed on an ERR log line even with exit 0', async ()
             report: '[]',
             exitCode: 0,
         })
-        const result = await scanRange('HEAD~1..HEAD', dir, bin, 1)
+        const result = await scanRange(
+            'HEAD~1..HEAD',
+            dir,
+            bin,
+            1,
+        )
         assertEquals(result.ok, false)
         assert(result.reason?.includes('ERR/FTL'))
     })
@@ -238,7 +251,12 @@ Deno.test('scanRange fails closed on "0 commits scanned" when commits exist', as
             report: '[]',
             exitCode: 0,
         })
-        const result = await scanRange('HEAD~2..HEAD', dir, bin, 2)
+        const result = await scanRange(
+            'HEAD~2..HEAD',
+            dir,
+            bin,
+            2,
+        )
         assertEquals(result.ok, false)
         assert(result.reason?.includes('the range holds 2'))
     })
@@ -251,7 +269,12 @@ Deno.test('scanRange fails closed on leaks found but exit 0', async () => {
             report: '[{"Fingerprint":"abc:def:generic-api-key:1"}]',
             exitCode: 0,
         })
-        const result = await scanRange('HEAD~1..HEAD', dir, bin, 1)
+        const result = await scanRange(
+            'HEAD~1..HEAD',
+            dir,
+            bin,
+            1,
+        )
         assertEquals(result.ok, false)
         assert(result.reason?.includes('exited 0'))
     })
@@ -264,7 +287,12 @@ Deno.test('scanRange fails a real finding reported honestly (exit 1)', async () 
             report: '[{"Fingerprint":"abc:def:generic-api-key:1"}]',
             exitCode: 1,
         })
-        const result = await scanRange('HEAD~1..HEAD', dir, bin, 1)
+        const result = await scanRange(
+            'HEAD~1..HEAD',
+            dir,
+            bin,
+            1,
+        )
         assertEquals(result.ok, false)
     })
 })
@@ -293,5 +321,256 @@ Deno.test('runPrepushScan skips deletes and empty ranges without invoking gitlea
         )
         assertEquals(result.ok, true)
         assert(result.lines.some((l) => l.includes('nothing to scan')))
+    })
+})
+
+Deno.test('resolveBase returns remoteSha for an existing branch', async () => {
+    const base = await resolveBase(
+        {
+            localRef: 'refs/heads/x',
+            localSha: 'abc',
+            remoteRef: 'refs/heads/x',
+            remoteSha: 'def',
+        },
+        '.',
+    )
+    assertEquals(base, 'def')
+})
+
+Deno.test('resolveBase is null for a new branch with no merge-base', async () => {
+    await withTempDir('prepush-base-none-', async (dir) => {
+        await git(dir, 'init', '-q')
+        await git(dir, 'commit', '-q', '--allow-empty', '-m', 'root')
+        const local = await git(dir, 'rev-parse', 'HEAD')
+        const base = await resolveBase(
+            {
+                localRef: 'refs/heads/new',
+                localSha: local,
+                remoteRef: 'refs/heads/new',
+                remoteSha: ZERO,
+            },
+            dir,
+        )
+        assertEquals(base, null)
+    })
+})
+
+Deno.test('readIgnoreAtBase reads .gitleaksignore as it stood at a given commit, not the tip', async () => {
+    await withTempDir('prepush-base-ignore-', async (dir) => {
+        await git(dir, 'init', '-q')
+        await Deno.writeTextFile(
+            join(dir, '.gitleaksignore'),
+            'base-fingerprint\n',
+        )
+        await git(dir, 'add', '.gitleaksignore')
+        await git(dir, 'commit', '-q', '-m', 'base has an ignore entry')
+        const baseSha = await git(dir, 'rev-parse', 'HEAD')
+
+        // The tip adds a DIFFERENT entry after the base commit.
+        await Deno.writeTextFile(
+            join(dir, '.gitleaksignore'),
+            'base-fingerprint\ntip-only-fingerprint\n',
+        )
+        await git(dir, 'add', '.gitleaksignore')
+        await git(dir, 'commit', '-q', '-m', 'tip adds another entry')
+
+        const content = await readIgnoreAtBase(baseSha, dir)
+        assert(content?.includes('base-fingerprint'))
+        assert(
+            !content?.includes('tip-only-fingerprint'),
+            'read the tip file instead of the base',
+        )
+    })
+})
+
+Deno.test('readIgnoreAtBase is empty when the base predates .gitleaksignore', async () => {
+    await withTempDir('prepush-base-ignore-none-', async (dir) => {
+        await git(dir, 'init', '-q')
+        await git(
+            dir,
+            'commit',
+            '-q',
+            '--allow-empty',
+            '-m',
+            'root, no ignore file',
+        )
+        const baseSha = await git(dir, 'rev-parse', 'HEAD')
+        assertEquals(await readIgnoreAtBase(baseSha, dir), '')
+    })
+})
+
+Deno.test('readIgnoreAtBase returns null (keep the tip) when there is no base', async () => {
+    assertEquals(await readIgnoreAtBase(null, '.'), null)
+})
+
+Deno.test('withIgnoreFileOverride replaces .gitleaksignore for the call, then restores it', async () => {
+    await withTempDir('prepush-override-', async (dir) => {
+        await Deno.writeTextFile(join(dir, '.gitleaksignore'), 'original\n')
+        let seenDuringCall = ''
+        await withIgnoreFileOverride('replaced\n', dir, async () => {
+            seenDuringCall = await Deno.readTextFile(
+                join(dir, '.gitleaksignore'),
+            )
+        })
+        assertEquals(seenDuringCall, 'replaced\n')
+        assertEquals(
+            await Deno.readTextFile(join(dir, '.gitleaksignore')),
+            'original\n',
+            'did not restore the original .gitleaksignore',
+        )
+    })
+})
+
+Deno.test('withIgnoreFileOverride removes the file afterwards if it did not exist before', async () => {
+    await withTempDir('prepush-override-none-', async (dir) => {
+        await withIgnoreFileOverride('replaced\n', dir, async () => {
+            assertEquals(
+                await Deno.readTextFile(join(dir, '.gitleaksignore')),
+                'replaced\n',
+            )
+        })
+        const stillThere = await Deno.stat(join(dir, '.gitleaksignore')).then(
+            () => true,
+            () => false,
+        )
+        assertEquals(stillThere, false, 'left a .gitleaksignore behind')
+    })
+})
+
+Deno.test('withIgnoreFileOverride restores even when fn throws', async () => {
+    await withTempDir('prepush-override-throw-', async (dir) => {
+        await Deno.writeTextFile(join(dir, '.gitleaksignore'), 'original\n')
+        let threw = false
+        try {
+            await withIgnoreFileOverride('replaced\n', dir, () => {
+                throw new Error('boom')
+            })
+        } catch {
+            threw = true
+        }
+        assert(threw, 'fn did not actually throw')
+        assertEquals(
+            await Deno.readTextFile(join(dir, '.gitleaksignore')),
+            'original\n',
+        )
+    })
+})
+
+Deno.test('withIgnoreFileOverride is a no-op when content is null', async () => {
+    await withTempDir('prepush-override-null-', async (dir) => {
+        await Deno.writeTextFile(join(dir, '.gitleaksignore'), 'tip\n')
+        const result = await withIgnoreFileOverride(
+            null,
+            dir,
+            () => Deno.readTextFile(join(dir, '.gitleaksignore')),
+        )
+        assertEquals(result, 'tip\n')
+        assertEquals(
+            await Deno.readTextFile(join(dir, '.gitleaksignore')),
+            'tip\n',
+        )
+    })
+})
+
+/**
+ * Write a fake Stripe test-mode key gitleaks reliably flags
+ * (`stripe-access-token`), never a real secret.
+ *
+ * @param dir - The repository working directory.
+ * @param file - The file to write it into.
+ */
+async function writeFakeSecret(dir: string, file: string): Promise<void> {
+    await Deno.writeTextFile(
+        join(dir, file),
+        'STRIPE_KEY=sk_test_FAKEFAKEFAKEFAKEFAKEFAKEFAKE0000\n',
+    )
+}
+
+// The next two tests exercise the actual base-snapshot behavior end to end
+// against the REAL gitleaks binary (`runPrepushScan` installs it — a cache
+// hit, no network, once it has been fetched once in this environment): a
+// fake gitleaks binary cannot honour `.gitleaksignore` itself.
+
+Deno.test('runPrepushScan refuses a same-push .gitleaksignore self-suppression (#HIGH)', async () => {
+    await withTempDir('prepush-self-suppress-', async (dir) => {
+        await git(dir, 'init', '-q')
+        await git(dir, 'commit', '-q', '--allow-empty', '-m', 'root')
+        const root = await git(dir, 'rev-parse', 'HEAD')
+        await git(dir, 'update-ref', 'refs/remotes/origin/main', root)
+
+        // Same push: the secret AND its own suppression, in two new commits.
+        await writeFakeSecret(dir, 'secret.env')
+        await git(dir, 'add', 'secret.env')
+        await git(dir, 'commit', '-q', '-m', 'add secret')
+        const secretSha = await git(dir, 'rev-parse', 'HEAD')
+
+        await Deno.writeTextFile(
+            join(dir, '.gitleaksignore'),
+            `${secretSha}:secret.env:stripe-access-token:1\n`,
+        )
+        await git(dir, 'add', '.gitleaksignore')
+        await git(dir, 'commit', '-q', '-m', 'suppress it (same push)')
+        const local = await git(dir, 'rev-parse', 'HEAD')
+
+        const result = await runPrepushScan(
+            `refs/heads/new ${local} refs/heads/new ${ZERO}\n`,
+            dir,
+        )
+        assertEquals(result.ok, false, result.lines.join('\n'))
+    })
+})
+
+Deno.test('runPrepushScan honours a .gitleaksignore entry already present at the base', async () => {
+    await withTempDir('prepush-base-suppress-', async (dir) => {
+        await git(dir, 'init', '-q')
+        await git(dir, 'commit', '-q', '--allow-empty', '-m', 'root')
+        const root = await git(dir, 'rev-parse', 'HEAD')
+
+        // A side branch with the secret, built off root — NOT an ancestor of
+        // the base below, so its commit stays inside this push's range.
+        await writeFakeSecret(dir, 'secret.env')
+        await git(dir, 'add', 'secret.env')
+        await git(dir, 'commit', '-q', '-m', 'add secret (side branch)')
+        const secretSha = await git(dir, 'rev-parse', 'HEAD')
+
+        // The base branch: built off root too, and already carries the
+        // suppression for the (already known) secret commit's fingerprint —
+        // as if reviewed and pre-approved before this push merges it in.
+        await git(dir, 'checkout', '-q', '--detach', root)
+        await Deno.writeTextFile(
+            join(dir, '.gitleaksignore'),
+            `${secretSha}:secret.env:stripe-access-token:1\n`,
+        )
+        await git(dir, 'add', '.gitleaksignore')
+        await git(dir, 'commit', '-q', '-m', 'pre-approve the secret commit')
+        const baseSha = await git(dir, 'rev-parse', 'HEAD')
+        await git(dir, 'update-ref', 'refs/remotes/origin/main', baseSha)
+
+        // This push merges the secret commit into the base.
+        const merge = await git(
+            dir,
+            'merge',
+            '-q',
+            '--no-ff',
+            '-m',
+            'merge secret branch',
+            secretSha,
+        )
+        void merge
+        const local = await git(dir, 'rev-parse', 'HEAD')
+
+        const result = await runPrepushScan(
+            `refs/heads/new ${local} refs/heads/new ${ZERO}\n`,
+            dir,
+        )
+        assertEquals(result.ok, true, result.lines.join('\n'))
+        // Confirm the secret commit really was inside the scanned range —
+        // otherwise this would trivially pass for the wrong reason.
+        assert(
+            result.lines.some((l) =>
+                l.includes(`origin/main..${local}`) && l.includes('clean')
+            ),
+            result.lines.join('\n'),
+        )
     })
 })
