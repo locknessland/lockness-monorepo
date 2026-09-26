@@ -136,6 +136,18 @@ export const OWED_RELEASE_LOG_FAILED =
     'realtime: an owed-release enqueue log line could not be written (#371):'
 
 /**
+ * The marker that starts the one ERROR line written when a `disconnect(id)`
+ * teardown failed while its id-form deprecation notice ALSO threw (#392,
+ * `STRICT_DEPRECATIONS`), and the WARN that reports the teardown failure could
+ * not be written either. The deprecation error wins the call's rejection, so
+ * the teardown failure is never re-thrown; it is logged instead, and a
+ * throwing sink must not drop it silently. Exported for the test suite only —
+ * not re-exported from `mod.ts`.
+ */
+export const DISCONNECT_TEARDOWN_LOG_FAILED =
+    'realtime: a disconnect teardown failure could not be logged (#392):'
+
+/**
  * Refuse a cap that is not a positive integer, at construction.
  *
  * @param option - The option's name, so the message names what to fix.
@@ -3286,8 +3298,9 @@ export class ChannelManager<Identity = unknown> {
      *   the first call did.
      * @throws The id-form deprecation error, when `STRICT_DEPRECATIONS=true`
      *   and `target` is a string (#392) — in preference to a teardown failure,
-     *   which is WARNed instead (see above); the teardown itself still ran to
-     *   completion first.
+     *   which is WARNed instead (with {@link DISCONNECT_TEARDOWN_LOG_FAILED}
+     *   as the fallback when the WARN sink itself throws); the teardown itself
+     *   still ran to completion first.
      * @example
      * ```ts
      * const hooks = {
@@ -3317,7 +3330,26 @@ export class ChannelManager<Identity = unknown> {
                     () => {
                         throw deprecationError
                     },
-                    () => {
+                    (teardownError: unknown) => {
+                        // The deprecation error wins the rejection, but the
+                        // teardown's own failure is never dropped silently:
+                        // it is WARNed, and a throwing sink falls back to the
+                        // marked line, which never throws (#391).
+                        try {
+                            console.warn(
+                                'realtime: a disconnect teardown failed while ' +
+                                    'its id-form deprecation notice also ' +
+                                    `threw (#392): ${
+                                        renderError(teardownError)
+                                    }`,
+                            )
+                        } catch (sink) {
+                            writeMarkedFallback(
+                                DISCONNECT_TEARDOWN_LOG_FAILED,
+                                teardownError,
+                                { label: 'sink failure', error: sink },
+                            )
+                        }
                         throw deprecationError
                     },
                 )
