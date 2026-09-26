@@ -717,12 +717,59 @@ Deno.test('#362 D8 (ii) a rejecting pass chain is one marked ERROR line, and the
                 const marked = logs.marked()
                 assertEquals(marked.length, 1)
                 assertStringIncludes(marked[0], 'warn sink down')
+                // #383 item 2: #warnReconcileFailed self-guards, so the
+                // "reconcile failed" context is never lost to the rejection
+                // that used to carry only the sink's OWN error past it.
+                assertStringIncludes(marked[0], 'handler down (#362)')
                 await advance(time, 1_000)
                 assertEquals(calls, 2, 'the next timer pass runs')
                 await advance(time, 7_999)
                 assertEquals(logs.deadlineLines().length, 0)
                 await advance(time, 1)
                 assertEquals(logs.count(REVOCATION_DEADLINE_MISSED), 1)
+            })
+        } finally {
+            await driver.close()
+        }
+    })
+})
+
+Deno.test('#362 D8 (iii) a reconnect pass whose sink also fails still runs the #308 retry', async () => {
+    await withClock(async (time, logs) => {
+        // A wide interval (the relation allows up to 5 000ms at TTL=10) keeps
+        // the ordinary periodic timer pass well outside this witness's
+        // window, so only the #308 retry itself can raise `calls` past 1.
+        const { driver, reconnect } = instance({ interval: 5_000 })
+        try {
+            await watchingEscapes(async (escaped) => {
+                let calls = 0
+                driver.onRevocationReconcile(() => {
+                    calls++
+                    return Promise.reject(new Error('handler down (#362)'))
+                })
+                logs.failWarn(true)
+                try {
+                    await reconnect()
+                    await time.runMicrotasks()
+                    assertEquals(calls, 1, 'the reconnect pass ran')
+                    assertEquals(
+                        escaped,
+                        [],
+                        'no rejection escapes the pass chain',
+                    )
+                    // #383 item 2: before the self-guard, the throwing
+                    // console.warn escaped #runRevocationReconcile's catch
+                    // block before it ever reached the retry-arming code
+                    // below, silently dropping the #308 one-shot retry too.
+                    await advance(time, 1_500)
+                    assertEquals(
+                        calls,
+                        2,
+                        'the reconnect-retry pass still fires',
+                    )
+                } finally {
+                    logs.failWarn(false)
+                }
             })
         } finally {
             await driver.close()
