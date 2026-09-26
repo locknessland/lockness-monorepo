@@ -2070,6 +2070,58 @@ export const HEARTBEAT_LOG_FAILED = markedFallbackMarker(
 )
 
 /**
+ * The marker that starts the one ERROR line written when the malformed-message
+ * WARN in {@link RedisBroadcastDriver.onMessage}'s `#deliver` could not be,
+ * because `console.warn` threw (#418). `#deliver` is registered directly as
+ * the subscriber's message handler — nothing in this class wraps that call in
+ * a `try`, so an unguarded throw here would reach whatever the `RedisSubscriber`
+ * port's concrete implementation does with a handler fault, not this driver's
+ * own containment (the port makes no promise either way — see its JSDoc — and
+ * this package's own `FakeRedis` test double dispatches synchronously with no
+ * containment of its own). Exported for the test suite only.
+ */
+export const MESSAGE_DECODE_LOG_FAILED = markedFallbackMarker(
+    'realtime: a malformed-message WARN could not be logged (#418):',
+)
+
+/**
+ * The marker that starts the one ERROR line written when the malformed-control
+ * WARN in {@link RedisBroadcastDriver.onControl}'s `#verifyAndDecode` could not
+ * be, because `console.warn` threw (#418) — the control-topic twin of
+ * {@link MESSAGE_DECODE_LOG_FAILED}: `onControl`'s `deliver` closure calls
+ * `#verifyAndDecode` directly as the subscriber's handler, with the same
+ * unwrapped call site. Exported for the test suite only.
+ */
+export const CONTROL_DECODE_LOG_FAILED = markedFallbackMarker(
+    'realtime: a malformed-control WARN could not be logged (#418):',
+)
+
+/**
+ * The marker that starts the one ERROR line written when the roster-departure
+ * WARN in {@link RedisBroadcastDriver}'s `#announceSwept` could not be,
+ * because `console.warn` threw (#418). That WARN is written from inside a
+ * `catch` around the departure handler's own call, in the middle of
+ * `#sweepPage`'s loop over one dead instance's owned slots — nothing there
+ * wraps `#announceSwept`'s own await, so an unguarded throw would reject
+ * `#sweepPage`, skipping every remaining slot on the page (and every later
+ * page for the SAME dead instance this pass), exactly the "escapes a loop and
+ * skips the rest of it" shape #395 named. `#sweepInstance`'s own `try` around
+ * `#sweepOwned` turns an ordinary rejection there into one WARN and a normal
+ * return — so a departure HANDLER that merely throws never travels past this
+ * site, or past `#sweepInstance`, once this site's own WARN is guarded. But
+ * `#sweepInstance`'s "sweep … failed" line is itself a bare, unguarded
+ * `console.warn` (a different, out-of-scope site): when the SINK is what is
+ * down, THIS site's own unguarded throw used to keep climbing — past
+ * `#sweepInstance`'s failed attempt to report it, past `#reconcile`'s own
+ * catch, to the top of the whole reconcile chain ({@link SWEEP_LOG_FAILED}),
+ * costing every dead instance still left in `ids` its sweep this pass, not
+ * only this one's remaining slots. Exported for the test suite only.
+ */
+export const SWEEP_DEPARTURE_LOG_FAILED = markedFallbackMarker(
+    'realtime: a roster-departure WARN could not be logged (#418):',
+)
+
+/**
  * The words that start the one WARN written when the floor announce failed
  * (#380) — followed by the rendered failure. The announce is retried; the
  * revocation pass writes the same entry on its next reap. Exported for the
@@ -3272,7 +3324,16 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             try {
                 parsed = JSON.parse(payload)
             } catch {
-                console.warn('realtime: dropped a malformed Redis payload')
+                // #418: `#deliver` IS the subscriber's message handler — no
+                // caller here wraps it in a `try`, so a throwing sink would
+                // escape into whatever the port's concrete implementation
+                // does with a handler fault, never this driver's own
+                // containment. One marked line, through #guardedWarn's shared
+                // #369 shape.
+                this.#guardedWarn(
+                    MESSAGE_DECODE_LOG_FAILED,
+                    'realtime: dropped a malformed Redis payload',
+                )
                 return // a malformed payload is dropped, never a throw
             }
             // Re-validate names on ingest — a peer (or a poisoned topic) must
@@ -4852,7 +4913,15 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         try {
             wire = JSON.parse(payload) as ControlWire
         } catch {
-            console.warn('realtime: dropped a malformed control payload')
+            // #418: `onControl`'s `deliver` closure calls this method
+            // directly as the subscriber's handler — no caller here wraps it
+            // in a `try`, so a throwing sink would escape the same way
+            // `onMessage`'s `#deliver` does. One marked line, through
+            // #guardedWarn's shared #369 shape.
+            this.#guardedWarn(
+                CONTROL_DECODE_LOG_FAILED,
+                'realtime: dropped a malformed control payload',
+            )
             return undefined
         }
         if (
@@ -5576,7 +5645,15 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             // DELIBERATELY drops the error (#348 plan §11, S2): a handler's
             // message may carry the entry, and the entry is application data
             // — so neither the member nor the error.
-            console.warn(
+            //
+            // #418: this `await` sits inside #sweepPage's loop over one dead
+            // instance's owned slots, with nothing between here and there
+            // that catches a throw — so an unguarded `console.warn` failing
+            // would reject THIS call, skipping every remaining slot on the
+            // page (and every later page), not just losing this one line. One
+            // marked line, through #guardedWarn's shared #369 shape.
+            this.#guardedWarn(
+                SWEEP_DEPARTURE_LOG_FAILED,
                 `realtime: the roster departure handler failed for a ` +
                     `member swept from ${
                         safeForLog(channel)
