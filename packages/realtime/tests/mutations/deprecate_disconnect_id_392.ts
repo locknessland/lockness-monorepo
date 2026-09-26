@@ -1,13 +1,17 @@
 /**
  * @fileoverview #392's mutation battery — `disconnect`'s id form raises a
  * deprecation notice, once per manager instance, for application callers
- * only.
+ * only, and never before the teardown it must not pre-empt.
  *
- * The decision lives in three places, all in `manager.ts`: the
+ * The decision lives in four places, all in `manager.ts`: the
  * `typeof target === 'string'` gate in `disconnect` that decides WHETHER
  * `#warnIdForm` runs; `#warnIdForm`'s own `#idFormWarned` guard, which decides
- * HOW MANY TIMES it fires; and `revokeLocal`'s direct `#teardown` call, which
- * is what keeps the framework's own id-form use silent.
+ * HOW MANY TIMES it fires; `revokeLocal`'s direct `#teardown` call, which is
+ * what keeps the framework's own id-form use silent; and `disconnect`'s own
+ * ORDER — `#teardown(target)` is called and its promise captured BEFORE
+ * `#warnIdForm` ever runs, so a `STRICT_DEPRECATIONS` throw (or a throwing
+ * collector) can only affect what this call's promise settles with, never
+ * whether the teardown happened at all.
  *
  * - M1 — the gate widened: `#warnIdForm` runs for the object form too.
  * - M2 — the gate removed: `#warnIdForm` never runs, not even for the id
@@ -17,6 +21,11 @@
  *   load-bearing, not incidental.
  * - M4 — `revokeLocal` reverted to the public `disconnect`, which would raise
  *   the notice for the framework's own internal id-form caller.
+ * - M5 — the notice moved back BEFORE the teardown (review HIGH,
+ *   2026-09-26): `#teardown(target)` no longer runs first, so
+ *   `STRICT_DEPRECATIONS` throws synchronously out of `disconnect` itself,
+ *   before anything is retired or torn down — the exact regression the
+ *   review found.
  *
  * Every row was proven LIVE: the harness ran the mutant and its named witness
  * went red.
@@ -37,20 +46,42 @@ const SUITES = [
 ]
 
 /** The gate, as shipped. */
-const GATE = "        if (typeof target === 'string') this.#warnIdForm()\n"
+const GATE = "        if (typeof target === 'string') {\n"
+
+/** `disconnect`'s body, as shipped — teardown started, then the notice. */
+const DISCONNECT_BODY = '        const teardown = this.#teardown(target)\n' +
+    GATE +
+    '            try {\n' +
+    '                this.#warnIdForm()\n' +
+    '            } catch (deprecationError) {\n' +
+    '                // Both reactions re-throw the SAME error: it wins even over a\n' +
+    '                // teardown failure (see the JSDoc above for why), and\n' +
+    '                // supplying both means `teardown` never carries an\n' +
+    '                // unhandled rejection either way.\n' +
+    '                return teardown.then(\n' +
+    '                    () => {\n' +
+    '                        throw deprecationError\n' +
+    '                    },\n' +
+    '                    () => {\n' +
+    '                        throw deprecationError\n' +
+    '                    },\n' +
+    '                )\n' +
+    '            }\n' +
+    '        }\n' +
+    '        return teardown\n'
 
 const MUTATIONS: Mutation[] = [
     {
         label:
             'M1 — the gate widened: #warnIdForm runs for the object form too',
         file: MANAGER,
-        edits: [[GATE, '        this.#warnIdForm()\n']],
+        edits: [[GATE, '        if (true) {\n']],
         killedBy: '#392 W2 ',
     },
     {
         label: 'M2 — the gate removed: #warnIdForm never runs',
         file: MANAGER,
-        edits: [[GATE, '']],
+        edits: [[GATE, '        if (false) {\n']],
         killedBy: '#392 W1 ',
     },
     {
@@ -83,12 +114,23 @@ const MUTATIONS: Mutation[] = [
         ]],
         killedBy: '#392 W3 ',
     },
+    {
+        label:
+            'M5 — the notice moved back BEFORE the teardown (review HIGH): a strict-mode throw pre-empts #teardown entirely',
+        file: MANAGER,
+        edits: [[
+            DISCONNECT_BODY,
+            "        if (typeof target === 'string') this.#warnIdForm()\n" +
+            '        return this.#teardown(target)\n',
+        ]],
+        killedBy: '#392 W4 ',
+    },
 ]
 
 if (import.meta.main) {
     Deno.exit(
         await runBattery(
-                "#392 — disconnect's id form deprecation, once per manager instance, framework callers silent",
+                "#392 — disconnect's id form deprecation, once per manager instance, framework callers silent, never before the teardown",
                 SUITES,
                 MUTATIONS,
             ) > 0
