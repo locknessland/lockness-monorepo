@@ -1,36 +1,64 @@
 #!/usr/bin/env -S deno run -A
 /**
  * @fileoverview Download, checksum-verify, and cache the pinned gitleaks
- * binary (`GITLEAKS_MANIFEST` in `scripts/gitleaks_manifest.ts`) for the
- * current OS/arch, printing its path on success.
+ * binary (`scripts/gitleaks_manifest.json`) for the current OS/arch, printing
+ * its path on success.
  *
- * Two consumers share this script: `scripts/prepush_secret_scan.ts` (the
- * local pre-push hook) and `.github/workflows/secret-scan.yml` (CI, which has
- * Deno available and runs this file directly instead of re-implementing the
- * download-and-verify steps in shell). One pin, one verification path, two
- * callers.
+ * Two readers share `gitleaks_manifest.json`: this file (`with { type: 'json'
+ * }`, for the local pre-push hook via `scripts/prepush_secret_scan.ts`) and
+ * `.github/workflows/secret-scan.yml` (`jq`, so the CI job needs no Deno
+ * setup — see that workflow's own cross-pointing comment). Bump the version
+ * only in the JSON.
+ *
+ * The `linux_x64` hash was already pinned as a literal in `secret-scan.yml`
+ * before this manifest existed; it is carried over unchanged. `darwin_arm64`,
+ * `darwin_x64` and `linux_arm64` were copied from the official
+ * `gitleaks_8.30.1_checksums.txt` published beside the release,
+ * https://github.com/gitleaks/gitleaks/releases/tag/v8.30.1 — never computed
+ * locally, and never re-read from that checksums file at verify time
+ * (re-reading it would defeat the pin: a tampered tarball ships a tampered
+ * checksums file with it). The hash actually checked against a downloaded
+ * tarball is always the literal in the JSON.
  *
  * Fails closed: an unsupported platform, a download failure, or a checksum
  * mismatch all throw (and, run as a script, exit non-zero) — never falling
- * back to an unverified binary. The hash is checked against the literal
- * pinned value in the manifest, never against the release's own checksums
- * file at verify time (a tampered tarball ships a tampered checksums file
- * with it).
+ * back to an unverified binary.
  *
  * The verified binary is cached under `~/.cache/lockness/gitleaks/<version>/`
  * (overridable via `LOCKNESS_CACHE_HOME`, used by this file's tests), keyed by
- * version — a repeat install of the same pin is a cache hit and re-verifies
- * nothing, because nothing about a hit was ever unverified: it was checksummed
- * the first time it was written there.
+ * version, in a directory created `0o700` (owner-only). A cache hit is not a
+ * bare `stat`: the cached binary is re-hashed against a sidecar recording the
+ * hash observed right after it was verified, on every call. A binary that
+ * does not match that sidecar (tampered, or a sidecar-less cache from before
+ * this check existed) is discarded and re-installed rather than trusted.
  *
  * @module
  */
 
 import { join } from '@std/path'
-import {
-    GITLEAKS_MANIFEST,
-    type GitleaksManifest,
-} from './gitleaks_manifest.ts'
+import manifestJson from './gitleaks_manifest.json' with { type: 'json' }
+
+/** One pinned gitleaks release: its version and its per-platform tarball sha256. */
+export interface GitleaksManifest {
+    /** The gitleaks release version, without the leading `v`. */
+    version: string
+    /**
+     * sha256 (lowercase hex) of `gitleaks_<version>_<platform>.tar.gz`, keyed
+     * by `<os>_<arch>` as produced by {@link platformKey}. Only the platforms
+     * below are pinned; any other platform is refused rather than installed
+     * unverified.
+     */
+    sha256: {
+        linux_x64: string
+        darwin_arm64: string
+        darwin_x64?: string
+        linux_arm64?: string
+    }
+}
+
+/** The pinned gitleaks release, read from `scripts/gitleaks_manifest.json`. */
+export const GITLEAKS_MANIFEST: GitleaksManifest =
+    manifestJson as GitleaksManifest
 
 /**
  * Map a Deno build target to the manifest's platform key.
@@ -83,7 +111,7 @@ export function pinnedSha256(manifest: GitleaksManifest, key: string): string {
 /**
  * Hex-encode the sha256 digest of a byte array.
  *
- * @param bytes - The bytes to hash (a downloaded tarball, in this file's use).
+ * @param bytes - The bytes to hash (a downloaded tarball or cached binary).
  * @returns The lowercase hex sha256.
  * @example
  * ```ts
@@ -129,6 +157,75 @@ export function cacheDir(version: string, env: EnvReader = Deno.env): string {
         )
     }
     return join(home, '.cache', 'lockness', 'gitleaks', version)
+}
+
+/** The sidecar file recording the hash observed right after a binary was verified. */
+function sidecarPath(binPath: string): string {
+    return `${binPath}.sha256`
+}
+
+/**
+ * Whether a file has at least one executable bit set.
+ *
+ * @param path - The file to check.
+ * @returns `true` when the file exists and is executable by someone.
+ */
+async function isExecutable(path: string): Promise<boolean> {
+    const stat = await Deno.stat(path).catch(() => null)
+    if (!stat) return false
+    return ((stat.mode ?? 0) & 0o111) !== 0
+}
+
+/**
+ * Read the sidecar hash recorded for a cached binary, if any.
+ *
+ * @param binPath - The cached binary's path.
+ * @returns The recorded lowercase hex sha256, or `null` if there is none.
+ */
+async function readRecordedHash(binPath: string): Promise<string | null> {
+    return await Deno.readTextFile(sidecarPath(binPath))
+        .then((text) => text.trim() || null, () => null)
+}
+
+/**
+ * Record the hash of a freshly verified, freshly extracted binary, so the
+ * next call can detect tampering rather than trusting a bare `stat`.
+ *
+ * @param binPath - The binary's path.
+ * @param hash - Its current sha256.
+ */
+async function recordHash(binPath: string, hash: string): Promise<void> {
+    await Deno.writeTextFile(sidecarPath(binPath), `${hash}\n`)
+}
+
+/**
+ * Discard a cache entry that failed its integrity check — both the binary
+ * and its sidecar, so a stale sidecar cannot mask a future tamper.
+ *
+ * @param binPath - The binary's path.
+ */
+async function discardCacheEntry(binPath: string): Promise<void> {
+    await Deno.remove(binPath).catch(() => {})
+    await Deno.remove(sidecarPath(binPath)).catch(() => {})
+}
+
+/**
+ * Whether the file at `binPath` is a trustworthy cache hit: present, matching
+ * its recorded sha256, and executable. Re-hashes the file every call — a
+ * `stat` alone cannot see a byte-for-byte tamper of an otherwise
+ * present, executable file.
+ *
+ * @param binPath - The cached binary's path.
+ * @returns `true` only when every check passes.
+ */
+async function isValidCacheHit(binPath: string): Promise<boolean> {
+    const bytes = await Deno.readFile(binPath).catch(() => null)
+    if (!bytes) return false
+    const recorded = await readRecordedHash(binPath)
+    if (recorded === null) return false
+    const current = await sha256Hex(bytes)
+    if (current !== recorded) return false
+    return await isExecutable(binPath)
 }
 
 /** A download function: given a URL, returns the response bytes. */
@@ -195,10 +292,10 @@ export interface InstallOptions {
  * gitleaks binary.
  *
  * @param options - Injection points for tests.
- * @returns The absolute path of the verified `gitleaks` binary.
- * @throws {Error} On an unsupported platform, a download failure, or a
- *   checksum mismatch. Never returns a path to an unverified binary, and
- *   never writes one to the cache.
+ * @returns The absolute path of the verified, executable `gitleaks` binary.
+ * @throws {Error} On an unsupported platform, a download failure, a checksum
+ *   mismatch, or a binary that is not executable after installation. Never
+ *   returns a path to an unverified or non-executable binary.
  * @example
  * ```ts
  * const gitleaks = await install()
@@ -218,8 +315,10 @@ export async function install(options: InstallOptions = {}): Promise<string> {
     const dir = cacheDir(manifest.version, env)
     const binPath = join(dir, 'gitleaks')
 
-    const cached = await Deno.stat(binPath).then(() => true, () => false)
-    if (cached) return binPath
+    if (await isValidCacheHit(binPath)) return binPath
+    // Present but invalid (tampered, unrecorded, or not executable): don't
+    // trust it — discard and fall through to a fresh, verified install.
+    await discardCacheEntry(binPath)
 
     const tarballName = `gitleaks_${manifest.version}_${key}.tar.gz`
     const url =
@@ -234,7 +333,7 @@ export async function install(options: InstallOptions = {}): Promise<string> {
         )
     }
 
-    await Deno.mkdir(dir, { recursive: true })
+    await Deno.mkdir(dir, { recursive: true, mode: 0o700 })
     const tmpTarball = await Deno.makeTempFile({ suffix: '.tar.gz' })
     try {
         await Deno.writeFile(tmpTarball, bytes)
@@ -243,6 +342,15 @@ export async function install(options: InstallOptions = {}): Promise<string> {
         await Deno.remove(tmpTarball).catch(() => {})
     }
     await Deno.chmod(binPath, 0o755)
+
+    const installedBytes = await Deno.readFile(binPath)
+    await recordHash(binPath, await sha256Hex(installedBytes))
+
+    if (!(await isExecutable(binPath))) {
+        throw new Error(
+            `installed gitleaks binary at ${binPath} is not executable`,
+        )
+    }
     return binPath
 }
 

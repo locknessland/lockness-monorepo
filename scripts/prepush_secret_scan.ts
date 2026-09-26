@@ -16,12 +16,29 @@
  * - the full history reachable from `local_sha` when there is no merge-base
  *   (a genuinely new root).
  *
+ * `.gitleaksignore` is read as it stood at the range's BASE (the same commit
+ * `resolveRange` diffs from), never at the tip: reading the tip would let one
+ * push (or one same-branch PR) add a secret in one commit and its own
+ * fingerprint in a later commit, and both scans — the one at the leak and the
+ * one at HEAD — would see the suppressed version and pass (#HIGH). With no
+ * base (a rootless push, full history, no merge-base), the tip's file is kept
+ * — the one named residue of this rule.
+ *
+ * Verified against the real 8.30.1 binary before relying on it: gitleaks'
+ * `--gitleaks-ignore-path` does NOT override an `.gitleaksignore` already
+ * present in the scan's working directory — it only supplies a path to check
+ * when the working directory has none. gitleaks reads the ignore file live
+ * off disk (not a git blob), so this file overwrites the actual
+ * `.gitleaksignore` in the working tree with the base's content for the
+ * duration of one `gitleaks` invocation, and restores the original (or
+ * removes the file if none existed) in a `finally` — the working tree is
+ * never left mutated, including on a crash mid-scan.
+ *
  * Fails closed, mirroring `.github/workflows/secret-scan.yml`: the installer
  * failing, gitleaks logging an ERR/FTL line, an unreadable report, a
  * non-empty report paired with exit 0, a present `.gitleaks.toml`, or
  * gitleaks reporting "0 commits scanned" for a range this script already knows
- * is non-empty (via `git rev-list --count`) all refuse the push.
- * `.gitleaksignore` applies — gitleaks reads it by default — and `--redact`
+ * is non-empty (via `git rev-list --count`) all refuse the push. `--redact`
  * keeps a real secret out of the terminal.
  *
  * @module
@@ -92,6 +109,27 @@ async function git(args: string[], cwd: string): Promise<string | null> {
 }
 
 /**
+ * Resolve the base commit a ref update's range is diffed from: `remoteSha`
+ * when the remote ref already exists, else the `origin/main` merge-base, else
+ * `null` (no base — a genuinely new root, or `origin/main` unreachable).
+ *
+ * This is the SAME base `.gitleaksignore` is read from ({@link
+ * snapshotIgnoreFile}) — reading the tip's file instead would let a push
+ * suppress its own new secret with a same-push fingerprint addition (#HIGH).
+ *
+ * @param update - A ref update already known not to be a delete.
+ * @param cwd - The repository root.
+ * @returns The base commit-ish, or `null` when there is none.
+ */
+export async function resolveBase(
+    update: RefUpdate,
+    cwd: string,
+): Promise<string | null> {
+    if (!ZERO_SHA_RE.test(update.remoteSha)) return update.remoteSha
+    return await git(['merge-base', 'origin/main', update.localSha], cwd)
+}
+
+/**
  * Resolve the `git log`-compatible range gitleaks should scan for one ref
  * update.
  *
@@ -112,12 +150,63 @@ export async function resolveRange(
     if (!ZERO_SHA_RE.test(update.remoteSha)) {
         return `${update.remoteSha}..${update.localSha}`
     }
-    const base = await git(
-        ['merge-base', 'origin/main', update.localSha],
-        cwd,
-    )
+    const base = await resolveBase(update, cwd)
     if (base) return `origin/main..${update.localSha}`
     return update.localSha
+}
+
+/**
+ * Read `.gitleaksignore`'s content as it stood at `base`.
+ *
+ * @param base - The commit-ish from {@link resolveBase}, or `null` when there
+ *   is none — signals the tip's file should be left untouched (the named
+ *   residue of the base-snapshot rule: a rootless push has no earlier state
+ *   to pin to).
+ * @param cwd - The repository root.
+ * @returns The base's content (`''` when the base predates the file), or
+ *   `null` when `base` itself was `null`.
+ */
+export async function readIgnoreAtBase(
+    base: string | null,
+    cwd: string,
+): Promise<string | null> {
+    if (base === null) return null
+    // `git show` fails both when the base has no such file and on other
+    // errors; either way an empty ignore file at the base is the correct,
+    // fail-closed reading — no earlier suppression exists to honour.
+    const content = await git(['show', `${base}:.gitleaksignore`], cwd)
+    return content ?? ''
+}
+
+/**
+ * Run `fn` with `cwd/.gitleaksignore` temporarily replaced by `content`, then
+ * restore the original content — or remove the file if it did not exist
+ * before — in a `finally`.
+ *
+ * @param content - Replacement content, or `null` to leave the working
+ *   tree's `.gitleaksignore` untouched (see {@link readIgnoreAtBase}).
+ * @param cwd - The repository root.
+ * @param fn - Runs with the substitution in place.
+ * @returns Whatever `fn` returns.
+ */
+export async function withIgnoreFileOverride<T>(
+    content: string | null,
+    cwd: string,
+    fn: () => Promise<T>,
+): Promise<T> {
+    if (content === null) return await fn()
+    const path = `${cwd}/.gitleaksignore`
+    const original = await Deno.readTextFile(path).catch(() => null)
+    await Deno.writeTextFile(path, content)
+    try {
+        return await fn()
+    } finally {
+        if (original === null) {
+            await Deno.remove(path).catch(() => {})
+        } else {
+            await Deno.writeTextFile(path, original)
+        }
+    }
 }
 
 /**
@@ -300,13 +389,19 @@ export async function runPrepushScan(
             lines.push(`${update.localRef}: delete, skipped`)
             continue
         }
+        const base = await resolveBase(update, cwd)
         const range = await resolveRange(update, cwd)
         const expected = await commitCount(range, cwd)
         if (expected === 0) {
             lines.push(`${update.localRef}: ${range} is empty, nothing to scan`)
             continue
         }
-        const result = await scanRange(range, cwd, gitleaksPath, expected)
+        const ignoreContent = await readIgnoreAtBase(base, cwd)
+        const result = await withIgnoreFileOverride(
+            ignoreContent,
+            cwd,
+            () => scanRange(range, cwd, gitleaksPath, expected),
+        )
         if (result.ok) {
             lines.push(
                 `${update.localRef}: ${range} clean (${expected} commit(s))`,
@@ -333,7 +428,10 @@ if (import.meta.main) {
         console.error(
             '[secret-scan] push refused: see the fail(s) above. A reviewed ' +
                 'false positive is suppressed by fingerprint in ' +
-                '.gitleaksignore, never by path.',
+                '.gitleaksignore, never by path — and the ignore file is read ' +
+                "as it stood BEFORE this push's commits, so if this is a false " +
+                'positive, push the offending commit first, then add its ' +
+                '.gitleaksignore entry in a follow-up push/PR.',
         )
         Deno.exit(1)
     }
