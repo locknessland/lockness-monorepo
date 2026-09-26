@@ -644,9 +644,10 @@ app.use('*', actingAs(fakeUser({ id: 1, isAdmin: true })))
   release (`scripts/gitleaks_manifest.json`, installed locally by
   `scripts/install_gitleaks.ts` — CI reads the same JSON with `jq`, no Deno
   setup needed for a scan-only job) and the same fail-closed rules: an ERR/FTL
-  log line, a report that cannot be read, a non-empty report paired with a zero
-  exit status, or "0 commits scanned" over a range known to hold commits all
-  refuse.
+  log line, a report that cannot be read, or a non-empty report paired with a
+  zero exit status all refuse. "0 commits scanned" over a range known to hold
+  commits refuses too, everywhere except CI's own new-range run (below), where
+  an empty range is a legitimate outcome, not a failure.
 
   **`.gitleaksignore` is read as it stood at the BASE, never at the tip.** A
   push (or a same-branch PR) cannot suppress its own new secret by adding the
@@ -670,15 +671,25 @@ app.use('*', actingAs(fakeUser({ id: 1, isAdmin: true })))
   base at all (a rootless push, or `workflow_dispatch`), the tip's file is kept
   — the one named residue of this rule.
 
-  **The legitimate false-positive flow necessarily goes red once.** Suppress a
-  reviewed false positive by fingerprint (`commit:file:rule:line`) in
+  **The offending commit goes red once; the suppression push does not.**
+  Suppress a reviewed false positive by fingerprint (`commit:file:rule:line`) in
   `.gitleaksignore`, never by allowlisting a path and never with a
   repository-level `.gitleaks.toml` (refused outright) — but the fingerprint can
   only be added in a **follow-up** push or PR, after the flagged commit is
   already pushed: push the offending commit first (the scan refuses it — that
   refusal is expected, not a bug), then add its `.gitleaksignore` entry in a
-  second push/PR. Values are always `--redact`ed, so a real secret is never
-  echoed to a terminal or a CI log.
+  second push/PR. In CI, that follow-up push now goes green immediately, with no
+  dummy push needed: the workflow (`.github/workflows/secret-scan.yml`) splits
+  the single full-history scan into two runs, both required to pass — one over
+  the base's own ancestry (which can honour a suppression added after the base,
+  since it scans with the checked-out, tip's `.gitleaksignore`) and one over the
+  new range only (which still reads the base's copy, so a same-push
+  secret-plus-suppression pair still can't suppress itself). The accepted cost:
+  the base-ancestry run re-scans the entire history on every push, which roughly
+  doubles gitleaks' total run time. The local pre-push hook is unaffected — it
+  only ever scans the outgoing range, never the full history, so it never had
+  this double-red cost. Values are always `--redact`ed, so a real secret is
+  never echoed to a terminal or a CI log.
 - **Mock at the seam.** Prefer an injected fake (a command-runner, a
   seeder-loader, a fake connection) over reaching into internals; the code under
   test should expose the seam.
