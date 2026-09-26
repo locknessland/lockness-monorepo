@@ -3272,6 +3272,8 @@ above that ceiling. The rule is stated once, in
 [the heartbeat timing](#heartbeat-timing); the defaults (`5000` ms against `15`
 s) pass. The fix is to lower the interval.
 
+No wire change, and no migration step.
+
 ### 26. A failed `unwatchChannel` now discards and reconnects the Redis subscribe socket
 
 **Before**, a rejected `PUNSUBSCRIBE`/`UNSUBSCRIBE` write on the Redis subscribe
