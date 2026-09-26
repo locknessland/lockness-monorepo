@@ -80,9 +80,12 @@ const MUTATIONS: Mutation[] = [
     {
         label: 'durable-revocation WARN back to passing the error object',
         file: MANAGER,
+        // Re-anchored by #395 part 2: the WARN gained its own try/catch
+        // guard (a throwing sink must not skip the apply below), nesting it
+        // one indent level deeper.
         edits: [[
-            '                    `by reconcile: ${renderError(error)}`,\n            )',
-            "                    'by reconcile',\n                error,\n            )",
+            '                        `by reconcile: ${renderError(error)}`,\n                )',
+            "                        'by reconcile',\n                    error,\n                )",
         ]],
         killedBy: 'durable-revocation WARN renders the error and stays a WARN',
     },
@@ -150,9 +153,10 @@ const MUTATIONS: Mutation[] = [
     {
         label: 'the durable-revocation WARN raised to console.error',
         file: MANAGER,
+        // Re-anchored by #395 part 2, same reason as the row above.
         edits: [[
-            "console.warn(\n                'realtime: the durable revocation write failed",
-            "console.error(\n                'realtime: the durable revocation write failed",
+            "console.warn(\n                    'realtime: the durable revocation write failed",
+            "console.error(\n                    'realtime: the durable revocation write failed",
         ]],
         killedBy: 'durable-revocation WARN renders the error and stays a WARN',
     },
