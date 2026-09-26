@@ -2466,8 +2466,13 @@ const RECONCILE_RETRY_MS = 1_000
  * (#380 S1). It doubles on each failure, capped at `reconcileIntervalMs`. It
  * is below 2 s so that a reader whose first announce failed is back on the
  * floor within seconds, not after its first pass.
+ *
+ * Exported (#415) so `driver_redis_live.test.ts` can match this exact value
+ * instead of duplicating the literal — `RECONCILE_RETRY_MS` above arms the
+ * same 1000 ms for an unrelated retry, so a test that only checked the value
+ * would suppress both.
  */
-const FLOOR_ANNOUNCE_RETRY_MS = 1_000
+export const FLOOR_ANNOUNCE_RETRY_MS = 1_000
 const DEFAULT_REVOCATION_TTL_SECONDS = 300
 /**
  * What one completed background pass of the Redis driver reports to the
