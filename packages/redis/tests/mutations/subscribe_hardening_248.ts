@@ -213,9 +213,15 @@ const MUTATIONS: Mutation[] = [
         // `#298/SC-001`, which is why this row is KILLED.
         label: '#298 the single ownership check is removed',
         file: SUB,
+        // ANCHORED past the bare `if`, which #372 duplicated at a second
+        // call site (`unsubscribeOne`'s own generation-identity guard). The
+        // release call below is unique to `#discardSocket`; the bare
+        // condition alone now matches twice.
         edits: [[
-            'if (this.#generation?.conn === conn) {',
-            'if (this.#generation !== null) {',
+            'if (this.#generation?.conn === conn) {\n' +
+            '            this.#generation.release()',
+            'if (this.#generation !== null) {\n' +
+            '            this.#generation.release()',
         ]],
         killedBy: 'a STALE discard leaves the LIVE generation armed',
     },
@@ -280,9 +286,16 @@ const MUTATIONS: Mutation[] = [
     {
         label: '#298 onReconnect fires on a first connect',
         file: SUB,
+        // ANCHORED past the declaration, which #372 duplicated at a second
+        // call site (`unsubscribeOne`'s own catch reads the same fact before
+        // its own discard). `#activate`'s own next line is the discard
+        // comment; `unsubscribeOne`'s is the discard call itself — that is
+        // what disambiguates the two below.
         edits: [[
-            'const wasDelivering = this.loopConn === conn',
-            'const wasDelivering = this.loopConn === conn || conn === undefined',
+            'const wasDelivering = this.loopConn === conn\n' +
+            '            // The discard is BEFORE the retry',
+            'const wasDelivering = this.loopConn === conn || conn === undefined\n' +
+            '            // The discard is BEFORE the retry',
         ]],
         killedBy: 'onReconnect fires on a recovery, and only on a recovery',
         // A11's shape, from the plan re-entry's architecture audit. A
