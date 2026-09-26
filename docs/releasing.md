@@ -11,7 +11,7 @@ procedures.
 ```
 commit on main
    │
-   ├─ /specnaut tag-version   → deno task bump <version>, then an annotated tag v<version>
+   ├─ /ship step 2 (tag.md)   → deno task bump <version>, then an annotated tag v<version>
    │
    ├─ /ship step 3            → draft Release → composed body; publishing the draft is the consent-gated act
    │

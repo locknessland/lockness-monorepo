@@ -1,6 +1,6 @@
 ---
 name: ship
-description: One-shot release of the Lockness framework — push behind the full gate, bump every package in lockstep, tag, draft the GitHub Release with a body composed by release:notes, and publish it only on the user's selected consent, which triggers the JSR publish workflow. Owns the step order and the one consent act; delegates each step's mechanics to the tool that already owns it (/git, /specnaut tag-version, release:notes). Encodes the standing decision that publishing needs explicit consent every time; the lockstep rationale lives in docs/releasing.md. Use on "/ship", "release", "publie", "sors une version", "tag and release".
+description: One-shot release of the Lockness framework — push behind the full gate, bump every package in lockstep, tag, draft the GitHub Release with a body composed by release:notes, and publish it only on the user's selected consent, which triggers the JSR publish workflow. Owns the step order and the one consent act; delegates each step's mechanics to the tool that already owns it (/git, the tag phase in phases/tag.md, release:notes). Encodes the standing decision that publishing needs explicit consent every time; the lockstep rationale lives in docs/releasing.md. Use on "/ship", "release", "publie", "sors une version", "tag and release".
 argument-hint: [patch|minor|major] [--dry-run]
 allowed-tools: Bash(git status *) Bash(git log *) Bash(git tag *) Bash(git rev-parse *) Bash(gh release view *) Bash(gh release list *) Bash(gh release edit * --notes-file *) Bash(gh run *) Bash(deno task *) Read Grep Glob Skill
 ---
@@ -15,13 +15,13 @@ duplicating one is how the two copies drift:
 | Step | Owner |
 | :--- | :---- |
 | Pre-flight, gate, push | **`/git push`** |
-| Version bump + annotated tag | **`/specnaut tag-version`** |
+| Version bump + annotated tag | **`phases/tag.md`** (runs `tag.sh`) |
 | Upgrade-guide check, Release body composition | **`deno task release:notes`** (`scripts/release_notes.ts`) |
 | Draft Release + generated log, then the publish | **this skill, step 3** — the wrapper is invoked by step 3(a) only |
 | Actual JSR publish | `.github/workflows/publish.yml`, on `release: published` |
 | Read-only package mirrors | `deno task mirror` — discovery only, never a publish path |
 
-`/specnaut release-version` is not part of this sequence: its default form runs
+The vendored `phases/release.md` is not part of this sequence: its default form runs
 the wrapper without `--draft`, which publishes on the spot, before anyone has
 seen the body.
 
@@ -213,11 +213,15 @@ in `.claude/skills/git/references/push.md` and that is the only copy.
 If the pre-flight returns STOP paths, stop here and surface them. A release is
 the worst possible moment to guess whether an uncommitted file belongs.
 
-### 2. Bump and tag — delegate to `/specnaut tag-version`
+### 2. Bump and tag — follow `phases/tag.md`
+
+Read `.claude/skills/ship/phases/tag.md` and follow it. It runs:
 
 ```
-/specnaut tag-version --bump <patch|minor|major>
+bash .specnaut/scripts/release/tag.sh --bump <patch|minor|major>
 ```
+
+Specnaut 4.4.0 retired `/specnaut tag-version` and moved the phase here.
 
 The Lockness override is already documented in that phase: in bump-driven mode
 it runs `deno task bump --<bump>`, which rewrites the root `deno.jsonc`, every

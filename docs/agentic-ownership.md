@@ -32,7 +32,7 @@ than package-shaped, or crosses several packages.
 | Tests (unit)                                                           | `developer` (writes) · `test-reviewer` (reviews)             | `/specnaut implement` · `/specnaut review`                 |
 | Integration / e2e / acceptance validation                              | `qa-tester`                                                  | `/orchestrate` · `/specnaut implement`                     |
 | `docs/`, `packages/*/docs/`, `packages/*/README.md`, `STUBS.md`        | `docs-writer`                                                | invoked alongside the code change                          |
-| `.github/workflows/`, `scripts/bump*.ts`, `Dockerfile`, release/deploy | `devops-sre`                                                 | `/ship` · `/specnaut tag-version` · `release-version`      |
+| `.github/workflows/`, `scripts/bump*.ts`, `Dockerfile`, release/deploy | `devops-sre`                                                 | `/ship` (tag and release phases in `ship/phases/`)         |
 | Dependency manifests (`deno.json`, `deps.policy.jsonc`)                | `dependency-expert`                                          | `/specnaut audit dependencies`                             |
 | UI components (`packages/ui/`), JSX surfaces                           | `developer` + `ui-ux-designer` (design system)               | `/specnaut implement` (UI follows `mobile-first-contract`) |
 | Front-end accessibility                                                | `accessibility-expert`                                       | `/specnaut audit accessibility`                            |

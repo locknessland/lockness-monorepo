@@ -115,7 +115,7 @@ initiative** — including when it "obviously" belongs to the task in progress.
 The chain is:
 
 ```
-/ship → /git push → /specnaut tag-version → /specnaut release-version
+/ship → /git push → ship/phases/tag.md → /ship step 3 (draft, then consent)
 ```
 
 `/git` is the single owner of gate and failure knowledge. When a new failure

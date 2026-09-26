@@ -44,13 +44,14 @@ Runs on `release: published`. Steps:
 ## Release pipeline — through `/ship`
 
 A release runs through `/ship` (`.claude/skills/ship/SKILL.md`), which owns the
-step order; its step 3 is the one publish act. `/specnaut release-version` and
-`release-github.sh` are never run on their own. No manual `deno task bump`, no
+step order; its step 3 is the one publish act. The vendored release phase
+(`.claude/skills/ship/phases/release.md`) and `release-github.sh` are never run
+on their own. No manual `deno task bump`, no
 manual `gh release create`. CI does the publish. The diagram below shows the
 mechanics each step delegates to, not a second procedure.
 
 ```
-/specnaut tag-version [--bump major|minor|patch]
+/ship step 2 → .claude/skills/ship/phases/tag.md [--bump major|minor|patch]
    └─ .specnaut/scripts/release/tag.sh
          ├─ refuses dirty working tree
          ├─ deno task bump --<bump>            ← scripts/bump-native.ts
@@ -93,8 +94,8 @@ release mechanism predates the migration.
 | `scripts/bump.ts`                                   | `deno task bump:legacy` — arbitrary version jumps; exports `updateRootJsonc`   |
 | `.github/workflows/publish.yml`                     | JSR publish triggered by `release: published`                                 |
 | `.github/workflows/test.yml`                        | PR gate: `deno task gate --leaks`, plus coverage / live-broker / kits jobs    |
-| `.claude/skills/specnaut/phases/tag-version.md`     | `/specnaut tag-version` skill contract                                        |
-| `.claude/skills/specnaut/phases/release-version.md` | `/specnaut release-version` skill contract (vendored; never run on its own here) |
+| `.claude/skills/ship/phases/tag.md`                 | tag phase contract, `/ship` step 2 (Specnaut 4.4.0 moved it out of `/specnaut`) |
+| `.claude/skills/ship/phases/release.md`             | release phase contract (vendored; never run on its own here)                   |
 
 ## Invariants
 
@@ -106,7 +107,7 @@ release mechanism predates the migration.
   publisher — duplicate publish will fail and pollute the audit trail.
 - **Never amend a pushed annotated tag.** Tags are immutable on origin once
   pushed. If wrong: delete remote (`git push --delete origin vX.Y.Z`), delete
-  local, re-run `/specnaut tag-version`.
+  local, re-run `/ship` step 2 (`phases/tag.md`).
 - **Never edit `deno.lock` by hand.** It is generated.
 - **Manual mode (`tag.sh <sha>`) does not bump.** It only tags existing commits
   — useful for back-tagging historical releases, never for new releases.
