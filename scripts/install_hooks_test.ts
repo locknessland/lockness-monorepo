@@ -10,7 +10,12 @@
  * @module
  */
 
-import { assert, assertEquals, assertStringIncludes } from '@std/assert'
+import {
+    assert,
+    assertEquals,
+    assertRejects,
+    assertStringIncludes,
+} from '@std/assert'
 import { join } from '@std/path'
 import { gitEnvFromCwd } from '@mutations/harness.ts'
 import {
@@ -65,24 +70,86 @@ async function git(cwd: string, ...args: string[]): Promise<void> {
 }
 
 /**
+ * Create a fresh temp directory and run `setup` inside it, removing the
+ * directory if `setup` throws.
+ *
+ * A prior version of {@link fixture} created its root and only THEN entered a
+ * `try`/`finally` in each caller — so a git step failing partway through setup
+ * left the root known only to this function, with nothing outside it able to
+ * remove it (#397). Owning the cleanup here, around `setup` itself, covers
+ * every failure between `makeTempDir` and a successful return.
+ *
+ * @param prefix - Passed to `Deno.makeTempDir`.
+ * @param setup - Runs with the directory's real path.
+ * @returns Whatever `setup` returns.
+ * @throws Whatever `setup` throws, after removing the directory.
+ * @example
+ * ```ts
+ * const value = await withTempDir('my-fixture-', async (dir) => {
+ *     await Deno.writeTextFile(`${dir}/x`, 'y')
+ *     return dir
+ * })
+ * ```
+ */
+async function withTempDir<T>(
+    prefix: string,
+    setup: (dir: string) => Promise<T>,
+): Promise<T> {
+    const dir = await Deno.realPath(await Deno.makeTempDir({ prefix }))
+    try {
+        return await setup(dir)
+    } catch (error) {
+        await Deno.remove(dir, { recursive: true })
+        throw error
+    }
+}
+
+/**
  * A fixture repository with one commit and one linked worktree.
  *
  * @returns The temp root, the main checkout, and the linked worktree.
  */
-async function fixture(): Promise<
-    { root: string; main: string; worktree: string }
-> {
-    const root = await Deno.realPath(
-        await Deno.makeTempDir({ prefix: 'install-hooks-' }),
-    )
-    const main = join(root, 'main')
-    const worktree = join(root, 'linked')
-    await Deno.mkdir(main)
-    await git(main, 'init', '-q')
-    await git(main, 'commit', '-q', '--allow-empty', '-m', 'init')
-    await git(main, 'worktree', 'add', '-q', '-b', 'side', worktree)
-    return { root, main, worktree }
+function fixture(): Promise<{ root: string; main: string; worktree: string }> {
+    return withTempDir('install-hooks-', async (root) => {
+        const main = join(root, 'main')
+        const worktree = join(root, 'linked')
+        await Deno.mkdir(main)
+        await git(main, 'init', '-q')
+        await git(main, 'commit', '-q', '--allow-empty', '-m', 'init')
+        await git(main, 'worktree', 'add', '-q', '-b', 'side', worktree)
+        return { root, main, worktree }
+    })
 }
+
+Deno.test('withTempDir removes its directory when setup throws', async () => {
+    let dir = ''
+    await assertRejects(
+        () =>
+            withTempDir('install-hooks-leak-', (d) => {
+                dir = d
+                return Promise.reject(new Error('setup failed'))
+            }),
+        Error,
+        'setup failed',
+    )
+    assert(dir !== '', 'setup never ran')
+    const stillThere = await Deno.stat(dir).then(() => true, () => false)
+    assertEquals(stillThere, false, 'a failed setup left its temp dir behind')
+})
+
+Deno.test('withTempDir keeps its directory on success', async () => {
+    let dir = ''
+    const result = await withTempDir('install-hooks-ok-', (d) => {
+        dir = d
+        return Promise.resolve('ok')
+    })
+    assertEquals(result, 'ok')
+    try {
+        assert((await Deno.stat(dir)).isDirectory)
+    } finally {
+        await Deno.remove(dir, { recursive: true })
+    }
+})
 
 Deno.test('the main checkout and a linked worktree share one hooks dir', async () => {
     const { root, main, worktree } = await fixture()
@@ -119,6 +186,37 @@ Deno.test('outside a repository the resolver throws', async () => {
         assert(threw, 'resolved a hooks dir outside any repository')
     } finally {
         await Deno.remove(dir, { recursive: true })
+    }
+})
+
+Deno.test('installing from the main checkout writes the shared hooks', async () => {
+    // #397: every other install test drives the installer from a linked
+    // worktree; none ran it from the main checkout itself.
+    const { root, main } = await fixture()
+    try {
+        const run = await new Deno.Command(Deno.execPath(), {
+            args: [
+                'run',
+                '-A',
+                new URL('./install_hooks.ts', import.meta.url).pathname,
+            ],
+            cwd: main,
+            clearEnv: true,
+            env: HERMETIC,
+            stdout: 'piped',
+            stderr: 'piped',
+        }).output()
+        const out = new TextDecoder().decode(run.stdout) +
+            new TextDecoder().decode(run.stderr)
+        assertEquals(run.code, 0, out)
+
+        for (const [name, content] of Object.entries(hooks)) {
+            const path = join(main, '.git', 'hooks', name)
+            assertEquals(await Deno.readTextFile(path), content)
+            assert(((await Deno.stat(path)).mode ?? 0) & 0o100, `${name} +x`)
+        }
+    } finally {
+        await Deno.remove(root, { recursive: true })
     }
 })
 
