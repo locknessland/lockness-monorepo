@@ -1141,6 +1141,7 @@ of what the re-check's counts mean.
 - `packages/realtime/tests/heartbeat_ceiling_381.test.ts`
 - `packages/realtime/tests/identity.test.ts`
 - `packages/realtime/tests/join_reclaim_373.test.ts`
+- `packages/realtime/tests/joined_teardown_393.test.ts`
 - `packages/realtime/tests/lapse_rehold_349.test.ts`
 - `packages/realtime/tests/lapse_run_349.test.ts`
 - `packages/realtime/tests/leave_outcome_332.test.ts`
@@ -1223,6 +1224,7 @@ Run them with `deno task mutate` (all of them, one at a time) or
 - `packages/realtime/tests/mutations/fake_redis_280.ts`
 - `packages/realtime/tests/mutations/heartbeat_ceiling_381.ts`
 - `packages/realtime/tests/mutations/join_reclaim_373.ts`
+- `packages/realtime/tests/mutations/joined_teardown_393.ts`
 - `packages/realtime/tests/mutations/lapse_rehold_349.ts`
 - `packages/realtime/tests/mutations/live_conformance_285.ts`
 - `packages/realtime/tests/mutations/log_encoding_291.ts`
