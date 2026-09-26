@@ -160,9 +160,17 @@
                 "hono",
                 "scheduler"
             ],
+            // `deprecation-contracts` is declared here, not detected: its jsr
+            // specifier has sat in core/deno.json since 0.1.30, but no
+            // `tryImportOptionalPackage` call site loads it yet (#392 review).
+            // Declared so the dependency `core`'s own manifest already claims
+            // is not invisible to `deprecation-contracts`'s "Imported by" row;
+            // wiring the actual soft-load (or removing the stale specifier) is
+            // separate, unstarted work.
             "soft": [
                 "cache",
                 "container",
+                "deprecation-contracts",
                 "devtools",
                 "drizzle",
                 "events",

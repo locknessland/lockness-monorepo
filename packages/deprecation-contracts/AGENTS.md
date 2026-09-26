@@ -21,12 +21,12 @@ names does not belong here._
 
 <!-- generated:deps -->
 
-| Direction                                      | Packages                                                                        |
-| :--------------------------------------------- | :------------------------------------------------------------------------------ |
-| Imports (static)                               | —                                                                               |
-| Imports (soft, via `tryImportOptionalPackage`) | —                                                                               |
-| Imported by                                    | `realtime`                                                                      |
-| **Must never import**                          | `realtime` — each already reaches this package, so importing one closes a cycle |
+| Direction                                      | Packages                                                                                |
+| :--------------------------------------------- | :-------------------------------------------------------------------------------------- |
+| Imports (static)                               | —                                                                                       |
+| Imports (soft, via `tryImportOptionalPackage`) | —                                                                                       |
+| Imported by                                    | `core`, `realtime`                                                                      |
+| **Must never import**                          | `core`, `realtime` — each already reaches this package, so importing one closes a cycle |
 
 Enforced by `deno task deps:analyze` against `deps.policy.jsonc`. A soft edge is
 deliberately **not** declared in this package's `deno.json`: the consuming
