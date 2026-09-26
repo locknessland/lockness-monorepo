@@ -153,6 +153,36 @@ const MARK_REVOKED_SCRIPT: string = [
  * `revocationTtlSeconds`) and `keyTtl` (the key's own TTL, `ttl` plus the
  * index's slack).
  *
+ * **Self-heals a wrong-typed floor key, inside the same atomic `EVAL`**
+ * (#405). A key on the shared bus is not this driver's alone to trust: a
+ * `string`, `list`, `set`, `hash` or `stream` at `floor` used to raise
+ * `WRONGTYPE` on the very first call below and abort the whole reap or
+ * announce — silently halting revocation enforcement fleet-wide for as long
+ * as the key stayed wrong-typed. `local kind = redis.call('TYPE', floor)['ok']`
+ * reads the key's current Redis type. **`['ok']` is measured, not assumed**: a
+ * live broker wraps `TYPE`'s reply as a Lua table, `{ ok = '<kind>' }`, never a
+ * bare string — confirmed against Redis 7 before this landed, which the
+ * architect-expert disposition this self-heal otherwise follows exactly got
+ * wrong (it read `fake_redis.ts`'s own flattening of a status reply to a bare
+ * string as if it were the broker's behaviour, and called `kind` indexable
+ * with no `[...]` at all). Comparing the un-indexed table against a string
+ * literal is never an error in Lua — it is simply always `false` — so the
+ * heal would have silently never fired against any real broker while every
+ * fake-broker witness stayed green. `lua_eval.ts` gained ONE narrow addition
+ * for it: `redis.call(...)['ok']` reads the same flattened string this bridge
+ * already returns for a status reply — no general string-keyed table, and
+ * still no `pcall`, `else`, `~=` or reassignment. Five independently-gated
+ * blocks, one per type other than `zset`/`none`, then `DEL` the key before the
+ * write below ever runs. **Never `pcall`, `else`, `~=` or reassignment**:
+ * `packages/redis/tests/lua_eval.ts` (the shared Lua subset three other
+ * packages also depend on) proves all four unsupported, and extending it
+ * further for one driver's edge case would be a second, weaker home for the
+ * same reasoning ADR013 already used to reject extending it for the floor's
+ * own decode. Both callers now return `kind`, so their caller can WARN once on
+ * a heal — {@link REAP_REVOKED_SCRIPT}'s pair and
+ * {@link ANNOUNCE_FLOOR_SCRIPT}'s bare reply. **The `DEL` never touches
+ * anything but the floor key itself — never the revocation index.**
+ *
  * - `ZADD … GT` writes the entry at `t + ttl`, and never pulls an existing
  *   entry for the same TTL back in (a broker clock that steps back).
  * - `ZREMRANGEBYSCORE … -inf t` prunes every entry that has lapsed, so an
@@ -163,6 +193,22 @@ const MARK_REVOKED_SCRIPT: string = [
  *   {@link MARK_REVOKED_SCRIPT}'s JSDoc.
  */
 const FLOOR_WRITE: string = [
+    "local kind = redis.call('TYPE', floor)['ok']",
+    "if kind == 'string' then",
+    "    redis.call('DEL', floor)",
+    'end',
+    "if kind == 'list' then",
+    "    redis.call('DEL', floor)",
+    'end',
+    "if kind == 'set' then",
+    "    redis.call('DEL', floor)",
+    'end',
+    "if kind == 'hash' then",
+    "    redis.call('DEL', floor)",
+    'end',
+    "if kind == 'stream' then",
+    "    redis.call('DEL', floor)",
+    'end',
     "redis.call('ZADD', floor, 'GT', t + ttl, ttl)",
     "redis.call('ZREMRANGEBYSCORE', floor, '-inf', t)",
     "redis.call('EXPIRE', floor, keyTtl, 'NX')",
@@ -187,14 +233,18 @@ const FLOOR_WRITE: string = [
  * judge liveness against a later clock than the reap did. A member that
  * another instance's reap removes mid-pass had expired at that reap's `now`.
  *
- * The `ZREMRANGEBYSCORE` is a bare call statement, not a returned value: the
- * reply is `t` alone.
+ * The `ZREMRANGEBYSCORE` is a bare call statement, not a returned value.
  *
  * **The floor write rides on the reap** (#380): after the index delete, the
  * script refreshes this instance's entry in the revocation floor through
  * {@link FLOOR_WRITE}, against the same `t`, so a reader that keeps passing
  * keeps its TTL on the floor with no extra round trip. The reap is still the
  * pass's only delete of the INDEX; the floor write prunes only floor entries.
+ *
+ * **The reply is `{t, kind}` since #405**, not `t` alone: `kind` is
+ * {@link FLOOR_WRITE}'s `TYPE` read, so the caller can WARN once when it
+ * healed a wrong-typed floor key (`kind` outside `zset`/`none`) — decoded by
+ * {@link decodeReapReply}, its one caller `listRevocations`.
  *
  * Called as `EVAL <script> 2 <index> <floor> <ttl> <ttl + slack>`:
  * `KEYS[1]` index key · `KEYS[2]` floor key · `ARGV[1]` this instance's
@@ -207,7 +257,7 @@ const REAP_REVOKED_SCRIPT: string = [
     'local ttl = ARGV[1]',
     'local keyTtl = ARGV[2]',
     FLOOR_WRITE,
-    'return t',
+    'return {t, kind}',
 ].join('\n')
 
 /**
@@ -219,9 +269,12 @@ const REAP_REVOKED_SCRIPT: string = [
  *
  * **It never carries the index key** (A2): called as `EVAL <script> 1 <floor>
  * <ttl> <ttl + slack>`, it differs from the reap in numkeys and in shape, so
- * nothing that picks out the reap can pick up the announce. It returns
- * nothing. `KEYS[1]` floor key · `ARGV[1]` this instance's
- * `revocationTtlSeconds` · `ARGV[2]` the floor key's own TTL.
+ * nothing that picks out the reap can pick up the announce. **It returns
+ * `kind` since #405** — {@link FLOOR_WRITE}'s `TYPE` read, so
+ * {@link RedisBroadcastDriver.#announceFloor} can WARN once when it healed a
+ * wrong-typed floor key — where it used to return nothing. `KEYS[1]` floor
+ * key · `ARGV[1]` this instance's `revocationTtlSeconds` · `ARGV[2]` the
+ * floor key's own TTL.
  */
 const ANNOUNCE_FLOOR_SCRIPT: string = [
     "local t = redis.call('TIME')[1]",
@@ -229,6 +282,7 @@ const ANNOUNCE_FLOOR_SCRIPT: string = [
     'local ttl = ARGV[1]',
     'local keyTtl = ARGV[2]',
     FLOOR_WRITE,
+    'return kind',
 ].join('\n')
 
 /**
@@ -1256,38 +1310,64 @@ export function decodeExistsReply(reply: unknown): 0 | 1 {
 export const EPOCH_SECONDS = /^(0|[1-9][0-9]{0,14})$/
 
 /**
- * The one message {@link decodeReapReply} throws (#359). It names the shape
- * it expected and never carries the reply, its type or its length. Exported
- * for the test suite only.
+ * The one message {@link decodeReapReply} throws (#359, widened #405). It
+ * names the shape it expected and never carries the reply, its type or its
+ * length. Exported for the test suite only.
  */
 export const REAP_REPLY_REFUSED =
-    'realtime: the revocation reap did not answer one epoch-seconds value — ' +
-    'a bulk string of at most 15 decimal digits with no leading zero'
+    'realtime: the revocation reap did not answer a {t, kind} pair — t a ' +
+    'bulk string of at most 15 decimal digits with no leading zero, kind a ' +
+    "bulk string naming the floor key's Redis type"
 
 /**
- * Decode the reply of {@link REAP_REVOKED_SCRIPT} (#359 FR-002): a bulk
- * string matching {@link EPOCH_SECONDS}, read as the pass's one `now`.
+ * The reap's decoded reply (#405): the pass's one `now`, and the Redis type
+ * {@link FLOOR_WRITE} found at the floor key before it healed anything.
+ */
+export interface ReapReply {
+    /** The Redis second the reap used. */
+    readonly t: number
+    /** The floor key's prior Redis type — `'zset'`/`'none'` iff no heal ran. */
+    readonly kind: string
+}
+
+/**
+ * Decode the reply of {@link REAP_REVOKED_SCRIPT} (#359 FR-002, widened by
+ * #405): a two-element array whose first element is a bulk string matching
+ * {@link EPOCH_SECONDS}, read as the pass's one `now`, and whose second is a
+ * bulk string naming the floor key's prior Redis type.
  *
- * **The single home of what a reap reply means.** Anything else — an integer
- * reply, a nil, a non-canonical or over-long number — throws
- * {@link REAP_REPLY_REFUSED}, so a pass never judges liveness against a `now`
- * it guessed (`?? 0` would read every record as live, forever). Exported for
- * the test suite only; `mod.ts` does not re-export it.
+ * **The single home of what a reap reply means.** Anything else — an array of
+ * the wrong length, an integer reply for either element, a nil, or a
+ * non-canonical or over-long `t` — throws {@link REAP_REPLY_REFUSED}, so a
+ * pass never judges liveness against a `now` it guessed (`?? 0` would read
+ * every record as live, forever). Exported for the test suite only; `mod.ts`
+ * does not re-export it.
  *
  * @param reply - The reap's `EVAL` reply.
- * @returns The Redis second the reap used, as a number.
+ * @returns The Redis second the reap used, and the floor key's prior kind.
  * @throws {Error} {@link REAP_REPLY_REFUSED}, for any other reply.
  * @example
  * ```ts
- * decodeReapReply({ type: 'bulk', value: '1790157600' }) // 1790157600
+ * decodeReapReply({
+ *     type: 'array',
+ *     value: [
+ *         { type: 'bulk', value: '1790157600' },
+ *         { type: 'bulk', value: 'zset' },
+ *     ],
+ * }) // { t: 1790157600, kind: 'zset' }
  * ```
  */
-export function decodeReapReply(reply: unknown): number {
-    const t = asBulk(reply)
-    if (typeof t !== 'string' || !EPOCH_SECONDS.test(t)) {
+export function decodeReapReply(reply: unknown): ReapReply {
+    const items = asArray(reply)
+    if (items === undefined || items.length !== 2) {
         throw new Error(REAP_REPLY_REFUSED)
     }
-    return Number(t)
+    const t = asBulk(items[0])
+    const kind = asBulk(items[1])
+    if (t === undefined || !EPOCH_SECONDS.test(t) || kind === undefined) {
+        throw new Error(REAP_REPLY_REFUSED)
+    }
+    return { t: Number(t), kind }
 }
 
 /**
@@ -1582,6 +1662,21 @@ export const REVOCATION_FLOOR_READ_FAILED =
  */
 export const REVOCATION_FLOOR_LOG_FAILED =
     'realtime: a revocation floor WARN could not be logged (#380):'
+
+/**
+ * The words of the one WARN written when {@link FLOOR_WRITE} healed a
+ * wrong-typed revocation floor key (#405) — followed by the prior Redis type
+ * (`string`, `list`, `set`, `hash` or `stream`), never a member, channel or
+ * instance id. Written once per healed pass, from `listRevocations` when the
+ * reap healed it or from {@link RedisBroadcastDriver.#announceFloor} when the
+ * announce did — every occurrence WARNs, including a repeatedly-recorrupted
+ * key. The pass or announce completed normally: the heal ran inside the same
+ * atomic `EVAL` that already writes the floor, so nothing here means the
+ * write failed. Exported for the test suite only.
+ */
+export const REVOCATION_FLOOR_WRONG_TYPE =
+    'realtime: the revocation floor key held the wrong Redis type and was ' +
+    'healed (#405); the pass completed normally. Prior type:'
 
 /**
  * What one heartbeat's `SET <alive key> 1 EX <ttl> GET` reported (#349):
@@ -3536,6 +3631,20 @@ export class RedisBroadcastDriver implements BroadcastDriver {
     }
 
     /**
+     * WARN once when {@link FLOOR_WRITE} healed a wrong-typed floor key
+     * (#405): `kind` is its `TYPE` read, taken BEFORE the heal's `DEL`. A
+     * `zset` (the floor's own shape) or `none` (no key yet) means nothing was
+     * healed, so nothing WARNs on the hot path — every other kind is this
+     * key's Redis type just before this call deleted it.
+     *
+     * @param kind - The floor key's Redis type, as {@link FLOOR_WRITE} read it.
+     */
+    #warnIfFloorHealed(kind: string): void {
+        if (kind === 'zset' || kind === 'none') return
+        this.#warnFloor(`${REVOCATION_FLOOR_WRONG_TYPE} ${kind}`)
+    }
+
+    /**
      * OPTIONAL (S1/FR-014). One revocation pass's read half (#359): reap the
      * expired records, then read the index in bounded pages and return the
      * live, decodable records `owns` keeps. The contract an implementation
@@ -3565,6 +3674,11 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * well-formed page is skipped and counted; after the last page, a nonzero
      * count is ONE WARN ({@link REVOCATION_PAIRS_SKIPPED} and the number).
      *
+     * **A wrong-typed floor key no longer stops this pass** (#405): the reap
+     * self-heals it inside its own `EVAL` ({@link FLOOR_WRITE}), so this
+     * method still reaps the index and reads every page. `#warnIfFloorHealed`
+     * WARNs once, right after the reap's reply decodes, when that happened.
+     *
      * **A completed enumeration records its reap time** on the pass in
      * flight, if there is one — {@link RevocationPassRecord.readAt} (#383) —
      * and in {@link #lastReadAt} (#362 S1), its only writer; a pass that
@@ -3592,7 +3706,7 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         owns?: (target: string) => boolean,
     ): Promise<Revocation[]> {
         if (this.#closing) throw new Error(REVOCATION_PASS_CLOSING)
-        const t = decodeReapReply(
+        const { t, kind } = decodeReapReply(
             await this.command.command(
                 'EVAL',
                 REAP_REVOKED_SCRIPT,
@@ -3603,6 +3717,7 @@ export class RedisBroadcastDriver implements BroadcastDriver {
                 String(this.revocationTtlSeconds + INDEX_TTL_SLACK_SECONDS),
             ),
         )
+        this.#warnIfFloorHealed(kind)
         const live = new Map<string, Revocation>()
         let skipped = 0
         let cursor = '0'
@@ -3798,12 +3913,16 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * not stop the retry), or once {@link close} has begun — asked before
      * every re-arm and again when the timer fires (the #355 gate).
      *
+     * **A wrong-typed floor key no longer fails this announce** (#405): the
+     * heal runs inside the same `EVAL` ({@link FLOOR_WRITE}), and
+     * `#warnIfFloorHealed` inspects the reply for it once the write succeeds.
+     *
      * @param backoffMs - The delay before the retry a failure arms.
      * @returns Resolves once this attempt has settled; never rejects.
      */
     async #announceFloor(backoffMs: number): Promise<void> {
         try {
-            await this.command.command(
+            const reply = await this.command.command(
                 'EVAL',
                 ANNOUNCE_FLOOR_SCRIPT,
                 '1',
@@ -3811,6 +3930,8 @@ export class RedisBroadcastDriver implements BroadcastDriver {
                 String(this.revocationTtlSeconds),
                 String(this.revocationTtlSeconds + INDEX_TTL_SLACK_SECONDS),
             )
+            const kind = asBulk(reply)
+            if (kind !== undefined) this.#warnIfFloorHealed(kind)
         } catch (error) {
             this.#warnFloor(
                 `${REVOCATION_FLOOR_ANNOUNCE_FAILED} ${renderError(error)}`,
