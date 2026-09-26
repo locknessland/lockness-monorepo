@@ -603,6 +603,35 @@ export class FakeRedis {
     }
 
     /**
+     * Refuse a set command against a key some OTHER type already holds
+     * (#414), the same guard as {@link FakeRedis.#assertHashKey} for the SET
+     * family: `SADD`/`SREM` wrote into `#sets` unconditionally, so a
+     * hash/string/zset-typed owned or instances key silently absorbed a raw
+     * `SADD` — including the boot heartbeat's OWN unconditional
+     * `SADD instances <id>`, issued outside any script, which would
+     * otherwise "heal" a corrupted instances key by accident before
+     * `INSTANCES_HEAL`'s own `TYPE` read ever saw the corruption.
+     *
+     * @param key - The key a set command is about to touch.
+     * @throws When `key` is expired-and-dropped, this is a no-op; otherwise,
+     *   when it holds a string, a hash or a sorted set, it throws the same
+     *   `WRONGTYPE` text a real broker would.
+     */
+    #assertSetKey(key: string): void {
+        if (this.#expired(key)) this.#dropKey(key)
+        if (this.#sets.has(key)) return
+        if (
+            this.#strings.has(key) || this.#hashes.has(key) ||
+            this.#zsets.has(key)
+        ) {
+            this.#reject(
+                'WRONGTYPE Operation against a key holding the wrong kind ' +
+                    'of value',
+            )
+        }
+    }
+
+    /**
      * A score as Redis writes it into a reply (#359): an integral score of at
      * most 2^52 in magnitude is its plain digits — no decimal point, no
      * exponent — which is every score the driver writes (`TIME` seconds plus a
@@ -988,6 +1017,7 @@ export class FakeRedis {
             }
             case 'SADD': {
                 const [key, ...members] = rest
+                this.#assertSetKey(key)
                 if (members.length === 0) {
                     this.#reject('FakeRedis: SADD needs at least one member')
                 }
@@ -1002,6 +1032,7 @@ export class FakeRedis {
             }
             case 'SREM': {
                 const [key, ...members] = rest
+                this.#assertSetKey(key)
                 const set = this.#sets.get(key)
                 let removed = 0
                 for (const m of members) if (set?.delete(m)) removed++
@@ -1221,6 +1252,17 @@ export class FakeRedis {
                         ? { type: 'nil' }
                         : { type: 'bulk', value: held }
                 }
+                // A plain (no GET) SET overwrites UNCONDITIONALLY, whatever
+                // type held the key before (#414) — unlike HSET/SADD/ZADD,
+                // which each refuse a foreign type instead. Real Redis
+                // destroys the prior value first; leaving it in `#sets` /
+                // `#hashes` / `#zsets` made the key exist under two types at
+                // once, so a later same-family command (`HGET` after a `SET`
+                // over an old hash) read the STALE data back rather than
+                // seeing the string `TYPE`/`#assertHashKey` would report.
+                this.#sets.delete(key)
+                this.#hashes.delete(key)
+                this.#zsets.delete(key)
                 this.#strings.set(key, value)
                 // A plain SET CLEARS any existing TTL, as Redis does. With one
                 // registry that has to be said rather than falling out of an
