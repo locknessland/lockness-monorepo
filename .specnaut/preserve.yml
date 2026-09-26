@@ -29,7 +29,8 @@ preserved:
   # Documents the Lockness override that upstream's doctrine contradicts:
   # here `tag.sh` DOES bump version files, via `deno task bump`, because JSR
   # publishes from the `version` field in each deno.json — not from the tag.
-  - .claude/skills/specnaut/phases/tag-version.md
+  # Specnaut 4.4.0 moved the tag phase to .claude/skills/ship/phases/tag.md.
+  - .claude/skills/ship/phases/tag.md
   - .specnaut/scripts/release/tag.sh
 
   # full_gate delegates to `deno task gate`, the project's one versioned gate

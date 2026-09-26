@@ -194,7 +194,7 @@ Two skills own the mechanics that sit either side of those workflows:
   `.claude/skills/git/SKILL.md`.
 - **`/ship`** — release the framework. A release is cut **only** through it: it
   owns the step order and the one consent act, and delegates each step's
-  mechanics to the tool that already owns it. `/specnaut release-version` and
+  mechanics to the tool that already owns it. Its vendored release phase and
   `release-github.sh` are never run on their own. It also holds the standing
   decision that a JSR publish needs the user's explicit consent every single
   time; why versioning is lockstep lives in

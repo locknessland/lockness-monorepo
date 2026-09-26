@@ -8,11 +8,11 @@ $ARGUMENTS
 You **MUST** consider the user input before proceeding (if not empty).
 Common natural-language requests:
 
-- `/specnaut tag-version` — tag HEAD with the next version
-- `/specnaut tag-version <sha>` — tag a specific commit
-- `/specnaut tag-version --bump minor` — SemVer projects only: bump
+- `/ship` step 2 — tag HEAD with the next version
+- `tag.sh <sha>` — tag a specific commit
+- `tag.sh --bump minor` — SemVer projects only: bump
   minor instead of patch (also `--bump major` / `--bump patch`)
-- `/specnaut tag-version --no-push` — skip pushing to `origin`
+- `tag.sh --no-push` — skip pushing to `origin`
 
 ## What this command does
 
@@ -43,12 +43,12 @@ What the script does:
 ## What this command does NOT do
 
 - It does **not** create a GitHub / GitLab release — pushing a tag
-  alone does not publish a release. Run `/specnaut release-version`
-  after this to publish the categorized release notes.
+  alone does not publish a release. In Lockness, `/ship` step 3
+  drafts the Release and publishes it only on explicit consent.
 - It does **not** deploy anything. A tag push never ships to
   production — in the recommended model, deploys are triggered by a
   *published release*, not by tags or branch pushes. See
-  `/specnaut release-version` → "From release to production (CD)".
+  `phases/release.md` → "From release to production (CD)".
 - It does **not** run tests, lint, or any quality gate. Run those
   yourself before tagging if your project needs them — the contract
   there is project-specific and lives outside Specnaut's tag/release
@@ -79,6 +79,5 @@ If the script exits non-zero, read the stderr message — it says
 exactly what failed (validation regex, missing remote, exhausted
 letter suffix, missing tag).
 
-On success, suggest `/specnaut release-version` as the natural next
-step. Do NOT run it automatically — releasing is an explicit,
-deliberate user action.
+On success, `/ship` continues with its step 3. Do NOT publish
+automatically — releasing is an explicit, deliberate user action.

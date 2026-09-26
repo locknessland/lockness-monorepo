@@ -8,6 +8,23 @@ corroborate a board that says it is done.
 Two paths, the same as the merge itself. `merge.md` has already decided which
 one you are on.
 
+## Order matters, and it is derived rather than chosen
+
+**For every item: close the issue first, then move the card.** Both paths below
+obey this. Stated here once, above both: a rule written out separately in each
+place will eventually be written two ways — which is how the standalone path came
+to do the opposite of it.
+
+`sweep-closed.sh` reports a card in `Done` whose issue is still **open** as
+`REOPENED` drift. Moving the card first therefore manufactures exactly the
+state an existing tool is built to flag — for every item, for as long as the
+close takes. Closing first leaves the opposite transient (a closed issue whose
+card is not yet Done), which the same sweep reports as `DRIFTED` and which the
+reconcile below resolves anyway.
+
+An item's card and its issue thus change **together**: not simultaneously,
+which shell cannot offer, but never resting in the state that lies.
+
 ## Standalone — one item, one card
 
 11. **Close the linked backlog issue** (only if push happened and `feature.json.linked_issue` is set):
@@ -18,25 +35,82 @@ one you are on.
        or, equivalently, the presence of `.specnaut/backlog-config.yml` (github/gitlab) vs
        `.specnaut/backlog.md` (local).
     3. **github + gitlab only** — run `bash .specnaut/scripts/backlog/cascade-check.sh <linked_issue>`.
-       Exit 11 means the parent has open sub-issues; do NOT close. Report the open children to the
-       user and stop (the issue stays in `In progress` / `Ready` until the children are closed).
+       **Only exit 0 authorises the close. Treat EVERY non-zero exit as "do not close"** — this is
+       a safety gate, and a gate that could not answer must never read as a yes. Exit 11 means the
+       parent has open sub-issues: report them to the user and stop (the issue stays in
+       `In progress` / `Ready` until the children are closed). Exit 3 means the parent was not
+       found **or its children could not be read** — a token, scope or network problem, not a
+       verdict; say so and stop rather than closing. Exit 12 means it is already closed, so there
+       is nothing to do.
     4. Ask the user to confirm, naming the item per the `backlog-reference-contract`
        skill — number, title, and a resolved link, never a bare number. The user is being
-       asked to authorise an action on an item they must be able to identify. On `no`, skip the
-       rest of this section — leave the column flip to a future run or to a manual `move.sh`.
-    5. On `yes`, run `bash .specnaut/scripts/backlog/move.sh <linked_issue> Done`. This is the
+       asked to authorise an action on an item they must be able to identify.
+
+       Name **both** consequences in that one question: the issue is closed and its card moved,
+       **and** the spec directory is removed in its own commit (step 8). One `yes` authorises
+       both — a second prompt would only invite the state where the item is closed and its
+       consumed artefact still sits in the tree.
+
+       On `no`, skip the rest of this section — leave the column flip to a future run or to a
+       manual `move.sh`, and leave the directory alone.
+    5. On `yes`, **github + gitlab only** — close the issue, before touching the card. Dispatch
+       the `product-owner` subagent with the prompt:
+       "The branch for issue #<linked_issue> just landed on `main`. Please run the close half of
+       the two-step close: post a close comment on the issue referencing the merged commit range
+       `<first-sha>..<last-sha>` (from step 8's summary), then
+       `gh issue close <linked_issue> --reason completed`. Leave the card alone — the merge phase
+       moves it next. Confirm with a one-line report." This keeps the audit comment under PO
+       ownership.
+
+       The order is not this step's to argue — see "Order matters" above, which governs both.
+    6. **Then** run `bash .specnaut/scripts/backlog/move.sh <linked_issue> Done`. This is the
        mechanical column flip — `move.sh` is idempotent and the working contract permits the merge
        phase to call it directly (the PO retains exclusive ownership of the close + comment, not
-       the column move).
-    6. **github + gitlab only** — dispatch the `product-owner` subagent with the prompt:
-       "The branch for issue #<linked_issue> just landed on `main`. The mechanical move to Done has
-       already been done via `move.sh`. Please run the second half of the two-step close: post
-       a close comment on the issue referencing the merged commit range `<first-sha>..<last-sha>`
-       (from step 8's summary), then `gh issue close <linked_issue> --reason completed`. Confirm
-       with a one-line report." This keeps the audit comment under PO ownership and surfaces the
-       `docs audit` line from the PO's close-step contract.
-    7. **local backend only** — `move.sh <id> Done` already flipped the frontmatter; no second
-       step needed. The local backlog has no separate "issue" object beyond the file itself.
+       the column move). If step 5 reported the close did not land, **report it and leave the
+       card alone**: moving it produces the one state the order above exists to avoid.
+    7. **local backend only** — step 5 does not apply. The ordering above is a two-object
+       problem this backend does not have: there is no "issue" beyond the task file, so step 6's
+       `move.sh <id> Done` flips the frontmatter and *is* the close, in one write.
+    8. **Remove the feature's spec directory** — the planning artefact is consumed, the code
+       is the authority, and the intent survives on the item just closed. After the close
+       landed, before step 12.
+
+       Five conditions, **all** required. Any one failing is a skip — reported (see below),
+       never silent — that changes nothing else here:
+
+       - the push happened — the entry condition for this file;
+       - **the close succeeded** — a refused `cascade-check.sh` gate, a non-zero exit or a `no`
+         at step 4 leaves the directory alone: nobody authorised a removal;
+       - `.specnaut/feature.json` carries a non-empty `feature_directory`
+         (`jq -r '.feature_directory // empty' .specnaut/feature.json`) — absent in
+         `spec-backend=cloud` trees, where the spec never lived on disk, and in older trees;
+       - the directory exists on disk;
+       - **the directory is in git history** — `git log --all --oneline -- "<dir>"` returns at
+         least one commit. This is what makes the removal lossless rather than destructive, and
+         it is not a formality: `phases/plan.md` commits the directory at plan time, so one with
+         no history never got that commit, and deleting it destroys the only copy.
+
+       Then, on the base branch step 10 left you on — its own commit, since the merge was
+       pushed several steps ago and there is nothing left to fold into:
+
+       ```
+       git rm -r --quiet "<feature_directory>" .specnaut/feature.json
+       git commit -m "chore(<id>): remove the spec directory for the shipped feature"
+       git push
+       ```
+
+       `feature.json` goes with it: it names the directory and nothing verifies the name
+       still resolves, so `get_feature_paths` hands callers a path to nothing — exit 0, no
+       warning, its branch guard skipped off a feature branch.
+
+       A feature with no `linked_issue` reaches none of this: step 1 skipped the section, so
+       nobody was asked, and that `yes` is the authorisation. Intended.
+
+    **Report the removal, or the reason there wasn't one.** One line naming the removed path
+    and how to get it back (`git log --all -- <dir>`), or one line naming the unmet condition.
+    The epic report's rule — anything the merge could not finish is stated — is not a property
+    of epics: a silent non-removal is how a report comes to agree with a tree it does not
+    describe.
 
     Backward-compat: feature trees without `linked_issue` (created before this field existed)
     skip the close silently. A feature delivered across several branches — the last one has not
@@ -68,21 +142,6 @@ D17 the children's cards arrive here sitting in **In review**: the loop put
 them there as each commit was written, and deliberately did not take them
 further. This is where they become Done.
 
-### Order matters, and it is derived rather than chosen
-
-**For each child: close the issue first, then move the card.**
-
-`sweep-closed.sh` reports a card in `Done` whose issue is still **open** as
-`REOPENED` drift. Moving the card first therefore manufactures exactly the
-state an existing tool is built to flag — for every child, for as long as the
-close takes. Closing first leaves the opposite transient (a closed issue whose
-card is not yet Done), which the same sweep reports as `DRIFTED` and which the
-reconcile below resolves anyway.
-
-That is what AC 4 means by a child's card and its issue changing **together**:
-not simultaneity, which shell cannot offer, but never resting in the state that
-lies.
-
 ### The procedure
 
 1. **Enumerate the children from the branch, not from memory.** Every child's
@@ -102,11 +161,22 @@ lies.
    and a bare number is not checkable.
 
 3. **Then the epic.** Run `cascade-check.sh <epic>` first, exactly as the
-   standalone path does. Exit 11 means a child is still open — stop and say
-   which. It is a gate, not a formality: if it fires here, step 2 missed a
-   child, and closing the parent over it would hide that permanently.
+   standalone path does. **Only exit 0 authorises the close.** Exit 11 means a
+   child is still open — stop and say which. It is a gate, not a formality: if
+   it fires here, step 2 missed a child, and closing the parent over it would
+   hide that permanently. Exit 3 means the children could not be read at all;
+   that is not a clean bill of health, and closing on it is the failure the
+   gate exists to prevent.
 
-4. **Then reconcile, once, over everything the merge touched.** The sweep in
+4. **Then remove the spec directory — once, for the whole epic.** Same five conditions and
+   commands as the standalone path's step 8, after step 3's close. Not repeated here: a second
+   copy is a second thing to keep in step with the first.
+
+   **Never per child.** `/specnaut plan` creates one directory per invocation and an epic is
+   one branch over one tree carrying N child commits — a per-child removal would aim at the same
+   directory N times, the first taking the plan out from under every child still to be closed.
+
+5. **Then reconcile, once, over everything the merge touched.** The sweep in
    the standalone section covers the whole board, so it already sees all N+1
    cards; the only change is that the batch move may now carry N+1 numbers
    rather than one. Quote the script's summary line, not your own count.

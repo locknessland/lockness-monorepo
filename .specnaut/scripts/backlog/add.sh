@@ -65,74 +65,48 @@ if [ -n "$LABELS" ]; then CREATE_ARGS+=("--label" "$LABELS"); fi
 URL=$(gh issue create "${CREATE_ARGS[@]}")
 echo "✓ created: $URL"
 
+# ─── FROM HERE ON, NOTHING MAY ABORT THIS SCRIPT ──────────────────────────
+# The issue exists now. A non-zero exit past this point leaves the caller
+# unsure whether anything was created, and a re-run duplicates it. The
+# placement step below already said exactly this; the attach did not, and
+# that omission is #603: under `set -e` a failed attach killed the script
+# after `✓ created:` had already printed a working URL.
+NUM="${URL##*/}"
+
 # Attach to the project. `item-add` leaves Status *null* — it does not fall
 # back to the first column — so the item is invisible to every column-filtered
 # board view AND to any grooming sweep that enumerates the columns, because it
 # matches none of them. Place it explicitly, below.
-#
-# The attach RACES the board's own `Auto-add to project` workflow (#289). When
-# that workflow's insert is still in flight, `addProjectV2ItemById` answers
-# "Content already exists in this project" and `gh` exits non-zero — and under
-# `set -e` that killed the script HERE, above every failure-tolerant line
-# below. So the one step whose absence the comment above warns about was
-# exactly the step skipped: the issue existed, attached, with a NULL Status,
-# matching no column filter and invisible to every board view and every
-# grooming sweep, while the caller saw "✓ created" and a real URL. A silent
-# half-success is worse than a loud failure, which at least says "try again".
-ATTACH_ERR=$(mktemp)
+ITEM_ID=""
 if ITEM_ID=$(gh project item-add "$PROJECT_NUMBER" --owner "$REPO_OWNER" \
-  --url "$URL" --format json --jq '.id' 2>"$ATTACH_ERR"); then
+  --url "$URL" --format json --jq '.id' 2>/dev/null); then
   echo "✓ attached to Project #$PROJECT_NUMBER"
-elif grep -qi 'content already exists in this project' "$ATTACH_ERR"; then
-  # The board won the race. That is SUCCESS — the item is attached, which is
-  # all this step wanted — but the id still has to be recovered or
-  # `place_in_backlog` below has nothing to edit and the null Status stands.
-  #
-  # Filtered by project NUMBER, not node id: `PROJECT_NODE_ID` arrives later,
-  # from `detect-fields.sh` inside `place_in_backlog`, and resolving it here
-  # would buy a second API call for a value this query already carries.
-  ITEM_ID=$(gh api graphql -f query='
-    query($owner:String!, $name:String!, $num:Int!) {
-      repository(owner:$owner, name:$name) {
-        issue(number:$num) {
-          projectItems(first:10) { nodes { id project { number } } }
-        }
-      }
-    }' -f owner="$REPO_OWNER" -f name="$REPO_NAME" -F num="${URL##*/}" 2>/dev/null \
-    | jq -r --argjson p "$PROJECT_NUMBER" \
-        '.data.repository.issue.projectItems.nodes[]
-         | select(.project.number==$p) | .id' | head -1) || true
-  if [ -n "$ITEM_ID" ] && [ "$ITEM_ID" != "null" ]; then
-    echo "✓ attached to Project #$PROJECT_NUMBER (by the board's own workflow)"
-  else
-    ITEM_ID=""
-    echo "⚠ attached by the board, but its item id could not be read — the" \
-      "item may be left without a Status" >&2
-  fi
 else
-  # ANY other failure still reaches the caller. Swallowing them all would trade
-  # this defect for a worse one: an item that is not on the board at all, and a
-  # script that says so only in a warning nobody reads.
-  cat "$ATTACH_ERR" >&2
-  rm -f "$ATTACH_ERR"
-  exit 1
+  # The commonest cause is not an error at all: GitHub's built-in "Auto-add to
+  # project" workflow races this call, wins, and the API then refuses a second
+  # insert. Ask the BOARD whether the item is there — the refusal's wording is
+  # not a contract and keying on it would break the day GitHub rephrases it.
+  ITEM_ID=$(project_item_id "$NUM")
+  if [ -n "$ITEM_ID" ]; then
+    echo "✓ already on Project #$PROJECT_NUMBER (a project workflow attached it first)"
+  else
+    echo "⚠ could not attach to Project #$PROJECT_NUMBER — the issue exists at $URL" >&2
+    echo "  attach it by hand, or it stays off the board" >&2
+  fi
 fi
-rm -f "$ATTACH_ERR"
 
 # Placing the item is best-effort and MUST NOT fail this script: the issue
 # already exists by now, so a non-zero exit would leave the caller unsure
 # whether anything was created, and a re-run would duplicate it. Every failure
 # path below warns and returns 0.
 place_in_backlog() {
-  # The recovery path above can legitimately come back empty (#289). Say so in
-  # the caller's own vocabulary rather than letting `item-edit` fail into the
-  # generic "could not set Status" further down, which would point at the
-  # field lookup when the real cause is a missing item id.
-  if [ -z "${ITEM_ID:-}" ]; then
-    echo "⚠ no project item id — item attached but not placed" >&2
+  local fields
+  if [ -z "$ITEM_ID" ]; then
+    # Not attached, so there is no item to place. Said explicitly rather than
+    # letting `item-edit` fail on an empty --id and reporting the wrong cause.
+    echo "⚠ not on the project — nothing to place" >&2
     return 0
   fi
-  local fields
   if ! fields=$("$(dirname "$0")/detect-fields.sh" 2>/dev/null); then
     echo "⚠ could not read the project's fields — item attached but not placed" >&2
     return 0
