@@ -45,6 +45,25 @@ Deno.test('lua_eval - indexes a call result, as TIME[1] requires', () => {
     assertEquals(out, '1400')
 })
 
+Deno.test("lua_eval - redis.call(...)['ok'] reads a status reply's flattened text (#405)", () => {
+    const r = recorder({ TYPE: 'string' })
+    const out = evalLua(
+        "return redis.call('TYPE', KEYS[1])['ok']",
+        ['k'],
+        [],
+        r.call,
+    )
+    assertEquals(out, 'string')
+})
+
+Deno.test("lua_eval - redis.call(...)['ok'] THROWS when the result is not a string", () => {
+    const r = recorder({ TIME: ['1000', '0'] })
+    assertThrows(
+        () => evalLua("return redis.call('TIME')['ok']", [], [], r.call),
+        LuaEvalUnsupportedError,
+    )
+})
+
 Deno.test('lua_eval - does integer arithmetic between resolved operands', () => {
     const r = recorder({ TIME: ['1000', '0'] })
     evalLua(

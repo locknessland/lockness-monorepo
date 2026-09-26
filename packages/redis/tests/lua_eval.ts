@@ -27,7 +27,9 @@
  * `false` / bound-variable operands, `unpack(ARGV, n)` as the LAST argument of
  * a call (expanding to `ARGV[n]`…`ARGV[#ARGV]`, possibly nothing), and a
  * positional table constructor `return {a, b, …}` whose elements are any of the
- * above (#341).
+ * above (#341). Also `redis.call('CMD', …)['ok']` (#405) — see the status-reply
+ * note below; no other string key is accepted, and a bound local cannot be
+ * indexed by `'ok'`, only a fresh call result.
  *
  * Arithmetic is Lua's: it yields a **number**, so `HLEN - 1` compares equal to
  * the literal `0` and `return n + 1` is an integer reply. A bulk operand such as
@@ -67,7 +69,12 @@
 /**
  * A value a script can hold, shaped as Redis converts a reply into Lua.
  *
- * - `string` — a bulk or status reply.
+ * - `string` — a bulk or status reply. **A real broker wraps a status reply
+ *   (`TYPE`, a bare `SET`) as a Lua TABLE, `{ ok = <text> }`** — this bridge
+ *   flattens it to the bare `<text>` instead of modelling string-keyed tables
+ *   generally, and `redis.call(...)['ok']` (#405) reads that same `<text>`
+ *   back, so a script that indexes `['ok']` sees what a real broker's `.ok`
+ *   read would.
  * - `number` — an integer reply (`HLEN`), a numeric literal in the script, or
  *   the result of `+`/`-`; returned to the client as an integer.
  * - `false` — a nil reply, top-level (`HGET` of an absent field) or an ELEMENT
@@ -255,9 +262,10 @@ function parseExpr(raw: string): Expr {
         }
     }
 
-    // redis.call('CMD', a, b)  — optionally followed by [n]
+    // redis.call('CMD', a, b)  — optionally followed by [n] or ['ok'] (#405:
+    // the one status-reply field a script reads, e.g. `TYPE`'s kind).
     const callMatch = text.match(
-        /^redis\.call\(\s*'(\w+)'\s*(?:,\s*(.*))?\)\s*(?:\[(\d+)\])?$/s,
+        /^redis\.call\(\s*'(\w+)'\s*(?:,\s*(.*))?\)\s*(?:\[(\d+|'ok')\])?$/s,
     )
     if (callMatch) {
         const [, command, rawArgs, index] = callMatch
@@ -408,11 +416,25 @@ function parseBlock(
 }
 
 /**
- * Take the 1-based `index` element of a table, as Lua's `t[n]` does.
+ * Take the 1-based `index` element of a table, as Lua's `t[n]` does — or,
+ * for `index === "'ok'"` (#405), the flattened text of a status reply: a real
+ * broker wraps `TYPE`/a bare `SET` as `{ ok = <text> }`, and this bridge
+ * already models `<text>` as a bare string (see {@link LuaValue}'s doc), so
+ * reading `['ok']` off it hands that same string back rather than requiring
+ * this evaluator to model string-keyed tables generally.
  *
- * @throws {LuaEvalUnsupportedError} When the value is not a table.
+ * @throws {LuaEvalUnsupportedError} When `index` is numeric and the value is
+ *   not a table, or when `index` is `'ok'` and the value is not a string.
  */
 function indexed(result: LuaValue, index: string, label: string): LuaValue {
+    if (index === "'ok'") {
+        if (typeof result !== 'string') {
+            throw new LuaEvalUnsupportedError(
+                `${label}['ok'] (not a status reply)`,
+            )
+        }
+        return result
+    }
     if (!Array.isArray(result)) {
         throw new LuaEvalUnsupportedError(
             `${label}[...] (result is not indexable)`,
