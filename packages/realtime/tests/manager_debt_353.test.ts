@@ -778,6 +778,19 @@ Deno.test('#353 a presence subscribe writes no binding of its own, admitted or r
     // `register` binds. This pins that from both sides. The battery's M1 (the
     // member invariant moved below the caps) is recorded as an equivalent
     // mutant for the same reason; see its row.
+    //
+    // WHAT `connectionCount` CANNOT PIN (#403 review LOW). Restoring
+    // `subscribe`'s own removed write — `register_only_admission_370.ts`'s
+    // M9 — is an equivalent mutant BY CONSTRUCTION: by the time `subscribe`
+    // would reach that write, admission has already proven `connection` is
+    // the very object `connections` holds under its id, so re-adding
+    // `connections.set(connection.id, connection)` there sets a key to the
+    // value it already holds. `connectionCount` counts entries, not writes,
+    // so it cannot and is not meant to distinguish "the write never ran"
+    // from "the write ran and changed nothing" — that distinction has no
+    // observable side effect anywhere in this class. This test's job is the
+    // narrower, falsifiable one: the COUNT does not move. See M9's own
+    // `expectSurvival` and `#assertBound`'s JSDoc for the full argument.
     const m = new ChannelManager<User>({
         driver: new MemoryBroadcastDriver(),
         authorize: (user) => user ? { id: user.id } : false,
