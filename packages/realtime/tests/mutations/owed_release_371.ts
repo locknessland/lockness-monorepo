@@ -155,14 +155,14 @@ const MUTATIONS: Mutation[] = [
     {
         label: 'M6 — the sequential drain walk becomes Promise.all',
         file: MANAGER,
+        // Re-anchored for #408: the channel decode moved behind
+        // `#rosterSlotChannel` (one encode/decode pair for the roster slot
+        // key), so the mutant's own body now calls the helper too rather
+        // than re-inlining the NUL split.
         edits: [[
             '    async #drainOwedReleases(): Promise<void> {\n' +
             '        for (const [key, origin] of [...this.#owedReleases]) {\n' +
-            "            // The channel is the key's prefix up to the first NUL: a channel\n" +
-            "            // can never contain one (`isValidName`'s charset), so this always\n" +
-            '            // recovers it exactly, whatever `origin.member.id` itself\n' +
-            '            // contains — the field after the NUL is never re-parsed.\n' +
-            "            const channel = key.slice(0, key.indexOf('\\0'))\n" +
+            '            const channel = this.#rosterSlotChannel(key)\n' +
             '            try {\n' +
             '                await this.#syncRosterMember(channel, origin)\n' +
             "                // ONLY if nothing overwrote this slot's entry while the write\n" +
@@ -180,7 +180,7 @@ const MUTATIONS: Mutation[] = [
             '    async #drainOwedReleases(): Promise<void> {\n' +
             '        await Promise.all([...this.#owedReleases].map(\n' +
             '            async ([key, origin]) => {\n' +
-            "                const channel = key.slice(0, key.indexOf('\\0'))\n" +
+            '                const channel = this.#rosterSlotChannel(key)\n' +
             '                try {\n' +
             '                    await this.#syncRosterMember(channel, origin)\n' +
             '                    if (this.#owedReleases.get(key) === origin) {\n' +
