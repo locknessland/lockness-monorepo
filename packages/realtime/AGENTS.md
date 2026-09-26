@@ -1192,7 +1192,7 @@ of what the re-check's counts mean.
 
 <!-- generated:tests -->
 
-105 test files for 28 source files:
+106 test files for 28 source files:
 
 - `packages/realtime/tests/apply_revocation_376.test.ts`
 - `packages/realtime/tests/authorize_denial_331.test.ts`
@@ -1294,6 +1294,7 @@ of what the re-check's counts mean.
 - `packages/realtime/tests/roster_holders_345.test.ts`
 - `packages/realtime/tests/roster_maintenance_run_371.test.ts`
 - `packages/realtime/tests/roster_read_barrier_333.test.ts`
+- `packages/realtime/tests/roster_slot_key_408.test.ts`
 - `packages/realtime/tests/roster_window_341.test.ts`
 - `packages/realtime/tests/subscribe_unsubscribe_race_330.test.ts`
 - `packages/realtime/tests/sweep_paging_358.test.ts`
@@ -1374,7 +1375,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 105 test files directly —
+Then, specific to this package: run its 106 test files directly —
 
 ```bash
 deno test -A packages/realtime/
