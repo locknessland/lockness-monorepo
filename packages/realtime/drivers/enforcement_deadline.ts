@@ -25,8 +25,9 @@
  * line), and never reads a clock of its own: `now` is the driver's pass
  * clock. **Only {@link EnforcementDeadline.close} drops a line that is
  * decided but not yet written**: an arm that finds one writes it first, on a
- * 0 ms timer, then arms the remaining time. Whether a timer may be armed at all is the driver's `#closing`
- * decision, so {@link EnforcementDeadline.close} is not terminal.
+ * 0 ms timer, then arms the remaining time. Whether a timer may be armed at
+ * all is the driver's `#closing` decision, so {@link EnforcementDeadline.close}
+ * is not terminal.
  *
  * **How it writes.** In its own timer callback, never from the driver's pass
  * end site, and in the #369 shape: a `console.warn` that throws becomes one
@@ -196,7 +197,12 @@ export class EnforcementDeadline {
      * clock although no local window was broken: `SKEWED` is decided now, and
      * the arm below carries it (see {@link arm}). A step that lands after the
      * local deadline already fired adds nothing to that episode. An
-     * `undefined` reap time skips the check.
+     * `undefined` reap time skips the check, and so does a decided line
+     * already sitting in {@link #unwritten} (#383): a pending carry timer also
+     * satisfies "the local deadline is still pending", and an overdue `MISSED`
+     * already reports the broken guarantee for this episode — the broader of
+     * the two signals — so a coinciding `SKEWED` would be a second line for
+     * one episode, which {@link EnforcementDeadline}'s own contract forbids.
      *
      * @param startedAt - The pass's start, on the pass clock.
      * @param endedAt - The pass's end, on the pass clock.
@@ -214,6 +220,7 @@ export class EnforcementDeadline {
         if (
             previous !== undefined && readAt !== undefined &&
             this.#timer !== undefined &&
+            this.#unwritten.length === 0 &&
             readAt - previous >= this.#ttlMs / 1000
         ) {
             this.#unwritten.push(

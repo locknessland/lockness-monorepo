@@ -1844,6 +1844,17 @@ interface RevocationPassRecord {
     readonly startedAt: number
     /** The `ZSCAN` pages read for this pass so far. */
     pages: number
+    /**
+     * The reap time of THIS pass's own completed enumeration, in broker
+     * seconds (#383): what {@link EnforcementDeadline.passSucceeded} compares
+     * pass-to-pass for `SKEWED`, scoped to the pass that reports it rather
+     * than to whichever pass last happened to enumerate. `undefined` when
+     * this pass never called {@link RedisBroadcastDriver.listRevocations}.
+     * `#lastReadAt` remains {@link RedisBroadcastDriver.#announceFloor}'s own
+     * sticky "has any pass ever completed an enumeration" flag; the two no
+     * longer share a reader.
+     */
+    readAt?: number
     /** A valid tally's `attempted`, once the handler resolved one. */
     attempts?: number
     /** A valid tally's `failed`, once the handler resolved one. */
@@ -3554,10 +3565,14 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * well-formed page is skipped and counted; after the last page, a nonzero
      * count is ONE WARN ({@link REVOCATION_PAIRS_SKIPPED} and the number).
      *
-     * **A completed enumeration records its reap time** in
-     * {@link #lastReadAt} (#362 S1), its only writer; a pass that throws
-     * records nothing. The enforcement deadline compares consecutive reap
-     * times to notice the broker's clock stepping a full TTL.
+     * **A completed enumeration records its reap time** on the pass in
+     * flight, if there is one — {@link RevocationPassRecord.readAt} (#383) —
+     * and in {@link #lastReadAt} (#362 S1), its only writer; a pass that
+     * throws records neither. The enforcement deadline compares consecutive
+     * PASSES' reap times to notice the broker's clock stepping a full TTL, so
+     * a handler that enumerates only on some passes never compares a fresh
+     * reading against a stale one left by an earlier pass; `#lastReadAt`
+     * keeps its own, separate reader — {@link #announceFloor}'s retry-stop.
      *
      * **Each decoded page counts into the revocation pass in flight**, if
      * there is one (#360), and nowhere else: a call made while no pass runs
@@ -3637,6 +3652,7 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             cursor = page.cursor
         } while (cursor !== '0')
         if (skipped > 0) console.warn(`${REVOCATION_PAIRS_SKIPPED} ${skipped}`)
+        if (this.#revocationPass) this.#revocationPass.readAt = t
         this.#lastReadAt = t
         return [...live.values()]
     }
@@ -3869,8 +3885,11 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * **Which pass is clean is decided here, and nowhere else** (#384): an
      * `ok` pass whose record carries no malformed tally and no failure — a
      * pass with no tally counts as none. A clean pass calls
-     * `passSucceeded(startedAt, endedAt,` {@link #lastReadAt}`)`, which
-     * re-arms; **every other settled pass** — `failed`, or `ok` with a
+     * `passSucceeded(startedAt, endedAt, pass.readAt)` (#383: THIS pass's own
+     * reap time, never {@link #lastReadAt}, so a handler that skips
+     * enumeration on some passes never compares a fresh reading against a
+     * stale one), which re-arms; **every other settled pass** — `failed`, or
+     * `ok` with a
      * failure or a malformed tally — calls `passEnded()`, which re-arms
      * nothing and makes an expiry after it `MISSED`. A `closed` pass, or any
      * pass once `close()` began, calls neither. {@link close} clears it.
@@ -3916,7 +3935,7 @@ export class RedisBroadcastDriver implements BroadcastDriver {
                     this.#deadline.passSucceeded(
                         startedAt,
                         endedAt,
-                        this.#lastReadAt,
+                        pass.readAt,
                     )
                 } else if (outcome !== 'closed' && !this.#closing) {
                     this.#deadline.passEnded()
@@ -3943,8 +3962,10 @@ export class RedisBroadcastDriver implements BroadcastDriver {
 
     /**
      * Run the registered revocation re-check once. A failure is logged at WARN
-     * and never swallowed silently; the next pass is armed from this one's
-     * end, so exposure stays bounded (see {@link onRevocationReconcile}).
+     * (in the #391 shape, through {@link #warnReconcileFailed} — self-guarded
+     * like its three siblings, #383) and never swallowed silently; the next
+     * pass is armed from this one's end, so exposure stays bounded (see
+     * {@link onRevocationReconcile}).
      *
      * **The trigger is named in the log, and it decides whether a failure is
      * retried (#308).** The two triggers are not equivalent on failure. The
@@ -3989,11 +4010,7 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             }
             return 'ok'
         } catch (error) {
-            console.warn(
-                `realtime: revocation reconcile failed (${trigger}): ${
-                    renderError(error)
-                }`,
-            )
+            this.#warnReconcileFailed(trigger, error)
             if (trigger !== 'reconnect') return 'failed'
             // Nor once close() has begun (#355): a run already in flight when
             // close() started would arm a timer that outlives the driver.
@@ -4012,6 +4029,45 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             Deno.unrefTimer(id)
             this.revocationRetryTimer = id
             return 'failed'
+        }
+    }
+
+    /**
+     * Write the "revocation reconcile failed" WARN of a pass whose handler
+     * rejected — **its one write site**, called only by
+     * {@link #runRevocationReconcile}'s catch, before the trigger decides
+     * whether a retry follows. In the #391 shape, like its three siblings
+     * ({@link #warnFloor}, {@link #warnMalformedTally}, {@link
+     * #warnPassSample}): a `console.warn` that throws becomes one marked
+     * {@link REVOCATION_LOG_FAILED} line instead (#383).
+     *
+     * **Self-guarding here, not only at the tail `.catch`, restores the #308
+     * retry.** Before #383 this WARN was a bare `console.warn`: a throwing
+     * sink escaped the catch block itself, so `#runRevocationReconcile`
+     * rejected before ever reaching the retry-arming code below, and a
+     * `reconnect` pass silently lost its one-shot retry whenever the log sink
+     * was down — degrading the fast reconnect path to the periodic timer
+     * cadence, the exact pre-#271 exposure the seam exists to close. The tail
+     * `.catch` on the pass chain stays as defence in depth, for a throw this
+     * method does not model.
+     *
+     * @param trigger - What started the pass.
+     * @param error - What the handler rejected with.
+     */
+    #warnReconcileFailed(
+        trigger: PassSample['trigger'],
+        error: unknown,
+    ): void {
+        const line = `realtime: revocation reconcile failed (${trigger}): ${
+            renderError(error)
+        }`
+        try {
+            console.warn(line)
+        } catch (sink) {
+            writeMarkedFallback(REVOCATION_LOG_FAILED, line, {
+                label: 'sink failure',
+                error: sink,
+            })
         }
     }
 
