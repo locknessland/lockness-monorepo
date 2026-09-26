@@ -30,6 +30,15 @@ const SCHEDULER = new URL('../../scheduler.ts', import.meta.url)
 // a successful reporter is not ALSO echoed to console) is unchanged, only
 // where the code lives moved.
 const REPORTING = new URL('../../reporting.ts', import.meta.url)
+// #398 moved the hostile-input normalisation itself (what used to be
+// scheduler.ts's private `flatten`) into `errors.ts`'s `normalizeError`, so
+// scheduler.ts, task_runner.ts and this one helper stop keeping three copies
+// of the same `caught instanceof Error` pattern. Rows 4 and 5 below repair
+// their anchors to that new location and new shape (the `instanceof`/`String()`
+// check is now behind a `toError()` call) rather than being deleted: each still
+// proves the same property — a hostile rejection cannot escape the guard — just
+// reshaped for where the code lives now.
+const ERRORS = new URL('../../errors.ts', import.meta.url)
 const SUITES = [
     new URL('../distributed_lock.test.ts', import.meta.url).pathname,
 ]
@@ -84,44 +93,100 @@ const MUTATIONS: Mutation[] = [
     },
     {
         // Review finding: `String()` throws on a value with no usable
-        // `toString`. Unguarded, that throw leaves the release catch from
-        // inside `finally` and rejects a run that succeeded.
-        label: 'the String() call is moved out of the guard — an ' +
-            'unprintable rejection escapes the release catch',
-        file: SCHEDULER,
+        // `toString`, and a revoked Proxy throws on its own `instanceof`
+        // check — both now live inside `toError()`. Unguarded, either throw
+        // leaves the release catch from inside `finally` and rejects a run
+        // that succeeded.
+        //
+        // #398 re-anchor: this lived in scheduler.ts's own `flatten` as an
+        // inline `if (!(caught instanceof Error)) return { … String(caught) }`;
+        // it is now the `toError(caught)` call inside `errors.ts`'s
+        // `normalizeError`. Same property, moved with the code — the whole
+        // function is the anchor, so the mutant's braces stay balanced.
+        label: 'the toError() call is moved out of the try — an ' +
+            'unprintable or hostile rejection escapes the guard',
+        file: ERRORS,
         edits: [[
+            'export function normalizeError(\n' +
+            '    caught: unknown,\n' +
+            '): { name: string; message: string } {\n' +
             '    try {\n' +
-            '        if (!(caught instanceof Error)) {\n' +
-            "            return { name: 'Error', message: String(caught) }\n" +
-            '        }\n',
-            '    if (!(caught instanceof Error)) {\n' +
-            "        return { name: 'Error', message: String(caught) }\n" +
+            '        const error = toError(caught)\n' +
+            '        const { name, message } = error\n' +
+            "        if (typeof name === 'string' && typeof message === 'string') {\n" +
+            '            return { name, message }\n' +
+            '        }\n' +
+            "        return { name: 'Error', message: UNPRINTABLE }\n" +
+            '    } catch (_hostile) {\n' +
+            '        // Not swallowed: the placeholder IS the report of this failure, and it\n' +
+            '        // reaches the log line the caller is about to write.\n' +
+            "        return { name: 'Error', message: UNPRINTABLE }\n" +
             '    }\n' +
-            '    try {\n',
+            '}\n',
+            'export function normalizeError(\n' +
+            '    caught: unknown,\n' +
+            '): { name: string; message: string } {\n' +
+            '    const error = toError(caught)\n' +
+            '    try {\n' +
+            '        const { name, message } = error\n' +
+            "        if (typeof name === 'string' && typeof message === 'string') {\n" +
+            '            return { name, message }\n' +
+            '        }\n' +
+            "        return { name: 'Error', message: UNPRINTABLE }\n" +
+            '    } catch (_hostile) {\n' +
+            "        return { name: 'Error', message: UNPRINTABLE }\n" +
+            '    }\n' +
+            '}\n',
         ]],
         killedBy: 'unprintable value is still contained and reported once',
     },
     {
-        // Second review finding: guarding `String()` alone was not total. An
-        // Error's `name` and `message` may be throwing getters, and reading
-        // them outside the `try` lets that throw leave `finally` — on the cron
-        // path, an unhandled rejection that kills the process.
+        // Second review finding: guarding the `toError()` call alone was not
+        // total. An Error's `name` and `message` may be throwing getters, and
+        // reading them outside the `try` lets that throw leave `finally` — on
+        // the cron path, an unhandled rejection that kills the process.
+        //
+        // #398 re-anchor: this lived in scheduler.ts's own `flatten` as the
+        // bare `const { name, message } = caught` destructure; it is now the
+        // equivalent destructure of `toError()`'s result inside `errors.ts`'s
+        // `normalizeError`. Same property, moved with the code — the whole
+        // function is the anchor, so the mutant's braces stay balanced.
         label: 'the name/message reads are moved out of the try — a ' +
-            'throwing getter escapes the release catch',
-        file: SCHEDULER,
-        edits: [
-            [
-                '    try {\n' +
-                '        if (!(caught instanceof Error)) {\n',
-                '    const { name, message } = caught as Error\n' +
-                '    try {\n' +
-                '        if (!(caught instanceof Error)) {\n',
-            ],
-            [
-                '        const { name, message } = caught\n',
-                '',
-            ],
-        ],
+            'throwing getter escapes the guard',
+        file: ERRORS,
+        edits: [[
+            'export function normalizeError(\n' +
+            '    caught: unknown,\n' +
+            '): { name: string; message: string } {\n' +
+            '    try {\n' +
+            '        const error = toError(caught)\n' +
+            '        const { name, message } = error\n' +
+            "        if (typeof name === 'string' && typeof message === 'string') {\n" +
+            '            return { name, message }\n' +
+            '        }\n' +
+            "        return { name: 'Error', message: UNPRINTABLE }\n" +
+            '    } catch (_hostile) {\n' +
+            '        // Not swallowed: the placeholder IS the report of this failure, and it\n' +
+            '        // reaches the log line the caller is about to write.\n' +
+            "        return { name: 'Error', message: UNPRINTABLE }\n" +
+            '    }\n' +
+            '}\n',
+            'export function normalizeError(\n' +
+            '    caught: unknown,\n' +
+            '): { name: string; message: string } {\n' +
+            '    let error: Error\n' +
+            '    try {\n' +
+            '        error = toError(caught)\n' +
+            '    } catch (_hostile) {\n' +
+            "        return { name: 'Error', message: UNPRINTABLE }\n" +
+            '    }\n' +
+            '    const { name, message } = error\n' +
+            "    if (typeof name === 'string' && typeof message === 'string') {\n" +
+            '        return { name, message }\n' +
+            '    }\n' +
+            "    return { name: 'Error', message: UNPRINTABLE }\n" +
+            '}\n',
+        ]],
         killedBy: 'a hostile value is contained and reported once',
     },
     {
