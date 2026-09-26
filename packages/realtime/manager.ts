@@ -77,6 +77,20 @@ export const MAX_PRESENCE_MEMBER_BYTES = 4 * 1024
 export const MAX_PRESENCE_SNAPSHOT_MEMBERS = 100
 
 /**
+ * The DEFAULT bound on {@link ChannelManager}'s pending owed-release ledger —
+ * the roster releases a failed write left un-applied, retried by the
+ * driver's `onRosterMaintenance` drain (#371).
+ *
+ * **Sized like this file's other named bounds** (`MAX_WATCHED_CHANNELS`,
+ * `MAX_ROSTER_READ_SELF_IDS`): a round number an operator can reason about,
+ * not a measurement. Past it, a NEW slot's failure is refused rather than
+ * queued — the ghost sweep is what recovers it instead — while a slot
+ * ALREADY queued keeps coalescing onto its newest failure regardless of the
+ * count, so the cap bounds distinct pending slots, never retries of one.
+ */
+export const MAX_PENDING_ROSTER_RELEASES = 1_000
+
+/**
  * The marker that starts the one ERROR line written when a control-frame
  * revocation's own WARN could not be (#376): a `console.warn` that throws
  * inside the apply's catch, so the fire-and-forget apply rejected. The
@@ -108,6 +122,17 @@ export const PUBLISH_FAILED = 'realtime: broadcast publish failed:'
  */
 export const JOIN_COMPENSATION_LOG_FAILED =
     'realtime: a #323 join-compensation failure could not be logged (#373):'
+
+/**
+ * The marker that starts the one ERROR line written when an owed-release
+ * ledger enqueue's own WARN could not be (#371): a `console.warn` that throws
+ * inside `#recordOwedRelease`, called from `unsubscribe`'s and
+ * `#joinPresence`'s catches — both end by re-throwing a roster failure of
+ * their own, so a throwing sink here must not replace it. Exported for the
+ * test suite only — not re-exported from `mod.ts`.
+ */
+export const OWED_RELEASE_LOG_FAILED =
+    'realtime: an owed-release enqueue log line could not be written (#371):'
 
 /**
  * Refuse a cap that is not a positive integer, at construction.
@@ -1105,6 +1130,20 @@ export class ChannelManager<Identity = unknown> {
      * local connection holds the member, so it is bounded by the presence map.
      */
     readonly #heldSlots = new Set<string>()
+    /**
+     * Roster slots whose last release attempt rejected — a presence leave's
+     * own release, or the #323/#373 join compensation's reclaim — retried by
+     * the driver's `onRosterMaintenance` drain rather than left to the ghost
+     * sweep alone (#371). Keyed like {@link #rosterTails}:
+     * `<channel>\0<member.id>`. The VALUE is the origin to retry with, never a
+     * desired state — the retry still reads `presence` fresh, through
+     * {@link #syncRosterMember}, so a slot re-claimed by a fresh join before
+     * the drain runs is re-derived as held, not released. A second failure on
+     * the same slot overwrites its entry rather than growing it; bounded at
+     * {@link MAX_PENDING_ROSTER_RELEASES} distinct slots by
+     * {@link #recordOwedRelease}.
+     */
+    readonly #owedReleases = new Map<string, PresenceOrigin>()
     /** The instance cap an anonymous connection may reach, precomputed once. */
     readonly #anonymousWatchedCeiling: number
     /**
@@ -1300,6 +1339,15 @@ export class ChannelManager<Identity = unknown> {
             this.driver.onRosterLapse?.((signal) =>
                 this.#reassertRoster(signal)
             )
+            // The owed-release drain (#371): a roster release this instance
+            // could not commit — a presence leave's, or the #323/#373
+            // reclaim's — is retried here rather than left to the ghost
+            // sweep alone. Fired unconditionally after every successful
+            // heartbeat, never gated on a detected fault (contrast
+            // `onRosterLapse` above), and never folded into the revocation
+            // reconcile pass, which would corrupt its #362/#384 deadline
+            // measurement.
+            this.driver.onRosterMaintenance?.(() => this.#drainOwedReleases())
         }
     }
 
@@ -2118,25 +2166,16 @@ export class ChannelManager<Identity = unknown> {
                 // failed: a failed unwatch does not mean the local membership
                 // was not already removed, and this reclaim's desired state
                 // is read from that removal, not from the leave's outcome.
+                //
+                // A FAILED RECLAIM IS QUEUED, NOT JUST WARNED (#371): the
+                // ghost sweep used to be the only backstop for a reclaim that
+                // itself rejects; `#recordOwedRelease` retries it after every
+                // successful heartbeat instead, through the same
+                // `#syncRosterMember` this reclaim already calls.
                 try {
                     await this.#syncRosterMember(channel, origin)
                 } catch (cleanupError) {
-                    try {
-                        console.warn(
-                            `realtime: could not reclaim a possibly-written ` +
-                                `roster entry on ${safeForLog(channel)} ` +
-                                `after a failed join; the ghost sweep is ` +
-                                `the remaining backstop: ${
-                                    renderError(cleanupError)
-                                }`,
-                        )
-                    } catch (sink) {
-                        writeMarkedFallback(
-                            JOIN_COMPENSATION_LOG_FAILED,
-                            cleanupError,
-                            { label: 'sink failure', error: sink },
-                        )
-                    }
+                    this.#recordOwedRelease(channel, origin, cleanupError)
                 }
                 // ALWAYS THE ORIGINAL ERROR (#373): neither the leave's
                 // failure nor the reclaim's replaces it. Both are WARNed,
@@ -2770,6 +2809,111 @@ export class ChannelManager<Identity = unknown> {
     }
 
     /**
+     * Queue a roster slot's release for retry, after a write this instance
+     * could not commit (#371) — a presence leave's own release, or the
+     * #323/#373 join compensation's reclaim.
+     *
+     * **The ledger records a TRIGGER, never a desired state** (ADR 003 §7,
+     * amended by #371): draining a slot re-issues it through
+     * {@link #syncRosterMember}, which re-derives what to write from
+     * `presence` at drain time, exactly as every other call through that one
+     * writer does. Nothing here is remembered that could fall out of step
+     * with it.
+     *
+     * **Bounded at {@link MAX_PENDING_ROSTER_RELEASES} distinct slots.** A
+     * second failure on a slot already queued always coalesces onto this
+     * origin, never refused; only a genuinely NEW slot can be refused, once
+     * the ledger is at its cap — an honest, named degradation under
+     * sustained failure, never a silently unbounded `Map`. The ghost sweep
+     * stays the backstop of last resort for a refused slot, exactly as it
+     * was before #371.
+     *
+     * **Always logs once, and never throws** (#391): both callers sit inside
+     * a `catch` that ends by re-throwing a roster error of their own, and a
+     * throwing sink here must not replace it.
+     *
+     * @param channel - The presence channel owning the slot.
+     * @param origin - The connection to announce as, and the member a `left`
+     *   would name, if the retried release ever empties the slot.
+     * @param error - What the failed write threw, rendered into the WARN.
+     */
+    #recordOwedRelease(
+        channel: string,
+        origin: PresenceOrigin,
+        error: unknown,
+    ): void {
+        const key = `${channel}\0${String(origin.member.id)}`
+        const atCapacity = !this.#owedReleases.has(key) &&
+            this.#owedReleases.size >= MAX_PENDING_ROSTER_RELEASES
+        if (!atCapacity) this.#owedReleases.set(key, origin)
+        try {
+            console.warn(
+                atCapacity
+                    ? `realtime: could not reclaim a possibly-written ` +
+                        `roster entry on ${
+                            safeForLog(channel)
+                        } — the pending-release ledger is at its cap ` +
+                        `(${MAX_PENDING_ROSTER_RELEASES}); the ghost sweep ` +
+                        `is the remaining backstop: ${renderError(error)}`
+                    : `realtime: releasing a presence member's roster slot ` +
+                        `on ${
+                            safeForLog(channel)
+                        } failed; queued for retry after the next ` +
+                        `successful heartbeat: ${renderError(error)}`,
+            )
+        } catch (sink) {
+            writeMarkedFallback(OWED_RELEASE_LOG_FAILED, error, {
+                label: 'sink failure',
+                error: sink,
+            })
+        }
+    }
+
+    /**
+     * Retry every queued owed release, one slot at a time (#371) — the
+     * handler {@link ChannelManager}'s constructor registers on the driver's
+     * `onRosterMaintenance` hook.
+     *
+     * **Sequential, never `Promise.all`**, on {@link #reassertRoster}'s own
+     * reasoning: K writes issued at once would sit in front of the next
+     * heartbeat and manufacture the very lapse this mechanism must not cause.
+     *
+     * **Through {@link #syncRosterMember} alone**, which re-derives the
+     * desired state from `presence` at issue time — never from the ledger's
+     * stale `origin` — so a slot re-claimed by a fresh join before its turn
+     * is re-derived as held, and the release this call asked for is not the
+     * one it gets (#344's `arrived` decides the frame either way).
+     *
+     * **Silent on success** (matching every other roster write in this
+     * package): a slot whose retry settles is simply removed. A slot that
+     * rejects again stays queued and is logged again through
+     * {@link #recordOwedRelease}, the same helper the original failure used.
+     *
+     * @returns Settles once every slot queued when this run began was tried.
+     */
+    async #drainOwedReleases(): Promise<void> {
+        for (const [key, origin] of [...this.#owedReleases]) {
+            // The channel is the key's prefix up to the first NUL: a channel
+            // can never contain one (`isValidName`'s charset), so this always
+            // recovers it exactly, whatever `origin.member.id` itself
+            // contains — the field after the NUL is never re-parsed.
+            const channel = key.slice(0, key.indexOf('\0'))
+            try {
+                await this.#syncRosterMember(channel, origin)
+                // ONLY if nothing overwrote this slot's entry while the write
+                // was in flight — the same guard `#syncRosterMember` uses for
+                // its own tail, and for the same reason: a fresher failure
+                // recorded during this await must survive the delete below.
+                if (this.#owedReleases.get(key) === origin) {
+                    this.#owedReleases.delete(key)
+                }
+            } catch (error) {
+                this.#recordOwedRelease(channel, origin, error)
+            }
+        }
+    }
+
+    /**
      * Announce a departure the driver reported through
      * `onRosterDeparture` — a roster slot it emptied while releasing another
      * process's hold, such as the ghost sweep of a crashed instance (#348).
@@ -2988,16 +3132,14 @@ export class ChannelManager<Identity = unknown> {
             try {
                 await this.#syncRosterMember(channel, { clientId, member })
             } catch (error) {
-                // The leave's failure came first and is the one re-thrown;
-                // this one is logged, naming the channel and never the member.
+                // QUEUED EITHER WAY (#371): a release this instance could not
+                // commit is retried after every successful heartbeat, whether
+                // or not the leave itself also failed.
+                this.#recordOwedRelease(channel, { clientId, member }, error)
+                // The leave's failure came first and is the one re-thrown
+                // when it also failed; this release's own failure is only
+                // ever reported through the ledger's WARN above.
                 if (!outcome.failed) throw error
-                console.warn(
-                    `realtime: releasing a presence member of ${
-                        safeForLog(channel)
-                    } also failed after its leave failed: ${
-                        renderError(error)
-                    }`,
-                )
             }
         }
         if (outcome.failed) throw outcome.error

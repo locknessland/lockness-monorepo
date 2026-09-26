@@ -70,6 +70,7 @@ import { freezePresenceMember } from '../presence_member.ts'
 import { ControlReplayWindow } from '../control_replay_window.ts'
 import { writeMarkedFallback } from '../marked_fallback.ts'
 import { LapseRun } from './lapse_run.ts'
+import { RosterMaintenanceRun } from './roster_maintenance_run.ts'
 import {
     EnforcementDeadline,
     REVOCATION_LOG_FAILED,
@@ -2166,6 +2167,15 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * and by {@link #lapse}'s failure callback; consumed only by the tail.
      */
     #lapseSuspected = false
+    /**
+     * When the owed-release drain runs, and how it stops (#371): the handler
+     * registered through {@link onRosterMaintenance}, one run in flight, one
+     * trailing run, none once {@link close} has begun. Unlike {@link #lapse}
+     * it takes no `AbortSignal` — its handler's contract is "no arguments" —
+     * so `close()` only refuses a new run and waits for one already in
+     * flight.
+     */
+    #rosterMaintenance = new RosterMaintenanceRun()
     /**
      * Resources this driver constructed itself (via {@link fromConfig}) and is
      * therefore responsible for closing. Empty when the ports were injected — a
@@ -4338,6 +4348,16 @@ export class RedisBroadcastDriver implements BroadcastDriver {
                 })
             }
         }
+        // The owed-release drain (#371): fired after every beat whose OWN
+        // liveness `SET` succeeded and decoded — never on a beat that just
+        // proved the connection broken, no point writing into it again — and
+        // never gated on `#holdIssued`: an owed release can be queued from a
+        // channel this instance no longer holds anything on, so the drain
+        // must run whether or not a hold currently exists. Never awaited,
+        // exactly like the lapse trigger below.
+        if (outcome !== undefined) {
+            this.#rosterMaintenance.trigger()
+        }
         // The lapse decision, once, reading `#holdIssued` NOW (#349 FR-004,
         // A4): read when the beat was issued, it would miss a hold that
         // overtook this beat's SET on a port that does not serialize. A failed
@@ -4462,6 +4482,29 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         handler: (signal: AbortSignal) => void | Promise<void>,
     ): void {
         this.#lapse.register(handler)
+    }
+
+    /**
+     * OPTIONAL (#371). Register the handler this driver calls after every
+     * heartbeat whose own liveness `SET` succeeded — the owed-release drain.
+     * See {@link BroadcastDriver.onRosterMaintenance} for the contract.
+     *
+     * One handler: registering again replaces it, and {@link close} waits
+     * for a run in flight, then drops it. Fired unconditionally, unlike
+     * {@link onRosterLapse}, and never gated on {@link #holdIssued}: an owed
+     * release can be queued from a channel this instance no longer hosts
+     * anything on, so the drain must run whether or not a hold currently
+     * exists.
+     *
+     * @param handler - Called with no arguments after each qualifying beat.
+     *
+     * @example
+     * ```ts
+     * driver.onRosterMaintenance(() => drainOwedReleases())
+     * ```
+     */
+    onRosterMaintenance(handler: () => void | Promise<void>): void {
+        this.#rosterMaintenance.register(handler)
     }
 
     /**
@@ -4806,6 +4849,12 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * commands never settle. It then drops the departure handler and the
      * {@link onControlRefused} handler, and closes the owned connections.
      *
+     * **It also stops the owed-release drain** (#371), the same shape right
+     * beside the lapse run: marked closed synchronously, so no new drain
+     * starts once `close()` has begun, then awaited after the sweep pass, on
+     * its own line. It has no signal to abort — a drain in flight simply
+     * finishes.
+     *
      * **It does not await a revocation pass** (#359 FR-013). A timer- or
      * reconnect-triggered pass in flight completes the command in flight,
      * then stops before its next reap or page read and logs one WARN
@@ -4859,6 +4908,10 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         // here on starts no run, and a re-assert in flight stops before its
         // next slot. Awaited only after the sweep pass, on its own line.
         const stopped = this.#lapse.close()
+        // Same shape, no signal to abort: the drain has nothing to cut short
+        // mid-run, so this only refuses a NEW run and waits for one already
+        // in flight (#371).
+        const maintenanceStopped = this.#rosterMaintenance.close()
         // Clearing the timer is not enough for the RECONNECT trigger (#271): on
         // the injected-port path `owned` is empty, so the subscriber outlives
         // this driver and can still fire. Dropping the handler makes
@@ -4872,6 +4925,8 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         await this.#reconcilePass
         // The slot write in flight settles before the ports can close (#349).
         await stopped
+        // The owed-release drain in flight, if any, settles too (#371).
+        await maintenanceStopped
         // A closed driver reports no departure either (#348).
         this.#departureHandler = undefined
         // Nor a refusal (#349 FR-006a): every hook this driver holds is

@@ -419,7 +419,8 @@ export interface RevocationTally {
  *
  * **The notification hooks share one lifecycle** (#349, ADR 007) —
  * {@link onControlRefused}, {@link onRevocationReconcile},
- * {@link onRosterDeparture} and {@link onRosterLapse}:
+ * {@link onRosterDeparture}, {@link onRosterLapse} and
+ * {@link onRosterMaintenance}:
  *
  * - **one owner per driver**: a second registration replaces the first;
  * - **one handler** per hook, never a list;
@@ -763,6 +764,44 @@ export interface BroadcastDriver {
     onRosterLapse?(
         handler: (signal: AbortSignal) => void | Promise<void>,
     ): void
+    /**
+     * OPTIONAL (#371). Register the handler the driver invokes on its own
+     * periodic roster-maintenance pass, so a roster release this instance
+     * could not commit — a presence leave's own release, or the #323/#373
+     * join compensation's reclaim — is retried without waiting for the ghost
+     * sweep to notice a dead instance, which a healthy one never is.
+     *
+     * **Fired unconditionally, never gated on a detected fault** — the
+     * opposite delivery contract from {@link onRosterLapse} (edge-triggered
+     * on a detected liveness lapse) and from {@link onRevocationReconcile}
+     * (the #362/#384 deadline-measured pass this hook is deliberately kept
+     * out of, so an unrelated retry never inflates that pass's measured
+     * duration). Its payload is nothing and its cadence is every tick that
+     * proved the connection healthy — a payload AND a delivery contract that
+     * differ from every existing hook, which is why this is its own hook
+     * rather than an addition to either (the "sixth hook" rule stated above).
+     *
+     * Its registration follows the hooks' shared lifecycle
+     * ({@link BroadcastDriver}): one handler, replaced on re-registration,
+     * dropped by the driver's own shutdown, which waits for a run in flight
+     * before dropping it.
+     *
+     * A driver that omits this leaves the ghost sweep as the only backstop
+     * for an owed release — exactly the behaviour before #371, and a
+     * conforming, unchanged default for every driver that predates it.
+     *
+     * @param handler - Called with no arguments after each tick that proved
+     *   this instance's connection healthy; a throw is contained by the
+     *   driver's own scheduler and never reaches the caller that fired it.
+     *
+     * @example
+     * ```ts
+     * driver.onRosterMaintenance?.(() => {
+     *     console.log('roster maintenance tick')
+     * })
+     * ```
+     */
+    onRosterMaintenance?(handler: () => void | Promise<void>): void
     /**
      * OPTIONAL (#295). Declare that this instance now hosts `channel`, so the
      * driver subscribes to its traffic and nothing else's.
