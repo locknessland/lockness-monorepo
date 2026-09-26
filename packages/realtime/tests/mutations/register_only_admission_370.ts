@@ -31,6 +31,16 @@
  * mutant and its named witness went red, attributed. Every `killedBy` ends in
  * a space, so `W1 ` is not a prefix of `W11`–`W15`.
  *
+ * **Re-anchored for #393.** `disconnect` is no longer `async` (it delegates
+ * to a private `#teardown` and returns or joins a promise), so its object-form
+ * refusal reads `return Promise.resolve('not-owned')` — M10's anchor moved
+ * with it, unchanged in what it deletes. W12 (ii) and W14, M11's and M14's
+ * witnesses, no longer race an `evict` against the SAME object's own close to
+ * reach "replaced mid-loop" — #393 makes that race join instead, closing the
+ * window these two rows used to reach it — so both now write the replacement
+ * through the same private-map reflection this suite's `state()` helper
+ * already uses. Neither guard's own code moved; only the path to it did.
+ *
  * ```bash
  * deno task mutate register_only_admission_370
  * ```
@@ -171,7 +181,7 @@ const MUTATIONS: Mutation[] = [
         file: MANAGER,
         edits: [[
             "        if (typeof target !== 'string' && !this.#isOwner(target)) {\n" +
-            "            return 'not-owned'\n" +
+            "            return Promise.resolve('not-owned')\n" +
             '        }\n',
             '',
         ]],

@@ -57,6 +57,16 @@
  * the order and the release-skip they always named; their killers are
  * unchanged.
  *
+ * **Re-anchored for #393.** `#retired` moved from a `WeakSet` to a
+ * `WeakMap<Connection, Promise<DisconnectOutcome>>`, and its one write moved
+ * from `disconnect`'s own body into a private `#teardown` it now delegates
+ * to. N3's anchor follows: the mutant still records "retired" too late —
+ * inside `#teardown`'s `finally`, after the loop has already run, instead of
+ * synchronously at entry — so W1's racing subscribe still finds nothing
+ * retired and wrongly succeeds. It writes a placeholder settled promise, not
+ * a real one, because the mutant's whole point is that nothing should have
+ * been recorded yet; the value is never read on this path.
+ *
  * Every row was proven LIVE by the harness run that recorded it: the mutant
  * ran and turned its named witness red (`KILLED`, attributed).
  *
@@ -154,14 +164,26 @@ const MUTATIONS: Mutation[] = [
     },
     {
         label:
-            "N3 — the retirement moved from disconnect's entry into its finally",
+            "N3 — the retirement moved from disconnect's entry into #teardown's finally",
         file: MANAGER,
         edits: [
-            ['        if (bound) this.#retired.add(bound)\n', ''],
             [
-                '            this.#channelsByClient.delete(clientId)\n',
-                '            if (bound) this.#retired.add(bound)\n' +
-                '            this.#channelsByClient.delete(clientId)\n',
+                '        if (bound !== undefined) this.#retired.set(bound, teardown)\n' +
+                '        return teardown\n',
+                '        return teardown\n',
+            ],
+            [
+                '            if (bound !== undefined && this.#isOwner(bound)) {\n' +
+                '                this.#channelsByClient.delete(clientId)\n' +
+                '                this.connections.delete(clientId)\n' +
+                '            }\n',
+                '            if (bound !== undefined) {\n' +
+                "                this.#retired.set(bound, Promise.resolve('not-owned'))\n" +
+                '            }\n' +
+                '            if (bound !== undefined && this.#isOwner(bound)) {\n' +
+                '                this.#channelsByClient.delete(clientId)\n' +
+                '                this.connections.delete(clientId)\n' +
+                '            }\n',
             ],
         ],
         killedBy: '#361 W1 ',
