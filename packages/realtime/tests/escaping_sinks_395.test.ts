@@ -82,6 +82,16 @@ interface SinkRow {
     marker: string
     /** Words the line's subject, before any `; sink failure`, must carry. */
     subject?: string
+    /**
+     * Words the line's SECOND half — after `; sink failure: ` — must carry
+     * (#402): the row's own marker and subject alone do not prove the line
+     * carries two failures, only the first. Every row that funnels through
+     * `#guardedWarn` or an equivalent try/catch on `console.warn` has one;
+     * `everyChannelThrows` always throws `'warn sink down'` from
+     * `console.warn`, so that text is what every such row's second half
+     * carries, deterministically.
+     */
+    sinkFailure?: string
     /** Build the fixture. Runs with the real log channels. */
     arm: () => Promise<Armed>
 }
@@ -194,6 +204,8 @@ const SINKS: SinkRow[] = [
     {
         name: "LapseRun.#invoke's WARN (the handler rejects)",
         marker: LAPSE_RUN_LOG_FAILED,
+        subject: 're-assert failed (#395)',
+        sinkFailure: 'warn sink down',
         arm: () => {
             const lapse = new LapseRun(() => {})
             lapse.register(() =>
@@ -235,6 +247,8 @@ const SINKS: SinkRow[] = [
     {
         name: 'the redis control subscription (subscribeOne rejects)',
         marker: CONTROL_SUBSCRIBE_LOG_FAILED,
+        subject: 'subscribe refused (#395)',
+        sinkFailure: 'warn sink down',
         arm: () => {
             const redis = new FakeRedis()
             const inner = redis.subscriberFor()
@@ -256,6 +270,8 @@ const SINKS: SinkRow[] = [
     {
         name: "the redis heartbeat's WARN (the liveness write is refused)",
         marker: HEARTBEAT_LOG_FAILED,
+        subject: 'liveness refused (#395)',
+        sinkFailure: 'warn sink down',
         arm: async () => {
             const time = new FakeTime(START)
             const redis = new FakeRedis()
@@ -345,6 +361,18 @@ for (const [index, row] of SINKS.entries()) {
                     `its subject carries "${subject}": ${
                         JSON.stringify(marked)
                     }`,
+                )
+            }
+            if (row.sinkFailure !== undefined) {
+                const sinkFailure = row.sinkFailure
+                assert(
+                    marked.some((line) => {
+                        const [, second] = line.split('; sink failure: ')
+                        return second !== undefined &&
+                            second.includes(sinkFailure)
+                    }),
+                    `its second half carries "; sink failure: ${sinkFailure}", ` +
+                        `not only the marker: ${JSON.stringify(marked)}`,
                 )
             }
         })
@@ -442,4 +470,41 @@ Deno.test('#395 the redis heartbeat: the lapse decision still runs after its WAR
         await driver.close()
         time.restore()
     })
+})
+
+/**
+ * #402: an offline pin (no throwing channel, no FakeTime interval) on the
+ * control-subscription WARN's exact wording — inline at its one call site,
+ * never a named constant, so nothing else in this suite locks its text.
+ * E5 above only ever observes it through the SINK-FAILURE second half, when
+ * `console.warn` itself has already been made to throw.
+ */
+Deno.test('#395 the redis control subscription: the WARN line is pinned', async () => {
+    const redis = new FakeRedis()
+    const inner = redis.subscriberFor()
+    const driver = redisDriver(redis, redis.command, {
+        psubscribe: inner.psubscribe,
+        subscribeOne: () =>
+            Promise.reject(new Error('subscribe refused (#395)')),
+        unsubscribeOne: () => {},
+    })
+    const lines: string[] = []
+    const originalWarn = console.warn
+    console.warn = (...args: unknown[]) => {
+        lines.push(args.map(String).join(' '))
+    }
+    try {
+        driver.onControl(() => {})
+        await settle()
+    } finally {
+        console.warn = originalWarn
+        await driver.close()
+    }
+    assertEquals(lines.length, 1, 'exactly one console.warn line')
+    assertEquals(
+        lines[0],
+        'realtime: the control subscription could not be issued — the ' +
+            "driver's own retry is what restores it: Error: subscribe " +
+            'refused (#395)',
+    )
 })
