@@ -1121,7 +1121,7 @@ export class ChannelManager<Identity = unknown> {
     readonly #maxPresenceMemberBytes: number
     readonly #maxPresenceSnapshotMembers: number
     /**
-     * One serial tail per roster slot, keyed `<channel>\0<member.id>` (#330).
+     * One serial tail per roster slot, keyed by {@link #rosterSlotKey} (#330).
      * Entries live only while a reconciliation for that slot is queued or in
      * flight — {@link #syncRosterMember} deletes its own once it settles, so
      * this cannot grow with a cardinality a client chooses. A roster-less
@@ -1147,8 +1147,8 @@ export class ChannelManager<Identity = unknown> {
      * Roster slots whose last release attempt rejected — a presence leave's
      * own release, or the #323/#373 join compensation's reclaim — retried by
      * the driver's `onRosterMaintenance` drain rather than left to the ghost
-     * sweep alone (#371). Keyed like {@link #rosterTails}:
-     * `<channel>\0<member.id>`. The VALUE is the origin to retry with, never a
+     * sweep alone (#371). Keyed like {@link #rosterTails}, by
+     * {@link #rosterSlotKey}. The VALUE is the origin to retry with, never a
      * desired state — the retry still reads `presence` fresh, through
      * {@link #syncRosterMember}, so a slot re-claimed by a fresh join before
      * the drain runs is re-derived as held, not released. A second failure on
@@ -2575,6 +2575,44 @@ export class ChannelManager<Identity = unknown> {
     }
 
     /**
+     * Build the `<channel>\0<memberId>` roster slot key (#330, #408).
+     *
+     * **The one place the separator and its assembly are decided.** Every
+     * site that builds or parses this key — {@link #syncRosterMember}'s tail,
+     * {@link #recordOwedRelease}'s ledger, {@link #drainOwedReleases}'s
+     * decode — routes through this pair rather than agreeing by convention.
+     * The NUL is safe as a separator only because a channel name's charset
+     * (`isValidName`) can never contain one; a member id's own charset is
+     * unconstrained (type only, #346) and may embed a NUL of its own without
+     * breaking the split — see {@link #rosterSlotChannel}.
+     *
+     * @param channel - The presence channel owning the slot.
+     * @param memberId - The member id the slot belongs to, already
+     *   `String()`-coerced by the caller.
+     * @returns The composite key used by {@link #rosterTails},
+     *   {@link #heldSlots} and {@link #owedReleases}.
+     */
+    #rosterSlotKey(channel: string, memberId: string): string {
+        return `${channel}\0${memberId}`
+    }
+
+    /**
+     * Recover the channel from a slot key built by {@link #rosterSlotKey}
+     * (#408).
+     *
+     * Only the channel is ever re-derived here — the field after the first
+     * NUL is never re-parsed. A channel can never contain one (`isValidName`'s
+     * charset), so slicing at the first NUL always recovers it exactly,
+     * whatever the member id itself contains, including a NUL of its own.
+     *
+     * @param key - A key built by {@link #rosterSlotKey}.
+     * @returns The channel prefix, up to the first NUL.
+     */
+    #rosterSlotChannel(key: string): string {
+        return key.slice(0, key.indexOf('\0'))
+    }
+
+    /**
      * Write one authoritative roster slot to match this instance's local
      * `presence` map, with at most one write in flight for that slot (#330).
      *
@@ -2630,7 +2668,7 @@ export class ChannelManager<Identity = unknown> {
     ): Promise<void> {
         const roster = this.roster
         const field = String(origin.member.id)
-        const key = `${channel}\0${field}`
+        const key = this.#rosterSlotKey(channel, field)
         const prior = this.#rosterTails.get(key) ?? Promise.resolve()
         const run = prior.then(async () => {
             const desired = this.#localRoster(channel)
@@ -2878,7 +2916,7 @@ export class ChannelManager<Identity = unknown> {
         origin: PresenceOrigin,
         error: unknown,
     ): void {
-        const key = `${channel}\0${String(origin.member.id)}`
+        const key = this.#rosterSlotKey(channel, String(origin.member.id))
         const atCapacity = !this.#owedReleases.has(key) &&
             this.#owedReleases.size >= MAX_PENDING_ROSTER_RELEASES
         if (!atCapacity) this.#owedReleases.set(key, origin)
@@ -2929,11 +2967,7 @@ export class ChannelManager<Identity = unknown> {
      */
     async #drainOwedReleases(): Promise<void> {
         for (const [key, origin] of [...this.#owedReleases]) {
-            // The channel is the key's prefix up to the first NUL: a channel
-            // can never contain one (`isValidName`'s charset), so this always
-            // recovers it exactly, whatever `origin.member.id` itself
-            // contains — the field after the NUL is never re-parsed.
-            const channel = key.slice(0, key.indexOf('\0'))
+            const channel = this.#rosterSlotChannel(key)
             try {
                 await this.#syncRosterMember(channel, origin)
                 // ONLY if nothing overwrote this slot's entry while the write
