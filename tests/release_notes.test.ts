@@ -36,6 +36,7 @@ import {
     NoneRecordedContradicted,
     parseUpgradeSections,
     type RunResult,
+    type Writable,
     writeResult,
 } from '../scripts/release_notes.ts'
 
@@ -729,22 +730,38 @@ Deno.test('#382 E6 a closed stdout pipe is exit 2, with no stack and no path', a
     assertFalse(text.includes('    at '), 'no stack trace')
 })
 
+/**
+ * Two streams that both push into one shared, tagged log, so the order
+ * between stdout and stderr writes is observable — recording each stream into
+ * its own array (as {@linkcode sink} does) cannot witness cross-stream order
+ * at all, since each array only ever sees its own writes.
+ */
+function loggedStreams(
+    log: string[],
+): { readonly stdout: Writable; readonly stderr: Writable } {
+    const tagged = (tag: string): Writable => ({
+        write: (bytes) => {
+            log.push(`${tag}: ${new TextDecoder().decode(bytes)}`)
+            return Promise.resolve(bytes.length)
+        },
+    })
+    return { stdout: tagged('stdout'), stderr: tagged('stderr') }
+}
+
 Deno.test('#382 E7 writeResult writes stderr, then stdout, and returns the code', async () => {
-    const stdout = sink()
-    const stderr = sink()
+    const log: string[] = []
+    const { stdout, stderr } = loggedStreams(log)
 
-    const refused = await writeResult(
-        { code: 1, stdout: '', stderr: 'release:notes: refused' },
-        { stdout, stderr },
-    )
-    const emitted = await writeResult(
-        { code: 0, stdout: 'the body', stderr: '' },
+    const code = await writeResult(
+        { code: 1, stdout: 'the body', stderr: 'release:notes: refused' },
         { stdout, stderr },
     )
 
-    assertEquals([refused, emitted], [1, 0])
-    assertEquals(stderr.written.join(''), 'release:notes: refused\n')
-    assertEquals(stdout.written.join(''), 'the body')
+    assertEquals(code, 1)
+    assertEquals(log, [
+        'stderr: release:notes: refused\n',
+        'stdout: the body',
+    ])
 })
 
 // ─── S: the real task, as a subprocess ───────────────────────────────────────
