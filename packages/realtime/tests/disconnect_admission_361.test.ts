@@ -365,11 +365,6 @@ async function settled(promise: Promise<unknown>): Promise<unknown> {
     return await promise.then(() => 'resolved', (error) => error)
 }
 
-/** Whether a promise rejected — whatever the value, `undefined` included. */
-async function rejects(promise: Promise<unknown>): Promise<boolean> {
-    return await promise.then(() => false, () => true)
-}
-
 /** A macrotask: every queued microtask chain has run when it resolves. */
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 
@@ -623,7 +618,7 @@ Deno.test('#361 W6 (ii) disconnect: an unwatch rejecting with undefined still re
     const c1 = conn('c1', 1)
     manager.register(c1)
     assert((await manager.subscribe(c1, ROOM)).ok)
-    assert(await rejects(manager.disconnect('c1')), 'the failure is not lost')
+    assertStrictEquals(await settled(manager.disconnect('c1')), undefined)
     assert(!state(manager).presence.has(ROOM))
 })
 
