@@ -461,25 +461,28 @@ Deno.test('#329 the decision that there is no framework meter is ANCHORED, not m
             'is prose that rots',
     )
 
-    // AND THE CODE THE DOCSTRING DESCRIBES. The marker alone pins the prose:
-    // wrap `onMessage` in a meter, leave the paragraph untouched, and the
-    // assertion above still passes while the decision has been reversed. This
-    // is the plan's §5 enforcement grep, executable. Since #363 the hook has
-    // ONE wrapper — the ownership gate — and this pins that it is exactly
-    // that: the gate, then the app's hook, and nothing in between.
-    assertStringIncludes(
-        source.slice(start, start + 2500),
-        '            onMessage: (conn, data) => {\n' +
-            '                // Only the owner reaches app code (#363): a refused or retired\n' +
-            '                // socket shares an id with, at most, a socket it must not act\n' +
-            '                // for. Dropped without a log line — one per frame would flood.\n' +
-            '                if (!this.#isOwner(conn)) return\n' +
-            '                return userHooks.onMessage?.(conn, data)\n' +
-            '            },\n',
-        '`handlerHooks` must pass `onMessage` through UNMETERED — its only ' +
-            'wrapper is the #363 ownership gate. `onOpen` and `onClose` are ' +
-            'composed and this one deliberately is not — composing a budget in ' +
-            'is how a churn meter arrives in the framework by the back door, ' +
-            'and it would charge the five non-client paths into `unsubscribe`',
+    // AND THE CODE THE DOCSTRING DESCRIBES — pinned by BEHAVIOUR, not by a
+    // second copy of manager.ts's comment (#401): a meter added later would
+    // silently drop some calls from a socket that OWNS its id, which this
+    // loop catches whether or not it changes a single line of prose. `onOpen`
+    // and `onClose` are composed and this one deliberately is not — composing
+    // a budget in is how a churn meter arrives in the framework by the back
+    // door, and it would charge the five non-client paths into `unsubscribe`.
+    const f = fleet()
+    const c = conn('c1', 1)
+    f.local.register(c)
+
+    let seen = 0
+    const hooks = f.local.handlerHooks({ onMessage: () => void seen++ })
+    const CALLS = 500
+    for (let i = 0; i < CALLS; i++) {
+        await hooks.onMessage?.(c, 'frame')
+    }
+    assertEquals(
+        seen,
+        CALLS,
+        'every call must reach the app UNMETERED — since #363 the only ' +
+            'wrapper on `onMessage` is the ownership gate, and this connection ' +
+            'owns its id for the whole loop, so nothing may drop a call',
     )
 })
