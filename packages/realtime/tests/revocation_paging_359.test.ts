@@ -1141,33 +1141,37 @@ const int = (value: number) => ({ type: 'integer', value })
 const arr = (...value: unknown[]) => ({ type: 'array', value })
 const MARKER = 'MARKER-359-z9'
 
-Deno.test('#359/#405 R12 decodeReapReply accepts only a {t, kind} pair — t a canonical bulk of at most 15 digits, kind a bulk string — and refuses anything else with one constant message carrying no reply bytes', () => {
-    assertEquals(decodeReapReply(arr(bulk('1790157600'), bulk('zset'))), {
-        t: 1790157600,
-        kind: 'zset',
-    })
-    assertEquals(decodeReapReply(arr(bulk('0'), bulk('none'))), {
-        t: 0,
-        kind: 'none',
-    })
+Deno.test('#359/#405/#411 R12 decodeReapReply accepts only a {t, indexKind, floorKind} triple — t a canonical bulk of at most 15 digits, indexKind and floorKind bulk strings — and refuses anything else with one constant message carrying no reply bytes', () => {
     assertEquals(
-        decodeReapReply(arr(bulk('9'.repeat(15)), bulk('string'))),
-        { t: 999_999_999_999_999, kind: 'string' },
+        decodeReapReply(arr(bulk('1790157600'), bulk('zset'), bulk('zset'))),
+        { t: 1790157600, indexKind: 'zset', floorKind: 'zset' },
+    )
+    assertEquals(
+        decodeReapReply(arr(bulk('0'), bulk('none'), bulk('none'))),
+        { t: 0, indexKind: 'none', floorKind: 'none' },
+    )
+    assertEquals(
+        decodeReapReply(
+            arr(bulk('9'.repeat(15)), bulk('string'), bulk('hash')),
+        ),
+        { t: 999_999_999_999_999, indexKind: 'string', floorKind: 'hash' },
     )
     const refused: unknown[] = [
         int(1790157600),
         bulk('1790157600'),
-        arr(bulk('01'), bulk('zset')),
-        arr(bulk(''), bulk('zset')),
-        arr(bulk('1'.repeat(16)), bulk('zset')),
-        arr(bulk('1.5'), bulk('zset')),
-        arr(bulk('1e9'), bulk('zset')),
-        arr(bulk(' 1'), bulk('zset')),
-        arr(bulk(`x${MARKER}`), bulk('zset')),
+        arr(bulk('01'), bulk('zset'), bulk('zset')),
+        arr(bulk(''), bulk('zset'), bulk('zset')),
+        arr(bulk('1'.repeat(16)), bulk('zset'), bulk('zset')),
+        arr(bulk('1.5'), bulk('zset'), bulk('zset')),
+        arr(bulk('1e9'), bulk('zset'), bulk('zset')),
+        arr(bulk(' 1'), bulk('zset'), bulk('zset')),
+        arr(bulk(`x${MARKER}`), bulk('zset'), bulk('zset')),
         arr(bulk('1790157600')),
-        arr(bulk('1790157600'), int(1)),
-        arr(bulk('1790157600'), { type: 'nil' }),
-        arr(bulk('1790157600'), bulk('zset'), bulk('extra')),
+        arr(bulk('1790157600'), bulk('zset')),
+        arr(bulk('1790157600'), int(1), bulk('zset')),
+        arr(bulk('1790157600'), bulk('zset'), int(1)),
+        arr(bulk('1790157600'), { type: 'nil' }, bulk('zset')),
+        arr(bulk('1790157600'), bulk('zset'), bulk('zset'), bulk('extra')),
         { type: 'nil' },
         undefined,
         null,
