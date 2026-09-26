@@ -713,11 +713,41 @@ of what the re-check's counts mean.
     before the one aggregate rejection. The slots are a **snapshot** taken
     before the first write: a walk over the live `presence` map would write
     every join that lands during the run, and under steady joins never end.
-  - **The hook rule.** `onRosterLapse` is the fifth optional hook; the shared
-    lifecycle is stated once on `BroadcastDriver`. A sixth hook needs a payload
+  - **The hook rule.** `onRosterLapse` was the fifth optional hook; the shared
+    lifecycle is stated once on `BroadcastDriver`. A new hook needs a payload
     **and** a delivery contract that differ from every existing one. Witnesses:
     `lapse_rehold_349.test.ts`, `lapse_run_349.test.ts`; battery
     `tests/mutations/lapse_rehold_349.ts`.
+- **A roster release that could not commit is retried, never merely WARNed**
+  ([#371](https://github.com/locknessland/lockness-monorepo/issues/371)). Two
+  catch sites that used to end at an inline `console.warn` — `unsubscribe`'s
+  post-leave release, and `#joinPresence`'s #323/#373 compensation's reclaim —
+  now call `#recordOwedRelease`, which queues the slot in `#owedReleases`
+  (`ChannelManager`'s own ledger, keyed like `#rosterTails`) instead.
+  - **A trigger, never a desired state.** Draining a slot re-issues it through
+    `#syncRosterMember`, which re-derives what to write from `presence` at drain
+    time — the ledger remembers only THAT a slot needs another pass, never WHAT
+    to write. This is why it does not reopen ADR 003. `#drainOwedReleases` walks
+    it one entry at a time — never `Promise.all`, `#reassertRoster`'s own
+    reasoning — and deletes an entry only if nothing fresher overwrote it while
+    its retry was in flight.
+  - **Bounded at `MAX_PENDING_ROSTER_RELEASES`** (package-internal, not an
+    option). A slot already queued always coalesces onto its newest failure;
+    only a genuinely new slot can be refused, with the pre-#371 wording.
+  - **`onRosterMaintenance` is the SIXTH optional hook** — never a payload added
+    to `onRosterLapse` or `onRevocationReconcile`: its payload is nothing and
+    its cadence is "every successful heartbeat, unconditionally", which is
+    neither of theirs. Fired from the Redis driver's `#heartbeat` tail, after
+    the liveness `SET` succeeds — **never** from `onRevocationReconcile`'s pass,
+    which would corrupt the #362/#384 deadline seam, and never gated on
+    `#holdIssued`. Its own scheduler, `RosterMaintenanceRun`
+    (`drivers/roster_maintenance_run.ts`), is `LapseRun`'s shape without an
+    `AbortSignal` — the handler takes no argument, so `close()` only refuses a
+    new run and waits for one already in flight. ADR:
+    [015](../../docs/adr/015-realtime-owed-release-retried-by-maintenance-drain.md),
+    amending ADR 003 §7 and ADR 007 §2. Witnesses: `owed_release_371.test.ts`,
+    `roster_maintenance_run_371.test.ts`; battery
+    `tests/mutations/owed_release_371.ts`.
 - **`heartbeatIntervalMs` and `livenessTtlSeconds` are ONE setting with two
   numbers.** The heartbeat is what keeps this instance's `{prefix}:alive:<id>`
   key alive, and that key's TTL is `livenessTtlSeconds`. Beat slower than the

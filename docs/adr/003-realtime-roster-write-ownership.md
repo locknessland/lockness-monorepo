@@ -132,3 +132,12 @@ proposed again by someone who has not seen why they fail.
 `joined` / `left` announcement is made only from inside that same queued run, on
 the `arrived` / `gone` bit the write returned — never from `subscribe`,
 `unsubscribe`, the compensation, or a new verb beside them.
+
+> **Amended by
+> [ADR 015](015-realtime-owed-release-retried-by-maintenance-drain.md)
+> (2026-09-26).** "Must go through `#syncRosterMember`" now explicitly covers a
+> **retried** write too: a release `unsubscribe` or the #323/#373 compensation
+> could not commit is queued and re-issued through the same writer by a
+> driver-triggered drain, never through a second, parallel write path. The
+> ledger that queues it records a trigger, never a desired state, so the
+> standing rule above — no caller may carry its own — is unchanged by it.

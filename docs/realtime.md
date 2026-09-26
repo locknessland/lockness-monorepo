@@ -1814,15 +1814,41 @@ through its normal write path — announcing only what `holdMember` reports
 A driver without the method keeps today's behaviour: a swept process's members
 stay missing until their next write.
 
+**Retrying a roster write you could not commit — optional.** A driver whose
+`releaseMember` (a presence leave's own release, or the #323/#373 join
+compensation's reclaim) can reject implements `onRosterMaintenance(handler)`
+([#371](https://github.com/locknessland/lockness-monorepo/issues/371)). The
+manager registers it at construction, only when the driver owns a roster, and
+its handler drains a small internal ledger of slots whose last release attempt
+failed — re-issuing each through the manager's normal write path, which
+re-derives what to write from its local state at drain time (never from anything
+the ledger itself remembers). The contract:
+
+- **Fire it unconditionally, after a tick that proves your connection healthy**
+  — never gated on a detected fault, and never merely reusing
+  `onRevocationReconcile`'s pass: an owed release has nothing to do with
+  revocations, and folding it into that pass's own deadline-measured duration
+  would corrupt an unrelated enforcement bound. Never awaited from the path that
+  fired it, on `onRosterLapse`'s own reasoning.
+- **At most one run in flight.** Ticks reported during a run coalesce into
+  exactly one trailing run. A run that throws or rejects is logged once; the
+  next tick tries again — there is no timer.
+- **The handler takes no argument.** Unlike `onRosterLapse`'s signal, there is
+  nothing to abort mid-run: `close()` simply refuses a new run and waits for one
+  already in flight before it closes your connections.
+
+A driver without the method keeps a release failure's only backstop the ghost
+sweep — exactly today's behaviour, unchanged.
+
 **Every optional hook shares one lifecycle.** `onControlRefused`,
-`onRevocationReconcile`, `onRosterDeparture` and `onRosterLapse` have **one
-owner per driver**: registering again replaces the handler, and the driver's own
-shutdown drops it — a shut-down driver calls nothing. `onControl` is the
-exception: its lifetime is its subscription. The Redis driver's `close()`
-therefore drops the refusal handler too, since #349. The Redis driver's
-`onPassComplete` ([measuring the passes](#measuring-passes)) shares the same
-lifecycle; it is Redis-only, not a `BroadcastDriver` member, because the memory
-driver runs no background pass.
+`onRevocationReconcile`, `onRosterDeparture`, `onRosterLapse` and
+`onRosterMaintenance` have **one owner per driver**: registering again replaces
+the handler, and the driver's own shutdown drops it — a shut-down driver calls
+nothing. `onControl` is the exception: its lifetime is its subscription. The
+Redis driver's `close()` therefore drops the refusal handler too, since #349.
+The Redis driver's `onPassComplete` ([measuring the passes](#measuring-passes))
+shares the same lifecycle; it is Redis-only, not a `BroadcastDriver` member,
+because the memory driver runs no background pass.
 
 **Members are read-only on both sides of the seam**
 ([#354](https://github.com/locknessland/lockness-monorepo/issues/354)). The

@@ -121,6 +121,17 @@ hook only if its payload **and** its delivery contract differ from every
 existing one. The bookkeeping is consolidated only when a **second** production
 driver implements three or more of these hooks.
 
+> **Amended by
+> [ADR 015](015-realtime-owed-release-retried-by-maintenance-drain.md)
+> (2026-09-26).** The rule produced its sixth hook: `onRosterMaintenance`, fired
+> unconditionally after every successful heartbeat — a payload (nothing) and a
+> delivery contract ("every tick that proved the connection healthy") that match
+> neither this section's `onRevocationReconcile` nor `onRosterLapse`. It joins
+> the shared-lifecycle list above. Still one implementation beyond `LapseRun`'s
+> own (a new concrete `RosterMaintenanceRun`, without an `AbortSignal` — its
+> handler takes no argument at all); the bookkeeping-consolidation threshold
+> this section states is unchanged.
+
 ### The re-assert: revocations first, then each slot through its tail
 
 The manager registers `onRosterLapse` inside its roster block, after
