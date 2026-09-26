@@ -3691,11 +3691,23 @@ export class ChannelManager<Identity = unknown> {
             // interpolation it was preferred over: measured, a DSN-bearing
             // failure reached the sink in cleartext with its stack. Teardown is
             // exactly where credential-bearing errors are produced.
-            console.warn(
-                'realtime: the durable revocation write failed — revoking ' +
-                    'anyway, but a lost control frame will NOT be recovered ' +
-                    `by reconcile: ${renderError(error)}`,
-            )
+            try {
+                console.warn(
+                    'realtime: the durable revocation write failed — revoking ' +
+                        'anyway, but a lost control frame will NOT be recovered ' +
+                        `by reconcile: ${renderError(error)}`,
+                )
+            } catch (sink) {
+                // #395 part 2: a throwing sink must not abort `evict` here —
+                // the durable write already failed, and skipping the apply
+                // below too would leave the connection revoked NOWHERE, local
+                // or remote. One marked line instead, which never throws
+                // (#391).
+                writeMarkedFallback(EVICT_DURABILITY_LOG_FAILED, error, {
+                    label: 'sink failure',
+                    error: sink,
+                })
+            }
         }
         // The revocation itself. Its failure is the more serious of the two, so
         // it propagates in preference to the durability error — never from a
@@ -3848,12 +3860,26 @@ export class ChannelManager<Identity = unknown> {
         } catch (error) {
             durabilityFailed = true
             durabilityError = error
-            console.warn(
-                `realtime: the durable revocation write for ${
-                    safeForLog(channel)
-                } failed — revoking anyway, but a lost control frame will NOT ` +
-                    `be recovered by reconcile: ${renderError(error)}`,
-            )
+            try {
+                console.warn(
+                    `realtime: the durable revocation write for ${
+                        safeForLog(channel)
+                    } failed — revoking anyway, but a lost control frame ` +
+                        `will NOT be recovered by reconcile: ${
+                            renderError(error)
+                        }`,
+                )
+            } catch (sink) {
+                // #395 part 2: same hazard as `evict`'s durability WARN — a
+                // throwing sink must not skip the local apply or the
+                // control-frame publish that follow. One marked line instead,
+                // which never throws (#391).
+                writeMarkedFallback(
+                    REVOKE_CHANNEL_DURABILITY_LOG_FAILED,
+                    error,
+                    { label: 'sink failure', error: sink },
+                )
+            }
         }
         let outcome: RevokeChannelOutcome = 'not-owned'
         if (this.connections.has(clientId)) {
