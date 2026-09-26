@@ -86,24 +86,26 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-8 test files for 9 source files:
+9 test files for 10 source files:
 
 - `packages/scheduler/tests/cron_parser.test.ts`
 - `packages/scheduler/tests/cron_parser_errors.test.ts`
 - `packages/scheduler/tests/decorators.test.ts`
 - `packages/scheduler/tests/distributed_lock.test.ts`
 - `packages/scheduler/tests/presets.test.ts`
+- `packages/scheduler/tests/reporting.test.ts`
 - `packages/scheduler/tests/scheduler.test.ts`
 - `packages/scheduler/tests/task_runner.test.ts`
 - `packages/scheduler/tests/timer_registry.test.ts`
 
-1 mutation battery — **`deno test` does not run these.** Each is an executable
+2 mutation batteries — **`deno test` does not run these.** Each is an executable
 that mutates a source file and re-runs the suites that should notice. Run them
 with `deno task mutate` (all of them, one at a time) or
 `deno task mutate <name>` (one); nightly CI runs the full sweep. See
 [testing.md](../../docs/testing.md#mutation-batteries).
 
 - `packages/scheduler/tests/mutations/lock_release_warn_389.ts`
+- `packages/scheduler/tests/mutations/report_guard_394.ts`
 
 <!-- /generated:tests -->
 
@@ -118,7 +120,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 8 test files directly —
+Then, specific to this package: run its 9 test files directly —
 
 ```bash
 deno test -A packages/scheduler/

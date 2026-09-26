@@ -237,6 +237,15 @@ logger-backed one only when nothing is there. It installs it **in place**
 (`setReporter`) rather than replacing the instance, so any task registered
 before boot survives.
 
+**A reporter that throws no longer crashes the process.** Every warning and
+failure the scheduler reports tries your reporter first, falls back to `console`
+if it throws (or if none is installed), and falls back to `Deno.stderr` if
+`console` throws too — the same line is never lost to a logging sink that is
+itself down. This matters most for a warning fired from inside a run's own
+cleanup (a failed lock release, an abandoned retry chain): without the fallback,
+a throwing reporter there would have gone unhandled and taken the process down
+with it.
+
 ## Discovery and the kernel
 
 ```ts
