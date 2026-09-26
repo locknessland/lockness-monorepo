@@ -51,7 +51,9 @@ import {
     PASS_SAMPLE_FAILED,
     PASS_SAMPLE_LOG_FAILED,
     type PassSample,
+    RECONCILE_LOG_FAILED,
     RedisBroadcastDriver,
+    SWEEP_INSTANCE_LOG_FAILED,
     SWEEP_LOG_FAILED,
 } from '../drivers/redis.ts'
 import { REVOCATION_LOG_FAILED } from '../drivers/enforcement_deadline.ts'
@@ -285,6 +287,8 @@ function captureLogs() {
                 [
                     PASS_SAMPLE_LOG_FAILED,
                     SWEEP_LOG_FAILED,
+                    SWEEP_INSTANCE_LOG_FAILED,
+                    RECONCILE_LOG_FAILED,
                     REVOCATION_LOG_FAILED,
                 ].some((marker) => l.startsWith(marker))
             ),
@@ -955,7 +959,14 @@ Deno.test('#360 P12 (ii) a ghost released while console.warn throws: failed, one
             outcome: 'failed',
             pages: 1,
         }])
-        const lines = logs.errored(SWEEP_LOG_FAILED)
+        // #418 (security review): the "released N hold(s)" WARN's own throw
+        // used to escape #sweepInstance uncaught, and #reconcile's own catch
+        // WARN was unguarded too, so BOTH escaped all the way to the sweep
+        // chain's generic tail (SWEEP_LOG_FAILED). #reconcile's catch is now
+        // guarded, so it is the one that reports this — RECONCILE_LOG_FAILED,
+        // not SWEEP_LOG_FAILED, which this fixture can no longer reach at all.
+        assertEquals(logs.errored(SWEEP_LOG_FAILED), [])
+        const lines = logs.errored(RECONCILE_LOG_FAILED)
         assertEquals(lines.length, 1)
         assertStringIncludes(lines[0], 'warn sink down')
         await advance(time, INTERVAL)

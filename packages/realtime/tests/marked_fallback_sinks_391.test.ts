@@ -50,8 +50,8 @@ import { ChannelManager, REVOCATION_APPLY_LOG_FAILED } from '../manager.ts'
 import { MemoryBroadcastDriver } from '../drivers/memory.ts'
 import {
     PASS_SAMPLE_LOG_FAILED,
+    RECONCILE_LOG_FAILED,
     RedisBroadcastDriver,
-    SWEEP_LOG_FAILED,
 } from '../drivers/redis.ts'
 import {
     EnforcementDeadline,
@@ -229,10 +229,14 @@ const SINKS: SinkRow[] = [
             ),
     },
     {
-        name: 'redis ghost-sweep chain (SWEEP_LOG_FAILED)',
-        marker: SWEEP_LOG_FAILED,
-        // The instance-set read is refused, so the sweep WARNs; the WARN
-        // throws, so the pass rejects into the chain's last handler.
+        name: 'redis #reconcile catch (RECONCILE_LOG_FAILED)',
+        marker: RECONCILE_LOG_FAILED,
+        // The instance-set read is refused, so #reconcile's own catch WARNs;
+        // that WARN is now guarded (#418, security review), so its throw is
+        // contained right there instead of climbing to the chain's generic
+        // last handler (SWEEP_LOG_FAILED) — this fixture can no longer reach
+        // that marker at all.
+
         arm: () =>
             redisRow(
                 async (driver) => {

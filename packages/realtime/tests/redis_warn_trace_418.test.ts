@@ -1,7 +1,7 @@
 /**
- * @fileoverview #418 — the three catch sites in `drivers/redis.ts` the
+ * @fileoverview #418 — the five catch sites in `drivers/redis.ts` the
  * security-review audit named as still calling `console.warn` directly,
- * traced and (all three) routed through `#guardedWarn`.
+ * traced and (all five) routed through `#guardedWarn`.
  *
  * **Traced call chains** — what calls the enclosing function, and what a
  * throwing sink does to it:
@@ -16,9 +16,9 @@
  *   adapter's choice, not the port's contract) — and this package's own
  *   `FakeRedis` test double dispatches every subscriber synchronously, inside
  *   its `PUBLISH` fan-out loop, with no containment of its own. An unguarded
- *   throw there escapes that loop (skipping any other subscriber on the same
- *   publish) and surfaces as a synchronous throw out of the `PUBLISH` round
- *   trip itself.
+ *   throw there escapes that loop, aborting it before a LATER subscriber on
+ *   the same topic is ever reached, and surfaces as a synchronous throw out
+ *   of the `PUBLISH` round trip itself.
  * - **T2** the malformed-control catch in `#verifyAndDecode` — the
  *   control-topic twin of T1: `onControl`'s `deliver` closure calls
  *   `#verifyAndDecode` directly as the subscriber's handler, the identical
@@ -31,22 +31,32 @@
  *   `#announceSwept`, which `#sweepPage` awaits with no `try` of its own,
  *   aborting the loop and skipping every remaining slot on the page (and any
  *   further page) for the SAME dead instance this pass — the #395 "escapes a
- *   loop and skips the rest of it" shape. `#sweepInstance`'s own `try` around
- *   `#sweepOwned` contains the rejection one frame up (it never reaches
- *   `SWEEP_LOG_FAILED`, and never stops another dead instance's sweep), but
- *   only by reporting a DIFFERENT, generic "sweep … failed" line — the
- *   specific departure this site's own WARN would have named is lost, and
- *   the un-swept slots recover only on a later pass.
+ *   loop and skips the rest of it" shape.
+ * - **T4** `#sweepInstance`'s own "sweep … failed" WARN (security review of
+ *   the same issue): its `try` around `#sweepOwned` already turns an ordinary
+ *   sweep failure into one WARN and a normal return, but that WARN itself was
+ *   bare — so when the SINK was what was down, its own throw escaped
+ *   `#sweepInstance` and reached `#reconcile`'s `for` loop with no
+ *   per-iteration `try` to stop it, skipping every OTHER dead instance still
+ *   left in `ids` this pass (#355 A3).
+ * - **T5** `#reconcile`'s own outer catch — the "roster reconcile failed"
+ *   WARN. Once T4's site is guarded, `#sweepInstance` never rejects, so this
+ *   catch fires only for a failure in the pass's OWN housekeeping (a broker
+ *   round trip or decode failure on `SMEMBERS`/`EXISTS`), never for a single
+ *   dead instance's sweep. Guarding it stops that housekeeping failure's WARN
+ *   from erasing itself behind the generic top-of-chain fallback
+ *   (`SWEEP_LOG_FAILED`) when the sink is what is down.
  *
- * All three escape, so all three are now routed through `#guardedWarn`
- * (#409's #369 shape): a throwing sink writes one marked ERROR line instead
- * of escaping.
+ * All five escape, so all five are now routed through `#guardedWarn` (#409's
+ * #369 shape): a throwing sink writes one marked ERROR line instead of
+ * escaping.
  *
- * Red before #418: T1 and T2 fail on `no synchronous throw` (`FakeRedis`'s
- * `PUBLISH` fan-out throws before ever returning a promise to await); T3
- * fails on `no rejection reaches the runtime` after the second, well-formed
- * departure never gets reported — proof that the escape cost real work, not
- * only the log line.
+ * Red before this fix: T1 and T2 fail on `no synchronous throw`; T3 fails on
+ * `no rejection reaches the runtime` after the second, well-formed departure
+ * never gets reported; T4 fails the same way after the second dead
+ * instance's departure never gets reported; T5 fails because
+ * `SWEEP_LOG_FAILED`, not `RECONCILE_LOG_FAILED`, is the only marked line
+ * written — proof the escape climbed past this site's own report.
  *
  * @module @lockness/realtime/tests/redis_warn_trace_418
  */
@@ -56,10 +66,13 @@ import { FakeTime } from '@std/testing/time'
 import {
     CONTROL_DECODE_LOG_FAILED,
     MESSAGE_DECODE_LOG_FAILED,
+    RECONCILE_LOG_FAILED,
     RedisBroadcastDriver,
     SWEEP_DEPARTURE_LOG_FAILED,
+    SWEEP_INSTANCE_LOG_FAILED,
+    SWEEP_LOG_FAILED,
 } from '../drivers/redis.ts'
-import { FakeRedis } from './fake_redis.ts'
+import { type CommandFn, FakeRedis } from './fake_redis.ts'
 import {
     everyChannelThrows,
     settle,
@@ -70,16 +83,36 @@ const START = new Date('2026-09-26T10:00:00Z')
 const PREFIX = 'app:rt'
 const SECRET = 'deployment-secret-with-enough-entropy'
 const CHANNEL = 'presence-room'
-const DEAD = 'instance-dead'
+const OTHER = 'presence-other'
+const INSTANCES_KEY = `${PREFIX}__instances`
 const HOLDERS_KEY = (channel: string, id: string | number) =>
     `${PREFIX}__holders:${channel} ${String(id)}`
 const PRESENCE_KEY = (channel: string) => `${PREFIX}__presence:${channel}`
 const OWNED_KEY = (instanceId: string) => `${PREFIX}__owned:${instanceId}`
-const INSTANCES_KEY = `${PREFIX}__instances`
+const ALIVE_KEY = (instanceId: string) => `${PREFIX}__alive:${instanceId}`
+
+/** A driver with the standard sweep/heartbeat tuning `T3`-`T5` share. */
+function redisDriver(
+    redis: FakeRedis,
+    command: CommandFn = redis.command,
+): RedisBroadcastDriver {
+    return new RedisBroadcastDriver(
+        { command },
+        redis.subscriberFor(),
+        {
+            prefix: PREFIX,
+            presence: {
+                livenessTtlSeconds: 2,
+                heartbeatIntervalMs: 500,
+                reconcileIntervalMs: 1_000,
+            },
+        },
+    )
+}
 
 /** A roster entry byte-identical to what `HOLD_MEMBER_SCRIPT` writes. */
-const entry = (id: string | number) =>
-    JSON.stringify({ member: { id }, owner: DEAD })
+const entry = (id: string | number, owner: string) =>
+    JSON.stringify({ member: { id }, owner })
 
 /** Write a dead instance's hold directly, as `presence_sweep_departure_348.test.ts` does. */
 async function plantHold(
@@ -87,11 +120,12 @@ async function plantHold(
     channel: string,
     field: string,
     value: string,
+    owner: string,
 ): Promise<void> {
-    await redis.command('HSET', HOLDERS_KEY(channel, field), DEAD, value)
+    await redis.command('HSET', HOLDERS_KEY(channel, field), owner, value)
     await redis.command('HSET', PRESENCE_KEY(channel), field, value)
-    await redis.command('SADD', OWNED_KEY(DEAD), `${channel} ${field}`)
-    await redis.command('SADD', INSTANCES_KEY, DEAD)
+    await redis.command('SADD', OWNED_KEY(owner), `${channel} ${field}`)
+    await redis.command('SADD', INSTANCES_KEY, owner)
 }
 
 /** A row, armed: what drives it to its sink, and what tears it down. */
@@ -100,6 +134,13 @@ interface Armed {
     fire: () => Promise<void>
     /** Tear the fixture down, after the channels are restored. */
     dispose: () => Promise<void>
+    /**
+     * Whether a LATER subscriber on the same bus still received the frame —
+     * the "contained is not the end of the story" half: proof the malformed
+     * frame did not abort `FakeRedis`'s `PUBLISH` fan-out before it reached
+     * whichever subscriber comes after the traced site's own.
+     */
+    delivered: () => boolean
 }
 
 /** One traced site: its name, and how to build a fixture that reaches it. */
@@ -127,6 +168,13 @@ const ROWS: TraceRow[] = [
             )
             driver.onMessage(() => {})
             const topic = `${PREFIX}__event:news`
+            // A second, independent subscriber on the same glob, registered
+            // AFTER the driver's own — so it sits LATER in FakeRedis's
+            // PUBLISH fan-out loop than `#deliver` does.
+            let secondReceived = false
+            redis.subscriberFor().psubscribe(`${PREFIX}__event:*`, () => {
+                secondReceived = true
+            })
             return {
                 // Not async, and not awaited: `redis.command(...)` dispatches
                 // to every subscriber SYNCHRONOUSLY, inside its own call —
@@ -138,6 +186,7 @@ const ROWS: TraceRow[] = [
                     return Promise.resolve()
                 },
                 dispose: () => driver.close(),
+                delivered: () => secondReceived,
             }
         },
     },
@@ -154,12 +203,17 @@ const ROWS: TraceRow[] = [
             )
             driver.onControl(() => {})
             const topic = `${PREFIX}__control`
+            let secondReceived = false
+            redis.subscriberFor().psubscribe(topic, () => {
+                secondReceived = true
+            })
             return {
                 fire: () => {
                     void redis.command('PUBLISH', topic, 'not json')
                     return Promise.resolve()
                 },
                 dispose: () => driver.close(),
+                delivered: () => secondReceived,
             }
         },
     },
@@ -212,6 +266,12 @@ for (const row of ROWS) {
                     JSON.stringify(marked)
                 }`,
             )
+            assert(
+                armed.delivered(),
+                'a later subscriber on the same bus still received the ' +
+                    "frame — this site's own sink failure did not also " +
+                    "abort FakeRedis's PUBLISH fan-out before reaching it",
+            )
         })
     })
 }
@@ -228,18 +288,7 @@ Deno.test('#418 T3 the ghost-sweep departure-handler catch in #announceSwept: ev
     await watchingEscapes(async (escaped) => {
         const time = new FakeTime(START)
         const redis = new FakeRedis()
-        const driver = new RedisBroadcastDriver(
-            { command: redis.command },
-            redis.subscriberFor(),
-            {
-                prefix: PREFIX,
-                presence: {
-                    livenessTtlSeconds: 2,
-                    heartbeatIntervalMs: 500,
-                    reconcileIntervalMs: 1_000,
-                },
-            },
-        )
+        const driver = redisDriver(redis)
         const reported: (string | number)[] = []
         driver.onRosterDeparture?.(({ member }) => {
             if (member.id === 'throws') {
@@ -253,11 +302,23 @@ Deno.test('#418 T3 the ghost-sweep departure-handler catch in #announceSwept: ev
             // The throwing slot FIRST, so "the sweep still reaches the next
             // slot" is proven by the well-formed one released right after it,
             // on the SAME page of the SAME dead instance's sweep.
-            await plantHold(redis, CHANNEL, 'throws', entry('throws'))
-            await plantHold(redis, CHANNEL, '8', entry(8))
+            await plantHold(
+                redis,
+                CHANNEL,
+                'throws',
+                entry('throws', 'instance-dead'),
+                'instance-dead',
+            )
+            await plantHold(
+                redis,
+                CHANNEL,
+                '8',
+                entry(8, 'instance-dead'),
+                'instance-dead',
+            )
             // The driver holds something of its own, so its reconcile pass
             // runs at all.
-            await driver.holdMember('presence-other', { id: 9 })
+            await driver.holdMember(OTHER, { id: 9 })
             using channels = everyChannelThrows()
             try {
                 await time.tickAsync(3_500)
@@ -298,6 +359,146 @@ Deno.test('#418 T3 the ghost-sweep departure-handler catch in #announceSwept: ev
             'the well-formed departure right after the throwing one is ' +
                 "still reported — the WARN's own sink failure did not " +
                 'also cost #sweepPage the rest of its page',
+        )
+    })
+})
+
+/**
+ * T4 — `#sweepInstance`'s own "sweep … failed" WARN (security review): one
+ * dead instance's `#sweepOwned` genuinely fails (its owned set's `SSCAN`
+ * round trip is refused), so `#sweepInstance` reports it — under a broken
+ * sink, that report used to escape `#sweepInstance` and abort `#reconcile`'s
+ * `for` loop before it ever reached the SECOND dead instance. Proves #355
+ * A3 ("one instance's failure ends only that instance's sweep") survives
+ * even when the failing instance's OWN report cannot be logged.
+ */
+Deno.test("#418 T4 #sweepInstance's own sweep-failed WARN: every channel throwing, a second dead instance is still swept in the same pass", async () => {
+    await watchingEscapes(async (escaped) => {
+        const time = new FakeTime(START)
+        const redis = new FakeRedis()
+        const DEAD_A = 'instance-dead-a'
+        const DEAD_B = 'instance-dead-b'
+        const command: CommandFn = (...args) =>
+            args[0] === 'SSCAN' && args[1] === OWNED_KEY(DEAD_A)
+                ? Promise.reject(new Error('owned scan refused (#418)'))
+                : redis.command(...args)
+        const driver = redisDriver(redis, command)
+        const reported: (string | number)[] = []
+        driver.onRosterDeparture?.(({ member }) =>
+            void reported.push(member.id)
+        )
+        let thrown: unknown = undefined
+        let lines: readonly string[] = []
+        try {
+            // A, whose sweep fails outright — planted FIRST, so it is
+            // attempted before B in `#reconcile`'s `for` loop (FakeRedis's
+            // SMEMBERS preserves SADD insertion order).
+            await plantHold(redis, CHANNEL, '7', entry(7, DEAD_A), DEAD_A)
+            // B, an ordinary dead instance right after it.
+            await plantHold(redis, CHANNEL, '8', entry(8, DEAD_B), DEAD_B)
+            await driver.holdMember(OTHER, { id: 9 })
+            using channels = everyChannelThrows()
+            try {
+                await time.tickAsync(3_500)
+                await settle()
+            } catch (error) {
+                thrown = error
+            }
+            lines = [...channels.errorLines()]
+        } finally {
+            await driver.close()
+            time.restore()
+            // A's owned entry is never released (its SSCAN never succeeds),
+            // which is the fixture's point, not a bug this row swallows.
+        }
+        assertEquals(thrown, undefined, 'no synchronous throw')
+        assertEquals(escaped, [], 'no rejection reaches the runtime')
+        const marked = lines.filter((line) =>
+            line.startsWith(`${SWEEP_INSTANCE_LOG_FAILED} `)
+        )
+        assert(
+            marked.length >= 1,
+            `the site's own marked line was attempted: ${
+                JSON.stringify(lines)
+            }`,
+        )
+        assert(
+            marked.some((line) =>
+                line.split('; sink failure')[0].includes(
+                    'sweep of dead instance',
+                )
+            ),
+            `its subject names the sweep failure: ${JSON.stringify(marked)}`,
+        )
+        assertEquals(
+            reported,
+            [8],
+            "B's departure is still reported in the SAME pass — A's own " +
+                'sweep-failure WARN losing its sink did not also cost ' +
+                "#reconcile's loop the rest of `ids`",
+        )
+    })
+})
+
+/**
+ * T5 — `#reconcile`'s own outer catch: a failure in the pass's OWN
+ * housekeeping (here, the `EXISTS` round trip for one instance) is what this
+ * catch reports; #395/#409's shared question is whether that report's own
+ * sink failure erases itself behind the generic top-of-chain fallback
+ * (`SWEEP_LOG_FAILED`) instead of this site's own, more specific marker.
+ */
+Deno.test("#418 T5 #reconcile's own outer catch: every channel throwing, its OWN marker fires, not the generic top-of-chain fallback", async () => {
+    await watchingEscapes(async (escaped) => {
+        const time = new FakeTime(START)
+        const redis = new FakeRedis()
+        const DEAD_C = 'instance-dead-c'
+        const command: CommandFn = (...args) =>
+            args[0] === 'EXISTS' && args[1] === ALIVE_KEY(DEAD_C)
+                ? Promise.reject(new Error('exists refused (#418)'))
+                : redis.command(...args)
+        const driver = redisDriver(redis, command)
+        let thrown: unknown = undefined
+        let lines: readonly string[] = []
+        try {
+            await redis.command('SADD', INSTANCES_KEY, DEAD_C)
+            await driver.holdMember(OTHER, { id: 9 })
+            using channels = everyChannelThrows()
+            try {
+                await time.tickAsync(3_500)
+                await settle()
+            } catch (error) {
+                thrown = error
+            }
+            lines = [...channels.errorLines()]
+        } finally {
+            await driver.close()
+            time.restore()
+        }
+        assertEquals(thrown, undefined, 'no synchronous throw')
+        assertEquals(escaped, [], 'no rejection reaches the runtime')
+        const marked = lines.filter((line) =>
+            line.startsWith(`${RECONCILE_LOG_FAILED} `)
+        )
+        assert(
+            marked.length >= 1,
+            `the site's own marked line was attempted: ${
+                JSON.stringify(lines)
+            }`,
+        )
+        assert(
+            marked.some((line) =>
+                line.split('; sink failure')[0].includes(
+                    'roster reconcile failed',
+                )
+            ),
+            `its subject names the reconcile failure: ${
+                JSON.stringify(marked)
+            }`,
+        )
+        assert(
+            !lines.some((line) => line.startsWith(`${SWEEP_LOG_FAILED} `)),
+            'the generic top-of-chain fallback never fires — this site ' +
+                `contained its own escape: ${JSON.stringify(lines)}`,
         )
     })
 })

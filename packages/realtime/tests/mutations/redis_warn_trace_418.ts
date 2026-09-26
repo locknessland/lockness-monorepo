@@ -1,6 +1,7 @@
 /**
- * @fileoverview #418's mutation battery — the 3 traced catch sites this issue
- * routed through `#guardedWarn` stay guarded.
+ * @fileoverview #418's mutation battery — the 5 traced catch sites this issue
+ * routed through `#guardedWarn` stay guarded (3 from the original trace, 2
+ * more from the security review of the same issue).
  *
  * Each row puts one site's direct `console.warn` call back, the pre-#418
  * shape:
@@ -13,6 +14,12 @@
  *   unguarded, the throw rejects `#announceSwept`, which `#sweepPage`'s loop
  *   awaits with no `try` of its own, so the well-formed departure right after
  *   the throwing one is never reported.
+ * - M4: `#sweepInstance`'s own "sweep … failed" WARN — unguarded, its throw
+ *   escapes `#sweepInstance` and reaches `#reconcile`'s `for` loop, so a
+ *   SECOND dead instance is never swept in the same pass.
+ * - M5: `#reconcile`'s own outer catch — unguarded, its throw escapes
+ *   `#reconcile()` and is caught only by the generic top-of-chain fallback
+ *   (`SWEEP_LOG_FAILED`), losing this site's own, more specific marker.
  *
  * The witness each row dies on:
  *
@@ -20,6 +27,10 @@
  * - M2: T2, `no synchronous throw`.
  * - M3: T3, either `no rejection reaches the runtime` or the "still reported"
  *   assertion — the mutant breaks both halves T3 checks.
+ * - M4: T4, either `no rejection reaches the runtime` or the "still swept"
+ *   assertion.
+ * - M5: T5, either `no rejection reaches the runtime` or the "OWN marker
+ *   fires, not the generic fallback" assertion.
  *
  * Every row was proven LIVE before it was trusted: with the mutant applied,
  * the killing witness was run alone and the stack of the escape it reported
@@ -132,12 +143,71 @@ const MUTATIONS: Mutation[] = [
         // "still reported" assertion; the mutant breaks both.
         killedBy: '#418 T3 ',
     },
+    {
+        label:
+            'M4 — #sweepInstance: the sweep-failed WARN back to a bare console.warn',
+        file: REDIS,
+        edits: [[
+            '            // Counted BEFORE the WARN, so a sink that throws cannot skip it.\n' +
+            '            if (this.#sweepPass) this.#sweepPass.failures++\n' +
+            "            // #418 (security review): nothing between here and #reconcile's\n" +
+            '            // `for` loop catches a throw — an unguarded WARN that ALSO threw\n' +
+            '            // used to escape this method and abort the loop, skipping every\n' +
+            '            // id still left in `ids` (#355 A3). One marked line, through\n' +
+            "            // #guardedWarn's shared #369 shape.\n" +
+            '            this.#guardedWarn(\n' +
+            '                SWEEP_INSTANCE_LOG_FAILED,\n' +
+            '                `realtime: sweep of dead instance ${id} failed after ` +\n' +
+            '                    `${released} hold(s) released (${emptied} emptied): ` +\n' +
+            '                    renderError(end.failed),\n' +
+            '            )\n',
+            '            // Counted BEFORE the WARN, so a sink that throws cannot skip it.\n' +
+            '            if (this.#sweepPass) this.#sweepPass.failures++\n' +
+            '            console.warn(\n' +
+            '                `realtime: sweep of dead instance ${id} failed after ` +\n' +
+            '                    `${released} hold(s) released (${emptied} emptied): ` +\n' +
+            '                    renderError(end.failed),\n' +
+            '            )\n',
+        ]],
+        // Witness: T4 — either `no rejection reaches the runtime` or the
+        // "still swept" assertion; the mutant breaks both.
+        killedBy: '#418 T4 ',
+    },
+    {
+        label:
+            "M5 — #reconcile: the outer catch's WARN back to a bare console.warn",
+        file: REDIS,
+        edits: [[
+            '        } catch (error) {\n' +
+            '            // #418 (security review): this catch wraps the whole pass, with\n' +
+            '            // no per-id try inside the loop — so an unguarded WARN here that\n' +
+            '            // ALSO throws would escape `#reconcile()` itself, skipping every\n' +
+            '            // id still left in `ids` this pass (#355 A3). One marked line,\n' +
+            "            // through #guardedWarn's shared #369 shape.\n" +
+            '            this.#guardedWarn(\n' +
+            '                RECONCILE_LOG_FAILED,\n' +
+            '                `realtime: roster reconcile failed: ${renderError(error)}`,\n' +
+            '            )\n' +
+            "            return 'failed'\n" +
+            '        }\n',
+            '        } catch (error) {\n' +
+            '            console.warn(\n' +
+            '                `realtime: roster reconcile failed: ${renderError(error)}`,\n' +
+            '            )\n' +
+            "            return 'failed'\n" +
+            '        }\n',
+        ]],
+        // Witness: T5 — either `no rejection reaches the runtime` or the
+        // "OWN marker fires" assertion; the mutant breaks both (it also makes
+        // the generic SWEEP_LOG_FAILED fallback fire instead).
+        killedBy: '#418 T5 ',
+    },
 ]
 
 if (import.meta.main) {
     Deno.exit(
         await runBattery(
-                '#418 — the 3 traced catch sites stay guarded',
+                '#418 — the 5 traced catch sites stay guarded',
                 SUITES,
                 MUTATIONS,
             ) >
