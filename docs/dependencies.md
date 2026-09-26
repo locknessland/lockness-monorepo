@@ -64,7 +64,7 @@ The dependency graph is acyclic (DAG).
 | `notification`          | container, contract                                  | drizzle, logger, mail, queue, sse                                                    |
 | `openapi`               | cli, contract, hono                                  | —                                                                                    |
 | `queue`                 | contract, redis                                      | —                                                                                    |
-| `realtime`              | contract, hono, redis                                | events                                                                               |
+| `realtime`              | contract, deprecation-contracts, hono, redis         | events                                                                               |
 | `redis`                 | contract                                             | —                                                                                    |
 | `scheduler`             | —                                                    | —                                                                                    |
 | `search`                | —                                                    | —                                                                                    |
