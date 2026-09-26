@@ -287,11 +287,13 @@ const MUTATIONS: Mutation[] = [
             '            budgetMs,\n' +
             '            this.#reconcilePass,\n' +
             '            stopped,\n' +
+            '            maintenanceStopped,\n' +
             '        )\n',
             '        const pending = await awaitCloseDrain(\n' +
             '            budgetMs,\n' +
             '            undefined,\n' +
             '            stopped,\n' +
+            '            maintenanceStopped,\n' +
             '        )\n',
         ]],
         killedBy: '#355 W4 (i)',
@@ -365,11 +367,13 @@ const MUTATIONS: Mutation[] = [
                 '            budgetMs,\n' +
                 '            this.#reconcilePass,\n' +
                 '            stopped,\n' +
+                '            maintenanceStopped,\n' +
                 '        )\n',
                 '        const pending = await awaitCloseDrain(\n' +
                 '            budgetMs,\n' +
                 '            this.#reconcilePass,\n' +
                 '            stopped,\n' +
+                '            maintenanceStopped,\n' +
                 '        )\n' +
                 '        this.revocationHandler = undefined\n',
             ],
