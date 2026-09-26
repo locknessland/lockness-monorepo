@@ -80,6 +80,11 @@
         // scripts/gate.ts only; `deno task gate --leaks` is CI's variant.
         "gate": "deno run -A scripts/gate.ts",
         "hooks:install": "deno run -A scripts/install_hooks.ts",
+        // One pin (scripts/gitleaks_manifest.ts), one verified install path
+        // (scripts/install_gitleaks.ts): the pre-push hook
+        // (scripts/prepush_secret_scan.ts) and secret-scan.yml both run this
+        // task rather than each re-implementing the download-and-verify steps.
+        "gitleaks:install": "deno run -A scripts/install_gitleaks.ts",
         "init": "deno run -Ar packages/init/mod.ts _lockness_app",
         "ui": "deno run -Ar packages/ui/mod.ts"
     },

@@ -87,8 +87,13 @@ echo "✅ Pre-commit checks passed!"
 `,
     'pre-push': `#!/bin/bash
 ${HOOK_MARKER}
-# Pre-push: runs \`deno task gate\`, the quality gate defined in deno.jsonc.
-exec deno task gate
+# Pre-push: runs \`deno task gate\`, the quality gate defined in deno.jsonc,
+# then a ranged gitleaks scan of exactly the commits being pushed
+# (scripts/prepush_secret_scan.ts). Either step failing refuses the push;
+# the scan reads git's ref-update lines from this hook's own stdin.
+set -e
+deno task gate
+exec deno run -A scripts/prepush_secret_scan.ts
 `,
 }
 
