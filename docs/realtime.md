@@ -1542,11 +1542,14 @@ the departed entry to whichever sweep runs it first.
   interval **plus one pass** after the crash — about 25 s with the defaults
   below, on a healthy broker. Tighten both options to shorten it; the heartbeat
   must stay well inside the TTL.
-- **Shutting down mid-sweep.** `close()` waits for a pass in flight: the pass
-  stops at its next write, and a release already sent still has its departure
-  announced. The wait is bounded by the command client — up to two broker round
-  trips plus one departure-handler call, about a minute at `fromConfig`'s 30 s
-  command timeout.
+- **Shutting down mid-sweep.** `close()` waits for a pass in flight, bounded at
+  one liveness TTL
+  ([#368](https://github.com/locknessland/lockness-monorepo/issues/368),
+  [ADR 014](adr/014-realtime-bounded-close-drain.md)): the pass stops at its
+  next write, and a release that settles within the budget still has its
+  departure announced. Past the budget `close()` writes one WARN and carries on
+  — the departure handler is already dropped, so a release that settles later
+  announces nothing, and no further sweep command is issued.
 - **A large crash is a burst.** Each such member costs the sweeping instance one
   release `EVAL` and one `PUBLISH` on its shared command connection, so its
   other commands queue behind them. Past a peer's per-origin share of the replay
@@ -1613,9 +1616,14 @@ live instance never reclaims its own holds. Consequences worth holding on to:
     overwriting it, so every beat fails until the key is removed; deleting the
     alive key forces a re-assert.
   - **Shutting down.** `close()` stops a re-assert before its next slot and
-    waits for the slot in flight: at most one slot write plus what is queued
-    ahead of it, or the revocation re-check in flight — 30 s per command at
-    `fromConfig`'s timeout.
+    waits for the slot in flight, sharing the sweep pass's one-liveness-TTL
+    budget above
+    ([#368](https://github.com/locknessland/lockness-monorepo/issues/368),
+    [ADR 014](adr/014-realtime-bounded-close-drain.md)): at most one slot write
+    plus what is queued ahead of it, or the revocation re-check in flight. Past
+    the budget `close()` writes one WARN and carries on; the abort signal was
+    already set before the wait began, so the re-assert never reaches a further
+    slot even if the one in flight settles later.
   - An instance that **stays** stalled stays missing: from the fleet's side, it
     is down.
 
@@ -1835,7 +1843,10 @@ the ledger itself remembers). The contract:
   next tick tries again — there is no timer.
 - **The handler takes no argument.** Unlike `onRosterLapse`'s signal, there is
   nothing to abort mid-run: `close()` simply refuses a new run and waits for one
-  already in flight before it closes your connections.
+  already in flight, sharing the sweep pass and the lapse run's one liveness-TTL
+  budget ([#368](https://github.com/locknessland/lockness-monorepo/issues/368)),
+  before it closes your connections. Past that budget `close()` writes one WARN
+  and carries on regardless.
 
 A driver without the method keeps a release failure's only backstop the ghost
 sweep — exactly today's behaviour, unchanged.
@@ -2312,7 +2323,7 @@ inject an out-of-charset name or reach an unauthorized local connection.
 
 ## Upgrading to v0.4.0
 
-Twenty-six items. Eighteen are breaking changes — the driver revocation seam,
+Twenty-seven items. Eighteen are breaking changes — the driver revocation seam,
 the presence snapshot a subscribe returns, the driver roster seam, presence
 frames announced per member rather than per connection, an authorizer result
 outside its contract now throwing, a presence member id that is not a string or
@@ -2327,17 +2338,18 @@ socket no longer getting your `onClose`, a revocation re-check handler type a
 driver's narrowly typed slot no longer holds, and a Redis heartbeat interval no
 timer can hold now refused at boot — plus two widened return types, one new
 control kind, one additive wire field and one additive getter. Item 16 changes
-no behaviour: it corrects earlier guidance. Items 19, 24 and 26 are observable,
-not breaking: a malformed sweep reply now logs a WARN, a revocation record now
-lives up to the fleet's longest live TTL, and a failed unwatch now reconnects
-the Redis subscribe socket. Item 23 also changes what the deadline reports: a
-revocation pass with a failed apply no longer re-arms it. The release also adds
-`onPassComplete` and its `PassSample` — additive, no item of its own — which
-reports the duration and page count of every ghost sweep and revocation pass;
-see [Measuring the passes](#measuring-passes). **No migration step, and two new
-Redis keys.** Before you deploy, read items 1, 3, 5, 6, 8, 9, 10, 11, 12, 13,
-14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25 and 26 — and items 2 and 7 if you
-wrote your own driver.
+no behaviour: it corrects earlier guidance. Items 19, 24, 26 and 27 are
+observable, not breaking: a malformed sweep reply now logs a WARN, a revocation
+record now lives up to the fleet's longest live TTL, a failed unwatch now
+reconnects the Redis subscribe socket, and `close()` now bounds its wait for a
+stalled command port instead of hanging. Item 23 also changes what the deadline
+reports: a revocation pass with a failed apply no longer re-arms it. The release
+also adds `onPassComplete` and its `PassSample` — additive, no item of its own —
+which reports the duration and page count of every ghost sweep and revocation
+pass; see [Measuring the passes](#measuring-passes). **No migration step, and
+two new Redis keys.** Before you deploy, read items 1, 3, 5, 6, 8, 9, 10, 11,
+12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26 and 27 — and items 2
+and 7 if you wrote your own driver.
 
 ### 1. Upgrade every instance before you rely on `revokeChannel`
 
@@ -3260,8 +3272,6 @@ above that ceiling. The rule is stated once, in
 [the heartbeat timing](#heartbeat-timing); the defaults (`5000` ms against `15`
 s) pass. The fix is to lower the interval.
 
-No wire change, and no migration step.
-
 ### 26. A failed `unwatchChannel` now discards and reconnects the Redis subscribe socket
 
 **Before**, a rejected `PUNSUBSCRIBE`/`UNSUBSCRIBE` write on the Redis subscribe
@@ -3282,6 +3292,37 @@ never retries the unwatch itself. What is now observable is the recovery: a
 reconnect that deafens every channel this connection hosts — the same cost this
 connection already pays on any other write failure, traded for a partial desync
 that used to have no bound at all.
+
+No wire change, and no migration step.
+
+### 27. `close()` now bounds its wait for a stalled command port
+
+**Before**, `close()` awaited its ghost-sweep pass, then its lapse run, then its
+owed-release drain
+([#371](https://github.com/locknessland/lockness-monorepo/issues/371)),
+unconditionally. The command port serialises every exchange, so a command that
+never settled — an injected port that violated its own "every command settles"
+contract — made `close()` hang forever: a graceful shutdown that never returned,
+with the owned connections never closed
+([#368](https://github.com/locknessland/lockness-monorepo/issues/368)).
+
+**After**, `close()` waits for that same work — all three, in the same order —
+for at most one liveness TTL —
+`Math.min(livenessTtlSeconds * 1000,
+MAX_TIMER_MS)`, the driver's own existing
+definition of when a silent instance counts as dead
+([ADR 014](adr/014-realtime-bounded-close-drain.md)). Past that budget `close()`
+writes one WARN naming what was still pending and finishes the rest of its
+teardown regardless: the departure, lapse-run and roster-maintenance handlers
+are dropped and the owned connections are still closed. It never cancels a
+stalled command and never frees the sweep slot — see this section's own
+"Shutting down mid-sweep" and "Shutting down" bullets, above, for what a late
+settlement does and does not do.
+
+No configuration change: the bound is `presence.livenessTtlSeconds`, already
+set. The built-in client is not affected in practice — `READ_TIMEOUT_MS`
+(`@lockness/redis`) bounds every round trip well inside a typical TTL — this
+only changes behaviour for an injected port whose commands can stall.
 
 No wire change, and no migration step.
 
