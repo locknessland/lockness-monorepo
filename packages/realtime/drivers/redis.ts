@@ -118,6 +118,18 @@ const INDEX_TTL_SLACK_SECONDS = 60
  * and a WRONGTYPE-refusing write (`SADD`/`HSET`/`LPUSH`) never gets far enough
  * to reach this script at all. So the former zset is already gone, at the
  * Redis layer, the instant `TYPE` disagrees — before any remedy here runs.
+ *
+ * **That claim is about the value that is GONE, not the value that is
+ * THERE.** A `RENAME`/`COPY … REPLACE`/`RESTORE … REPLACE`, an inbound
+ * `MIGRATE` or a `SWAPDB` can land another key's live data under this name,
+ * and the `DEL` then destroys that data too — and if what lands is itself a
+ * zset, `TYPE` reads `zset`, no heal runs, and revocation records mix into it
+ * undetected. Both need a client that can already write this keyspace, and no
+ * Lua script can defend against that from the inside. The control is the one
+ * `docs/realtime.md` already makes a condition ("Security posture: the bus is
+ * trusted"): a Redis ACL under which no credential but the app's own reaches
+ * `~<prefix>__*`.
+ *
  * Quarantining the key (renaming it aside) would therefore preserve nothing
  * recoverable: no forensic value beyond the WARN's own "prior type" word, at
  * the cost of an unbounded, un-TTL'd key an attacker can keep spawning under

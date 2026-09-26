@@ -124,6 +124,16 @@ not merely rejected: every revocation is a member of this ONE sorted set; no
 per-record key is ever written, and manufacturing one now would double every
 mark's round trips.
 
+**That argument covers the value that is gone, not the value that lands.** A
+`RENAME`, `COPY … REPLACE`, `RESTORE … REPLACE`, an inbound `MIGRATE` or a
+`SWAPDB` can put another key's live data under the index's name; the heal then
+deletes that data as well, and if what lands is itself a zset, `TYPE` reads
+`zset`, no heal runs, and new revocation records mix into it undetected (#411
+security review). Every one of these needs a client that can already write the
+deployment's keyspace, which no script can defend against from the inside. The
+control is the Redis ACL `docs/realtime.md` already makes a condition — no
+credential but the app's own reaches `~<prefix>__*`.
+
 **The reap and the mark leave a healed index in different shapes**, because they
 write it differently. The reap only prunes the index (`ZREMRANGEBYSCORE`) — it
 never `ZADD`s — so a reap-side heal leaves the index ABSENT (`none`), not a
