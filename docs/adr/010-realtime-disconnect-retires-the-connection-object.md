@@ -6,8 +6,10 @@
 (§7); [#404](https://github.com/locknessland/lockness-monorepo/issues/404),
 2026-09-25 (§7, the `onClose` pairing);
 [#372](https://github.com/locknessland/lockness-monorepo/issues/372), 2026-09-26
-(§5) **Affects:** `packages/realtime/manager.ts`, `packages/realtime/mod.ts`,
-`packages/realtime/types.ts`, `docs/realtime.md`, `packages/realtime/AGENTS.md`
+(§5); [#393](https://github.com/locknessland/lockness-monorepo/issues/393),
+2026-09-26 (§6, §7) **Affects:** `packages/realtime/manager.ts`,
+`packages/realtime/mod.ts`, `packages/realtime/types.ts`, `docs/realtime.md`,
+`packages/realtime/AGENTS.md`
 
 ---
 
@@ -229,6 +231,9 @@ re-key it by id, and never delete from `connections` at `disconnect`'s entry.
 Since §7: `register` is the only writer of `connections`, and a teardown the
 framework runs acts only on the object that owns the id.
 
+Since #393: the map now stores the settled promise, not a boolean — a second
+teardown of an object already present joins it rather than running its own.
+
 ---
 
 ## 7. Amendment — `register` is the only way in, and teardown is owner-scoped
@@ -323,9 +328,12 @@ the id in its message.
   pass `conn`; deprecating the id form for app callers is
   [#392](https://github.com/locknessland/lockness-monorepo/issues/392). A custom
   transport that does not use `handlerHooks` keeps the refused-socket case too.
-- **Two overlapping teardowns of one object** mid-loop on a shared channel. It
+- ~~**Two overlapping teardowns of one object** mid-loop on a shared channel. It
   needs this record's retirement restructured to one teardown per object; the
-  owner checks above cover only the case where the object was replaced.
+  owner checks above cover only the case where the object was replaced.~~
+  **Resolved by
+  [#393](https://github.com/locknessland/lockness-monorepo/issues/393):** see
+  below.
 - **The app's own `onClose` runs exactly once for each socket whose `onOpen`
   ran** on `handlerHooks` — evicted ones included, refused ones never (#404,
   below). It is still not an ownership signal: an evicted socket's id may
@@ -382,3 +390,60 @@ twice for one object. By design, an app `onOpen` that throws or closes the
 socket itself still gets `onClose` — the socket was admitted — so an app counter
 must increment first; `docs/realtime.md` shows the pattern. `onError` still
 hears a refused socket.
+
+### #393 — one teardown per object
+
+_[#393](https://github.com/locknessland/lockness-monorepo/issues/393),
+2026-09-26. The design is the `architect-expert` disposition of that date._
+
+**The rule.** `#retired` becomes a
+`WeakMap<Connection, Promise<DisconnectOutcome>>`. A second `disconnect` of an
+object already present here — `evict`'s id-form call racing the transport's own
+close event with the object form, both entered while the object still owned the
+id — joins the first call's promise instead of computing its own snapshot of
+`#channelsByClient` and running its own loop. No new snapshot, no new loop: the
+id stays bound to the retiring object until that one teardown ends.
+
+**The home** is `disconnect`, and only there. The owner pre-check (object form)
+is unchanged, asked first. `bound = connections.get(clientId)` is read exactly
+as #361 always read it. If `bound` is present and `#retired.get(bound)` is
+already set, that promise is returned — nothing else runs. Otherwise `#teardown`
+(the extracted loop and `finally`, #361/#370/#363's shape, unmoved) is called
+and its promise is written into `#retired` synchronously, in the same turn,
+before `disconnect` does anything else: `#teardown` already ran up to its own
+first `await` by the time that write happens, so nothing has run in between that
+could have found `bound` retiring with no entry — a same-turn double call for
+the very same object still joins. `#assertAdmissible` keeps asking
+`.has(connection)`: the value a joiner reads is `disconnect`'s business, not
+admission's.
+
+**Rejected, with their costs:**
+
+- **A second `WeakSet` (`#tearingDown`) beside `#retired`**, coordinated by
+  polling or a callback. Two structures answering one question — exactly the
+  duplication ADR 010 already avoids by design — for a guarantee a stored
+  promise gives for free.
+- **An id-keyed lock (`Map<string, Promise>`).** §4 already rejected an id-keyed
+  retirement record for this exact reason: one entry per socket ever closed,
+  memory driven by client churn, and it reopens a settled question. It would
+  also need an explicit cleanup path a `WeakMap` gets from the GC alone.
+- **Making `unsubscribe` itself owner-checked** (pass the object, verify per
+  channel). `unsubscribe` is a deliberately id-addressed _public_ verb — apps
+  and `revokeChannel` call it with a bare id — so widening its contract is a
+  breaking change to a wider surface than `disconnect`'s own re-entrancy, and it
+  would only treat the symptom per call rather than removing the duplicate
+  caller.
+
+**What this does not solve:**
+
+- **The different-object case** — a different, live or retiring object under the
+  id — is already closed by #363's per-channel `#isOwner` break (§7); unchanged
+  here.
+- **A third or later teardown of the same object** also joins the same settled
+  promise. Correct, but a rejected first teardown means every joiner throws too
+  — unchanged from the single-caller contract this always was.
+- **Which callers race** is untouched: `evict`'s id-form call and a transport's
+  own close event are the framework-internal pair this fix closes for; an
+  application choosing to call `disconnect(conn.id)` itself is #392's and item
+  21's territory.
+- **§5's and §7's other bullets** are unchanged.

@@ -680,6 +680,20 @@ of what the re-check's counts mean.
   above `register` (a refused socket counts as opened); and asking the set who
   owns an id. Witness: `onclose_pairing_404.test.ts`; battery
   `tests/mutations/onclose_pairing_404.ts`.
+- **One teardown per object, ever**
+  ([#393](https://github.com/locknessland/lockness-monorepo/issues/393)).
+  `#retired` is a `WeakMap<Connection, Promise<DisconnectOutcome>>`; a second
+  `disconnect` of an object already present joins that promise instead of
+  computing its own snapshot of `#channelsByClient`. The rule and why are
+  `disconnect`'s JSDoc in `manager.ts` and ADR 010's `#393` subsection; read
+  those, do not restate them. The pitfalls: re-keying `#retired` by `clientId`
+  (a settled entry never clears, so a later, genuinely different object under a
+  by-then-free id would silently join the old one's promise); writing `#retired`
+  anywhere but `disconnect`'s own synchronous prefix, before `#teardown`'s first
+  `await`, which is what makes a same-turn double call join instead of race; and
+  asking `#assertAdmissible` for anything but `.has(connection)`. Witness:
+  `joined_teardown_393.test.ts`; battery
+  `tests/mutations/joined_teardown_393.ts`.
 - **Every realtime reply that grows with a collection has a named bound** — the
   inventory for `MAX_REPLY_BYTES`'s rule (`@lockness/redis`, `resp.ts`: the
   caller bounds the reply; the cap is a backstop that costs the whole socket).
