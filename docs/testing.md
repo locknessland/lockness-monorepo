@@ -634,9 +634,22 @@ app.use('*', actingAs(fakeUser({ id: 1, isAdmin: true })))
   leak's origin.
 - **Synthetic credentials only.** Fixtures use placeholder secrets and
   connection strings — never a real password, token or DSN. The CI secret scan
-  (`.github/workflows/secret-scan.yml`, gitleaks over the full history) is the
-  backstop, not the policy. It runs on push and pull request, not at commit
-  time.
+  (`.github/workflows/secret-scan.yml`, gitleaks over the full history) is a
+  backstop, not the policy — and it is not the only one:
+  `deno task
+  hooks:install` also wires a **local** pre-push scan
+  (`scripts/prepush_secret_scan.ts`) that runs after `deno task gate`, over
+  exactly the commits about to be pushed (`remote_sha..local_sha`, or
+  `origin/main..local_sha` for a new branch). Both share one pinned gitleaks
+  release (`scripts/gitleaks_manifest.ts`, installed by
+  `scripts/install_gitleaks.ts`) and the same fail-closed rules: an ERR/FTL log
+  line, a report that cannot be read, a non-empty report paired with a zero exit
+  status, or "0 commits scanned" over a range known to hold commits all refuse.
+  `.gitleaksignore` applies to both — a reviewed false positive is suppressed
+  there, by fingerprint (`commit:file:rule:line`), never by allowlisting a path
+  and never with a repository-level `.gitleaks.toml` (refused outright). Values
+  are always `--redact`ed, so a real secret is never echoed to a terminal or a
+  CI log.
 - **Mock at the seam.** Prefer an injected fake (a command-runner, a
   seeder-loader, a fake connection) over reaching into internals; the code under
   test should expose the seam.

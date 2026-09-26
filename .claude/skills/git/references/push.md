@@ -86,10 +86,16 @@ out", which reads like success. Run the files instead.
 ### The pre-push hook
 
 `deno task hooks:install` writes the `pre-push` hook, which runs
-`deno task gate`. It is the last thing between a broken tree and origin. Hooks
-are shared by every worktree, so the installer writes into the repository's
-common hooks directory whether it runs from the main checkout or a linked
-worktree.
+`deno task gate`, then a ranged gitleaks scan of exactly the commits being
+pushed (`scripts/prepush_secret_scan.ts`, over `remote_sha..local_sha` — or
+`origin/main..local_sha` for a new branch). It is the last thing between a
+broken tree (or a leaked secret) and origin. Hooks are shared by every
+worktree, so the installer writes into the repository's common hooks directory
+whether it runs from the main checkout or a linked worktree. The scan installs
+its own pinned gitleaks binary on first use (`scripts/install_gitleaks.ts`,
+cached under `~/.cache/lockness/gitleaks/`) and fails closed exactly like
+`secret-scan.yml` — a false positive is suppressed by fingerprint in
+`.gitleaksignore`, never by path, and never by skipping the hook.
 
 **Never `git push --no-verify.`** If the hook is in the way, the answer is to fix
 what it found. If it is genuinely wrong, fix the hook in its own `ci:` commit.
@@ -99,7 +105,23 @@ what it found. If it is genuinely wrong, fix the hook in its own `ci:` commit.
 1. Pre-flight (`scripts/preflight.sh`). Exit 1 → stop and surface.
 2. Commit what belongs, one category per commit.
 3. Run the gate (`deno task gate`). Judge it by its exit status.
-4. Push.
+4. Push. The pre-push hook adds the ranged secret scan described above.
+5. Watch every workflow the push triggered — don't report the push as clean
+   until they are all green:
+
+   ```bash
+   sha="$(git rev-parse HEAD)"
+   gh run list --commit "${sha}" --json databaseId,name --jq '.[].databaseId'
+   ```
+
+   Then, for **every** run id that command lists:
+
+   ```bash
+   gh run watch <id> --exit-status
+   ```
+
+   Never pipe `gh run watch` into anything (see above) — run it plainly, once
+   per id, and let its own exit status decide the verdict.
 
 Never run the gate on a dirty tree and then commit — you will have tested
 something other than what you pushed.
