@@ -42,6 +42,12 @@ interface User {
 const PUBLIC = 'news'
 const DEFAULT_LINE = 'realtime: unhandled websocket error: '
 
+/**
+ * The words of the WARN `handlerHooks` logs when the teardown fails after
+ * the application's own `onClose` already threw (#379's combined witness).
+ */
+const CLOSE_DISCONNECT_FAILED = "after the application's onClose threw"
+
 /** A fake socket recording every frame sent and every close. */
 function fakeSocket() {
     const sent: string[] = []
@@ -69,6 +75,21 @@ async function capturingErrors(
         await body(lines)
     } finally {
         console.error = original
+    }
+}
+
+/** Capture `console.warn` lines for the duration of `body`. */
+async function capturingWarnings(
+    body: (lines: string[]) => Promise<void>,
+): Promise<void> {
+    const lines: string[] = []
+    const original = console.warn
+    console.warn = (...args: unknown[]) =>
+        void lines.push(args.map(String).join(' '))
+    try {
+        await body(lines)
+    } finally {
+        console.warn = original
     }
 }
 
@@ -418,6 +439,57 @@ Deno.test('#369 W3 the hook failure is encoded like the original error: CR/LF, A
                 `${FALLBACK_LINE}${HOSTILE_RENDERED}; hook failure: ${HOSTILE_RENDERED}`,
                 'both halves rendered through renderError, identically',
             )
+        })
+    })
+})
+
+// --- W4: combined — the app's onClose throws AND the teardown fails --------
+
+Deno.test('#379 W4 combined: the app onClose throws AND the teardown fails — one onError call carrying the app error, one WARN', async () => {
+    await watchingEscapes(async (escaped) => {
+        await capturingWarnings(async (warnLines) => {
+            const APP = new Error('app close failed')
+            const { driver } = unwatchFailingDriver()
+            const channels = manager(driver)
+            const errors: { conn: Connection<User>; error: unknown }[] = []
+            const hooks = channels.handlerHooks({
+                onMessage: appOnMessage(channels),
+                onClose: () => {
+                    throw APP
+                },
+                onError: (conn, error) => void errors.push({ conn, error }),
+            })
+            const socket = open(hooks)
+            socket.subscribe(PUBLIC)
+            await settle()
+            assertEquals(channels.connectionCount, 1, 'the open registered')
+
+            socket.close()
+            await settle()
+
+            assertEquals(escaped, [], 'no rejection reaches the runtime')
+            assertEquals(errors.length, 1, 'onError is called exactly once')
+            assertStrictEquals(
+                errors[0].error,
+                APP,
+                "onError carries the app's onClose error, not the teardown " +
+                    'failure that followed it',
+            )
+            assertEquals(
+                warnLines.filter((l) => l.includes(CLOSE_DISCONNECT_FAILED))
+                    .length,
+                1,
+                'exactly one WARN for the teardown failure, never a second ' +
+                    'onError call',
+            )
+            assertEquals(
+                channels.connectionCount,
+                0,
+                'the connection is still forgotten',
+            )
+
+            await assertStillServing(channels, hooks)
+            assertEquals(escaped, [], 'and nothing escaped later either')
         })
     })
 })
