@@ -505,47 +505,62 @@ Deno.test('#370 W12 (i) a late close of an evicted socket leaves its re-register
     assertEquals(eventsNamed(a1, 'ping').length, 1, 'A1 still receives')
 })
 
-Deno.test('#370 W12 (ii) a teardown whose object was replaced while it ran leaves the new binding and its channels alone', async () => {
+Deno.test('#370 W12 (ii) [re-anchored #393] a teardown whose object was replaced leaves the new binding alone', async () => {
     const driver = new RecordingDriver()
     const manager = managerOver(driver, new SpyAuthorizer())
     const hooks = manager.handlerHooks()
     const a0 = conn('c1', ALICE)
     await hooks.onOpen?.(a0)
     assert((await manager.subscribe(a0, 'news')).ok)
-    assert((await manager.subscribe(a0, 'sports')).ok)
 
-    // The second teardown: A0's own close, entered while A0 still owns the id,
-    // suspended inside its loop on the first unwatch.
+    // A0's own close starts the one teardown for it, suspended inside its
+    // loop on the unwatch.
     driver.gateFirstUnwatch()
     const closing = settled(
         Promise.resolve().then(() => hooks.onClose?.(a0, 1000, '')),
     )
     await driver.unwatching
-    // The first teardown: an evict (the id form), which settles meanwhile.
-    await manager.evict('c1')
-    assert(!state(manager).connections.has('c1'), 'the first one forgot A0')
 
-    // A1 registers while the second teardown is still suspended.
+    // #393: a racing evict of the SAME object now JOINS that teardown
+    // instead of running an independent copy that settles on its own — which
+    // is what used to free the id early, mid-loop, for the `finally` guard
+    // below to have to catch. Joined, the id stays A0's for as long as
+    // either call is pending: a different object cannot take it over.
+    const evicting = settled(manager.evict('c1'))
+    // Give evict's OWN internal id-form call the chance it needs to run: in
+    // the unfixed tree its independent copy finds `news` already gone (A0's
+    // own sync delete, above) and settles right here, freeing the id early.
+    await tick()
+    assertThrows(
+        () => manager.register(conn('c1', ALICE)),
+        ConnectionIdInUseError,
+        undefined,
+        "the id is still A0's — evict joined rather than freeing it early",
+    )
+    assert(state(manager).connections.has('c1'), 'a0 is still bound')
+
+    // The `finally` guard this row has pinned since #363 is reachable
+    // through the public API only if a different object takes the binding
+    // mid-loop regardless — a path #393 closes (proven above). The guard
+    // itself is unchanged, so it is exercised directly here, the floor a
+    // later change to it must not remove.
     const a1 = conn('c1', ALICE)
-    await hooks.onOpen?.(a1)
-    assert((await manager.subscribe(a1, 'weather')).ok)
+    state(manager).connections.set('c1', a1)
 
     driver.openUnwatch()
     assertEquals(await closing, 'resolved')
+    assertEquals(await evicting, 'resolved')
 
     assertStrictEquals(state(manager).connections.get('c1'), a1)
-    // The reverse index still lists A1's channel: tearing A1 down reaches it.
-    assertEquals(await manager.disconnect(a1), 'disconnected')
-    assert(driver.unwatched.includes('weather'), "A1's channel was indexed")
 })
 
-Deno.test('#370 W14 a teardown whose object was replaced stops its loop — the new owner keeps a channel the old one also held', async () => {
+Deno.test('#370 W14 [re-anchored #393] a teardown whose object was replaced stops its loop — the new owner keeps a channel the old one also held', async () => {
     // W12 (ii) pins the `finally`; this pins the loop (#370 review, MEDIUM).
-    // A0 holds `news` and `sports`. Its own close starts a teardown that
-    // stalls on `news`'s unwatch; an evict racing it tears A0 down and
-    // settles; A1 registers under the same id and joins `sports` — a channel
-    // still in the stalled teardown's copy. When that teardown resumes it must
-    // not leave `sports` for the id, because the id is A1's now.
+    // #393 closes the public-API path that used to reach either guard: a
+    // racing evict of the SAME object now joins its own teardown instead of
+    // freeing the id early, mid-loop (proven in W12 (ii)). Both guards are
+    // unchanged code, so this row still pokes the binding directly, mid-loop,
+    // as the floor a later change to the loop-stop check must not remove.
     const driver = new RecordingDriver()
     const manager = managerOver(driver, new SpyAuthorizer())
     const hooks = manager.handlerHooks()
@@ -559,12 +574,14 @@ Deno.test('#370 W14 a teardown whose object was replaced stops its loop — the 
         Promise.resolve().then(() => hooks.onClose?.(a0, 1000, '')),
     )
     await driver.unwatching
-    await manager.evict('c1')
 
+    // The binding changes hands WHILE the teardown's own loop is still stuck
+    // on `news` — before it has re-checked ownership for `sports`, the
+    // channel both objects held.
     const a1 = conn('c1', ALICE)
-    await hooks.onOpen?.(a1)
-    assert((await manager.subscribe(a1, 'sports')).ok)
-    // CONTROL: A1 hears `sports` before the stalled teardown resumes.
+    state(manager).connections.set('c1', a1)
+    // CONTROL: A1 (now the id's owner) hears `sports` before the stalled
+    // teardown resumes.
     manager.broadcast('sports', 'before', 1)
     await tick()
     assertEquals(eventsNamed(a1, 'before').length, 1, 'CONTROL: A1 receives')
