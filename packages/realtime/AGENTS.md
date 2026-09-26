@@ -34,12 +34,12 @@ satisfies `@lockness/notification`'s `BroadcasterLike`.
 
 <!-- generated:deps -->
 
-| Direction                                      | Packages                                 |
-| :--------------------------------------------- | :--------------------------------------- |
-| Imports (static)                               | `contract`, `hono`, `redis`              |
-| Imports (soft, via `tryImportOptionalPackage`) | `events`                                 |
-| Imported by                                    | —                                        |
-| **Must never import**                          | nothing — no package depends on this one |
+| Direction                                      | Packages                                             |
+| :--------------------------------------------- | :--------------------------------------------------- |
+| Imports (static)                               | `contract`, `deprecation-contracts`, `hono`, `redis` |
+| Imports (soft, via `tryImportOptionalPackage`) | `events`                                             |
+| Imported by                                    | —                                                    |
+| **Must never import**                          | nothing — no package depends on this one             |
 
 Enforced by `deno task deps:analyze` against `deps.policy.jsonc`. A soft edge is
 deliberately **not** declared in this package's `deno.json`: the consuming
@@ -758,14 +758,33 @@ of what the re-check's counts mean.
   `disconnect` of an object already present joins that promise instead of
   computing its own snapshot of `#channelsByClient`. The rule and why are
   `disconnect`'s JSDoc in `manager.ts` and ADR 010's `#393` subsection; read
-  those, do not restate them. The pitfalls: re-keying `#retired` by `clientId`
-  (a settled entry never clears, so a later, genuinely different object under a
-  by-then-free id would silently join the old one's promise); writing `#retired`
-  anywhere but `disconnect`'s own synchronous prefix, before `#teardown`'s first
+  those, do not restate them. Since #392, the write sits in the private
+  `#teardown(target)` `disconnect` delegates to, not in `disconnect` itself —
+  same synchronous turn either way, since `disconnect` awaits nothing before
+  delegating. The pitfalls: re-keying `#retired` by `clientId` (a settled entry
+  never clears, so a later, genuinely different object under a by-then-free id
+  would silently join the old one's promise); writing `#retired` anywhere but
+  `#teardown`'s own synchronous prefix, before `#teardownChannels`'s first
   `await`, which is what makes a same-turn double call join instead of race; and
   asking `#assertAdmissible` for anything but `.has(connection)`. Witness:
   `joined_teardown_393.test.ts`; battery
   `tests/mutations/joined_teardown_393.ts`.
+- **`disconnect`'s id-form deprecation notice is per MANAGER, and only for
+  application callers**
+  ([#392](https://github.com/locknessland/lockness-monorepo/issues/392)).
+  `disconnect` is a thin wrapper: `typeof target === 'string'` fires
+  `#warnIdForm` (guarded by `#idFormWarned`, set once and never cleared), then
+  delegates to `#teardown`. `revokeLocal` — `evict`'s own local path — calls
+  `#teardown` directly and never reaches `#warnIdForm`; this is what keeps the
+  framework's own id-form use silent. The pitfalls: gating the notice on
+  anything but `typeof target === 'string'` (an object-form call must never
+  raise it — architect-expert rejected a whole-method `@Deprecated()` for
+  exactly this); dropping `#idFormWarned`'s guard (a line per socket close under
+  churn is worse than one line ever); and routing `revokeLocal` back through the
+  public `disconnect` (the framework's own internal caller would then warn about
+  its own use of the shape it warns application code about). Witness:
+  `deprecate_disconnect_id_392.test.ts`; battery
+  `tests/mutations/deprecate_disconnect_id_392.ts`.
 - **Every realtime reply that grows with a collection has a named bound** — the
   inventory for `MAX_REPLY_BYTES`'s rule (`@lockness/redis`, `resp.ts`: the
   caller bounds the reply; the cap is a backstop that costs the whole socket).
@@ -1196,6 +1215,7 @@ of what the re-check's counts mean.
 - `packages/realtime/tests/control_replay.test.ts`
 - `packages/realtime/tests/control_replay_window.test.ts`
 - `packages/realtime/tests/deliver_local_reauth.test.ts`
+- `packages/realtime/tests/deprecate_disconnect_id_392.test.ts`
 - `packages/realtime/tests/disconnect_admission_361.test.ts`
 - `packages/realtime/tests/disconnect_propagation.test.ts`
 - `packages/realtime/tests/driver_contract.test.ts`
@@ -1293,6 +1313,7 @@ Run them with `deno task mutate` (all of them, one at a time) or
 - `packages/realtime/tests/mutations/channel_revoke_332.ts`
 - `packages/realtime/tests/mutations/close_drain_368.ts`
 - `packages/realtime/tests/mutations/connection_id_304.ts`
+- `packages/realtime/tests/mutations/deprecate_disconnect_id_392.ts`
 - `packages/realtime/tests/mutations/disconnect_admission_361.ts`
 - `packages/realtime/tests/mutations/escaping_sinks_395.ts`
 - `packages/realtime/tests/mutations/fake_redis_280.ts`

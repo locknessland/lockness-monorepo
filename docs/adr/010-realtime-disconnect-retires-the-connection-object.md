@@ -325,9 +325,14 @@ the id in its message.
   id-keyed teardown. On `handlerHooks` a refused socket no longer reaches that
   hook (#404, below), but an evicted socket whose id was re-registered still
   does, and its `disconnect(conn.id)` tears down the new holder. They should
-  pass `conn`; deprecating the id form for app callers is
-  [#392](https://github.com/locknessland/lockness-monorepo/issues/392). A custom
-  transport that does not use `handlerHooks` keeps the refused-socket case too.
+  pass `conn`; ~~deprecating the id form for app callers is
+  [#392](https://github.com/locknessland/lockness-monorepo/issues/392)~~
+  **resolved by
+  [#392](https://github.com/locknessland/lockness-monorepo/issues/392):** a
+  `triggerDeprecation` notice, once per manager instance, for exactly this
+  caller — the hazard itself (the id form still tears down whoever holds that
+  id) is unchanged. A custom transport that does not use `handlerHooks` keeps
+  the refused-socket case too.
 - ~~**Two overlapping teardowns of one object** mid-loop on a shared channel. It
   needs this record's retirement restructured to one teardown per object; the
   owner checks above cover only the case where the object was replaced.~~
