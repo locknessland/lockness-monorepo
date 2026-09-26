@@ -431,6 +431,95 @@ const REVOCATION_SCOPE_SEPARATOR = ' '
 export const REVOCATION_SCAN_COUNT = 100
 
 /**
+ * Self-heal a wrong-typed OWNED-SET key, inside the same atomic `EVAL` as the
+ * caller's own body (#414) — the {@link INDEX_HEAL}-shaped heal generalised
+ * from a sorted set to a plain SET. Spliced into {@link HOLD_MEMBER_SCRIPT}
+ * and {@link RELEASE_MEMBER_SCRIPT}, over the bound local `owned`, before
+ * each one's own `SADD`/`SREM`.
+ *
+ * **Self-heal is safe here for a narrower reason than the revocation
+ * index's.** The owned set is scoped to ONE writer — the instance whose id
+ * names it — and feeds no `arrived`/`gone` decision the manager announces
+ * from; it is bookkeeping the sweep enumerates, never roster membership
+ * itself. Its prior members are already destroyed at the Redis layer the
+ * instant `TYPE` disagrees, the same argument {@link INDEX_HEAL}'s own
+ * docstring makes for the index — a `DEL` here changes nothing about that
+ * loss, it only lets THIS hold or release proceed rather than aborting the
+ * whole `EVAL`. The architect-expert disposition (issue #414) is binding;
+ * ADR 016 records the standing rule this and {@link INSTANCES_HEAL} follow.
+ *
+ * `local ownedKind = redis.call('TYPE', owned)['ok']`, then five
+ * independently-gated blocks, one per type other than `set`/`none`, then
+ * `DEL` before the caller's own write runs. **Never `pcall`, `else`, `~=` or
+ * reassignment**: `packages/redis/tests/lua_eval.ts` proves all four
+ * unsupported, the same discipline {@link INDEX_HEAL} and `FLOOR_WRITE`
+ * keep. Both callers' replies widen to carry `ownedKind`, decoded by
+ * {@link decodeHoldReply} / {@link decodeReleaseReply} and WARN'd once
+ * through {@link RedisBroadcastDriver.#warnFloor}'s sink via
+ * {@link RedisBroadcastDriver.#warnIfOwnedHealed} — never a second sink.
+ */
+const OWNED_HEAL: string = [
+    "local ownedKind = redis.call('TYPE', owned)['ok']",
+    "if ownedKind == 'string' then",
+    "    redis.call('DEL', owned)",
+    'end',
+    "if ownedKind == 'list' then",
+    "    redis.call('DEL', owned)",
+    'end',
+    "if ownedKind == 'hash' then",
+    "    redis.call('DEL', owned)",
+    'end',
+    "if ownedKind == 'zset' then",
+    "    redis.call('DEL', owned)",
+    'end',
+    "if ownedKind == 'stream' then",
+    "    redis.call('DEL', owned)",
+    'end',
+].join('\n')
+
+/**
+ * Self-heal a wrong-typed INSTANCES-SET key (#414), the same shape as
+ * {@link OWNED_HEAL} generalised to the one fleet-wide instances set.
+ * Spliced into {@link HOLD_MEMBER_SCRIPT} and
+ * {@link DEREGISTER_INSTANCE_SCRIPT}, over the bound local `instances`,
+ * before each one's own `SADD`/`SREM`.
+ *
+ * **Self-heal is safe here for a DIFFERENT reason than the owned set's**:
+ * the instances set is fully re-derivable rather than single-writer-scoped —
+ * every live instance's heartbeat unconditionally re-`SADD`s itself every
+ * `heartbeatIntervalMs` (#349), so a wipe self-repairs fleet-wide within one
+ * interval, the same re-derivability `FLOOR_WRITE` already rests on for the
+ * revocation floor. It feeds no `arrived`/`gone` decision either. ADR 016 is
+ * the standing rule both fragments follow.
+ *
+ * `local instancesKind = redis.call('TYPE', instances)['ok']`, then five
+ * independently-gated blocks, one per type other than `set`/`none`, then
+ * `DEL` before the caller's own write runs. Both callers' replies widen to
+ * carry `instancesKind`, decoded by {@link decodeHoldReply} /
+ * {@link decodeDeregisterReply} and WARN'd once through
+ * {@link RedisBroadcastDriver.#warnIfInstancesHealed} — the same sink,
+ * never a sibling.
+ */
+const INSTANCES_HEAL: string = [
+    "local instancesKind = redis.call('TYPE', instances)['ok']",
+    "if instancesKind == 'string' then",
+    "    redis.call('DEL', instances)",
+    'end',
+    "if instancesKind == 'list' then",
+    "    redis.call('DEL', instances)",
+    'end',
+    "if instancesKind == 'hash' then",
+    "    redis.call('DEL', instances)",
+    'end',
+    "if instancesKind == 'zset' then",
+    "    redis.call('DEL', instances)",
+    'end',
+    "if instancesKind == 'stream' then",
+    "    redis.call('DEL', instances)",
+    'end',
+].join('\n')
+
+/**
  * Hold a roster slot for one instance — ONE operation, four structures (#345).
  *
  * A roster slot is a field in the channel's presence hash; **who holds it** is
@@ -455,23 +544,50 @@ export const REVOCATION_SCAN_COUNT = 100
  * **Four keys, and they hash to different slots**: a cross-slot `EVAL` is
  * refused on Redis Cluster, which this package does not target.
  *
+ * **The presence hash is guarded, read-only, before ANY write (#414).** The
+ * very first statement is a bare `HGET` of the presence field this hold is
+ * about to write — its value is discarded; it runs only so that a
+ * wrong-typed presence key raises `WRONGTYPE` here, before the holders
+ * `HSET` below ever commits. Before this fix the holders write ran FIRST and
+ * the presence write SECOND, so a corrupt presence key let the holders
+ * `HSET` commit and then aborted on the presence `HSET` — a holder entry
+ * with no matching presence field, the exact orphan shape ADR 004 §5 closed
+ * for a different cause. **This guard never heals**: the presence hash holds
+ * live membership state, and a heal-`DEL` here would silently erase every
+ * OTHER member's shown entry with zero `left` frames (ADR 016). It fails the
+ * whole `EVAL` closed instead, so nothing commits.
+ *
+ * **The owned set and the instances set self-heal (#414)**, `KEYS[3]` through
+ * {@link OWNED_HEAL} and `KEYS[4]` through {@link INSTANCES_HEAL}, each just
+ * before its own `SADD` — neither feeds an `arrived`/`gone` decision, and ADR
+ * 016 is the standing rule for why these two may heal while presence and
+ * holders may not. The reply widens to `{arrived, ownedKind, instancesKind}`,
+ * decoded by {@link decodeHoldReply}, which WARNs once for each key it healed
+ * through {@link RedisBroadcastDriver.#warnIfOwnedHealed} /
+ * {@link RedisBroadcastDriver.#warnIfInstancesHealed}.
+ *
  * `KEYS[1]` presence hash · `KEYS[2]` holders hash · `KEYS[3]` owned set ·
  * `KEYS[4]` instances set ·
  * `ARGV[1]` field · `ARGV[2]` instance id · `ARGV[3]` entry JSON ·
- * `ARGV[4]` owned entry. Returns integer 1 (arrived) or 0.
+ * `ARGV[4]` owned entry.
  */
 const HOLD_MEMBER_SCRIPT: string = [
+    "redis.call('HGET', KEYS[1], ARGV[1])",
     "local added = redis.call('HSET', KEYS[2], ARGV[2], ARGV[3])",
     "redis.call('HSET', KEYS[1], ARGV[1], ARGV[3])",
-    "redis.call('SADD', KEYS[3], ARGV[4])",
-    "redis.call('SADD', KEYS[4], ARGV[2])",
+    'local owned = KEYS[3]',
+    OWNED_HEAL,
+    "redis.call('SADD', owned, ARGV[4])",
+    'local instances = KEYS[4]',
+    INSTANCES_HEAL,
+    "redis.call('SADD', instances, ARGV[2])",
     "local n = redis.call('HLEN', KEYS[2])",
     'if added == 1 then',
     '  if n == 1 then',
-    '    return 1',
+    '    return {1, ownedKind, instancesKind}',
     '  end',
     'end',
-    'return 0',
+    'return {0, ownedKind, instancesKind}',
 ].join('\n')
 
 /**
@@ -538,38 +654,58 @@ export const REFUSED = 3
  * `ARGV[2]` releaser instance id · `ARGV[3]` owned entry · `ARGV[4]` `'1'`
  * to ask for the liveness check, `'0'` otherwise.
  *
- * Four replies, decoded by {@link decodeReleaseReply} and nowhere else: the
- * released entry as a non-empty bulk string (**emptied**), {@link KEPT}
+ * **Presence and holders stay fail-closed here too, with no new guard
+ * needed (#414).** `shown`, the presence `HGET`, already runs before the
+ * first write below (`HDEL` on holders) — a wrong-typed presence key raises
+ * `WRONGTYPE` on that read, aborting before anything commits, the same
+ * property {@link HOLD_MEMBER_SCRIPT}'s explicit guard restores there for a
+ * different ordering. `mine`, the holders `HGET`, runs even earlier. Neither
+ * heals: an `RELEASE`-side `DEL` of either would erase a live member (ADR
+ * 016).
+ *
+ * **The owned set self-heals (#414)**, `KEYS[3]` through {@link OWNED_HEAL},
+ * bound to the local `owned` just before the unconditional `SREM` below — it
+ * runs whenever the liveness gate above did not already refuse. The reply
+ * widens to carry `ownedKind` alongside every existing outcome, decoded by
+ * {@link decodeReleaseReply}, which WARNs once through
+ * {@link RedisBroadcastDriver.#warnIfOwnedHealed} when it is healed.
+ *
+ * Four reply SHAPES since #414 (each a `{value, ownedKind}` pair, except
+ * *refused*, which the liveness gate answers before `owned` is ever read):
+ * the released entry as a non-empty bulk string (**emptied**), {@link KEPT}
  * (**kept**), 0 (**absent** — the releaser held nothing there) or
- * {@link REFUSED} (**refused**).
+ * {@link REFUSED} alone (**refused**) — decoded by {@link decodeReleaseReply}
+ * and nowhere else.
  */
 const RELEASE_MEMBER_SCRIPT: string = [
     "if ARGV[4] == '1' then",
     "  local alive = redis.call('EXISTS', KEYS[4])",
     '  if alive == 1 then',
-    `    return ${REFUSED}`,
+    `    return {${REFUSED}, 'none'}`,
     '  end',
     'end',
     "local mine = redis.call('HGET', KEYS[2], ARGV[2])",
     "local shown = redis.call('HGET', KEYS[1], ARGV[1])",
     "redis.call('HDEL', KEYS[2], ARGV[2])",
-    "redis.call('SREM', KEYS[3], ARGV[3])",
+    'local owned = KEYS[3]',
+    OWNED_HEAL,
+    "redis.call('SREM', owned, ARGV[3])",
     "local n = redis.call('HLEN', KEYS[2])",
     'if n == 0 then',
     "  redis.call('HDEL', KEYS[1], ARGV[1])",
     '  if mine == false then',
-    '    return 0',
+    '    return {0, ownedKind}',
     '  end',
-    '  return mine',
+    '  return {mine, ownedKind}',
     'end',
     'if shown == mine then',
     "  local promoted = redis.call('HRANDFIELD', KEYS[2], 1, 'WITHVALUES')",
     "  redis.call('HSET', KEYS[1], ARGV[1], promoted[2])",
     'end',
     'if mine == false then',
-    '  return 0',
+    '  return {0, ownedKind}',
     'end',
-    `return ${KEPT}`,
+    `return {${KEPT}, ownedKind}`,
 ].join('\n')
 
 /**
@@ -590,6 +726,17 @@ const RELEASE_MEMBER_SCRIPT: string = [
  * read and the `SREM` — which is what orphaned a late hold before (ADR 004
  * §5).
  *
+ * **The instances set self-heals (#414)**, through {@link INSTANCES_HEAL}
+ * bound to the local `instances`, spliced just before the gated `SREM` —
+ * the only write this script makes, and the only one that ever touches the
+ * instances set outside {@link HOLD_MEMBER_SCRIPT}. `EXISTS` on `KEYS[2]`
+ * and `KEYS[3]` never heals and never needs to: `EXISTS` is never
+ * type-sensitive, the same documented exemption the liveness key carries
+ * everywhere else it is read this way (ADR 016). The reply widens to carry
+ * `instancesKind` — `'none'` for the two branches that never touch the set —
+ * decoded by {@link decodeDeregisterReply}, which WARNs once through
+ * {@link RedisBroadcastDriver.#warnIfInstancesHealed} when it is healed.
+ *
  * `KEYS[1]` instances set · `KEYS[2]` the instance's liveness key ·
  * `KEYS[3]` its owned set · `ARGV[1]` its instance id. Decoded by
  * {@link decodeDeregisterReply}.
@@ -597,14 +744,16 @@ const RELEASE_MEMBER_SCRIPT: string = [
 const DEREGISTER_INSTANCE_SCRIPT: string = [
     "local alive = redis.call('EXISTS', KEYS[2])",
     'if alive == 1 then',
-    `  return ${REFUSED}`,
+    `  return {${REFUSED}, 'none'}`,
     'end',
     "local owns = redis.call('EXISTS', KEYS[3])",
     'if owns == 0 then',
-    "  redis.call('SREM', KEYS[1], ARGV[1])",
-    '  return 0',
+    '  local instances = KEYS[1]',
+    INSTANCES_HEAL,
+    "  redis.call('SREM', instances, ARGV[1])",
+    '  return {0, instancesKind}',
     'end',
-    `return ${KEPT}`,
+    `return {${KEPT}, 'none'}`,
 ].join('\n')
 
 /**
@@ -633,6 +782,13 @@ const DEREGISTER_INSTANCE_SCRIPT: string = [
  * **No loop, and no id in the script text.** Ids reach it through `ARGV` only.
  * The reply is parsed in TypeScript, where a self is accepted only when the
  * entry under its own field carries that same id (S3).
+ *
+ * **Fails closed, and never heals (#414).** Every command here reads the
+ * presence hash; a wrong-typed key raises `WRONGTYPE` on the first one
+ * (`HLEN`) and the whole read throws, never a silent empty roster. A
+ * heal-`DEL` here would erase every member's shown entry with zero `left`
+ * frames — ADR 016 is the standing rule this script and
+ * {@link HOLD_MEMBER_SCRIPT}'s presence guard both follow.
  *
  * Returns `{ HLEN, [field, value, …], [value-or-nil, …] }`.
  *
@@ -1116,101 +1272,188 @@ function asInteger(reply: unknown): number | undefined {
 }
 
 /**
- * Decode a {@link HOLD_MEMBER_SCRIPT} reply: integer 1 is `true` (arrived),
- * integer 0 is `false`, and anything else throws (#345, FR-004a).
+ * The one message {@link decodeHoldReply} throws (#345 FR-004a, widened
+ * #414). It names the shape it expected and never carries the reply.
+ * Exported for the test suite only.
+ */
+export const HOLD_REPLY_REFUSED =
+    'realtime: the hold script answered something other than 0 or 1 for ' +
+    'arrived, or a {arrived, ownedKind, instancesKind} triple with a ' +
+    'missing kind'
+
+/**
+ * The hold's decoded reply (#345, widened #414): whether the hold filled an
+ * empty slot, and the Redis type {@link OWNED_HEAL} / {@link INSTANCES_HEAL}
+ * each found at their key, before either healed anything.
+ */
+export interface HoldReply {
+    /** Whether no instance held the slot before this hold. */
+    readonly arrived: boolean
+    /** The owned set's prior Redis type — `'set'`/`'none'` iff no heal ran. */
+    readonly ownedKind: string
+    /** The instances set's prior Redis type — `'set'`/`'none'` iff no heal ran. */
+    readonly instancesKind: string
+}
+
+/**
+ * Decode a {@link HOLD_MEMBER_SCRIPT} reply (#345 FR-004a, widened #414): a
+ * three-element array whose first element is the integer 1 (`arrived: true`)
+ * or 0 (`arrived: false`), and whose second and third are bulk strings
+ * naming the owned set's and the instances set's prior Redis type.
  *
  * Truthiness would read an error string or an unexpected array as an arrival —
  * and the manager announces a `joined` from this bit.
  *
  * @param reply - The `EVAL` reply.
- * @returns Whether the hold filled an empty slot.
- * @throws {Error} If the reply is not the integer 0 or 1.
+ * @returns Whether the hold filled an empty slot, and each key's prior kind.
+ * @throws {Error} {@link HOLD_REPLY_REFUSED}, for any other reply.
  */
-function decodeHoldReply(reply: unknown): boolean {
-    const value = asInteger(reply)
-    if (value === 1) return true
-    if (value === 0) return false
-    throw new Error(
-        'realtime: the hold script answered something other than 0 or 1',
-    )
+function decodeHoldReply(reply: unknown): HoldReply {
+    const items = asArray(reply)
+    const arrived = asInteger(items?.[0])
+    const ownedKind = items ? asBulk(items[1]) : undefined
+    const instancesKind = items ? asBulk(items[2]) : undefined
+    if (
+        arrived === 1 && ownedKind !== undefined && instancesKind !== undefined
+    ) {
+        return { arrived: true, ownedKind, instancesKind }
+    }
+    if (
+        arrived === 0 && ownedKind !== undefined && instancesKind !== undefined
+    ) {
+        return { arrived: false, ownedKind, instancesKind }
+    }
+    throw new Error(HOLD_REPLY_REFUSED)
 }
 
 /**
- * What one {@link RELEASE_MEMBER_SCRIPT} run did (#355). Internal: a leave's
- * public answer is still only `gone` ({@link RosterRelease}).
+ * What one {@link RELEASE_MEMBER_SCRIPT} run did (#355, widened #414).
+ * Internal: a leave's public answer is still only `gone`
+ * ({@link RosterRelease}).
  *
  * - `emptied` — the releaser held the slot and was its last holder; `entry`
- *   is its entry, the member that left.
- * - `kept` — the releaser held the slot; other holders keep it.
- * - `absent` — the releaser held nothing there (already released).
+ *   is its entry, the member that left; `ownedKind` is the owned set's prior
+ *   Redis type.
+ * - `kept` — the releaser held the slot; other holders keep it; `ownedKind`
+ *   as above.
+ * - `absent` — the releaser held nothing there (already released);
+ *   `ownedKind` as above.
  * - `refused` — asked on another process's behalf while that process is
- *   alive; nothing was written.
+ *   alive; nothing was written, {@link OWNED_HEAL} never ran, and there is no
+ *   `ownedKind` to report.
+ *
+ * `ownedKind` is optional on the three heal-carrying variants rather than
+ * required: the decoder always supplies it from a genuine script reply, but
+ * a test double that builds one of these literals directly (a driver
+ * fixture standing in for the sweep's own decode) is not obliged to.
  */
 type ReleaseOutcome =
-    | { readonly kind: 'emptied'; readonly entry: string }
-    | { readonly kind: 'kept' }
-    | { readonly kind: 'absent' }
+    | {
+        readonly kind: 'emptied'
+        readonly entry: string
+        readonly ownedKind?: string
+    }
+    | { readonly kind: 'kept'; readonly ownedKind?: string }
+    | { readonly kind: 'absent'; readonly ownedKind?: string }
     | { readonly kind: 'refused' }
 
 /**
- * Decode a {@link RELEASE_MEMBER_SCRIPT} reply into its {@link ReleaseOutcome}:
- * a non-empty bulk string is **emptied** (the released holder's entry),
- * {@link KEPT} **kept**, 0 **absent**, {@link REFUSED} **refused**, and
- * anything else throws (#348 FR-004a, #355).
+ * The one message {@link decodeReleaseReply} throws (#348 FR-004a, #355,
+ * widened #414). It names what is accepted and never the reply, its type or
+ * its length — the reply's bytes come from the broker and the message
+ * reaches a log line (S4). Exported for the test suite only.
+ */
+export const RELEASE_REPLY_REFUSED =
+    'realtime: the release script answered none of its four replies — a ' +
+    `{value, ownedKind} pair whose value is a released entry, 0 (absent) or ` +
+    `${KEPT} (kept), or ${REFUSED} alone (refused)`
+
+/**
+ * Decode a {@link RELEASE_MEMBER_SCRIPT} reply into its {@link ReleaseOutcome}
+ * (#348 FR-004a, #355, widened #414): a two-element array whose first
+ * element is a non-empty bulk string (**emptied**, the released holder's
+ * entry), {@link KEPT} (**kept**) or 0 (**absent**) — each paired with the
+ * owned set's prior Redis type as its second element — or {@link REFUSED}
+ * ALONE (**refused**: the liveness gate answered before `owned` was ever
+ * read, so there is no kind to pair it with). Anything else throws.
  *
  * **The single home of what a release reply means.** An integer 1 is a
- * pre-#348 script, a nil or an array is not this script at all, and an empty
- * bulk is an entry no hold ever writes. Truthiness would read any of them as a
- * departure, and a leave announces its `left` — and a sweep announces the
- * entry itself — from this value.
- *
- * **The error message is constant**: it names what is accepted and never the
- * reply, its type or its length — the reply's bytes come from the broker and
- * the message reaches a log line (S4).
+ * pre-#348 script, a nil or an array of the wrong length is not this script
+ * at all, and an empty bulk is an entry no hold ever writes. Truthiness
+ * would read any of them as a departure, and a leave announces its `left` —
+ * and a sweep announces the entry itself — from this value.
  *
  * @param reply - The `EVAL` reply.
  * @returns What the release did.
- * @throws {Error} If the reply is none of the four.
+ * @throws {Error} {@link RELEASE_REPLY_REFUSED}, for any other reply.
  */
 function decodeReleaseReply(reply: unknown): ReleaseOutcome {
-    const code = asInteger(reply)
-    if (code === 0) return { kind: 'absent' }
-    if (code === KEPT) return { kind: 'kept' }
+    const pair = asArray(reply)
+    if (pair === undefined || pair.length !== 2) {
+        throw new Error(RELEASE_REPLY_REFUSED)
+    }
+    const code = asInteger(pair[0])
     if (code === REFUSED) return { kind: 'refused' }
-    const entry = asBulk(reply)
-    if (entry) return { kind: 'emptied', entry }
-    throw new Error(
-        'realtime: the release script answered none of its four replies — a ' +
-            `released entry, 0 (absent), ${KEPT} (kept) or ${REFUSED} (refused)`,
-    )
+    const ownedKind = asBulk(pair[1])
+    if (ownedKind === undefined) throw new Error(RELEASE_REPLY_REFUSED)
+    if (code === 0) return { kind: 'absent', ownedKind }
+    if (code === KEPT) return { kind: 'kept', ownedKind }
+    const entry = asBulk(pair[0])
+    if (entry) return { kind: 'emptied', entry, ownedKind }
+    throw new Error(RELEASE_REPLY_REFUSED)
 }
 
 /** What one {@link DEREGISTER_INSTANCE_SCRIPT} run did (#355). Internal. */
 type DeregisterOutcome = 'deregistered' | 'renewed' | 'kept'
 
 /**
- * Decode a {@link DEREGISTER_INSTANCE_SCRIPT} reply: 0 is **deregistered**,
- * {@link REFUSED} **renewed** (the instance is alive again), {@link KEPT}
- * **kept** (it owns a late hold, left for the next pass), and anything else
- * throws (#355).
+ * The deregistration's decoded reply (#355, widened #414): what the
+ * deregistration did, and the Redis type {@link INSTANCES_HEAL} found at the
+ * instances set — `'none'` for `renewed`/`kept`, which never touch it.
+ */
+interface DeregisterReply {
+    /** What the deregistration did. */
+    readonly outcome: DeregisterOutcome
+    /** The instances set's prior Redis type — `'set'`/`'none'` iff no heal ran. */
+    readonly instancesKind: string
+}
+
+/**
+ * The one message {@link decodeDeregisterReply} throws (#355, widened
+ * #414). Its wording is constant, like {@link decodeReleaseReply}'s: it
+ * never carries the reply. Exported for the test suite only.
+ */
+export const DEREGISTER_REPLY_REFUSED =
+    'realtime: the deregistration script answered none of its three ' +
+    `replies — a {code, instancesKind} pair whose code is 0 ` +
+    `(deregistered), ${REFUSED} (renewed) or ${KEPT} (kept)`
+
+/**
+ * Decode a {@link DEREGISTER_INSTANCE_SCRIPT} reply (#355, widened #414): a
+ * two-element array whose first element is 0 (**deregistered**),
+ * {@link REFUSED} (**renewed** — the instance is alive again) or
+ * {@link KEPT} (**kept** — it owns a late hold, left for the next pass), and
+ * whose second is a bulk string naming the instances set's prior Redis type.
+ * Anything else throws.
  *
- * **The single home of what a deregistration reply means.** Its error
- * message is constant, like {@link decodeReleaseReply}'s: it never carries
- * the reply.
+ * **The single home of what a deregistration reply means.**
  *
  * @param reply - The `EVAL` reply.
- * @returns What the deregistration did.
- * @throws {Error} If the reply is none of the three.
+ * @returns What the deregistration did, and the instances set's prior kind.
+ * @throws {Error} {@link DEREGISTER_REPLY_REFUSED}, for any other reply.
  */
-function decodeDeregisterReply(reply: unknown): DeregisterOutcome {
-    const code = asInteger(reply)
-    if (code === 0) return 'deregistered'
-    if (code === REFUSED) return 'renewed'
-    if (code === KEPT) return 'kept'
-    throw new Error(
-        'realtime: the deregistration script answered none of its three ' +
-            `replies — 0 (deregistered), ${REFUSED} (renewed) or ${KEPT} (kept)`,
-    )
+function decodeDeregisterReply(reply: unknown): DeregisterReply {
+    const pair = asArray(reply)
+    if (pair === undefined || pair.length !== 2) {
+        throw new Error(DEREGISTER_REPLY_REFUSED)
+    }
+    const code = asInteger(pair[0])
+    const instancesKind = asBulk(pair[1])
+    if (instancesKind === undefined) throw new Error(DEREGISTER_REPLY_REFUSED)
+    if (code === 0) return { outcome: 'deregistered', instancesKind }
+    if (code === REFUSED) return { outcome: 'renewed', instancesKind }
+    if (code === KEPT) return { outcome: 'kept', instancesKind }
+    throw new Error(DEREGISTER_REPLY_REFUSED)
 }
 
 /**
@@ -1885,6 +2128,29 @@ export const REVOCATION_FLOOR_WRONG_TYPE =
 export const REVOCATION_INDEX_WRONG_TYPE =
     'realtime: the revocation index key held the wrong Redis type and was ' +
     'healed (#411); the pass completed normally. Prior type:'
+
+/**
+ * The words of the one WARN written when {@link OWNED_HEAL} healed a
+ * wrong-typed owned-set key (#414) — followed by the prior Redis type
+ * (`string`, `list`, `hash`, `zset` or `stream`), never a member, channel or
+ * instance id. Written once per healed hold or release — the write completed
+ * normally: the heal ran inside the same atomic `EVAL`. Exported for the test
+ * suite only.
+ */
+export const OWNED_SET_WRONG_TYPE =
+    'realtime: the owned set key held the wrong Redis type and was healed ' +
+    '(#414); the write completed normally. Prior type:'
+
+/**
+ * The words of the one WARN written when {@link INSTANCES_HEAL} healed a
+ * wrong-typed instances-set key (#414) — followed by the prior Redis type,
+ * never a member, channel or instance id — wording twin to
+ * {@link OWNED_SET_WRONG_TYPE}. Written once per healed hold or
+ * deregistration. Exported for the test suite only.
+ */
+export const INSTANCES_SET_WRONG_TYPE =
+    'realtime: the instances set key held the wrong Redis type and was ' +
+    'healed (#414); the write completed normally. Prior type:'
 
 /**
  * What one heartbeat's `SET <alive key> 1 EX <ttl> GET` reported (#349):
@@ -3393,7 +3659,10 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             JSON.stringify(entry),
             `${channel}${OWNED_SEP}${field}`,
         )
-        return { arrived: decodeHoldReply(reply) }
+        const decoded = decodeHoldReply(reply)
+        this.#warnIfOwnedHealed(decoded.ownedKind)
+        this.#warnIfInstancesHealed(decoded.instancesKind)
+        return { arrived: decoded.arrived }
     }
 
     /**
@@ -3473,7 +3742,11 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             `${channel}${OWNED_SEP}${field}`,
             onBehalf ? '1' : '0',
         )
-        return decodeReleaseReply(reply)
+        const outcome = decodeReleaseReply(reply)
+        if (outcome.kind !== 'refused' && outcome.ownedKind !== undefined) {
+            this.#warnIfOwnedHealed(outcome.ownedKind)
+        }
+        return outcome
     }
 
     /**
@@ -3874,6 +4147,36 @@ export class RedisBroadcastDriver implements BroadcastDriver {
     #warnIfIndexHealed(kind: string): void {
         if (kind === 'zset' || kind === 'none') return
         this.#warnFloor(`${REVOCATION_INDEX_WRONG_TYPE} ${kind}`)
+    }
+
+    /**
+     * WARN once when {@link OWNED_HEAL} healed a wrong-typed owned-set key
+     * (#414): `kind` is its `TYPE` read, taken BEFORE the heal's `DEL`. A
+     * `set` (the owned set's own shape) or `none` (no key yet) means nothing
+     * was healed, so nothing WARNs on the hot path. Reuses
+     * {@link #warnFloor}'s sink, the same #391 marked-fallback discipline —
+     * never a sibling.
+     *
+     * @param kind - The owned set's Redis type, as {@link OWNED_HEAL} read it.
+     */
+    #warnIfOwnedHealed(kind: string): void {
+        if (kind === 'set' || kind === 'none') return
+        this.#warnFloor(`${OWNED_SET_WRONG_TYPE} ${kind}`)
+    }
+
+    /**
+     * WARN once when {@link INSTANCES_HEAL} healed a wrong-typed instances-set
+     * key (#414): `kind` is its `TYPE` read, taken BEFORE the heal's `DEL`. A
+     * `set` (the instances set's own shape) or `none` (no key yet) means
+     * nothing was healed, so nothing WARNs on the hot path. Reuses
+     * {@link #warnFloor}'s sink — never a sibling.
+     *
+     * @param kind - The instances set's Redis type, as
+     *   {@link INSTANCES_HEAL} read it.
+     */
+    #warnIfInstancesHealed(kind: string): void {
+        if (kind === 'set' || kind === 'none') return
+        this.#warnFloor(`${INSTANCES_SET_WRONG_TYPE} ${kind}`)
     }
 
     /**
@@ -5133,7 +5436,10 @@ export class RedisBroadcastDriver implements BroadcastDriver {
                 deadId,
             ),
         )
-        return deregistration === 'deregistered' ? 'completed' : deregistration
+        this.#warnIfInstancesHealed(deregistration.instancesKind)
+        return deregistration.outcome === 'deregistered'
+            ? 'completed'
+            : deregistration.outcome
     }
 
     /**

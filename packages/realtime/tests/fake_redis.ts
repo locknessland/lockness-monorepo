@@ -86,6 +86,16 @@
  * `default:`. Within a modelled arm, an unread argument is a bug — see the
  * pitfall in `packages/realtime/AGENTS.md`.
  *
+ * **Every hash command now refuses a key some OTHER type already holds
+ * (#414)**: `HSET`/`HGET`/`HDEL`/`HLEN`/`HMGET`/`HRANDFIELD`/`HGETALL` each
+ * call `#assertHashKey` first, raising the same `WRONGTYPE` text a real
+ * broker would. Before this every hash arm wrote into its own `#hashes` map
+ * unconditionally, so a presence or holders key corrupted by a raw
+ * `SET`/`SADD`/`ZADD` read as merely ABSENT to a later `HGET` — indistinguishable
+ * from a key that never existed — and a fail-closed witness had no throw to
+ * observe. `TYPE` (#405) already answers the same cross-type question for a
+ * read-only probe; this is the write/read family's own version of it.
+ *
  * **`setTime()` now reaches the liveness key.** Unifying the clock means a
  * test that moves the fake clock by hundreds of seconds expires the driver's
  * `SET … EX` alive key too, where before it never expired inside a test.
@@ -560,6 +570,39 @@ export class FakeRedis {
     }
 
     /**
+     * Refuse a hash command against a key some OTHER type already holds
+     * (#414): every hash arm below wrote into `#hashes` unconditionally,
+     * never checking `#strings`/`#sets`/`#zsets` first, so a key corrupted by
+     * a raw `SET`/`SADD`/`ZADD` before a hash command reached it read as
+     * simply absent — `#liveHash(key)?.get(...)` returns `undefined` for a
+     * key that is not a hash exactly as it does for one that does not exist
+     * at all, so no WRONGTYPE ever surfaced and a fail-closed witness had
+     * nothing to observe. Real Redis raises `WRONGTYPE Operation against a
+     * key holding the wrong kind of value` for every hash command against a
+     * non-hash key, reads included — the same message `SET … GET` already
+     * raises here for a foreign key at the string arm. Checked BEFORE the
+     * command's own work, exactly where a real broker's type check runs.
+     *
+     * @param key - The key a hash command is about to touch.
+     * @throws When `key` is expired-and-dropped, this is a no-op; otherwise,
+     *   when it holds a string, a set or a sorted set, it throws the same
+     *   `WRONGTYPE` text a real broker would.
+     */
+    #assertHashKey(key: string): void {
+        if (this.#expired(key)) this.#dropKey(key)
+        if (this.#hashes.has(key)) return
+        if (
+            this.#strings.has(key) || this.#sets.has(key) ||
+            this.#zsets.has(key)
+        ) {
+            this.#reject(
+                'WRONGTYPE Operation against a key holding the wrong kind ' +
+                    'of value',
+            )
+        }
+    }
+
+    /**
      * A score as Redis writes it into a reply (#359): an integral score of at
      * most 2^52 in magnitude is its plain digits — no decimal point, no
      * exponent — which is every score the driver writes (`TIME` seconds plus a
@@ -818,6 +861,7 @@ export class FakeRedis {
                 // Redis, and half-applying it here would leave a store no real
                 // sequence of commands could produce.
                 const [key, ...pairs] = rest
+                this.#assertHashKey(key)
                 if (pairs.length === 0 || pairs.length % 2 !== 0) {
                     this.#reject(
                         'FakeRedis: HSET needs field/value pairs, got ' +
@@ -836,6 +880,7 @@ export class FakeRedis {
             case 'HDEL': {
                 // HDEL key field [field ...] -> the count actually removed.
                 const [key, ...fields] = rest
+                this.#assertHashKey(key)
                 const h = this.#hashes.get(key)
                 let removed = 0
                 for (const field of fields) if (h?.delete(field)) removed++
@@ -848,6 +893,7 @@ export class FakeRedis {
                         `FakeRedis: HGETALL takes one key, got ${rest.length}`,
                     )
                 }
+                this.#assertHashKey(rest[0])
                 const h = this.#hashes.get(rest[0])
                 const flat: Reply[] = []
                 for (const [field, value] of h ?? []) {
@@ -865,6 +911,7 @@ export class FakeRedis {
                         `FakeRedis: HGET takes key and field, got ${rest.length}`,
                     )
                 }
+                this.#assertHashKey(rest[0])
                 const value = this.#liveHash(rest[0])?.get(rest[1])
                 return value === undefined
                     ? { type: 'nil' }
@@ -877,6 +924,7 @@ export class FakeRedis {
                         `FakeRedis: HLEN takes one key, got ${rest.length}`,
                     )
                 }
+                this.#assertHashKey(rest[0])
                 return {
                     type: 'integer',
                     value: this.#liveHash(rest[0])?.size ?? 0,
@@ -891,6 +939,7 @@ export class FakeRedis {
                 if (key === undefined || fields.length === 0) {
                     this.#reject('FakeRedis: HMGET needs at least one field')
                 }
+                this.#assertHashKey(key)
                 const h = this.#liveHash(key)
                 return {
                     type: 'array',
@@ -928,6 +977,7 @@ export class FakeRedis {
                             }'`,
                     )
                 }
+                this.#assertHashKey(key)
                 const flat: Reply[] = []
                 for (const [field, value] of this.#liveHash(key) ?? []) {
                     if (flat.length === count * 2) break
