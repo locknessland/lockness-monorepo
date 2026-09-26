@@ -1064,7 +1064,7 @@ of what the re-check's counts mean.
 
 <!-- generated:tests -->
 
-96 test files for 25 source files:
+98 test files for 26 source files:
 
 - `packages/realtime/tests/apply_revocation_376.test.ts`
 - `packages/realtime/tests/authorize_denial_331.test.ts`
@@ -1117,6 +1117,7 @@ of what the re-check's counts mean.
 - `packages/realtime/tests/mixed_fleet_332.test.ts`
 - `packages/realtime/tests/onclose_pairing_404.test.ts`
 - `packages/realtime/tests/origin.test.ts`
+- `packages/realtime/tests/owed_release_371.test.ts`
 - `packages/realtime/tests/pass_sample_360.test.ts`
 - `packages/realtime/tests/prefix_anchoring.test.ts`
 - `packages/realtime/tests/presence.test.ts`
@@ -1156,6 +1157,7 @@ of what the re-check's counts mean.
 - `packages/realtime/tests/roster_atomicity_323.test.ts`
 - `packages/realtime/tests/roster_control_atomicity.test.ts`
 - `packages/realtime/tests/roster_holders_345.test.ts`
+- `packages/realtime/tests/roster_maintenance_run_371.test.ts`
 - `packages/realtime/tests/roster_read_barrier_333.test.ts`
 - `packages/realtime/tests/roster_window_341.test.ts`
 - `packages/realtime/tests/subscribe_unsubscribe_race_330.test.ts`
@@ -1163,7 +1165,7 @@ of what the re-check's counts mean.
 - `packages/realtime/tests/websocket.test.ts`
 - `packages/realtime/tests/websocket_close_guard_369.test.ts`
 
-47 mutation batteries — **`deno test` does not run these.** Each is an
+48 mutation batteries — **`deno test` does not run these.** Each is an
 executable that mutates a source file and re-runs the suites that should notice.
 Run them with `deno task mutate` (all of them, one at a time) or
 `deno task mutate <name>` (one); nightly CI runs the full sweep. See
@@ -1186,6 +1188,7 @@ Run them with `deno task mutate` (all of them, one at a time) or
 - `packages/realtime/tests/mutations/manager_debt_353.ts`
 - `packages/realtime/tests/mutations/marked_fallback_391.ts`
 - `packages/realtime/tests/mutations/onclose_pairing_404.ts`
+- `packages/realtime/tests/mutations/owed_release_371.ts`
 - `packages/realtime/tests/mutations/pass_sample_360.ts`
 - `packages/realtime/tests/mutations/prefix_288.ts`
 - `packages/realtime/tests/mutations/presence_eviction_334.ts`
@@ -1230,7 +1233,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 96 test files directly —
+Then, specific to this package: run its 98 test files directly —
 
 ```bash
 deno test -A packages/realtime/
