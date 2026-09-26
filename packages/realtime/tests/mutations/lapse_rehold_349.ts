@@ -417,6 +417,7 @@ const REHOLD_ROWS: Mutation[] = [
                 '            budgetMs,\n' +
                 '            this.#reconcilePass,\n' +
                 '            stopped,\n' +
+                '            maintenanceStopped,\n' +
                 '        )\n',
                 '        const pending = await awaitCloseDrain(\n' +
                 '            budgetMs,\n' +
@@ -424,6 +425,7 @@ const REHOLD_ROWS: Mutation[] = [
                 '            (this.#reconcilePass ?? Promise.resolve()).then(\n' +
                 '                () => this.#lapse.close(),\n' +
                 '            ),\n' +
+                '            maintenanceStopped,\n' +
                 '        )\n',
             ],
         ],
@@ -442,11 +444,13 @@ const REHOLD_ROWS: Mutation[] = [
             '            budgetMs,\n' +
             '            this.#reconcilePass,\n' +
             '            stopped,\n' +
+            '            maintenanceStopped,\n' +
             '        )\n',
             '        const pending = await awaitCloseDrain(\n' +
             '            budgetMs,\n' +
             '            this.#reconcilePass,\n' +
             '            Promise.resolve(),\n' +
+            '            maintenanceStopped,\n' +
             '        )\n',
         ]],
         // close() resolves while slot 7's write is still in flight.
