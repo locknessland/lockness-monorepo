@@ -45,7 +45,6 @@ Generate a concise short name (2–4 words, action-noun where possible — `add-
 
 ```bash
 .specnaut/scripts/bash/create-new-feature.sh --json --short-name "<short-name>" [--issue <N>] "<description>"
-.specnaut/scripts/bash/setup-plan.sh --json
 ```
 
 Read `BRANCH_NAME`, `SPEC_FILE` and the feature directory from the JSON. `create-new-feature.sh` is
@@ -54,19 +53,17 @@ re-entrant: run against an existing feature it switches to the existing branch. 
 `.specnaut/init-options.json`.
 
 Persist `{ "feature_directory": "<dir>", "linked_issue": <N or null> }` to
-`.specnaut/feature.json` — **repo-relative**, as `.specnaut/specs/<prefix>-<short-name>`, never an
-absolute filesystem path. Both readers (`scripts/bash/common.sh`, `scripts/powershell/common.ps1`)
-already join a non-rooted value onto the repo root, so a relative value resolves identically and no
-downstream phase needs to change.
+`.specnaut/feature.json`: `<dir>` is the real `.specnaut/specs/<prefix>-<name>`, repo-relative.
+Never absolute: it is committed. `linked_issue` is the backlog item id when `--issue <N>` was passed
+(or a hook returned one); `merge` reads it to close the item, and its absence is a no-op downstream.
 
-**Why relative, and it is not a style preference.** `feature.json` is versioned. An absolute path
-resolved on whoever ran the phase publishes that person's username and home-directory layout into
-the repository's permanent history — and in a public repo the test is not "is a secret exposed" but
-"who reads this file". This is Lockness hard rule #10; the equivalent obligation exists wherever this
-skill is installed, because the maintainer's machine is not part of anybody's specification.
+**Persist it before the next command, not after.** Every script that resolves feature paths reads
+`.specnaut/feature.json` ahead of the branch name, so one left naming the previous feature sends the
+next command's writes into that feature's directory. Then:
 
-`linked_issue` is the backlog item id when `--issue <N>` was passed (or a hook returned one);
-`merge` reads it to close the item, and its absence is a no-op downstream.
+```bash
+.specnaut/scripts/bash/setup-plan.sh --json
+```
 
 **The card moves itself.** With `--issue <N>`, `create-new-feature.sh` moves that item to
 `In progress` as part of creating the branch, and reports the outcome — including when nothing
@@ -168,15 +165,6 @@ chain's two stops. Present, in this order:
    first.
 4. **Anything you decided yourself** because the code or a standing decision already answered it —
    one line each, so a wrong assumption is visible rather than buried.
-
-**Before a question reaches that list, route it.** Does the answer change what the software
-**does** for whoever uses it, or only **how** it is built? Only the first is the user's. A choice
-between two designs — "meter it or make it a no-op", "extract this or leave it inline", "which shape
-is cleaner" — goes to `architect-expert` in its own dispatch, on the standing principle that the
-**cleanest architecture wins**. Its answer lands in `plan.md` as a settled decision and is **not**
-re-presented here as a question. Do not hand the seat a closed binary: the options a ticket names are
-the filer's guesses, and a third shape is a valid answer. Require it to name what it rejected, that
-option's real cost, and what its answer does **not** solve. Hard rule #11 in `AGENTS.md`.
 
 Record every answer **in `plan.md` as a settled decision, with its date**. If there is genuinely
 nothing to ask, say so and present the architecture anyway: **the user's veto on the architecture is

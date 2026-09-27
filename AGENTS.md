@@ -837,3 +837,21 @@ never restate it here. It is in force on **every** turn, not only when a skill
 or an agent is involved.
 
 <!-- --- End Specnaut: response-style --- -->
+
+<!-- --- Specnaut: phase-addenda --- -->
+
+## Project addenda to Specnaut phases
+
+_Owned by Specnaut — this section is not a placeholder to fill in. Edit the rest
+freely._
+
+**Whenever you run a `/specnaut` or `/ship` phase, however it was reached** —
+the router, a per-phase command or workflow, a chained step — read
+`.specnaut/addenda/<skill>/<phase>.md` if it exists: `<skill>` is `specnaut` or
+`ship`, `<phase>` the phase's name (`plan`, `audit-security`, `release`), so
+`/ship release` reads `.specnaut/addenda/ship/release.md`. It is this project's
+own addition to that phase. It adds to the phase at the step it names and never
+replaces or skips a bundled step: where it contradicts one, the bundled step
+stands and you say so. No file means no addendum — say nothing about it.
+
+<!-- --- End Specnaut: phase-addenda --- -->
