@@ -22,8 +22,9 @@
 #
 # Date axes accept ISO 8601 (YYYY-MM-DD). Estimate is a numeric value
 # (story points or days, project's choice). Date / Estimate fields are
-# part of the Project V2 board (#264); they're what the Roadmap view
-# plots along its timeline.
+# what the Roadmap view plots along its timeline (#264). A date — like
+# Priority / Size — may be the project's own or an organization issue
+# field; each form takes its own mutation (see `set_issue_field`).
 #
 # Issue Types are an org-level GitHub feature. On user-owned repos (no org)
 # the org query returns nothing and the script exits 10 so the caller falls
@@ -33,9 +34,11 @@
 #   0   field / type updated
 #   10  no such field / type on the project / org (caller should fall back to a label)
 #   11  field / type present but the value is unrecognised (Priority/Size/IssueType only — date/number axes defer to gh for value validation)
-#   13  field exists but the write was REFUSED — see #284: an issue-level date
-#       field pushed through the project mutation, or the reverse
 #   12  issue is not on the project / not in the repo
+#   13  field discovery FAILED (rate limit, bad token, any gh error) — NOT a
+#       fallback signal: the field may well exist, so the caller must not apply
+#       a label; retry, or report the value as not persisted
+#   2   backlog-config.yml missing / incomplete, or its project does not resolve
 #   1   usage / unexpected error
 set -euo pipefail
 
@@ -50,6 +53,55 @@ fi
 NUM="$1"
 FIELD_NAME="$2"
 VALUE="$3"
+
+# Run detect-fields.sh and load its answer — only a COMPLETE answer.
+#
+# Not `eval "$(detect-fields.sh)"`: `eval` returns its own status, not the
+# substituted command's, and `eval ""` is 0, so `set -e` never fires. A detector
+# that died left every `*_FIELD_ID` unset, and the absent-field guard below then
+# answered exit 10 — "fall back to a label" — for a field that may well exist.
+# That is the dual-signal drift this script exists to prevent, caused by a
+# transient fault and reported as a normal outcome. Output and status are
+# therefore captured apart, and output from a failed run is discarded whole: a
+# detector that died after emitting some fields is not half-right.
+load_fields() {
+  local fields
+  if ! fields=$("$(dirname "$0")/detect-fields.sh"); then
+    echo "field discovery failed on Project #$PROJECT_NUMBER — the field may exist; do not fall back to a label (retry, or report '$FIELD_NAME' as not persisted)" >&2
+    exit 13
+  fi
+  eval "$fields"
+}
+
+# Write an ORGANIZATION issue field's value on the issue itself.
+#
+# `updateProjectV2ItemFieldValue` addresses a project ITEM; an issue-level
+# field's value lives on the ISSUE, against the organization's field, so the
+# issue need not be a project item at all — only an issue that does not exist
+# is exit 12. `setIssueFieldValue` rather than `updateIssueFieldValue` /
+# `createIssueFieldValue`: those require the value to already exist / not exist,
+# so either forces a read-before-write to choose, with a race in the gap. `set`
+# is the idempotent upsert. One write shape for every issue-level axis; they
+# differ only in the value slot of `IssueFieldCreateOrUpdateInput`.
+#
+# Usage: set_issue_field <org-field-id> <slot> <slot-graphql-type> <value>
+#   e.g. set_issue_field IFSS_x singleSelectOptionId ID!     <option-id>
+#        set_issue_field IFD_x  dateValue            String! 2026-06-30
+set_issue_field() {
+  local field="$1" slot="$2" type="$3" value="$4" issue_id
+  issue_id=$(gh issue view "$NUM" --repo "$REPO" --json id --jq '.id' 2>/dev/null || true)
+  if [ -z "$issue_id" ]; then
+    echo "issue #$NUM not found in $REPO" >&2
+    exit 12
+  fi
+  gh api graphql -f query="
+    mutation(\$issue: ID!, \$field: ID!, \$value: $type) {
+      setIssueFieldValue(input: {
+        issueId: \$issue,
+        issueFields: [{ fieldId: \$field, $slot: \$value }]
+      }) { clientMutationId }
+    }" -f issue="$issue_id" -f field="$field" -f value="$value" >/dev/null
+}
 
 # Normalize field name to one of the canonical labels we support.
 FIELD_LOWER=$(echo "$FIELD_NAME" | tr '[:upper:]' '[:lower:]')
@@ -92,7 +144,8 @@ fi
 # have option IDs — `gh project item-edit` takes the raw value via
 # --date (ISO 8601) or --number. The field discovery still runs through
 # detect-fields.sh; missing field → exit 10 (caller surfaces "field
-# absent on project" warning, same contract as Priority/Size).
+# absent on project" warning, same contract as Priority/Size); failed
+# discovery → exit 13.
 case "$FIELD_LOWER" in
   startdate | targetdate | estimate)
     case "$FIELD_LOWER" in
@@ -101,7 +154,7 @@ case "$FIELD_LOWER" in
       estimate)   PREFIX="ESTIMATE"   CANONICAL="Estimate"    KIND="number" ;;
     esac
 
-    eval "$("$(dirname "$0")/detect-fields.sh")"
+    load_fields
 
     FIELD_ID_VAR="${PREFIX}_FIELD_ID"
     FIELD_ID="${!FIELD_ID_VAR-}"
@@ -110,66 +163,24 @@ case "$FIELD_LOWER" in
       exit 10
     fi
 
-    # ISSUE-LEVEL FIELDS TAKE A DIFFERENT MUTATION (#284). `gh project
-    # item-edit` speaks `updateProjectV2ItemFieldValue`, which refuses them
-    # outright: "Issue field values cannot be updated using the
-    # updateProjectV2ItemFieldValue mutation". They are not project items at
-    # all, so there is no item id to look up — the issue's own node id is the
-    # target. detect-fields.sh says which surface this axis lives on.
-    SCOPE_VAR="${PREFIX}_FIELD_SCOPE"
-    if [ "${!SCOPE_VAR-}" = "issue" ]; then
-      ISSUE_NODE_ID=$(gh api graphql -f query='
-        query($owner:String!, $name:String!, $num:Int!) {
-          repository(owner:$owner, name:$name) { issue(number:$num) { id } }
-        }' -f owner="$REPO_OWNER" -f name="$REPO_NAME" -F num="$NUM" \
-        | jq -r '.data.repository.issue.id')
-      if [ -z "$ISSUE_NODE_ID" ] || [ "$ISSUE_NODE_ID" = "null" ]; then
-        echo "issue #$NUM not found in $REPO" >&2
-        exit 12
+    # An issue-level date: the project lists it, but its value lives on the
+    # issue and the project mutation refuses it, whatever id the listing
+    # showed. detect-fields.sh decided the form; this only follows it.
+    FORM_VAR="${PREFIX}_FIELD_FORM"
+    if [ "$KIND" = "date" ] && [ "${!FORM_VAR-local}" = "projected" ]; then
+      ORG_FIELD_VAR="${PREFIX}_ORG_FIELD_ID"
+      ORG_FIELD_ID="${!ORG_FIELD_VAR-}"
+      if [ -z "$ORG_FIELD_ID" ]; then
+        echo "'$CANONICAL' is an issue-level field but its organization field id is unknown — skip" >&2
+        exit 10
       fi
-      if [ "$KIND" = "date" ]; then
-        VALUE_ARG=(-f value="$VALUE")
-        VALUE_FIELD='dateValue: $value'
-        VALUE_TYPE="String"
-      else
-        VALUE_ARG=(-F value="$VALUE")
-        VALUE_FIELD='numberValue: $value'
-        VALUE_TYPE="Float"
-      fi
-      TMP_ERR=$(mktemp)
-      # A REFUSED WRITE MUST NOT LOOK LIKE A DONE ONE. `gh` failing here used
-      # to abort under `set -e` carrying gh's own exit code, which a caller
-      # cannot tell apart from any other failure; 13 says "the field exists and
-      # the write was refused", which is the case a caller has to act on.
-      if ! gh api graphql -f query="
-        mutation(\$issue:ID!, \$field:ID!, \$value:$VALUE_TYPE!) {
-          updateIssueFieldValue(input:{
-            issueId: \$issue,
-            issueField: { fieldId: \$field, $VALUE_FIELD }
-          }) { clientMutationId }
-        }" -f issue="$ISSUE_NODE_ID" -f field="$FIELD_ID" "${VALUE_ARG[@]}" \
-        >/dev/null 2>"$TMP_ERR"; then
-        cat "$TMP_ERR" >&2
-        rm -f "$TMP_ERR"
-        echo "could not write issue-level '$CANONICAL' on #$NUM" >&2
-        exit 13
-      fi
-      rm -f "$TMP_ERR"
-      echo "✓ #$NUM $CANONICAL → $VALUE (issue field)"
+      set_issue_field "$ORG_FIELD_ID" dateValue 'String!' "$VALUE"
+      echo "✓ #$NUM $CANONICAL → $VALUE (organization field)"
       exit 0
     fi
 
-    # Targeted item-ID lookup, same shape as the Priority/Size path
-    # below — one issue, projectItems(first:5), filter on PROJECT_NODE_ID.
-    ITEM_ID=$(gh api graphql -f query='
-      query($owner:String!, $name:String!, $num:Int!) {
-        repository(owner:$owner, name:$name) {
-          issue(number:$num) {
-            projectItems(first:5) { nodes { id project { id } } }
-          }
-        }
-      }' -f owner="$REPO_OWNER" -f name="$REPO_NAME" -F num="$NUM" \
-      | jq -r --arg p "$PROJECT_NODE_ID" '.data.repository.issue.projectItems.nodes[] | select(.project.id==$p) | .id' | head -1)
+    # Targeted item-ID lookup — `_config.sh` owns the query (#603).
+    ITEM_ID=$(project_item_id "$NUM")
 
     if [ -z "$ITEM_ID" ]; then
       echo "issue #$NUM is not on Project #$PROJECT_NUMBER" >&2
@@ -204,7 +215,7 @@ case "$FIELD_LOWER" in
     ;;
 esac
 
-eval "$("$(dirname "$0")/detect-fields.sh")"
+load_fields
 
 FIELD_ID_VAR="${PREFIX}_FIELD_ID"
 FIELD_ID="${!FIELD_ID_VAR-}"
@@ -213,25 +224,38 @@ if [ -z "$FIELD_ID" ]; then
   exit 10
 fi
 
-VALUE_KEY=$(echo "$VALUE" | tr '[:lower:]' '[:upper:]')
+VALUE_KEY=$(echo "$VALUE" | tr '[:lower:]' '[:upper:]' | tr -c 'A-Z0-9\n' '_')
 OPT_VAR="${PREFIX}_OPT_${VALUE_KEY}"
 OPT_ID="${!OPT_VAR-}"
 if [ -z "$OPT_ID" ]; then
+  # Matched by NAME, never mapped. A projected organization field may use a
+  # different vocabulary than the project-local one of the same name — on this
+  # org, project-local `Priority` is P0..P3 while the organization's `Priority`
+  # is Urgent/High/Medium/Low. Translating between them would be a silent
+  # mis-write dressed as helpfulness; exit 11 hands the value to a label, which
+  # is visibly approximate and already the documented contract.
   echo "field '$CANONICAL' has no option '$VALUE' — fall back to label" >&2
   exit 11
 fi
 
-# Targeted lookup by issue number — much cheaper than fetching the whole
-# project item list (a single issue ~2 GraphQL points, vs paginated list).
-ITEM_ID=$(gh api graphql -f query='
-  query($owner:String!, $name:String!, $num:Int!) {
-    repository(owner:$owner, name:$name) {
-      issue(number:$num) {
-        projectItems(first:5) { nodes { id project { id } } }
-      }
-    }
-  }' -f owner="$REPO_OWNER" -f name="$REPO_NAME" -F num="$NUM" \
-  | jq -r --arg p "$PROJECT_NODE_ID" '.data.repository.issue.projectItems.nodes[] | select(.project.id==$p) | .id' | head -1)
+# A PROJECTED organization field is not written through the project — see
+# `set_issue_field` for the mutation and why it is that one.
+FORM_VAR="${PREFIX}_FIELD_FORM"
+FORM="${!FORM_VAR-local}"
+if [ "$FORM" = "projected" ]; then
+  ORG_FIELD_VAR="${PREFIX}_ORG_FIELD_ID"
+  ORG_FIELD_ID="${!ORG_FIELD_VAR-}"
+  if [ -z "$ORG_FIELD_ID" ]; then
+    echo "'$CANONICAL' is projected but its organization field id is unknown — fall back to label" >&2
+    exit 10
+  fi
+  set_issue_field "$ORG_FIELD_ID" singleSelectOptionId 'ID!' "$OPT_ID"
+  echo "✓ #$NUM $CANONICAL → $VALUE (organization field)"
+  exit 0
+fi
+
+# Targeted lookup by issue number — `_config.sh` owns the query (#603).
+ITEM_ID=$(project_item_id "$NUM")
 
 if [ -z "$ITEM_ID" ]; then
   echo "issue #$NUM is not on Project #$PROJECT_NUMBER" >&2
