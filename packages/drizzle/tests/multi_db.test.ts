@@ -7,7 +7,12 @@
  * @module @lockness/drizzle/tests/multi_db
  */
 
-import { assert, assertEquals, assertStringIncludes } from '@std/assert'
+import {
+    assert,
+    assertEquals,
+    assertRejects,
+    assertStringIncludes,
+} from '@std/assert'
 import { Database } from '../mod.ts'
 import { type Dialect, resolveDialect } from '../drivers.ts'
 
@@ -103,10 +108,14 @@ Deno.test('SC-006: a connection failure does not leak credentials from the error
             probe: () => Promise.reject(err),
         })
     })
+    // Since #420 `connect()` makes no round trip, so the driver error surfaces
+    // from `probe()` — the one method that talks to the database.
     const res = await db.connect('postgres://h/db', { silent: true })
-    assertEquals(res.success, false)
+    assertEquals(res.success, true)
+    const error = await assertRejects(() => db.probe(), Error)
+    assertStringIncludes(error.message, 'connection refused')
     assert(
-        !(res.error ?? '').includes('SUPERSECRETPW'),
-        'the returned error must not carry the credential from the error object',
+        !error.message.includes('SUPERSECRETPW'),
+        'the re-thrown error must not carry the credential from the error object',
     )
 })

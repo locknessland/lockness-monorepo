@@ -12,6 +12,8 @@
 
 import { assertEquals, assertRejects } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
+import { container } from '@lockness/container'
+import { Database } from '../mod.ts'
 import {
     type CommandRunner,
     type CommandSpec,
@@ -368,6 +370,49 @@ Deno.test('db:seed --allow-production - runs under production with the override 
         assertEquals(ran, ['database'])
         assertEquals(events, ['close'])
     } finally {
+        restore()
+    }
+})
+
+// -----------------------------------------------------------------------------
+// db:seed — the real connection port refuses a failed connect() (#420)
+// -----------------------------------------------------------------------------
+
+Deno.test('db:seed - stops before loading any seeder when connect() fails', async () => {
+    // The default port (`initDatabase`) against the container's Database, with
+    // a driver factory that cannot build its client. Since #420 `connect()`
+    // makes no round trip, so a `success: false` is the only signal left that
+    // the configuration is broken — ignoring it would run every seeder against
+    // a client that was never built.
+    const restore = muteConsole()
+    const prevUrl = Deno.env.get('DATABASE_URL')
+    Deno.env.set('DATABASE_URL', 'postgres://u:p@h:5432/app')
+    container.delete(Database)
+    try {
+        container.get(Database).setDriverFactory('postgres', () => {
+            throw new Error('Cannot find module postgres')
+        })
+        const cli = new FakeCli()
+        let loaded = false
+        const loadSeeder: SeederLoader = () => {
+            loaded = true
+            return Promise.resolve({})
+        }
+        registerDrizzleCommands(cli, { loadSeeder })
+
+        await withAppEnv(undefined, async () => {
+            await assertRejects(() => cli.run('db:seed'), Error, 'postgres')
+        })
+
+        assertEquals(
+            loaded,
+            false,
+            'a seeder was loaded after connect() failed',
+        )
+    } finally {
+        container.delete(Database)
+        if (prevUrl === undefined) Deno.env.delete('DATABASE_URL')
+        else Deno.env.set('DATABASE_URL', prevUrl)
         restore()
     }
 })

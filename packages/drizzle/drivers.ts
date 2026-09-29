@@ -39,30 +39,42 @@ export type DialectDatabase<D extends Dialect> = D extends 'mysql'
     : PostgresJsDatabase<DatabaseSchema>
 
 /**
- * A live connection's handle: the Drizzle instance plus the two operations the
- * `Database` service needs and that differ per client.
+ * A configured client's handle: the Drizzle instance plus the two operations
+ * the `Database` service needs and that differ per client.
  */
 export interface DriverHandle {
     /** The Drizzle database instance (typed by the caller per dialect). */
     readonly db: unknown
     /** Close the underlying client. */
     close(): Promise<void>
-    /** Issue a lightweight connectivity probe (`SELECT 1`). */
+    /**
+     * Issue a lightweight connectivity probe (`SELECT 1`) — the handle's one
+     * deliberate round trip, made only when `Database.probe()` is called.
+     */
     probe(): Promise<void>
 }
 
 /**
- * Opens a connection for one dialect and returns its {@link DriverHandle}. This
- * is the seam the `Database` service loads a driver through — overridable for
- * tests (to inject a fake handle) and for registering custom drivers.
+ * Constructs the client for one dialect and returns its {@link DriverHandle}.
+ * This is the seam the `Database` service loads a driver through — overridable
+ * for tests (to inject a fake handle) and for registering custom drivers.
+ *
+ * **A factory constructs only; it must not make a round trip.** `Database`
+ * calls it at boot, and on a scale-to-zero database any query at boot wakes and
+ * bills the compute on every cold start (#420). The built-in clients are lazy —
+ * constructing one opens nothing — and connectivity is checked only by the
+ * handle's `probe()`, when a caller whose job is checking asks for it. A custom
+ * factory registered through `Database.setDriverFactory` is held to the same
+ * contract.
  *
  * Implementations load their adapter + client on demand, so the factory is
- * asynchronous and the returned promise resolves once the connection is ready.
+ * asynchronous; the returned promise resolves once the client is constructed,
+ * not once the database has answered.
  *
  * @param url - The connection URL / DSN for the target database.
- * @returns A promise resolving to the {@link DriverHandle} for the connection.
- * @throws If the client package is missing or the connection cannot be opened;
- * the error propagates from the underlying `import()` or client constructor.
+ * @returns A promise resolving to the {@link DriverHandle} for the client.
+ * @throws If the client package is missing or the client constructor rejects
+ * the URL; the error propagates from the underlying `import()` or constructor.
  *
  * @example
  * ```typescript

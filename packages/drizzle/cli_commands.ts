@@ -67,9 +67,12 @@ export type CommandRunner = (spec: CommandSpec) => Promise<number>
 /**
  * Minimal database connection port used by the `db:check` and `db:seed`
  * commands. {@link Database} satisfies it structurally.
+ *
+ * A value of this type is **configured**, not connected: obtaining it makes no
+ * round trip (#420). Only {@link DbConnection.probe} talks to the database.
  */
 export interface DbConnection {
-    /** Verify connectivity (runs `SELECT 1`). */
+    /** Verify connectivity (runs `SELECT 1`) — the one round trip. */
     probe(): Promise<void>
     /** Close the connection. */
     close(): Promise<void>
@@ -96,7 +99,10 @@ export type SeederLoader = (
  * overrides any subset to stay hermetic (no real database, process, or import).
  */
 export interface DrizzleCommandDeps {
-    /** Connection port — resolves a connected {@link DbConnection}. */
+    /**
+     * Connection port — resolves a configured {@link DbConnection}, or rejects
+     * when the client cannot be configured.
+     */
     readonly connect: () => Promise<DbConnection>
     /** Command-runner port wrapping {@link Deno.Command}. */
     readonly runCommand: CommandRunner
@@ -136,15 +142,27 @@ const STUBS_PATH: string = import.meta.url.startsWith('file://')
 // =============================================================================
 
 /**
- * Initialize the database connection.
+ * Configure the container's database client from `DATABASE_URL`.
  *
- * @returns Connected Database instance
+ * `connect()` makes no round trip (#420), so its `success: false` — a missing
+ * client package, or a URL the client rejects — is the only signal that the
+ * configuration is broken. It is turned into a throw here: a command that goes
+ * on regardless would run every seeder against a client that was never built.
+ *
+ * @returns The configured Database instance.
+ * @throws {Error} When the client could not be configured; the message is the
+ *   redacted `ConnectionResult.error`.
  */
 async function initDatabase(): Promise<Database> {
     const db = container.get<Database>(Database)
-    await db.connect(
+    const result = await db.connect(
         Deno.env.get('DATABASE_URL') || 'postgres://localhost:5432/lockness',
     )
+    if (!result.success) {
+        throw new Error(
+            `Database not configured: ${result.error ?? 'unknown error'}`,
+        )
+    }
     return db
 }
 

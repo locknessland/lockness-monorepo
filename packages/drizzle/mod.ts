@@ -133,14 +133,20 @@ export class Database<D extends Dialect = 'postgres'> {
 
     /** The per-dialect driver factories (overridable via {@link Database.setDriverFactory}). */
     #factories: Record<Dialect, DriverFactory> = { ...defaultDriverFactories }
-    /** The live connection's close/probe closures, set at connect time. */
+    /** The configured client's close/probe closures, set at connect time. */
     #close: (() => Promise<void>) | undefined
     #probe: (() => Promise<void>) | undefined
+    /** The DSN the configured client was built from — held to redact it. */
+    #url: string | undefined
     #connected = false
 
     /**
      * Override the driver factory for one dialect — the seam for unit tests
      * (a fake driver, no live DB) and for registering a custom driver.
+     *
+     * A factory must only **construct** its client: a round trip inside it
+     * brings back the boot-time wake-up #420 removed. See
+     * {@link DriverFactory}.
      *
      * @param dialect - The dialect to override.
      * @param factory - The factory to use for it.
@@ -150,23 +156,34 @@ export class Database<D extends Dialect = 'postgres'> {
     }
 
     /**
-     * Connect to the database through the resolved dialect's driver.
+     * Configure the database client for the resolved dialect. **Makes no round
+     * trip.**
      *
      * The dialect is resolved by {@link resolveDialect} (`options.driver` >
      * URL scheme > `postgres`); the matching driver + client are loaded on
-     * demand. A failure to load the client is reported with the package to
-     * install; a connection failure is rendered through `renderError` so a
-     * driver error cannot spill a DSN's credentials into logs.
+     * demand and the client is constructed. The clients are lazy, so nothing
+     * reaches the database until the first query or an explicit
+     * {@link Database.probe}: on a scale-to-zero database, booting an app must
+     * not wake (and bill) the compute (#420). The name is kept for API
+     * stability — it configures, it does not connect.
+     *
+     * `success: false` therefore means one of two things only: the client
+     * package is missing, or the client's constructor rejected the URL. An
+     * unreachable host, bad credentials or a database that is down surface at
+     * {@link Database.probe} (and so at `/ready`) or at the first query. A
+     * failure is rendered through `renderError`, so a driver error cannot
+     * spill a DSN's credentials into logs or into the returned result.
      *
      * @param url - Connection URL / DSN.
      * @param options - Optional dialect + silence.
-     * @returns Connection result with success status.
+     * @returns Whether the client was configured, and the redacted error if not.
      *
      * @example
      * ```ts
      * const db = container.get<Database>(Database)
      * const result = await db.connect(Deno.env.get('DATABASE_URL')!)
-     * if (!result.success) console.error('Failed to connect:', result.error)
+     * if (!result.success) console.error('Failed to configure:', result.error)
+     * await db.probe() // the one round trip — only where checking is the job
      * ```
      */
     public async connect(
@@ -175,68 +192,36 @@ export class Database<D extends Dialect = 'postgres'> {
     ): Promise<ConnectionResult> {
         const dialect = resolveDialect(options.driver, url)
 
-        /**
-         * Render a connection failure with the DSN removed by IDENTITY.
-         *
-         * `renderError`'s pattern-based redaction is the net for a DSN nobody
-         * holds. Here we hold it, so we can do better than a pattern — and we
-         * have to. Measured: a `/` in the password makes WHATWG `new URL()`
-         * throw, and the thrown message carries the whole DSN; the same `/` is
-         * what a pattern cannot span without eating every scoped-package URL.
-         * The characters that break the parser and the characters that break
-         * the pattern are the same set, so the site that produces the error is
-         * the only place that can be sure. A raw space or `@` in the password
-         * has the same shape and is closed by the same substring replace.
-         *
-         * `followCause: false` for a second reason: this string is RETURNED as
-         * `ConnectionResult.error`, not only logged, so an application may put
-         * it somewhere a log line would never go. That is the same distinction
-         * `@lockness/telemetry` draws for a span.
-         */
-        const render = (error: unknown): string =>
-            renderError(error, { followCause: false }).replaceAll(
-                url,
-                '<dsn redacted>',
-            )
-
         let handle
         try {
             handle = await this.#factories[dialect](url)
         } catch (error) {
-            // The driver's adapter/client could not be loaded or constructed —
-            // name the dialect and the package to install (never a raw stack).
+            // The driver's adapter/client could not be loaded, or its
+            // constructor rejected the URL — name the dialect and the package
+            // to install (never a raw stack).
             const message =
                 `Failed to initialise the '${dialect}' driver — ensure its client package (${
                     CLIENT_PACKAGE[dialect]
-                }) is installed. ${render(error)}`
+                }) is installed. ${this.#render(error, url)}`
             console.error('❌ Database connection failed:', message)
             return { success: false, error: message }
         }
 
-        try {
-            this.db = handle.db as DialectDatabase<D>
-            this.#close = () => handle.close()
-            this.#probe = () => handle.probe()
-            await this.#probe()
-            this.#connected = true
+        this.db = handle.db as DialectDatabase<D>
+        this.#close = () => handle.close()
+        this.#probe = () => handle.probe()
+        this.#url = url
+        this.#connected = true
 
-            if (!options.silent) {
-                console.log(`✅ Database connected (${dialect})`)
-            }
-            return { success: true }
-        } catch (error) {
-            // Connection/probe failure. `render` drops the error object and the
-            // stack, follows no cause, and removes the DSN by identity rather
-            // than by pattern — see its definition above for why a pattern is
-            // not enough at this particular site.
-            const message = render(error)
-            console.error('❌ Database connection failed:', message)
-            return { success: false, error: message }
+        if (!options.silent) {
+            console.log(`✅ Database configured (${dialect})`)
         }
+        return { success: true }
     }
 
     /**
-     * Close the database connection. Safe to call when not connected.
+     * Close the database client. Safe to call when not configured, and safe to
+     * call twice; afterwards {@link Database.probe} rejects as not connected.
      *
      * @example
      * ```ts
@@ -244,18 +229,27 @@ export class Database<D extends Dialect = 'postgres'> {
      * ```
      */
     public async close(): Promise<void> {
-        if (this.#close) {
-            await this.#close()
-            this.#connected = false
-        }
+        const close = this.#close
+        if (!close) return
+        this.#close = undefined
+        this.#probe = undefined
+        this.#connected = false
+        await close()
     }
 
     /**
-     * Verify connectivity by issuing a lightweight `SELECT 1` through the active
-     * driver.
+     * Verify connectivity by issuing a lightweight `SELECT 1` through the
+     * configured driver. **The only method that makes a round trip** — call it
+     * where checking is the job (`/ready`, `db:check`, an `@OnBoot` hook that
+     * wants boot to fail when the database is down), never on a hot path.
+     *
+     * A driver failure is re-thrown as a new `Error` carrying a redacted,
+     * head-only render: the DSN removed by identity, no cause chain, and none
+     * of the original error object's properties.
      *
      * @returns Resolves when the probe succeeds.
-     * @throws If no connection is established or the query fails.
+     * @throws {Error} `Database is not connected` when no client is configured
+     *   or after {@link Database.close}; otherwise the redacted driver failure.
      *
      * @example
      * ```ts
@@ -263,18 +257,59 @@ export class Database<D extends Dialect = 'postgres'> {
      * ```
      */
     public async probe(): Promise<void> {
-        if (!this.#probe) {
+        const probe = this.#probe
+        if (!probe) {
             throw new Error('Database is not connected')
         }
-        await this.#probe()
+        try {
+            await probe()
+        } catch (error) {
+            throw new Error(this.#render(error, this.#url ?? ''))
+        }
     }
 
     /**
-     * Check if the database is currently connected.
+     * Check whether a client is configured and not closed.
      *
-     * @returns True if a connection has been established.
+     * Since #420 this says nothing about reachability, because
+     * {@link Database.connect} makes no round trip. Use {@link Database.probe}
+     * to know whether the database answers.
+     *
+     * @returns True between a successful `connect()` and `close()`.
      */
     public isConnected(): boolean {
         return this.#connected
+    }
+
+    /**
+     * Render a driver failure with the DSN removed by IDENTITY.
+     *
+     * `renderError`'s pattern-based redaction is the net for a DSN nobody
+     * holds. Here we hold it, so we can do better than a pattern — and we
+     * have to. Measured: a `/` in the password makes WHATWG `new URL()`
+     * throw, and the thrown message carries the whole DSN; the same `/` is
+     * what a pattern cannot span without eating every scoped-package URL.
+     * The characters that break the parser and the characters that break
+     * the pattern are the same set, so the site that produces the error is
+     * the only place that can be sure. A raw space or `@` in the password
+     * has the same shape and is closed by the same substring replace.
+     *
+     * `followCause: false` for a second reason: this string is RETURNED as
+     * `ConnectionResult.error` or re-thrown by `probe()`, not only logged, so
+     * an application may put it somewhere a log line would never go. That is
+     * the same distinction `@lockness/telemetry` draws for a span.
+     *
+     * @param error - The driver failure.
+     * @param url - The DSN to remove. Empty means none is held: `replaceAll`
+     *   with an empty needle would splice the marker between every character.
+     * @returns The redacted, head-only render.
+     */
+    #render(error: unknown, url: string): string {
+        const rendered = renderError(error, { followCause: false })
+        if (url === '') return rendered
+        return rendered.replaceAll(
+            url,
+            '<dsn redacted>',
+        )
     }
 }

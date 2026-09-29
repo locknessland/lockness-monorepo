@@ -1,7 +1,8 @@
 /**
  * @fileoverview Database initialization bootstrap step.
  *
- * Connects to the database if configured in the kernel.
+ * Configures the database client if configured in the kernel — without a round
+ * trip (#420).
  *
  * @module @lockness/core/kernel/bootstrap/steps/database
  * @since 0.2.0
@@ -20,7 +21,9 @@ import { SHUTDOWN_PRIORITY } from '../../shutdown_registry.ts'
  *
  * Responsibilities:
  * - Import @lockness/drizzle if database is configured
- * - Connect to database using URL from config or environment
+ * - Configure the database client using URL from config or environment —
+ *   with zero round trips (#420)
+ * - Register the `database` readiness check behind `/ready`
  * - Skip gracefully if package not installed
  */
 export const databaseStep: BootstrapStep = {
@@ -39,7 +42,7 @@ export const databaseStep: BootstrapStep = {
                     options?: {
                         driver?: 'postgres' | 'mysql' | 'sqlite'
                     },
-                ): Promise<void>
+                ): Promise<{ success: boolean; error?: string }>
                 probe(): Promise<unknown>
             }
         }>(
@@ -65,6 +68,16 @@ export const databaseStep: BootstrapStep = {
             ? context.config.database.driver
             : undefined
         if (url) {
+            // Configure only — boot does NOT probe (#420). `connect()` builds a
+            // lazy client and makes zero round trips: on a scale-to-zero
+            // database a boot-time `SELECT 1` wakes and bills the compute on
+            // every cold start, whether or not a route ever queries it. The
+            // result is deliberately not acted on: `connect()` has already
+            // logged a failure (missing client package, URL the client
+            // rejects), a configuration error does not stop boot, and the
+            // `database` check below then reports it on `/ready`. An app that
+            // wants boot to fail when the database is down calls
+            // `Database.probe()` from its own `@OnBoot` hook.
             await db.connect(url, { driver })
 
             // Announce a readiness probe for `/ready` (#218). `probe()` runs
