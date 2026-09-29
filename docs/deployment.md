@@ -187,11 +187,12 @@ The framework serves two endpoints. You do not need to write them:
   database's `SELECT 1`, and returns `503` if any check fails. The body names
   each check and whether it is `up` or `down`, and nothing more.
 
-Point uptime and liveness monitors at **`/health`**, not at `/ready`. Every
-`/ready` call queries the database, so a monitor polling it keeps a
-scale-to-zero database awake and billed around the clock. Use `/ready` only
-where readiness is the question, such as a load balancer deciding whether to
-send traffic to an instance.
+Point uptime and liveness monitors at **`/health`**, not at `/ready`. `/ready`
+queries the database whenever its last result is more than 1 s old (the result
+is cached per process, or per isolate on a serverless host), so a monitor
+polling it keeps a scale-to-zero database awake and billed around the clock. Use
+`/ready` only where readiness is the question, such as a load balancer deciding
+whether to send traffic to an instance.
 
 ### Logging
 

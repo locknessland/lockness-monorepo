@@ -114,10 +114,12 @@ The framework serves two endpoints:
 - `GET /ready` is **readiness**. It runs every registered check, including the
   `database` check, which calls `probe()`. It returns `503` if any check fails.
 
-Point uptime and liveness monitors at **`/health`**. A monitor polling `/ready`
-sends a `SELECT 1` on every poll, which keeps a scale-to-zero database awake and
-billed around the clock. Use `/ready` only where a readiness signal is the
-point, such as a load balancer deciding whether to route traffic to an instance.
+Point uptime and liveness monitors at **`/health`**. `/ready` caches its result
+for 1 s per process (per isolate on a serverless host), so a monitor polling it
+sends a `SELECT 1` on every poll spaced more than 1 s apart. That keeps a
+scale-to-zero database awake and billed around the clock. Use `/ready` only
+where a readiness signal is the point, such as a load balancer deciding whether
+to route traffic to an instance.
 
 ### Failing boot when the database is down
 

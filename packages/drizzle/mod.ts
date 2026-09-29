@@ -223,6 +223,9 @@ export class Database<D extends Dialect = 'postgres'> {
      * Close the database client. Safe to call when not configured, and safe to
      * call twice; afterwards {@link Database.probe} rejects as not connected.
      *
+     * @returns Resolves once the client has closed; immediately when no client
+     *   is configured.
+     *
      * @example
      * ```ts
      * await db.close()
