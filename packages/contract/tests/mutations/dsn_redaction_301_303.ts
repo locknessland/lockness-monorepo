@@ -214,9 +214,11 @@ const MUTATIONS: Mutation[] = [
         label: "drizzle's identity redaction dropped",
         file: DRIZZLE,
         edits: [["'<dsn redacted>',", "'',"]],
-        killedBy: 'no password shape reaches the returned error',
-        expectSurvival:
-            'KNOWN SURVIVOR, and the test beside it says why. The only in-repo error that embeds the DSN is `TypeError: Invalid URL`, and the characters that make WHATWG throw are exactly the ones the shared encoder now spans — so the encoder gets there first every time and this leg never fires. It is the net for a third-party client that puts the DSN in a message of its own shaping, which no driver in this tree does. Recorded rather than deleted: an untestable defence is still a defence, and a battery that hides its survivors cannot be audited.',
+        // Was a known survivor while the pattern ran first and the identity
+        // leg never fired. Since #420 the exact DSN is stripped from the raw
+        // message before the pattern, and a fake client reaches the leg.
+        killedBy:
+            '#420 a driver message carrying the exact DSN is redacted by identity',
     },
     {
         label: "drizzle's head-only render dropped",

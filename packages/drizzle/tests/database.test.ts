@@ -112,15 +112,9 @@ Deno.test('#301 no password shape reaches the returned error', async () => {
     // fine, so `connect()` succeeds without a round trip and the failure is the
     // DNS lookup `probe()` makes — the error it re-throws is the one checked.
     //
-    // The identity leg (`replaceAll(url, ...)`) has NO reachable test here and
-    // that is stated rather than papered over: the only in-repo error that
-    // embeds the DSN is `TypeError: Invalid URL`, and the characters that make
-    // WHATWG throw are exactly the ones the shared encoder now spans — so the
-    // encoder gets there first every time. A raw space parses fine, so the
-    // driver fails at DNS with no DSN in the message at all. The leg is the net
-    // for a third-party client that puts the DSN in a message of its own
-    // shaping, which no driver in this tree does today. Its battery row is
-    // recorded as a known survivor with that reason, not quietly dropped.
+    // This asserts the property only, not which mechanism got there. The
+    // identity leg is pinned on its own by "a driver message carrying the
+    // exact DSN is redacted by identity", through a fake client.
     const secrets = ['aB3/xY9+z', 'my pass', 'p@ss']
     const assertNoSecret = (text: string, dsn: string): void => {
         for (const secret of secrets) {
@@ -199,4 +193,76 @@ Deno.test('#420 with no DSN held, the render is untouched and head-only', async 
 
     const error = await assertRejects(() => db.probe())
     assertEquals(messageOf(error), 'Error: connection refused')
+})
+
+Deno.test('#420 a driver message carrying the exact DSN is redacted by identity', async () => {
+    // The identity leg, reached: a client that words its own failure with the
+    // DSN in it. The marker proves the leg fired — the shared pattern alone
+    // would leave `postgres://***:***@db.internal...`, not the marker. The
+    // cause carries a bare value no pattern knows, so only head-only drops it.
+    const dsn = 'postgres://app:Hx7Kq2Lw@db.internal:5432/prod'
+    const db = new Database()
+    db.setDriverFactory(
+        'postgres',
+        failingFactory(
+            new Error(`could not reach ${dsn}`, {
+                cause: new Error('CAUSE-ONLY-VALUE'),
+            }),
+        ),
+    )
+    await db.connect(dsn, { silent: true })
+
+    const message = messageOf(await assertRejects(() => db.probe()))
+    assertEquals(message, 'Error: could not reach <dsn redacted>')
+})
+
+Deno.test('#420 a slash then a raw @ in the password leaks no fragment of it', async () => {
+    // `/` makes the userinfo span what the shared pattern must stop at, and
+    // the first raw `@` is where it stops — so pattern-first redaction left
+    // the tail after it (`postgres://***:***@Wm4@db...`) and the exact-DSN
+    // replace then had nothing left to match. Both surfaces are checked:
+    // `connect()`, where the client's parser rejects this DSN, and `probe()`,
+    // through a client that puts the DSN in a message of its own.
+    const dsn = 'postgres://app:Tk9/Qz@Wm4@db.invalid:5432/prod'
+    const fragments = ['Tk9', 'Qz', 'Wm4']
+    const assertNoFragment = (text: string, surface: string): void => {
+        for (const fragment of fragments) {
+            assertEquals(
+                text.includes(fragment),
+                false,
+                `${surface} leaked '${fragment}': ${text}`,
+            )
+        }
+    }
+
+    const rejected = await new Database().connect(dsn, { silent: true })
+    assertEquals(rejected.success, false, 'the parser accepted the DSN')
+    assertNoFragment(rejected.error ?? '', 'connect()')
+
+    const db = new Database()
+    db.setDriverFactory(
+        'postgres',
+        failingFactory(new Error(`could not reach ${dsn}`)),
+    )
+    await db.connect(dsn, { silent: true })
+    const error = await assertRejects(() => db.probe())
+    assertNoFragment(messageOf(error), 'probe()')
+})
+
+Deno.test('#420 an unreadable driver error renders as a sentinel, not a throw', async () => {
+    // Removing the DSN reads the raw message, and a thrown value's `message`
+    // can be a getter that throws. The render must stay total: the caller
+    // gets the sentinel, never the getter's own error.
+    const hostile = new Error('placeholder')
+    Object.defineProperty(hostile, 'message', {
+        get(): never {
+            throw new Error('getter exploded')
+        },
+    })
+    const db = new Database()
+    db.setDriverFactory('postgres', failingFactory(hostile))
+    await db.connect('postgres://u:p@db.internal:5432/app', { silent: true })
+
+    const error = await assertRejects(() => db.probe())
+    assertEquals(messageOf(error), '[unrenderable error]')
 })

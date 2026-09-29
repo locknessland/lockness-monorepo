@@ -282,34 +282,70 @@ export class Database<D extends Dialect = 'postgres'> {
     }
 
     /**
-     * Render a driver failure with the DSN removed by IDENTITY.
+     * Render a driver failure with the DSN removed by IDENTITY first.
      *
      * `renderError`'s pattern-based redaction is the net for a DSN nobody
      * holds. Here we hold it, so we can do better than a pattern — and we
-     * have to. Measured: a `/` in the password makes WHATWG `new URL()`
-     * throw, and the thrown message carries the whole DSN; the same `/` is
-     * what a pattern cannot span without eating every scoped-package URL.
-     * The characters that break the parser and the characters that break
-     * the pattern are the same set, so the site that produces the error is
-     * the only place that can be sure. A raw space or `@` in the password
-     * has the same shape and is closed by the same substring replace.
+     * have to. A `/` in the password makes WHATWG `new URL()` throw with the
+     * whole DSN in its message, and the pattern must stop at the first raw
+     * `@`; a password holding both leaves its tail after that `@` once the
+     * pattern has run (`postgres://***:***@<tail>@host/db`).
+     *
+     * So the exact DSN is removed from the RAW message, before the pattern
+     * ever sees it. The earlier order (pattern, then exact replace) could
+     * never match a DSN the pattern had already rewritten, which is how that
+     * tail leaked.
      *
      * `followCause: false` for a second reason: this string is RETURNED as
      * `ConnectionResult.error` or re-thrown by `probe()`, not only logged, so
      * an application may put it somewhere a log line would never go. That is
      * the same distinction `@lockness/telemetry` draws for a span.
      *
-     * @param error - The driver failure.
+     * @param raw - The driver failure.
      * @param url - The DSN to remove. Empty means none is held: `replaceAll`
      *   with an empty needle would splice the marker between every character.
      * @returns The redacted, head-only render.
      */
-    #render(error: unknown, url: string): string {
-        const rendered = renderError(error, { followCause: false })
-        if (url === '') return rendered
-        return rendered.replaceAll(
+    #render(raw: unknown, url: string): string {
+        const error = url === '' ? raw : withoutDsn(raw, url)
+        return renderError(error, { followCause: false })
+    }
+}
+
+/**
+ * Rebuild a failure as name + message with every occurrence of `url`
+ * replaced by a marker, ready for `renderError`.
+ *
+ * The result carries no cause and none of the original object's properties —
+ * the same head-only shape `renderError(…, { followCause: false })` renders.
+ *
+ * Reading an arbitrary thrown value can throw (a hostile `message` getter, a
+ * Proxy). `renderError` answers that with a sentinel rather than a throw, and
+ * so does this: the sentinel is what reaches the result, so the failure is
+ * reported, not swallowed.
+ *
+ * @param error - Whatever the driver threw.
+ * @param url - The non-empty DSN to remove.
+ * @returns An `Error` (or a string, for a non-`Error` value) without the DSN.
+ */
+function withoutDsn(error: unknown, url: string): unknown {
+    const scrub = (text: string): string =>
+        text.replaceAll(
             url,
             '<dsn redacted>',
         )
+    try {
+        if (error instanceof Error) {
+            // Same coercions as `renderError`: an application subclass can
+            // assign a non-string `name` or `message`.
+            const head = new Error(scrub(String(error.message)))
+            head.name = typeof error.name === 'string'
+                ? scrub(error.name)
+                : 'Error'
+            return head
+        }
+        return scrub(String(error))
+    } catch {
+        return '[unrenderable error]'
     }
 }
