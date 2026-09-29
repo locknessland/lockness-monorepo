@@ -403,16 +403,17 @@ not count toward the exit code. Deleting it instead would erase the evidence
 that the case was examined, and the next person re-derives it. A guard that is
 unreachable from every valid input is the desired state, not a redundancy.
 
-**Write the reason as a claim someone could falsify.** **Three** rows in this
+**Write the reason as a claim someone could falsify.** **Five** rows in this
 repo were recorded as equivalent and later shown to be killable once a fixture
 existed that could tell the difference — the self-skip row in
 `packages/realtime/tests/redis_broker_integration.test.ts`, which kept all three
-of its readings rather than overwriting them, and the two socket-ownership rows
-in `packages/redis/tests/mutations/subscribe_hardening_248.ts`. The second pair
-is the sharper example: one of them had named itself _"the highest-value
-uncovered guard in the branch"_, and #298 built the fixture that killed it. A
-reason written as a falsifiable claim is what tells the next person which
-fixture is worth building.
+of its readings rather than overwriting them, the two socket-ownership rows in
+`packages/redis/tests/mutations/subscribe_hardening_248.ts`, and the two drizzle
+redaction rows in `packages/contract/tests/mutations/dsn_redaction_301_303.ts`,
+killed once #420 let a fake client reach them. The second pair is the sharper
+example: one of them had named itself _"the highest-value uncovered guard in the
+branch"_, and #298 built the fixture that killed it. A reason written as a
+falsifiable claim is what tells the next person which fixture is worth building.
 
 ### A third disposition: **subsumption**
 

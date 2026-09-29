@@ -768,6 +768,39 @@ export class PostController {
 }
 ```
 
+## Upgrading to v0.4.0
+
+One item, breaking in meaning rather than in signature. **No migration step.**
+Read it if your code reads `connect()`'s result or `isConnected()`, wrote a
+custom `DriverFactory`, or relied on the boot log to report an unreachable
+database.
+
+### 1. `connect()` no longer reaches the database
+
+Before, `connect()` ran a `SELECT 1` before it reported success, and boot called
+it whenever a URL was configured. On a host that starts processes or isolates
+often, every start woke the database — a scale-to-zero Postgres stayed awake
+with no traffic at all (#420). Now `connect()` only builds the client, which is
+lazy, and makes **zero** round trips. What that changes:
+
+- **`success: true` means configured, not reachable.** It is `false` only when
+  the client package is missing or its parser rejects the URL. An unreachable
+  database, wrong credentials or a stopped server surface at the first query, at
+  `/ready` (503), or from `db:check`.
+- **`isConnected()` means "configured and not closed".** It no longer says the
+  database answered.
+- **A custom `DriverFactory` must not make a round trip.** A factory that
+  connects eagerly brings the per-start wake back for every app that uses it.
+- **Boot no longer logs an unreachable database.** It never failed on one — the
+  result was discarded — but the `❌` line is gone. To make boot fail, add the
+  probe yourself; see
+  [Boot Behaviour and Readiness](#boot-behaviour-and-readiness).
+- **`db:seed` now stops** when `connect()` fails, instead of handing its seeders
+  an unconfigured handle.
+
+Point liveness monitors at `/health`, which touches no database. `/ready` probes
+it, and polling it keeps a scale-to-zero database awake.
+
 ## Dependencies
 
 - `drizzle-orm` - ORM library
