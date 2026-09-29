@@ -225,9 +225,10 @@ const MUTATIONS: Mutation[] = [
             'renderError(error, { followCause: false })',
             'renderError(error)',
         ]],
-        killedBy: 'no password shape reaches the returned error',
-        expectSurvival:
-            'KNOWN SURVIVOR, same reason. No connect() error reachable from this repo carries a cause at all, so following one or not is indistinguishable through the public API. The change is still right: this is the only renderError site whose result is RETURNED rather than logged, and the comment above it asserted "renderError drops the cause" — which #302 made false. The code now makes that comment true again.',
+        // Reachable since #420: `setDriverFactory` lets a fake client reject
+        // `probe()` with an error that carries a cause.
+        killedBy:
+            '#420 with no DSN held, the render is untouched and head-only',
     },
 ]
 

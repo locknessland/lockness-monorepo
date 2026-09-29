@@ -95,19 +95,18 @@ Deno.test('a driver whose client cannot load fails with an actionable, dialect-n
 
 Deno.test('SC-006: a connection failure does not leak credentials from the error object', async () => {
     const db = new Database()
-    db.setDriverFactory('postgres', () => {
-        // A driver error whose message is safe but whose properties carry a
-        // secret — renderError returns name+message only, dropping the object.
-        const err = new Error('connection refused') as Error & {
-            connectionString?: string
-        }
-        err.connectionString = 'postgres://admin:SUPERSECRETPW@db.internal/app'
-        return Promise.resolve({
+    // A driver error whose message is safe but whose properties carry a secret
+    // — renderError returns name+message only, dropping the object.
+    const err = new Error('connection refused', {
+        cause: new Error('upstream'),
+    }) as Error & { connectionString?: string }
+    err.connectionString = 'postgres://admin:SUPERSECRETPW@db.internal/app'
+    db.setDriverFactory('postgres', () =>
+        Promise.resolve({
             db: {} as unknown,
             close: () => Promise.resolve(),
             probe: () => Promise.reject(err),
-        })
-    })
+        }))
     // Since #420 `connect()` makes no round trip, so the driver error surfaces
     // from `probe()` — the one method that talks to the database.
     const res = await db.connect('postgres://h/db', { silent: true })
@@ -117,5 +116,13 @@ Deno.test('SC-006: a connection failure does not leak credentials from the error
     assert(
         !error.message.includes('SUPERSECRETPW'),
         'the re-thrown error must not carry the credential from the error object',
+    )
+    // The message alone proves nothing if the driver's own object is what gets
+    // thrown: its properties and its cause would ride along to the caller.
+    assert(error !== err, 'probe() re-threw the driver error object itself')
+    assertEquals(error.cause, undefined, 'the re-thrown error kept a cause')
+    assert(
+        !('connectionString' in error),
+        "the re-thrown error kept the driver error object's properties",
     )
 })

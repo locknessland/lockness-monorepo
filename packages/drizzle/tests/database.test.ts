@@ -168,3 +168,35 @@ Deno.test('#302 probe() re-throws a head-only render, never a cause chain', asyn
         'a cause chain reached a re-thrown value',
     )
 })
+
+/**
+ * A fake postgres factory whose probe rejects with `error` — the shape of a
+ * third-party client that words its own failure, DSN and cause included.
+ */
+function failingFactory(error: unknown): DriverFactory {
+    return () =>
+        Promise.resolve({
+            db: {} as unknown,
+            close: () => Promise.resolve(),
+            probe: () => Promise.reject(error),
+        })
+}
+
+Deno.test('#420 with no DSN held, the render is untouched and head-only', async () => {
+    // An empty URL is a real input (`DATABASE_URL=` set but blank). There is
+    // then no DSN to remove, and `replaceAll('', marker)` would splice the
+    // marker between every character of the message.
+    const db = new Database()
+    db.setDriverFactory(
+        'postgres',
+        failingFactory(
+            new Error('connection refused', {
+                cause: new Error('CAUSE-ONLY-SECRET'),
+            }),
+        ),
+    )
+    assertEquals((await db.connect('', { silent: true })).success, true)
+
+    const error = await assertRejects(() => db.probe())
+    assertEquals(messageOf(error), 'Error: connection refused')
+})
