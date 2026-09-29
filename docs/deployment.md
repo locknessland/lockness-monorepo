@@ -118,6 +118,34 @@ MAIL_DRIVER=smtp
 deno task db:migrate
 ```
 
+**Boot makes zero database round trips.** With `DATABASE_URL` set, boot loads
+the driver and builds a lazy client, and sends nothing to the database. The
+first round trip is the first real query, or a `/ready` check. On a serverless
+host whose isolates start often, in front of a scale-to-zero database (Neon, for
+example), this means a cold start does not wake and bill the database. It also
+means boot does not fail when the database is down:
+
+| Failure                                           | Where it surfaces                                                                                               |
+| :------------------------------------------------ | :-------------------------------------------------------------------------------------------------------------- |
+| Client package missing, or URL the client rejects | A redacted `❌` line at boot (boot continues), then `/ready` returns `503`.                                     |
+| Host unreachable, bad credentials, database down  | Not at boot. `/ready` returns `503` within 3 s, the first query fails, and `deno task cli db:check` reports it. |
+
+An app that wants boot to fail when the database is down probes from a boot
+hook. Boot hooks run after the database is configured, and an error thrown by a
+hook stops the boot:
+
+```typescript
+@OnBoot()
+async verifyDatabase(_app: App) {
+    await container.get(Database).probe()
+}
+```
+
+Leave this out on a scale-to-zero database: it wakes the database on every cold
+start. See the
+[Drizzle docs](../packages/drizzle/docs/DOCS.md#boot-behaviour-and-readiness)
+for the full contract.
+
 ### Security
 
 - ✅ Change `SESSION_SECRET` to a strong random value
@@ -151,17 +179,19 @@ The Dockerfile:
 
 ### Health Checks
 
-Add a health endpoint in your application:
+The framework serves two endpoints. You do not need to write them:
 
-```typescript
-@Controller('/health')
-export class HealthController {
-    @Get('/')
-    check(c: Context) {
-        return c.json({ status: 'ok', timestamp: new Date() })
-    }
-}
-```
+- `GET /health` is **liveness**. It touches no dependency and always returns
+  `200` while the process is up.
+- `GET /ready` is **readiness**. It runs every registered check, including the
+  database's `SELECT 1`, and returns `503` if any check fails. The body names
+  each check and whether it is `up` or `down`, and nothing more.
+
+Point uptime and liveness monitors at **`/health`**, not at `/ready`. Every
+`/ready` call queries the database, so a monitor polling it keeps a
+scale-to-zero database awake and billed around the clock. Use `/ready` only
+where readiness is the question, such as a load balancer deciding whether to
+send traffic to an instance.
 
 ### Logging
 

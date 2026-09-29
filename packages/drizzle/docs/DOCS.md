@@ -66,6 +66,83 @@ export default defineConfig({
 })
 ```
 
+## Boot Behaviour and Readiness
+
+### Boot makes zero round trips
+
+When a database URL is configured, the kernel's database step calls
+`Database.connect()`. That call loads the driver and **constructs** a lazy
+client. It sends nothing to the database: no connection is opened and no
+`SELECT 1` is issued. The first round trip happens on the first real query, or
+when something calls `Database.probe()`.
+
+This matters on serverless and edge hosts (Deno Deploy, Cloud Run, Lambda, Fly
+auto-stop), where isolates start often. Against a scale-to-zero database (Neon,
+for example), any query wakes the compute and bills its minimum active window. A
+probe at boot would wake the database on every cold start, even with no traffic
+and no route that queries it. Lockness therefore never probes at boot, and there
+is no option to make it.
+
+The first query after the database has suspended still pays its resume latency.
+A host that does not answer makes that first query wait for the driver's connect
+timeout.
+
+### What `connect()`, `probe()` and `isConnected()` mean
+
+| Method          | Round trips | Meaning                                                                                                                                                   |
+| :-------------- | :---------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `connect()`     | 0           | Loads the driver and builds the client. `success: false` means only that the client package is missing or that the client rejected the URL.               |
+| `probe()`       | 1           | Runs `SELECT 1`. Throws `Database is not connected` before `connect()` or after `close()`. Otherwise it re-throws a driver failure with the DSN redacted. |
+| `isConnected()` | 0           | `true` once a client is configured and until `close()`. It does **not** mean that the database is reachable. Call `probe()` to find out.                  |
+
+A custom driver registered with `Database.setDriverFactory()` must follow the
+same contract: the factory constructs its client and makes no round trip.
+
+### Where each failure surfaces
+
+| Failure                                           | At boot                                                                             | After boot                                                                                         |
+| :------------------------------------------------ | :---------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------- |
+| Client package missing, or URL the client rejects | `connect()` returns `success: false` and logs a redacted `❌` line. Boot continues. | `/ready` returns `503` with `database: down`. `db:seed` and `db:check` stop with the error.        |
+| Host unreachable, bad credentials, database down  | Nothing is sent, so nothing is reported.                                            | `/ready` returns `503` within 3 s. The first query gets the driver's error. `db:check` reports it. |
+
+### Monitoring: `/health` for liveness, `/ready` for readiness
+
+The framework serves two endpoints:
+
+- `GET /health` is **liveness**. It touches no dependency and always returns
+  `200` while the process is up.
+- `GET /ready` is **readiness**. It runs every registered check, including the
+  `database` check, which calls `probe()`. It returns `503` if any check fails.
+
+Point uptime and liveness monitors at **`/health`**. A monitor polling `/ready`
+sends a `SELECT 1` on every poll, which keeps a scale-to-zero database awake and
+billed around the clock. Use `/ready` only where a readiness signal is the
+point, such as a load balancer deciding whether to route traffic to an instance.
+
+### Failing boot when the database is down
+
+Some long-running servers have no orchestrator watching `/ready` and would
+rather crash at boot than serve errors. For those, probe from an `@OnBoot` hook.
+Boot hooks run after the database step, and an error thrown by a hook stops the
+boot:
+
+```typescript
+import { type App, container, Kernel, OnBoot } from '@lockness/core'
+import { Database } from '@lockness/drizzle'
+
+@Kernel({ database: true })
+export class AppKernel {
+    @OnBoot()
+    async verifyDatabase(_app: App) {
+        // One round trip, only in apps that opt in.
+        await container.get(Database).probe()
+    }
+}
+```
+
+Do not use this recipe on a scale-to-zero database: it brings back the wake-up
+on every cold start.
+
 ## Basic Usage
 
 ### Database Service
@@ -304,7 +381,7 @@ deno task cli db:push
 ### Database Commands
 
 ```bash
-# Test database connection
+# Test database connection (one SELECT 1 round trip)
 deno task cli db:check
 
 # Run seeders
