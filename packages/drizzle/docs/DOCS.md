@@ -100,10 +100,10 @@ same contract: the factory constructs its client and makes no round trip.
 
 ### Where each failure surfaces
 
-| Failure                                           | At boot                                                                             | After boot                                                                                         |
-| :------------------------------------------------ | :---------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------- |
-| Client package missing, or URL the client rejects | `connect()` returns `success: false` and logs a redacted `❌` line. Boot continues. | `/ready` returns `503` with `database: down`. `db:seed` and `db:check` stop with the error.        |
-| Host unreachable, bad credentials, database down  | Nothing is sent, so nothing is reported.                                            | `/ready` returns `503` within 3 s. The first query gets the driver's error. `db:check` reports it. |
+| Failure                                           | At boot                                                                             | After boot                                                                                                     |
+| :------------------------------------------------ | :---------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------- |
+| Client package missing, or URL the client rejects | `connect()` returns `success: false` and logs a redacted `❌` line. Boot continues. | `/ready` returns `503` with `database: down`. `db:seed` and `db:check` print the error and exit 1.             |
+| Host unreachable, bad credentials, database down  | Nothing is sent, so nothing is reported.                                            | `/ready` returns `503` within 3 s. The first query gets the driver's error. `db:check` reports it and exits 1. |
 
 ### Monitoring: `/health` for liveness, `/ready` for readiness
 
@@ -370,7 +370,7 @@ deno task cli db:generate
 # Apply pending migrations
 deno task cli db:migrate
 
-# Check migration status
+# Check the migrations folder for consistency (not schema drift)
 deno task cli db:status
 
 # Drop all tables and re-migrate
@@ -392,6 +392,30 @@ deno task cli db:seed
 # Launch Drizzle Studio
 dx drizzle-kit studio
 ```
+
+### Exit Codes
+
+Every `db:*` command exits `0` when it did its job and `1` when it did not, so a
+deploy script can stop on a failed migration:
+
+```bash
+deno task cli db:migrate && deno task start
+```
+
+A failure is printed once on stderr as `❌ <message>`; for the commands that run
+`drizzle-kit`, its own output comes first and the message ends with
+`(drizzle-kit <subcommand> exited <n>)`.
+
+| Command       | Exits `1` when                                                                                                                                                                                                                   |
+| :------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `db:generate` | `drizzle-kit generate` exits non-zero                                                                                                                                                                                            |
+| `db:migrate`  | `drizzle-kit migrate` exits non-zero                                                                                                                                                                                             |
+| `db:push`     | `drizzle-kit push` exits non-zero                                                                                                                                                                                                |
+| `db:studio`   | `drizzle-kit studio` exits non-zero                                                                                                                                                                                              |
+| `db:status`   | `drizzle-kit check` exits non-zero. It validates the migrations folder only (snapshot versions, malformed snapshots, collisions); it reads neither the schema nor the database, so it reports no drift and no pending migrations |
+| `db:check`    | the client cannot be configured, or the `SELECT 1` probe fails. The message ends with a hint to check `DATABASE_URL`                                                                                                             |
+| `db:fresh`    | the drop fails — migrations are then **not** run — or the migrate step fails                                                                                                                                                     |
+| `db:seed`     | the environment is production without `--allow-production`, the client cannot be configured, the seeder file is missing or exports no seeder, or the seeder's own `run()` throws (printed with its stack)                        |
 
 ## Advanced Queries
 

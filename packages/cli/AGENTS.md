@@ -14,9 +14,22 @@ User-facing documentation: [README.md](README.md) ·
   fails `deno task deps:analyze`, and the failure is a design question, not a
   lint to silence.
 
-_Add the domain invariants — what must stay true inside this package, and what
-breaks when it does not. A statement that could have been guessed from the file
-names does not belong here._
+- **A failed command never exits 0 (#428).** A handler reports failure by
+  throwing; `Cli.dispatch()` is the one place that prints it (once) and maps it
+  to a status, and `Cli.run()` writes a non-zero status to `Deno.exitCode`.
+  Automation branches on that status, not on output text. Breaks when:
+  - a handler prints `❌` and returns — the process exits 0 and CI reads the
+    failure as success;
+  - `run()` calls `Deno.exit()` — `finally` blocks (a `db.close()`) are skipped
+    and buffered output is cut off;
+  - the failure check becomes `instanceof CommandFailedError` — it is matched by
+    **shape** (any `Error` with an integer `exitCode`) so packages that must not
+    import cli (mail, features, search, scheduler, i18n) can meet it with a
+    local subclass, and so two loaded copies of this package still agree.
+- **`command_failure.ts` imports nothing.** It is published as
+  `@lockness/cli/command-failure` so a package whose commands load at app boot
+  (`@lockness/drizzle`) can throw `CommandFailedError` without pulling the
+  barrel's ~260-module command graph into every web process.
 
 ## Dependency contract
 

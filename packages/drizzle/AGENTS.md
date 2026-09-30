@@ -61,9 +61,19 @@ Anything not listed is internal and free to change.
 
 ## Pitfalls
 
-- This package has **no tests** despite owning migration commands.
-- It imports `@lockness/cli` at runtime (`install.ts`), so it must not be
-  imported from `cli` in return — that would close a cycle.
+- The `db:*` commands are tested hermetically through the three seams of
+  `registerDrizzleCommands` (command runner, connection, seeder loader) — no
+  real database or `drizzle-kit` process. A new command gets a seam, not a
+  spawned process, in its test.
+- A `db:*` failure is a thrown `CommandFailedError`, never a printed `❌` and a
+  return — that exits 0 and CI reads it as success (#428). Import the class from
+  `@lockness/cli/command-failure`, not the barrel: `mod.ts` re-exports these
+  commands and core loads this package at boot.
+- `drizzle-kit check` (behind `db:status`) validates the migrations folder only;
+  it never reads the schema or the database. Do not word `db:status` as a drift
+  or pending-migrations check.
+- It imports `@lockness/cli` at runtime (`install.ts`, `cli_commands.ts`), so it
+  must not be imported from `cli` in return — that would close a cycle.
 - Issue #26 proposes a Kysely sibling; it must not deprecate or reshape this
   one.
 

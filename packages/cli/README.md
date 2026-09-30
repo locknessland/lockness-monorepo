@@ -63,6 +63,28 @@ export function registerMyCommands(cli: Cli) {
 }
 ```
 
+### Exit Codes
+
+A command reports failure by **throwing**. `cli.run()` prints the failure once
+and exits non-zero, so scripts and CI can branch on the status:
+
+```typescript
+import { CommandFailedError } from '@lockness/cli'
+
+cli.register('deploy', async () => {
+    const code = await runMigrations()
+    if (code !== 0) {
+        throw new CommandFailedError(`Migrations failed (exited ${code})`)
+    }
+})
+```
+
+`CommandFailedError` is printed as `❌ <message>` with no stack and exits with
+its `exitCode` (default `1`); any other error exits `1` with its stack; an
+unknown command exits `1`. The contract is matched by shape (any `Error` with an
+integer `exitCode`), so a package that cannot import `@lockness/cli` can use a
+local subclass. See [docs/DOCS.md](docs/DOCS.md#exit-codes).
+
 ### Stub System
 
 Generate files from templates:

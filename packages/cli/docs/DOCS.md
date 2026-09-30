@@ -169,6 +169,10 @@ deno task cli db:seed         # Run all seeders
 deno task cli db:seed User    # Run specific seeder
 ```
 
+Every `db:*` command exits `1` when it fails and `0` when it succeeds. The
+per-command table is in the
+[`@lockness/drizzle` docs](../../drizzle/docs/DOCS.md#exit-codes).
+
 ## Custom Commands
 
 Create your own CLI commands:
@@ -198,6 +202,62 @@ export class GreetCommand implements CommandContract {
     }
 }
 ```
+
+## Exit Codes
+
+A command reports failure by **throwing**, never by printing an error and
+returning. `cli.run()` prints the failure once and sets the process exit status,
+so a script or CI step can branch on it:
+
+| Outcome                                                     | Exit                                  | Printed                                              |
+| :---------------------------------------------------------- | :------------------------------------ | :--------------------------------------------------- |
+| No command                                                  | `0`                                   | the command list                                     |
+| Unknown command                                             | `1`                                   | `❌ Unknown command: <name>`, then the list          |
+| The handler resolves                                        | `0`                                   | —                                                    |
+| The handler throws `CommandFailedError` (or the same shape) | its `exitCode` if `1`–`255`, else `1` | `❌ <message>`, no stack                             |
+| The handler throws anything else                            | `1`                                   | `❌ <command> failed:` and the error, with its stack |
+
+```typescript
+import { CommandFailedError } from '@lockness/cli'
+
+cli.register('deploy', async () => {
+    const code = await runMigrations()
+    if (code !== 0) {
+        // Printed once as "❌ Migrations failed (exited 2)"; the process exits 1.
+        throw new CommandFailedError(`Migrations failed (exited ${code})`)
+    }
+})
+```
+
+- Throw `CommandFailedError` for a failure you expected and can explain in one
+  message. Throw (or let through) any other error for a bug: its stack is
+  printed.
+- Do not print the failure yourself as well; the CLI prints it.
+- `cli.run()` sets `Deno.exitCode` and never calls `Deno.exit()`, so `finally`
+  blocks (closing a connection) still run. `cli.dispatch(args)` returns the same
+  status without touching the process, which is what a test wants.
+
+### Packages that cannot import `@lockness/cli`
+
+The contract is matched by **shape**, not by class: any `Error` with an integer
+`exitCode` is an expected failure. A package whose dependency policy forbids
+importing `@lockness/cli` meets it with a local subclass:
+
+```typescript
+class MailCommandError extends Error {
+    readonly exitCode = 1
+}
+```
+
+A package that may import the CLI but must stay light at runtime imports the
+dependency-free subpath rather than the barrel:
+
+```typescript
+import { CommandFailedError } from '@lockness/cli/command-failure'
+```
+
+Some built-in commands outside `db:*` still report certain failures by printing
+and exiting `0`; they are being moved to this contract.
 
 ## Plugin System & Extensions
 

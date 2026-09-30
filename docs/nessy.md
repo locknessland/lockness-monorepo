@@ -227,6 +227,21 @@ when you run `nessy:install`.
 4. **Project-specific**: Generated per-project, not global
 5. **Always up-to-date**: Calls `cli.ts` directly, no compilation needed
 
+## Exit Codes
+
+`./nessy` passes the command's exit status through, so it can gate a script or
+CI step:
+
+```bash
+./nessy db:migrate && ./nessy start   # start only if the migration succeeded
+```
+
+A command that succeeds exits `0`. A command that fails prints `❌ <message>`
+once on stderr and exits non-zero, `1` unless the command sets another code. An
+unknown command also exits `1`; `./nessy` with no command lists the commands and
+exits `0`. Command authors report a failure by throwing `CommandFailedError` —
+see the [CLI docs](../packages/cli/docs/DOCS.md#exit-codes).
+
 ## Examples
 
 ```bash

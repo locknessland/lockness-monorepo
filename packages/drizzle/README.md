@@ -117,7 +117,8 @@ deno task cli db:generate
 deno task cli db:migrate
 ```
 
-**Check migration status:**
+**Check the migrations folder for consistency** (snapshots and collisions; it
+does not detect schema drift):
 
 ```bash
 deno task cli db:status
@@ -148,6 +149,25 @@ deno task cli db:check
 ```bash
 deno task cli db:seed
 ```
+
+### Exit Codes
+
+Every `db:*` command exits `0` on success and `1` on failure, printing the
+failure once on stderr, so scripts and CI can stop on it:
+
+```bash
+deno task cli db:migrate && deno task start
+```
+
+| Command                                             | Exits `1` when                                                                                        |
+| :-------------------------------------------------- | :---------------------------------------------------------------------------------------------------- |
+| `db:generate`, `db:migrate`, `db:push`, `db:studio` | the `drizzle-kit` subcommand exits non-zero                                                           |
+| `db:status`                                         | `drizzle-kit check` exits non-zero (it validates the migrations folder only)                          |
+| `db:check`                                          | the client cannot be configured or the `SELECT 1` probe fails                                         |
+| `db:fresh`                                          | the drop fails (migrations are then not run) or the migrate step fails                                |
+| `db:seed`                                           | production without `--allow-production`, no client, no seeder to load, or the seeder's `run()` throws |
+
+Details: [docs/DOCS.md](docs/DOCS.md#exit-codes).
 
 ### Drizzle Studio
 
