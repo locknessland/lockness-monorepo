@@ -26,6 +26,22 @@ export const DRIZZLE_KIT_DIALECT: Record<Dialect, string> = {
     sqlite: 'sqlite',
 }
 
+/** A `drizzle.config.ts` dialect `db:fresh` can reset (#435). */
+export type KitDialect = 'postgresql' | 'mysql' | 'sqlite' | 'turso'
+
+/**
+ * The reverse of {@link DRIZZLE_KIT_DIALECT}: the runtime {@link Dialect} a
+ * `drizzle.config.ts` dialect connects through. `turso` is libSQL, so it
+ * takes the `sqlite` driver. A kit dialect missing here (`singlestore`,
+ * `gel`) is one `db:fresh` refuses.
+ */
+export const DIALECT_FROM_KIT: Record<KitDialect, Dialect> = {
+    postgresql: 'postgres',
+    mysql: 'mysql',
+    sqlite: 'sqlite',
+    turso: 'sqlite',
+}
+
 /**
  * The dialect-specific fragments the model stub is rendered with. Each field is
  * substituted into a `{{placeholder}}` of `stubs/model.stub`, so the generated
