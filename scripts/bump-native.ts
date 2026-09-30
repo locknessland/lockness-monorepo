@@ -295,7 +295,9 @@ async function main(): Promise<void> {
             console.error(
                 `deno install exited with code ${lockCode}; deno.lock was ` +
                     'not refreshed, and a release commit without it cannot ' +
-                    'be published.',
+                    'be published. The version bump IS applied: run ' +
+                    '`deno install` once it can succeed, then commit. Do not ' +
+                    're-run the bump, or it takes a second step.',
             )
             Deno.exit(lockCode)
         }
