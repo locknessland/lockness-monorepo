@@ -117,7 +117,7 @@ minus their reason for it: Composer resolves from git, JSR does not.
 
 | Property     | Value                                                                 |
 | :----------- | :-------------------------------------------------------------------- |
-| History      | **one commit per release**, subject `Release v<version>`              |
+| History      | **one commit per release that changed the package**, `Release v<ver>` |
 | Root         | the package directory itself — `mod.ts`, not `packages/<name>/mod.ts` |
 | Tag          | `v<version>`, matching the monorepo                                   |
 | Description  | `[READ ONLY] … Source, issues and pull requests: <monorepo>`          |
@@ -129,11 +129,43 @@ the package directory, with `git commit-tree`, parented on the mirror's previous
 commit — so the history reads as a list of releases.
 
 ```bash
-deno task mirror --dry-run    # report, touch nothing
+deno task mirror --dry-run    # report the plan, push nothing
 deno task mirror --create     # create any missing mirror repository
 deno task mirror              # sync every package at the current version
 deno task mirror --flatten    # initial import only: one commit, no parent
 ```
+
+**Built from the release tag, never from `HEAD`.** Each mirror's tree is
+`refs/tags/v<version>^{commit}:packages/<name>`, so work committed after the
+release never reaches a mirror. Before building anything, the script runs
+`git fetch origin` and refuses, naming the cause, unless all of these hold:
+
+- the tag `v<version>` exists locally and is identical on `origin`;
+- the tag's commit is an ancestor of `origin/main`, and its `deno.jsonc` carries
+  `<version>`;
+- a green `Secret scan` run on `main` has a head that contains the tag. If the
+  scan is still running, wait for it and re-run.
+
+That provenance is why a mirror push passes the pre-push secret scan without a
+bypass. Everything it sends is already reachable from `origin/main`, so the hook
+admits it as publishing nothing new (see
+[testing.md](testing.md#sanitizers-and-fixtures)). **Never push a mirror with
+`--no-verify`.** A refusal names what is missing. Fix that, then re-run.
+
+**Re-runs are safe.** Each mirror's head is fetched first, into
+`refs/mirrors/<name>/main`, so the parent is present even in a fresh clone. The
+script then pushes only the refs that differ:
+
+| Mirror state                                | What the run does                               |
+| :------------------------------------------ | :---------------------------------------------- |
+| head and tag already at the release         | nothing — reports `already at v<version>`       |
+| head already holds the release tree, no tag | pushes the tag only, onto the existing commit   |
+| package changed since the last sync         | one new commit, branch and tag in the same push |
+
+Every mirror gets **one `git push --atomic --force`**, so a mirror never ends
+with its branch updated and its tag missing. A failed push prints git's full
+stderr. `--dry-run` still fetches the mirror heads (a local-only effect) so its
+plan is exact, but it creates and pushes nothing.
 
 `--flatten` drops the parent, so it rewrites a mirror's history. It is for the
 first import; do not use it afterwards, or the release history disappears.

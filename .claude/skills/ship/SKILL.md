@@ -396,14 +396,30 @@ expected, not a fault; `--min-dep-age 0` bypasses it for a smoke test.
 
 ### 6. Refresh the read-only mirrors
 
+**After** the `Secret scan` run on `main` that contains the release tag is
+green. The script checks this and refuses until it is.
+
 ```bash
+deno task mirror --dry-run   # the plan: which mirrors get branch + tag, tag only, nothing
 deno task mirror
 ```
 
-One commit per package, subject `Release v<version>`, tagged to match. They are
-discovery surfaces only — never a publish path — so this step cannot break a
-release that already shipped. **Never `--flatten` here**: that rewrites each
-mirror's history and erases the release list. It is for an initial import.
+The script builds every mirror from the release tag `v<version>`, never from
+`HEAD`. It first proves the tag's provenance: the tag is identical on `origin`,
+it is on `origin/main`, and a green `Secret scan` run contains it. Then each
+mirror gets one atomic push of only the refs that differ. A changed package gets
+a new `Release v<version>` commit plus its tag. An unchanged package gets the
+tag only. A mirror already in sync reports `already at v<version>`. Re-running
+after a partial failure is safe and finishes the job.
+
+Mirror pushes go through the normal pre-push hook. They pass the secret scan
+because they publish nothing `origin/main` has not already published. **Never
+`--no-verify` a mirror push.** If the script or the hook refuses, fix the named
+cause and re-run.
+
+Mirrors are discovery surfaces only, never a publish path, so this step cannot
+break a release that already shipped. **Never `--flatten` here**: that rewrites
+each mirror's history and erases the release list. It is for an initial import.
 
 If a package was added this cycle, `--create` makes its mirror first.
 

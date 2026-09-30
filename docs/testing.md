@@ -648,7 +648,30 @@ app.use('*', actingAs(fakeUser({ id: 1, isAdmin: true })))
   log line, a report that cannot be read, or a non-empty report paired with a
   zero exit status all refuse. "0 commits scanned" over a range known to hold
   commits refuses too, everywhere except CI's own new-range run (below), where
-  an empty range is a legitimate outcome, not a failure.
+  an empty range is a legitimate outcome, not a failure. A range the hook
+  **cannot resolve** — a `--force` push over a remote tip absent from the local
+  object store — refuses with `cannot resolve range — fetch first`; it is never
+  read as an empty range (#430).
+
+  **A push that publishes nothing new is not scanned.** Before scanning, the
+  hook compares what a ref update would send with what `origin/main` already
+  holds (`scripts/published_objects.ts`, #431). If every tree and blob the
+  update sends (`git rev-list --objects <local_sha> [--not <remote_sha>]`, minus
+  the range's commit ids) is already reachable from `origin/main`, the update
+  passes with
+  `publishes nothing origin/main has not already published;
+  not scanned`.
+  `origin/main` is public and was scanned by CI, so copying its content to
+  another ref or remote exposes nothing new. This is how a package mirror push
+  meets the hook: `deno task mirror` builds each mirror from the release tag,
+  which it proves is on `origin/main`. No `origin/main`, a git failure, or a
+  single new blob means the update is scanned exactly as before. Commit messages
+  are outside the comparison, and they are outside the scan too: gitleaks 8.30.1
+  in `git` mode does not read commit messages (checked against the real binary),
+  so the rule drops nothing the scan would have read. The residue: a leak
+  already on `origin/main` is copied along, because it is already public, and
+  rotation is the response. New flagged content pushed to another remote has no
+  suppression path, by design.
 
   **`.gitleaksignore` is read as it stood at the BASE, never at the tip.** A
   push (or a same-branch PR) cannot suppress its own new secret by adding the
