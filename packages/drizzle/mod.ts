@@ -175,9 +175,14 @@ export class Database<D extends Dialect = 'postgres'> {
      * message that cannot carry the DSN's password (#425):
      *
      * - **The DSN was refused** before any driver saw it, because a driver
-     *   could misparse where its password ends (a raw `@`, a space or a
-     *   non-ASCII character in the password, a raw `@` in the query string).
-     *   The message is fixed and quotes nothing from the DSN.
+     *   could misparse where its password ends. The user and password may
+     *   hold only `A-Za-z0-9-._~!$&'()*+,;=:` and `%XX`; every other
+     *   character must be percent-encoded — for example `^ | { } [ ] < > "
+     *   \`, a backtick, a space, a non-ASCII character, a raw `@`, and a `%`
+     *   not followed by two hex digits. A raw `@` in the path or query
+     *   string, a control character, and a scheme with no `//` (other than
+     *   `file:` and `sqlite:`) are refused too. The message is fixed and
+     *   quotes nothing from the DSN.
      * - **The client package is missing.** The message names the package and
      *   the import error, which never holds the DSN.
      * - **The client could not be built from the DSN.** Its message may quote

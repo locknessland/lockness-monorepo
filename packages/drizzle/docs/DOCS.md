@@ -51,37 +51,50 @@ DATABASE_URL=postgres://user:password@localhost:5432/mydb
 
 ### DSN format
 
-`Database.connect()` checks a URL-shaped DSN (one that contains `://`) before
-any driver sees it. A driver that cannot tell where a password ends does not
-fail. It rewrites the DSN: postgres.js reads a comma as a host separator, and
-every client ends the host part at the first `/`, `?` or `#`. So
-`postgres://app:2024/Spring@db/prod` is read as host `app`, port `2024`,
-database `Spring@db/prod`. Pieces of the password then become host names, which
-are looked up in DNS and echoed in errors. `connect()` refuses such a DSN
-instead.
+`Database.connect()` checks every DSN that starts with a scheme before any
+driver sees it. A driver that cannot tell where a password ends does not fail.
+It rewrites the DSN: postgres.js reads a comma as a host separator and ends the
+host part at the first `/` or `?`, and mysql2 and libsql end it at the first
+`/`, `?` or `#`. So `postgres://app:2024/Spring@db/prod` is read as host `app`,
+port `2024`, database `Spring@db/prod`. Pieces of the password then become host
+names, which are looked up in DNS and echoed in errors. `connect()` refuses such
+a DSN instead.
 
-In the grammar below, the **authority** is the text after `://` up to the first
-`/`, `?` or `#`, and the **tail** is everything after it. A DSN is accepted
-when:
+First, the DSN as a whole:
+
+- **No control character** (a tab, a newline, any other character below U+0020,
+  or DEL) and **no leading space.** WHATWG drops or strips them before it
+  parses, so the DSN a driver reads would not be the one checked.
+- **A scheme is followed by `//`.** `postgres:app:pw@db/prod` is refused: a
+  driver would read everything after `postgres:` as the database name. Only
+  `file:` and `sqlite:` paths may omit the `//`.
+
+Then, in the grammar below, the **authority** is the text after `scheme://` up
+to the first `/`, `?` or `#`, and the **tail** is everything after it. A DSN is
+accepted when:
 
 1. **The tail holds no raw `@`.** Write `%40` in a path or query string.
-2. **The authority holds at most one `@`, and the user and password use only
-   URL-safe characters:** letters, digits, `-._~!$&'()*+,;=:`, and
-   percent-encoded bytes (`%XX`). Each percent sequence must decode as UTF-8.
+2. **The authority holds at most one `@`, and the user and password use only the
+   allowed characters:** `A-Za-z0-9-._~!$&'()*+,;=:` and percent-encoded bytes
+   (`%XX`). Each percent sequence must decode as UTF-8. Every other character
+   must be percent-encoded.
 3. **The host part is empty, or a comma-separated list of hosts.** Each host is
    an `[IPv6]` literal or a name made of the same characters (without `,` or
    `:`), optionally followed by `:port`.
 4. **The DSN is a valid WHATWG URL** once the host list is cut to its first
    host.
+5. **A host list with a comma does not also appear before the host part.**
+   postgres.js cuts the list by replacing its first match anywhere in the DSN.
+   With `postgres://app:xdb1,db2x@db1,db2/prod`, that match is inside the
+   password, so the password would be rewritten.
 
-| Accepted                                       | Why                                    |
-| :--------------------------------------------- | :------------------------------------- |
-| `postgres://app:s3cret@db:5432/prod`           | the common form                        |
-| `postgres://app:p%40ss%2Fword@db/prod`         | reserved characters percent-encoded    |
-| `postgres://app:pw@h1:5432,h2:5433/prod`       | multi-host, with or without ports      |
-| `postgres://app:pw@[::1]:5432/prod`            | IPv6                                   |
-| `postgres://app:pw@%2Fvar%2Frun%2Fpostgresql/` | unix socket, as a percent-encoded path |
-| `postgres:///prod`, `file:local.db`            | empty host; SQLite paths are not URLs  |
+| Accepted                                 | Why                                   |
+| :--------------------------------------- | :------------------------------------ |
+| `postgres://app:s3cret@db:5432/prod`     | the common form                       |
+| `postgres://app:p%40ss%2Fword@db/prod`   | reserved characters percent-encoded   |
+| `postgres://app:pw@h1:5432,h2:5433/prod` | multi-host, with or without ports     |
+| `postgres://app:pw@[::1]:5432/prod`      | IPv6                                  |
+| `postgres:///prod`, `file:local.db`      | empty host; SQLite paths are not URLs |
 
 | Refused                                   | Write instead                               |
 | :---------------------------------------- | :------------------------------------------ |
@@ -89,7 +102,10 @@ when:
 | `postgres://app:2024/Spring@db/prod`      | `postgres://app:2024%2FSpring@db/prod`      |
 | `postgres://app:my pass@db/prod`          | `postgres://app:my%20pass@db/prod`          |
 | `postgres://app:pässword@db/prod`         | `postgres://app:p%C3%A4ssword@db/prod`      |
+| `postgres://app:p^w{1}@db/prod`           | `postgres://app:p%5Ew%7B1%7D@db/prod`       |
+| `postgres://app:100%@db/prod`             | `postgres://app:100%25@db/prod`             |
 | `postgres://db/prod?application_name=a@b` | `postgres://db/prod?application_name=a%40b` |
+| `postgres:app:pw@db/prod`                 | `postgres://app:pw@db/prod`                 |
 
 A refused DSN makes `connect()` return `success: false` with one fixed message,
 `DSN is not a valid URL; percent-encode reserved characters in the password`. It
@@ -97,7 +113,12 @@ quotes no part of the DSN, because any part of an ambiguous DSN may be a piece
 of the password. To percent-encode a password, pass it through
 `encodeURIComponent()`.
 
-A DSN that is not URL-shaped (`file:local.db`) is not checked.
+A `file:` or `sqlite:` path, and a value with no scheme (`:memory:`), are not
+checked further: there is no password in them to misparse.
+
+A percent-encoded host such as `%2Fvar%2Frun%2Fpostgresql` is accepted, but
+postgres.js 3.4.8 does not treat it as a unix socket. It keeps the host encoded
+and connects to it as a TCP host name.
 
 When the client still cannot be built from an accepted DSN, `connect()` shows
 only the error's name, not its message, since the message may quote the DSN. A
@@ -154,11 +175,11 @@ same contract: the factory constructs its client and makes no round trip.
 
 ### Where each failure surfaces
 
-| Failure                                           | At boot                                                                                                   | After boot                                                                                                     |
-| :------------------------------------------------ | :-------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------- |
-| DSN refused (see [DSN format](#dsn-format))       | `connect()` returns `success: false` with a fixed message that quotes no part of the DSN. Boot continues. | `/ready` returns `503` with `database: down`. `db:seed` and `db:check` print the error and exit 1.             |
-| Client package missing, or URL the client rejects | `connect()` returns `success: false` and logs a redacted `❌` line. Boot continues.                       | `/ready` returns `503` with `database: down`. `db:seed` and `db:check` print the error and exit 1.             |
-| Host unreachable, bad credentials, database down  | Nothing is sent, so nothing is reported.                                                                  | `/ready` returns `503` within 3 s. The first query gets the driver's error. `db:check` reports it and exits 1. |
+| Failure                                           | At boot                                                                                                                                                      | After boot                                                                                                     |
+| :------------------------------------------------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------- |
+| DSN refused (see [DSN format](#dsn-format))       | `connect()` returns `success: false` with a fixed message that quotes no part of the DSN. Boot continues.                                                    | `/ready` returns `503` with `database: down`. `db:seed` and `db:check` print the error and exit 1.             |
+| Client package missing, or URL the client rejects | `connect()` returns `success: false` and logs a `❌` line: the package and import error, or the client's message withheld (error name only). Boot continues. | `/ready` returns `503` with `database: down`. `db:seed` and `db:check` print the error and exit 1.             |
+| Host unreachable, bad credentials, database down  | Nothing is sent, so nothing is reported.                                                                                                                     | `/ready` returns `503` within 3 s. The first query gets the driver's error. `db:check` reports it and exits 1. |
 
 ### Monitoring: `/health` for liveness, `/ready` for readiness
 
@@ -860,20 +881,25 @@ error and the boot log (#425). Worse, some DSNs never failed: their password
 fragments became host names, looked up in DNS. `connect()` now checks the DSN
 before any driver sees it; see [DSN format](#dsn-format). What that changes:
 
-- **Newly refused:** a DSN with a raw `@`, a space or a non-ASCII character in
-  the password, or a raw `@` in the query string. These DSNs may have worked
-  before. `connect()` now returns `success: false` with the fixed message
+- **Newly refused:** a DSN whose user or password holds any character outside
+  `A-Za-z0-9-._~!$&'()*+,;=:` and `%XX`. That includes `^ | { } [ ] < > " \`, a
+  backtick, a space, a non-ASCII character, a raw `@`, and a `%` not followed by
+  two hex digits. Also refused: a raw `@` in the path or query string, a control
+  character or leading space anywhere, a scheme with no `//` (other than `file:`
+  and `sqlite:`), and a comma host list that also appears in the password. These
+  DSNs may have worked before. `connect()` now returns `success: false` with the
+  fixed message
   `DSN is not a valid URL; percent-encode reserved characters in the password`,
   and no driver is loaded.
 - **The fix:** percent-encode the password, for example with
   `encodeURIComponent(password)` (`p@ss` becomes `p%40ss`, a space becomes
-  `%20`). Write a raw `@` in a query string as `%40`.
+  `%20`, `%` becomes `%25`). Write a raw `@` in a query string as `%40`.
 - **A client that cannot be built no longer shows its message.** The message may
   quote the DSN, so `connect()` shows only the error's name. A missing client
   package is still reported with its name and the import error.
 - **Still accepted unchanged:** multi-host DSNs with or without ports
-  (`h1:5432,h2:5433`), IPv6 hosts, a percent-encoded unix-socket path, and
-  SQLite `file:` paths.
+  (`h1:5432,h2:5433`), IPv6 hosts, percent-encoded host names, and SQLite
+  `file:` paths.
 
 ## Upgrading to v0.4.0
 

@@ -125,10 +125,10 @@ host whose isolates start often, in front of a scale-to-zero database (Neon, for
 example), this means a cold start does not wake and bill the database. It also
 means boot does not fail when the database is down:
 
-| Failure                                                        | Where it surfaces                                                                                                                                                                                |
-| :------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| DSN refused, client package missing, or URL the client rejects | A redacted `❌` line at boot (boot continues), then `/ready` returns `503`. A refused DSN needs its password percent-encoded; see the [DSN format](../packages/drizzle/docs/DOCS.md#dsn-format). |
-| Host unreachable, bad credentials, database down               | Not at boot. `/ready` returns `503` within 3 s, the first query fails, and `deno task cli db:check` reports it.                                                                                  |
+| Failure                                                        | Where it surfaces                                                                                                                                                                                                                                                                                                     |
+| :------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| DSN refused, client package missing, or URL the client rejects | A `❌` line at boot (boot continues), then `/ready` returns `503`. The line quotes no part of the DSN: a fixed message, the missing package, or the client's message withheld (error name only). A refused DSN needs its password percent-encoded; see the [DSN format](../packages/drizzle/docs/DOCS.md#dsn-format). |
+| Host unreachable, bad credentials, database down               | Not at boot. `/ready` returns `503` within 3 s, the first query fails, and `deno task cli db:check` reports it.                                                                                                                                                                                                       |
 
 An app that wants boot to fail when the database is down probes from a boot
 hook. Boot hooks run after the database is configured, and an error thrown by a
