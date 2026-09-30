@@ -357,7 +357,7 @@ export class Cli {
      * | Outcome                                  | Status                         | Printed                          |
      * | :--------------------------------------- | :----------------------------- | :------------------------------- |
      * | no command                               | `0`                            | the command list                 |
-     * | unknown command                          | `0`                            | `❌ Unknown command: <name>` + list |
+     * | unknown command                          | `1`                            | `❌ Unknown command: <name>` + list |
      * | handler resolves                         | `0`                            | —                                |
      * | handler throws a failure-shaped error    | its `exitCode` (`1`–`255`), else `1` | `❌ <message>`, no stack   |
      * | handler throws anything else             | `1`                            | `❌ <name> failed:` + the error, with its stack |
@@ -387,7 +387,7 @@ export class Cli {
         if (!command) {
             console.error(`❌ Unknown command: ${commandName}`)
             await this.listCommands()
-            return 0
+            return 1
         }
 
         try {

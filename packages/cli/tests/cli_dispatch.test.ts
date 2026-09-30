@@ -8,6 +8,7 @@
  * | Case                              | Exit                       | Printed                    |
  * | :-------------------------------- | :------------------------- | :------------------------- |
  * | no command                        | 0                          | the command list           |
+ * | unknown command                   | 1                          | `❌ Unknown command` + list |
  * | handler resolves                  | 0                          | —                          |
  * | failure-shaped throw              | its `exitCode` (1–255) / 1 | `❌ <message>`, no stack    |
  * | any other throw                   | 1                          | `❌ <name> failed:` + error |
@@ -173,6 +174,14 @@ Deno.test('dispatch - a non-Error throw exits 1', async () => {
     assertEquals(error, [['❌ task failed:', 'plain string']])
 })
 
+Deno.test('dispatch - an unknown command exits 1 and lists the commands', async () => {
+    const cli = cliWith(() => Promise.resolve())
+    const { result, error, log } = await capture(() => cli.dispatch(['nope']))
+    assertEquals(result, 1)
+    assertEquals(error, [['❌ Unknown command: nope']])
+    assertStringIncludes(log.flat().join('\n'), 'Available commands:')
+})
+
 Deno.test('dispatch - no command exits 0 and lists the commands', async () => {
     const cli = cliWith(() => Promise.resolve())
     const { result, error, log } = await capture(() => cli.dispatch([]))
@@ -240,6 +249,12 @@ Deno.test('run - a failure sets Deno.exitCode and returns the status', async () 
     })
     assertEquals(after, 2)
     assertEquals(returned, 2)
+})
+
+Deno.test('run - an unknown command sets Deno.exitCode to 1', async () => {
+    const cli = cliWith(() => Promise.resolve())
+    const after = await withExitCode(0, () => capture(() => cli.run(['nope'])))
+    assertEquals(after, 1)
 })
 
 Deno.test('run - a success leaves Deno.exitCode untouched', async () => {
