@@ -26,13 +26,14 @@
 import { Service } from '@lockness/container'
 import { renderError } from '@lockness/contract'
 import {
-    CLIENT_PACKAGE,
+    ClientUnavailableError,
     defaultDriverFactories,
     type Dialect,
     type DialectDatabase,
     type DriverFactory,
     resolveDialect,
 } from './drivers.ts'
+import { inspectDsn, INVALID_DSN_MESSAGE } from './dsn.ts'
 
 export { registerDrizzleCommands } from './cli_commands.ts'
 export type {
@@ -136,8 +137,11 @@ export class Database<D extends Dialect = 'postgres'> {
     /** The configured client's close/probe closures, set at connect time. */
     #close: (() => Promise<void>) | undefined
     #probe: (() => Promise<void>) | undefined
-    /** The DSN the configured client was built from — held to redact it. */
-    #url: string | undefined
+    /**
+     * What a `probe()` failure must not carry: the DSN the configured client
+     * was built from and its whole password, as written and decoded (#425).
+     */
+    #needles: readonly Needle[] = []
     #connected = false
 
     /**
@@ -167,16 +171,25 @@ export class Database<D extends Dialect = 'postgres'> {
      * not wake (and bill) the compute (#420). The name is kept for API
      * stability — it configures, it does not connect.
      *
-     * `success: false` therefore means one of two things only: the client
-     * package is missing, or the client's constructor rejected the URL. An
-     * unreachable host, bad credentials or a database that is down surface at
-     * {@link Database.probe} (and so at `/ready`) or at the first query. A
-     * failure is rendered through `renderError`, so a driver error cannot
-     * spill a DSN's credentials into logs or into the returned result.
+     * `success: false` therefore means one of three things only, each with a
+     * message that cannot carry the DSN's password (#425):
+     *
+     * - **The DSN was refused** before any driver saw it, because a driver
+     *   could misparse where its password ends (a raw `@`, a space or a
+     *   non-ASCII character in the password, a raw `@` in the query string).
+     *   The message is fixed and quotes nothing from the DSN.
+     * - **The client package is missing.** The message names the package and
+     *   the import error, which never holds the DSN.
+     * - **The client could not be built from the DSN.** Its message may quote
+     *   the DSN in a rewritten form, so it is withheld: only the error's name
+     *   is shown, and only when it is identifier-shaped.
+     *
+     * An unreachable host, bad credentials or a database that is down surface
+     * at {@link Database.probe} (and so at `/ready`) or at the first query.
      *
      * @param url - Connection URL / DSN.
      * @param options - Optional dialect + silence.
-     * @returns Whether the client was configured, and the redacted error if not.
+     * @returns Whether the client was configured, and the safe error if not.
      *
      * @example
      * ```ts
@@ -191,26 +204,21 @@ export class Database<D extends Dialect = 'postgres'> {
         options: ConnectionOptions = {},
     ): Promise<ConnectionResult> {
         const dialect = resolveDialect(options.driver, url)
+        const inspection = inspectDsn(url)
+        if (!inspection.ok) return failed(INVALID_DSN_MESSAGE)
+        const needles = needlesFor(url, inspection.secrets)
 
         let handle
         try {
             handle = await this.#factories[dialect](url)
         } catch (error) {
-            // The driver's adapter/client could not be loaded, or its
-            // constructor rejected the URL — name the dialect and the package
-            // to install (never a raw stack).
-            const message =
-                `Failed to initialise the '${dialect}' driver — ensure its client package (${
-                    CLIENT_PACKAGE[dialect]
-                }) is installed. ${this.#render(error, url)}`
-            console.error('❌ Database connection failed:', message)
-            return { success: false, error: message }
+            return failed(configurationFailure(dialect, error, needles))
         }
 
         this.db = handle.db as DialectDatabase<D>
         this.#close = () => handle.close()
         this.#probe = () => handle.probe()
-        this.#url = url
+        this.#needles = needles
         this.#connected = true
 
         if (!options.silent) {
@@ -247,8 +255,9 @@ export class Database<D extends Dialect = 'postgres'> {
      * wants boot to fail when the database is down), never on a hot path.
      *
      * A driver failure is re-thrown as a new `Error` carrying a redacted,
-     * head-only render: the DSN removed by identity, no cause chain, and none
-     * of the original error object's properties.
+     * head-only render: the exact DSN and the whole password removed by
+     * identity, then the shared pattern; no cause chain, and none of the
+     * original error object's properties.
      *
      * @returns Resolves when the probe succeeds.
      * @throws {Error} `Database is not connected` when no client is configured
@@ -267,7 +276,7 @@ export class Database<D extends Dialect = 'postgres'> {
         try {
             await probe()
         } catch (error) {
-            throw new Error(this.#render(error, this.#url ?? ''))
+            throw new Error(renderFailure(error, this.#needles))
         }
     }
 
@@ -283,41 +292,146 @@ export class Database<D extends Dialect = 'postgres'> {
     public isConnected(): boolean {
         return this.#connected
     }
+}
 
-    /**
-     * Render a driver failure with the DSN removed by IDENTITY first.
-     *
-     * `renderError`'s pattern-based redaction is the net for a DSN nobody
-     * holds. Here we hold it, so we can do better than a pattern — and we
-     * have to. A `/` in the password makes WHATWG `new URL()` throw with the
-     * whole DSN in its message, and the pattern must stop at the first raw
-     * `@`; a password holding both leaves its tail after that `@` once the
-     * pattern has run (`postgres://***:***@<tail>@host/db`).
-     *
-     * So the exact DSN is removed from the RAW message, before the pattern
-     * ever sees it. The earlier order (pattern, then exact replace) could
-     * never match a DSN the pattern had already rewritten, which is how that
-     * tail leaked.
-     *
-     * `followCause: false` for a second reason: this string is RETURNED as
-     * `ConnectionResult.error` or re-thrown by `probe()`, not only logged, so
-     * an application may put it somewhere a log line would never go. That is
-     * the same distinction `@lockness/telemetry` draws for a span.
-     *
-     * @param raw - The driver failure.
-     * @param url - The DSN to remove. Empty means none is held: `replaceAll`
-     *   with an empty needle would splice the marker between every character.
-     * @returns The redacted, head-only render.
-     */
-    #render(raw: unknown, url: string): string {
-        const error = url === '' ? raw : withoutDsn(raw, url)
-        return renderError(error, { followCause: false })
-    }
+// =============================================================================
+// Failure rendering
+// =============================================================================
+
+/** A string a failure render must not carry, and what replaces it. */
+interface Needle {
+    /** The exact text to remove. Never empty. */
+    readonly text: string
+    /** What replaces each occurrence. */
+    readonly marker: string
 }
 
 /**
- * Rebuild a failure as name + message with every occurrence of `url`
- * replaced by a marker, ready for `renderError`.
+ * The error name shown for a client that could not be built: a plain
+ * identifier, so a name an application assigned cannot smuggle text in.
+ */
+const IDENTIFIER = /^[A-Za-z][A-Za-z0-9]{0,63}$/
+
+/**
+ * Log a `connect()` failure and return it as the result.
+ *
+ * Not a silent path: the failure is logged at ERROR and returned as an
+ * explicit `success: false`, whatever `silent` says (#427 owns that option).
+ *
+ * @param message - A message already known to carry no part of the password.
+ * @returns The failed result.
+ */
+function failed(message: string): ConnectionResult {
+    console.error('❌ Database connection failed:', message)
+    return { success: false, error: message }
+}
+
+/**
+ * Word a failure of the driver factory, without its message.
+ *
+ * A missing client package is named, with the import error: an import error
+ * names a module and never holds the DSN. Anything else — the client
+ * constructor rejecting the DSN, or any error from a custom factory — may quote
+ * the DSN in a form the driver rewrote, which no exact removal can match. So
+ * its message, code and cause are withheld, and only its name is shown, when
+ * that name is a plain identifier (#425).
+ *
+ * @param dialect - The dialect whose factory failed.
+ * @param error - Whatever the factory threw.
+ * @param needles - The DSN and password to remove from an import error.
+ * @returns The message for the log and the result.
+ */
+function configurationFailure(
+    dialect: Dialect,
+    error: unknown,
+    needles: readonly Needle[],
+): string {
+    if (error instanceof ClientUnavailableError) {
+        return `${error.message}: ${renderFailure(error.cause, needles)}`
+    }
+    const name = identifierName(error)
+    return `The '${dialect}' driver could not be configured${
+        name === undefined ? '' : ` (${name})`
+    }; its message is withheld because it may contain the DSN`
+}
+
+/**
+ * Read an error's name, if it is a plain identifier.
+ *
+ * @param error - Whatever a factory threw.
+ * @returns The name, or `undefined` for a non-`Error`, an unreadable name, or
+ *   a name that is not identifier-shaped.
+ */
+function identifierName(error: unknown): string | undefined {
+    if (!(error instanceof Error)) return undefined
+    let name: unknown
+    try {
+        name = error.name
+    } catch {
+        // A hostile getter. Its own error is not shown either: it is text
+        // nobody vetted. The failure itself is still logged and returned.
+        console.warn(
+            '⚠️ Database driver error name could not be read; it is omitted',
+        )
+        return undefined
+    }
+    return typeof name === 'string' && IDENTIFIER.test(name) ? name : undefined
+}
+
+/**
+ * The needles for a DSN that passed the check: the DSN itself, then its
+ * password as written and as decoded, longest first.
+ *
+ * Longest first, because a needle removed before one that contains it would
+ * break the longer match. Empty values are dropped: `replaceAll` with an empty
+ * needle splices the marker between every character.
+ *
+ * @param url - The accepted DSN.
+ * @param secrets - Its password, as written and as decoded.
+ * @returns The needles to remove, in removal order.
+ */
+function needlesFor(url: string, secrets: readonly string[]): Needle[] {
+    const needles: Needle[] = [
+        {
+            text: url,
+            marker: '<dsn redacted>',
+        },
+        ...secrets.map((text) => ({ text, marker: '***' })),
+    ]
+    return needles
+        .filter((needle) => needle.text !== '')
+        .sort((a, b) => b.text.length - a.text.length)
+}
+
+/**
+ * Render a driver failure with the held secrets removed by IDENTITY first.
+ *
+ * `renderError`'s pattern-based redaction is the net for a DSN nobody holds.
+ * Here we hold it, so we can do better than a pattern — and we have to. A
+ * driver may echo the password alone, decoded, where no pattern can find it.
+ * So the exact DSN and the whole password are removed from the RAW message,
+ * before the pattern ever sees it. Fragments of a password are never
+ * scrubbed: since #425 a DSN whose password a driver could split is refused
+ * at `connect()`, so the driver holds the same password this does.
+ *
+ * `followCause: false` for a second reason: this string is RETURNED as
+ * `ConnectionResult.error` or re-thrown by `probe()`, not only logged, so an
+ * application may put it somewhere a log line would never go. That is the
+ * same distinction `@lockness/telemetry` draws for a span.
+ *
+ * @param raw - The driver failure.
+ * @param needles - What to remove. Empty means nothing is held, and the
+ *   failure goes to `renderError` untouched.
+ * @returns The redacted, head-only render.
+ */
+function renderFailure(raw: unknown, needles: readonly Needle[]): string {
+    const error = needles.length === 0 ? raw : withoutSecrets(raw, needles)
+    return renderError(error, { followCause: false })
+}
+
+/**
+ * Rebuild a failure as name + message with every needle replaced by its
+ * marker, ready for `renderError`.
  *
  * The result carries no cause and none of the original object's properties —
  * the same head-only shape `renderError(…, { followCause: false })` renders.
@@ -328,14 +442,15 @@ export class Database<D extends Dialect = 'postgres'> {
  * reported, not swallowed.
  *
  * @param error - Whatever the driver threw.
- * @param url - The non-empty DSN to remove.
- * @returns An `Error` (or a string, for a non-`Error` value) without the DSN.
+ * @param needles - The non-empty strings to remove, longest first.
+ * @returns An `Error` (or a string, for a non-`Error` value) without them.
  */
-function withoutDsn(error: unknown, url: string): unknown {
+function withoutSecrets(error: unknown, needles: readonly Needle[]): unknown {
     const scrub = (text: string): string =>
-        text.replaceAll(
-            url,
-            '<dsn redacted>',
+        needles.reduce(
+            (scrubbed, needle) =>
+                scrubbed.replaceAll(needle.text, needle.marker),
+            text,
         )
     try {
         if (error instanceof Error) {

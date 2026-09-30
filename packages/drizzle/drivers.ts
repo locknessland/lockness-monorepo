@@ -74,7 +74,9 @@ export interface DriverHandle {
  * @param url - The connection URL / DSN for the target database.
  * @returns A promise resolving to the {@link DriverHandle} for the client.
  * @throws If the client package is missing or the client constructor rejects
- * the URL; the error propagates from the underlying `import()` or constructor.
+ * the URL. `Database.connect()` shows only the error's name, never its message,
+ * which may quote the DSN; a default factory reports a missing package as an
+ * internal `ClientUnavailableError`, whose import error is shown in full.
  *
  * @example
  * ```typescript
@@ -99,6 +101,76 @@ export const CLIENT_PACKAGE: Record<Dialect, string> = {
     postgres: 'postgres',
     mysql: 'mysql2',
     sqlite: '@libsql/client',
+}
+
+/**
+ * A default factory could not import its adapter or client package. Internal:
+ * not exported from the package.
+ *
+ * It exists so `Database.connect()` can tell "package missing" apart from
+ * "client rejected the configuration" (#425, #427). The two need opposite
+ * treatment. An import error names a module and never holds the DSN, so it
+ * is shown. A constructor error may quote the DSN in any rewritten form, so
+ * its message is withheld. A custom factory cannot raise this error; its
+ * failures always take the withheld path.
+ *
+ * @example
+ * ```ts
+ * throw new ClientUnavailableError('mysql', importError)
+ * ```
+ */
+export class ClientUnavailableError extends Error {
+    /** The dialect whose client package could not be imported. */
+    readonly dialect: Dialect
+
+    /**
+     * @param dialect - The dialect whose client package failed to import.
+     * @param cause - The import failure. It names a module, never the DSN.
+     */
+    constructor(dialect: Dialect, cause: unknown) {
+        super(
+            `The '${dialect}' driver's client package (${
+                CLIENT_PACKAGE[dialect]
+            }) could not be imported`,
+            { cause },
+        )
+        this.name = 'ClientUnavailableError'
+        this.dialect = dialect
+    }
+}
+
+/**
+ * Run a default factory's imports, turning any failure into a
+ * {@link ClientUnavailableError}.
+ *
+ * The imports stay inside the caller's closure, each with its fixed literal
+ * specifier, so config still never steers a module load (rule S2). Only the
+ * load runs under this wrapper: a failure of the client constructor that
+ * follows is not an import failure, and must not be reported as one.
+ *
+ * @param dialect - The dialect being loaded.
+ * @param load - A closure that performs the literal `import()` calls.
+ * @returns Whatever `load` resolves to.
+ * @throws {ClientUnavailableError} When `load` rejects, with the rejection as
+ *   `cause`.
+ *
+ * @example
+ * ```ts
+ * const { createClient } = await loadClient(
+ *     'sqlite',
+ *     () => import('@libsql/client'),
+ * )
+ * ```
+ */
+export async function loadClient<T>(
+    dialect: Dialect,
+    load: () => Promise<T>,
+): Promise<T> {
+    try {
+        return await load()
+    } catch (error) {
+        throw new ClientUnavailableError(dialect, error)
+    }
 }
 
 /**
@@ -138,8 +210,13 @@ export function resolveDialect(
  */
 export const defaultDriverFactories: Record<Dialect, DriverFactory> = {
     postgres: async (url) => {
-        const { drizzle } = await import('drizzle-orm/postgres-js')
-        const postgres = (await import('postgres')).default
+        const { drizzle, postgres } = await loadClient(
+            'postgres',
+            async () => ({
+                drizzle: (await import('drizzle-orm/postgres-js')).drizzle,
+                postgres: (await import('postgres')).default,
+            }),
+        )
         const client = postgres(url)
         return {
             db: drizzle(client),
@@ -150,8 +227,10 @@ export const defaultDriverFactories: Record<Dialect, DriverFactory> = {
         }
     },
     mysql: async (url) => {
-        const { drizzle } = await import('drizzle-orm/mysql2')
-        const mysql = (await import('mysql2/promise')).default
+        const { drizzle, mysql } = await loadClient('mysql', async () => ({
+            drizzle: (await import('drizzle-orm/mysql2')).drizzle,
+            mysql: (await import('mysql2/promise')).default,
+        }))
         const pool = mysql.createPool(url)
         return {
             db: drizzle(pool),
@@ -162,8 +241,13 @@ export const defaultDriverFactories: Record<Dialect, DriverFactory> = {
         }
     },
     sqlite: async (url) => {
-        const { drizzle } = await import('drizzle-orm/libsql')
-        const { createClient } = await import('@libsql/client')
+        const { drizzle, createClient } = await loadClient(
+            'sqlite',
+            async () => ({
+                drizzle: (await import('drizzle-orm/libsql')).drizzle,
+                createClient: (await import('@libsql/client')).createClient,
+            }),
+        )
         const client = createClient({ url })
         return {
             db: drizzle(client),

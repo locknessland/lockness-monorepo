@@ -1,12 +1,17 @@
 /**
- * @fileoverview #301/#302/#420 — what `connect()` does on the wire, and what a
- * failure is allowed to say.
+ * @fileoverview #301/#302/#420/#425 — what `connect()` does on the wire, and
+ * what a failure is allowed to say.
  *
  * #420: `connect()` only configures a lazy client and makes **zero** round
  * trips; `probe()` is the one method that talks to the database. So a failure
- * surfaces in one of two places — `connect()` for a missing client package or a
- * URL the client's parser rejects, `probe()` for everything the network decides
- * — and both render it through the same DSN-redacting, head-only path.
+ * surfaces in one of two places — `connect()` for a refused DSN, a missing
+ * client package or a client that cannot be built, `probe()` for everything
+ * the network decides.
+ *
+ * #425: `connect()` refuses a DSN whose password a driver would misparse, with
+ * a fixed message, before any factory runs; a client that cannot be built
+ * reports its error NAME only, never its message; and `probe()` removes the
+ * exact DSN and the whole held password before the shared pattern runs.
  *
  * That render is the one `renderError` call site in the repository whose result
  * is **returned** (or re-thrown) rather than passed to `console.*`, so an
@@ -19,7 +24,15 @@
 
 import { assertEquals, assertRejects } from '@std/assert'
 import { Database } from '../mod.ts'
-import type { DriverFactory } from '../drivers.ts'
+import {
+    ClientUnavailableError,
+    type DriverFactory,
+    loadClient,
+} from '../drivers.ts'
+
+/** The fixed message; spelled out so a change to the constant is caught. */
+const REJECTED = 'DSN is not a valid URL; percent-encode reserved characters ' +
+    'in the password'
 
 /**
  * A fake postgres factory that counts constructions and round trips, so a test
@@ -85,11 +98,10 @@ Deno.test('#420 probe() rejects with "not connected" before any connect()', asyn
 
 Deno.test('#301 a password containing a slash never reaches the result', () => {
     // `/` in the userinfo is what makes `new URL()` throw AND what a pattern
-    // redactor could not span — the same characters on both sides. The shared
-    // encoder now handles this one; the assertion is on the PROPERTY, not on
-    // which of the two mechanisms got there first. The client's parser rejects
-    // this DSN in its constructor, so it still fails at `connect()` with no
-    // round trip (#420).
+    // redactor could not span — the same characters on both sides. The
+    // assertion is on the PROPERTY, not on which mechanism got there first.
+    // Since #425 the DSN check refuses it before the client's parser runs, so
+    // it still fails at `connect()` with no round trip (#420).
     return new Database()
         .connect('postgres://app:aB3/xY9+z@db.invalid:5432/prod', {
             silent: true,
@@ -105,43 +117,32 @@ Deno.test('#301 a password containing a slash never reaches the result', () => {
 })
 
 Deno.test('#301 no password shape reaches the returned error', async () => {
-    // The property, over the shapes that broke the pattern before this branch.
+    // The property, over the shapes that broke the pattern before #301.
     //
-    // Since #420 the shapes surface in two places. The slashed DSN is rejected
-    // by the client's parser inside `connect()`. The space and `@` shapes parse
-    // fine, so `connect()` succeeds without a round trip and the failure is the
-    // DNS lookup `probe()` makes — the error it re-throws is the one checked.
-    //
-    // This asserts the property only, not which mechanism got there. The
-    // identity leg is pinned on its own by "a driver message carrying the
-    // exact DSN is redacted by identity", through a fake client.
+    // Since #425 all three are refused by the DSN check inside `connect()`,
+    // before any driver sees them: a `/` ends the authority early, a raw `@`
+    // or a space is outside the userinfo grammar. Each returns the fixed
+    // message, which quotes no part of the DSN. Percent-encoded, the same
+    // passwords are accepted — see "#425 a percent-encoded password is
+    // removed whole from a probe failure".
     const secrets = ['aB3/xY9+z', 'my pass', 'p@ss']
-    const assertNoSecret = (text: string, dsn: string): void => {
-        for (const secret of secrets) {
-            assertEquals(
-                text.includes(secret),
-                false,
-                `${secret} reached the returned error via ${dsn}`,
-            )
-        }
-    }
-
-    const slashed = 'postgres://app:aB3/xY9+z@db.invalid:5432/prod'
-    const rejected = await new Database().connect(slashed, { silent: true })
-    assertEquals(rejected.success, false, slashed)
-    assertNoSecret(rejected.error ?? '', slashed)
-
     for (
         const dsn of [
+            'postgres://app:aB3/xY9+z@db.invalid:5432/prod',
             'postgres://app:my pass@db.invalid:5432/prod',
             'postgres://app:p@ss@db.invalid:5432/prod',
         ]
     ) {
-        const db = new Database()
-        const result = await db.connect(dsn, { silent: true })
-        assertEquals(result.success, true, `${dsn} made connect() fail`)
-        const error = await assertRejects(() => db.probe())
-        assertNoSecret(messageOf(error), dsn)
+        const result = await new Database().connect(dsn, { silent: true })
+        assertEquals(result.success, false, `${dsn} was accepted`)
+        assertEquals(result.error, REJECTED, dsn)
+        for (const secret of secrets) {
+            assertEquals(
+                result.error?.includes(secret),
+                false,
+                `${secret} reached the returned error via ${dsn}`,
+            )
+        }
     }
 })
 
@@ -219,11 +220,13 @@ Deno.test('#420 a driver message carrying the exact DSN is redacted by identity'
 Deno.test('#420 a slash then a raw @ in the password leaks no fragment of it', async () => {
     // `/` makes the userinfo span what the shared pattern must stop at, and
     // the first raw `@` is where it stops — so pattern-first redaction left
-    // the tail after it (`postgres://***:***@Wm4@db...`) and the exact-DSN
-    // replace then had nothing left to match. Both surfaces are checked:
-    // `connect()`, where the client's parser rejects this DSN, and `probe()`,
-    // through a client that puts the DSN in a message of its own.
-    const dsn = 'postgres://app:Tk9/Qz@Wm4@db.invalid:5432/prod'
+    // the tail after it (`postgres://***:***@Wm4@db...`). Both surfaces are
+    // checked. `connect()` refuses the raw DSN (#425). `probe()` is reached
+    // with the same password percent-encoded — a DSN the check accepts — and
+    // a client that echoes it DECODED, which puts the raw `@` back in front
+    // of the pattern: only the held decoded password removes it.
+    const raw = 'postgres://app:Tk9/Qz@Wm4@db.invalid:5432/prod'
+    const encoded = 'postgres://app:Tk9%2FQz%40Wm4@db.invalid:5432/prod'
     const fragments = ['Tk9', 'Qz', 'Wm4']
     const assertNoFragment = (text: string, surface: string): void => {
         for (const fragment of fragments) {
@@ -235,16 +238,17 @@ Deno.test('#420 a slash then a raw @ in the password leaks no fragment of it', a
         }
     }
 
-    const rejected = await new Database().connect(dsn, { silent: true })
-    assertEquals(rejected.success, false, 'the parser accepted the DSN')
+    const rejected = await new Database().connect(raw, { silent: true })
+    assertEquals(rejected.success, false, 'the check accepted the raw DSN')
     assertNoFragment(rejected.error ?? '', 'connect()')
 
     const db = new Database()
     db.setDriverFactory(
         'postgres',
-        failingFactory(new Error(`could not reach ${dsn}`)),
+        failingFactory(new Error(`could not reach ${raw} (${encoded})`)),
     )
-    await db.connect(dsn, { silent: true })
+    const accepted = await db.connect(encoded, { silent: true })
+    assertEquals(accepted.success, true, 'the probe leg went hollow')
     const error = await assertRejects(() => db.probe())
     assertNoFragment(messageOf(error), 'probe()')
 })
@@ -265,4 +269,195 @@ Deno.test('#420 an unreadable driver error renders as a sentinel, not a throw', 
 
     const error = await assertRejects(() => db.probe())
     assertEquals(messageOf(error), '[unrenderable error]')
+})
+
+/**
+ * Run `body` with `console.error` captured, so a test can assert what a failed
+ * `connect()` logged as well as what it returned.
+ */
+async function capturingErrors<T>(
+    body: () => Promise<T>,
+): Promise<{ value: T; logged: string }> {
+    const lines: string[] = []
+    const original = console.error
+    console.error = (...args: unknown[]) => {
+        lines.push(args.map(String).join(' '))
+    }
+    try {
+        return { value: await body(), logged: lines.join('\n') }
+    } finally {
+        console.error = original
+    }
+}
+
+Deno.test('#425 the issue passwords reach neither the result nor the log, and no factory', async () => {
+    // Through the REAL default driver: before #425 postgres.js rewrote each
+    // of these (a comma is a host separator to it) and echoed the rewrite,
+    // which the exact-DSN removal could not match.
+    const cases: Array<[string, string[]]> = [
+        ['X,a/Xb@Xc', ['X,a', 'Xb', 'Xc']],
+        ['X,a?Xb', ['X,a', 'Xb']],
+        ['X#a@Xb,c', ['X#a', 'Xb', 'b,c']],
+    ]
+    for (const [password, fragments] of cases) {
+        const dsn = `postgres://u:${password}@db.invalid:5432/x`
+        const { value: result, logged } = await capturingErrors(() =>
+            new Database().connect(dsn, { silent: true })
+        )
+        assertEquals(result, { success: false, error: REJECTED }, dsn)
+        for (const fragment of fragments) {
+            assertEquals(
+                `${result.error}\n${logged}`.includes(fragment),
+                false,
+                `'${fragment}' of ${password} leaked`,
+            )
+        }
+
+        // And the driver is never handed the DSN at all.
+        const { counts, factory } = countingFactory()
+        const db = new Database()
+        db.setDriverFactory('postgres', factory)
+        await capturingErrors(() => db.connect(dsn, { silent: true }))
+        assertEquals(counts.built, 0, `${dsn} reached the factory`)
+    }
+})
+
+Deno.test('#425 a percent-encoded password is removed whole from a probe failure', async () => {
+    // Every form a driver may echo once the DSN has passed the check: the
+    // exact DSN, its WHATWG href, the multi-host list collapsed to one host,
+    // and the password alone, encoded or decoded. The pattern reaches only
+    // the URL-shaped forms; the bare passwords need the held needles.
+    const dsn = 'postgres://app:Qv7%2FRz9%40Lm2@h1:5432,h2:5433/prod'
+    const collapsed = 'postgres://app:Qv7%2FRz9%40Lm2@h1:5432/prod'
+    const echoes = [
+        `could not reach ${dsn}`,
+        `could not reach ${new URL(collapsed).href}`,
+        `could not reach ${collapsed}`,
+        'password authentication failed: Qv7/Rz9@Lm2',
+        'password authentication failed: Qv7%2FRz9%40Lm2',
+    ]
+    for (const echo of echoes) {
+        const db = new Database()
+        db.setDriverFactory('postgres', failingFactory(new Error(echo)))
+        assertEquals((await db.connect(dsn, { silent: true })).success, true)
+        const message = messageOf(await assertRejects(() => db.probe()))
+        for (const fragment of ['Qv7', 'Rz9', 'Lm2']) {
+            assertEquals(
+                message.includes(fragment),
+                false,
+                `'${fragment}' leaked from "${echo}": ${message}`,
+            )
+        }
+    }
+})
+
+Deno.test('#425 a password WHATWG re-encodes is still redacted in its href', async () => {
+    // `;` and `=` are legal in the userinfo but WHATWG percent-encodes them
+    // in `href`, so the held password does not match that echo; the shared
+    // pattern does, because an accepted userinfo holds no terminator.
+    const dsn = 'postgres://app:Nq4;Vd8=Jp3@h1:5432,h2:5433/prod'
+    const href = new URL('postgres://app:Nq4;Vd8=Jp3@h1:5432/prod').href
+    const db = new Database()
+    db.setDriverFactory(
+        'postgres',
+        failingFactory(new Error(`could not reach ${href}`)),
+    )
+    assertEquals((await db.connect(dsn, { silent: true })).success, true)
+    const message = messageOf(await assertRejects(() => db.probe()))
+    for (const fragment of ['Nq4', 'Vd8', 'Jp3']) {
+        assertEquals(message.includes(fragment), false, message)
+    }
+})
+
+Deno.test('#425 an empty password does not splice a marker into the message', async () => {
+    for (const dsn of ['postgres://app:@h/db', 'postgres://app@h/db']) {
+        const db = new Database()
+        db.setDriverFactory(
+            'postgres',
+            failingFactory(new Error('connection refused')),
+        )
+        await db.connect(dsn, { silent: true })
+        const message = messageOf(await assertRejects(() => db.probe()))
+        assertEquals(message, 'Error: connection refused', dsn)
+    }
+})
+
+/** A factory that fails while building its client, with `error`. */
+function throwingFactory(error: unknown): DriverFactory {
+    return () => Promise.reject(error)
+}
+
+Deno.test('#425 a client that cannot be built reports its error name, never its message', async () => {
+    // The constructor's message may quote the DSN in any rewritten form, so
+    // none of it is shown — only a name, and only an identifier-shaped one.
+    const db = new Database()
+    db.setDriverFactory(
+        'postgres',
+        throwingFactory(
+            new TypeError('boom Pw7Fake in postgres://u:Pw7Fake@h'),
+        ),
+    )
+    const { value: result, logged } = await capturingErrors(() =>
+        db.connect('postgres://u:Pw7Fake@h/db', { silent: true })
+    )
+    assertEquals(result, {
+        success: false,
+        error: "The 'postgres' driver could not be configured (TypeError); " +
+            'its message is withheld because it may contain the DSN',
+    })
+    assertEquals(logged.includes('Pw7Fake'), false, logged)
+    assertEquals(logged.includes('boom'), false, logged)
+})
+
+Deno.test('#425 an error name that is not identifier-shaped is dropped', async () => {
+    const withheld = "The 'mysql' driver could not be configured; " +
+        'its message is withheld because it may contain the DSN'
+    const named = new Error('boom')
+    named.name = 'Bad name Pw7Fake'
+    const hostile = new Error('boom')
+    Object.defineProperty(hostile, 'name', {
+        get(): never {
+            throw new Error('getter exploded')
+        },
+    })
+    for (const thrown of [named, hostile, 'Pw7Fake as a string', undefined]) {
+        const db = new Database()
+        db.setDriverFactory('mysql', throwingFactory(thrown))
+        const { value: result } = await capturingErrors(() =>
+            db.connect('mysql://u:Pw7Fake@h/db', { silent: true })
+        )
+        assertEquals(result, { success: false, error: withheld })
+    }
+})
+
+Deno.test('#425 a missing client package is named, with the import error', async () => {
+    const db = new Database()
+    db.setDriverFactory(
+        'sqlite',
+        throwingFactory(
+            new ClientUnavailableError(
+                'sqlite',
+                new Error("Cannot find module '@libsql/client'"),
+            ),
+        ),
+    )
+    const { value: result } = await capturingErrors(() =>
+        db.connect('file:local.db', { silent: true })
+    )
+    assertEquals(result, {
+        success: false,
+        error: "The 'sqlite' driver's client package (@libsql/client) could " +
+            "not be imported: Error: Cannot find module '@libsql/client'",
+    })
+})
+
+Deno.test('#425 loadClient wraps an import failure, and passes a load through', async () => {
+    const cause = new Error('Cannot find module mysql2')
+    const error = await assertRejects(
+        () => loadClient('mysql', () => Promise.reject(cause)),
+        ClientUnavailableError,
+    )
+    assertEquals(error.dialect, 'mysql')
+    assertEquals(error.cause, cause)
+    assertEquals(await loadClient('mysql', () => Promise.resolve(42)), 42)
 })
