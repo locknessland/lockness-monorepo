@@ -5,8 +5,9 @@
  * A driver that cannot tell where a password ends does not fail: it rewrites
  * the DSN. postgres.js reads a comma as a host separator and ends the host
  * part at the first `/` or `?`; the other clients end it at the first `/`, `?`
- * or `#`. So password fragments become hosts, ports or database names. They are then looked up in
- * cleartext DNS and echoed in errors no exact-DSN redaction can match. The
+ * or `#`. So password fragments become hosts, ports or database names. They
+ * are then looked up in cleartext DNS and echoed in errors no exact-DSN
+ * redaction can match. The
  * check refuses those DSNs before a driver sees them, and still accepts every
  * form the drivers support: multi-host with and without ports, IPv6, a
  * percent-encoded host name, an empty authority and non-URL SQLite paths.
@@ -170,6 +171,33 @@ Deno.test('#425 an accepted DSN reaches its factory unchanged', async () => {
         assertEquals(result.success, true, dsn)
         assertEquals(result.calls, [dsn])
     }
+})
+
+Deno.test('#425 the password allow-list is exactly the one the docs state', () => {
+    // DOCS.md and connect()'s JSDoc promise: `A-Za-z0-9-._~!$&'()*+,;=:` and
+    // `%XX` are allowed, and every other character must be percent-encoded.
+    // Walk every printable ASCII character, plus a non-ASCII one, both ways.
+    const allowed = /^[A-Za-z0-9\-._~!$&'()*+,;=:]$/
+    const refusedRaw: string[] = []
+    const acceptedRaw: string[] = []
+    const refusedEncoded: string[] = []
+    for (
+        const char of [...Array(95)].map((_, i) => String.fromCharCode(32 + i))
+            .concat('ä')
+    ) {
+        const raw = inspectDsn(`postgres://u:a${char}b@h/db`).ok
+        if (allowed.test(char) && !raw) refusedRaw.push(char)
+        if (!allowed.test(char) && char !== '%' && raw) acceptedRaw.push(char)
+        const encoded = `postgres://u:a${encodeURIComponent(char)}b@h/db`
+        if (!inspectDsn(encoded).ok) refusedEncoded.push(char)
+    }
+    assertEquals(refusedRaw, [])
+    assertEquals(acceptedRaw, [])
+    assertEquals(refusedEncoded, [])
+    // `%` is allowed only as the start of `%XX`.
+    assertEquals(inspectDsn('postgres://u:100%@h/db').ok, false)
+    assertEquals(inspectDsn('postgres://u:1%zz@h/db').ok, false)
+    assertEquals(inspectDsn('postgres://u:100%25@h/db').ok, true)
 })
 
 Deno.test('#425 secrets are the password as written and as decoded', () => {
