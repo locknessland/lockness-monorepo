@@ -513,15 +513,20 @@ Deno.test('mirror: a changed package gets one atomic branch + tag push (realtime
     })
 })
 
-Deno.test('mirror: a rejected ref leaves the mirror untouched and its stderr is surfaced', async () => {
+Deno.test('mirror: a rejected tag keeps its branch from landing (--atomic), and its stderr is surfaced', async () => {
     await withFixture(async (f) => {
-        const hook = join(f.mirrors, 'realtime.git', 'hooks', 'pre-receive')
+        // A per-ref `update` hook: it refuses the tag and accepts the branch.
+        // Without --atomic, receive-pack would apply refs/heads/main and
+        // reject only the tag; a pre-receive hook could not tell the two
+        // apart, because it refuses the whole push either way.
+        const hook = join(f.mirrors, 'realtime.git', 'hooks', 'update')
         await Deno.writeTextFile(
             hook,
             '#!/bin/sh\n' +
-                'if grep -q refs/tags/; then\n' +
-                '  echo "fixture refuses tags" >&2; exit 1\n' +
-                'fi\n',
+                'case "$1" in\n' +
+                '  refs/tags/*) echo "fixture refuses tags" >&2; exit 1 ;;\n' +
+                'esac\n' +
+                'exit 0\n',
         )
         await Deno.chmod(hook, 0o755)
 
@@ -531,11 +536,56 @@ Deno.test('mirror: a rejected ref leaves the mirror untouched and its stderr is 
             result.lines.some((l) => l.includes('fixture refuses tags')),
             result.lines.join('\n'),
         )
-        // --atomic: the branch did not land without its tag.
-        assertEquals(await mirrorRef(f, 'realtime', 'main'), null)
+        // --atomic: the branch the hook accepted did not land without its tag.
+        assertEquals(
+            await mirrorRef(f, 'realtime', 'refs/heads/main'),
+            null,
+            'refs/heads/main landed without its tag',
+        )
         assertEquals(await mirrorRef(f, 'realtime', 'refs/tags/v1.0.0'), null)
+        assertEquals(
+            (await pushes(f)).filter((p) => p.mirror === 'realtime'),
+            [],
+        )
         // The other mirror is unaffected.
         assert((await mirrorRef(f, 'mail', 'refs/tags/v1.0.0')) !== null)
+    })
+})
+
+/**
+ * A snapshot of a repository's refs and config, to prove nothing wrote to it.
+ *
+ * @param f - The fixture (for its hermetic git).
+ * @param dir - The repository's work tree.
+ * @returns Every ref with its sha, then the local config.
+ */
+async function repoState(f: Fixture, dir: string): Promise<string> {
+    return [
+        await f.git(dir, 'for-each-ref'),
+        await Deno.readTextFile(join(dir, '.git', 'config')),
+    ].join('\n---\n')
+}
+
+Deno.test('mirror: an inherited GIT_DIR cannot redirect git at another repository', async () => {
+    await withFixture(async (f) => {
+        // A decoy repository with no origin and no packages/. If GIT_DIR
+        // reached a child git, the fetch, the tag lookup and every
+        // refs/mirrors/* write would target it instead of the clone.
+        const decoy = join(f.base, 'decoy')
+        await f.git(f.base, 'init', '-q', '-b', 'main', decoy)
+        await f.git(decoy, 'commit', '-q', '--allow-empty', '-m', 'decoy')
+        const before = await repoState(f, decoy)
+
+        const result = await mirrorPackages({
+            root: f.mono,
+            mirrorBaseUrl: f.mirrors,
+            gh: f.gh,
+            gitEnv: { ...hermeticEnv(f.base), GIT_DIR: join(decoy, '.git') },
+            log: () => {},
+        })
+        assertEquals(result.ok, true, result.lines.join('\n'))
+        assert((await mirrorRef(f, 'realtime', 'refs/tags/v1.0.0')) !== null)
+        assertEquals(await repoState(f, decoy), before, 'the decoy was written')
     })
 })
 

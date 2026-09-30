@@ -389,6 +389,42 @@ Deno.test('runPrepushScan skips deletes and empty ranges without invoking gitlea
     })
 })
 
+Deno.test('runPrepushScan: an inherited GIT_DIR cannot redirect git at another repository', async () => {
+    await withTempDir('prepush-git-dir-', async (root) => {
+        const dir = join(root, 'repo')
+        const decoy = join(root, 'decoy')
+        await Deno.mkdir(dir)
+        await Deno.mkdir(decoy)
+        await git(dir, 'init', '-q')
+        await git(dir, 'commit', '-q', '--allow-empty', '-m', 'root')
+        const head = await git(dir, 'rev-parse', 'HEAD')
+        // The decoy holds none of `dir`'s objects: resolved against it, the
+        // range cannot be read and the scan fails closed.
+        await git(decoy, 'init', '-q')
+        await git(decoy, 'commit', '-q', '--allow-empty', '-m', 'decoy')
+        const before = await git(decoy, 'for-each-ref')
+        const { bin, marker } = await forbiddenGitleaks(root)
+
+        const previous = Deno.env.get('GIT_DIR')
+        Deno.env.set('GIT_DIR', join(decoy, '.git'))
+        let result
+        try {
+            result = await runPrepushScan(
+                `refs/heads/x ${head} refs/heads/x ${head}\n`,
+                dir,
+                { installGitleaks: () => Promise.resolve(bin) },
+            )
+        } finally {
+            if (previous === undefined) Deno.env.delete('GIT_DIR')
+            else Deno.env.set('GIT_DIR', previous)
+        }
+        assertEquals(result.ok, true, result.lines.join('\n'))
+        assert(result.lines.some((l) => l.includes('nothing to scan')))
+        assertEquals(await git(decoy, 'for-each-ref'), before)
+        assertEquals(await exists(marker), false, 'gitleaks was invoked')
+    })
+})
+
 Deno.test('resolveBase returns remoteSha for an existing branch', async () => {
     const base = await resolveBase(
         {
