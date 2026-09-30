@@ -329,7 +329,7 @@ async function checkProvenance(
         '--limit',
         String(SCAN_RUNS_SEARCHED),
         '--json',
-        'headSha,event,headBranch',
+        'headSha,event,headBranch,conclusion',
     ])
     if (!runs.ok) {
         return {
@@ -345,10 +345,16 @@ async function checkProvenance(
             headSha?: unknown
             event?: unknown
             headBranch?: unknown
+            conclusion?: unknown
         }[]
-        // Re-check what `gh` filtered on: only a push to main counts.
+        // Re-check what `gh` filtered on: only a successful push to main
+        // counts. `--status success` is the one filter that makes a run
+        // provenance at all, so it is not left to the flag alone.
         heads = parsed
-            .filter((run) => run.event === 'push' && run.headBranch === 'main')
+            .filter((run) =>
+                run.event === 'push' && run.headBranch === 'main' &&
+                run.conclusion === 'success'
+            )
             .map((run) => run.headSha)
             .filter((sha): sha is string =>
                 typeof sha === 'string' && OBJECT_ID_RE.test(sha)

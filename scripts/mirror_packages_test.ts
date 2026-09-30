@@ -81,7 +81,12 @@ interface Fixture {
     /** Head shas the fake `gh` reports as green `Secret scan` push runs. */
     greenHeads: string[]
     /** Further green runs `run list` reports, with their own event/branch. */
-    extraRuns: { headSha: string; event: string; headBranch: string }[]
+    extraRuns: {
+        headSha: string
+        event: string
+        headBranch: string
+        conclusion: string
+    }[]
     /** When set, `repo view` fails with this stderr (not a not-found). */
     viewFailure: string | null
     /** When set, `repo edit` fails with this stderr. */
@@ -228,8 +233,9 @@ async function fakeGh(f: Fixture, args: string[]): Promise<CommandOutput> {
     if (args[0] === 'run' && args[1] === 'list') {
         assert(args.includes('Secret scan'), `unexpected run list: ${args}`)
         assert(args.includes('main'), `run list not scoped to main: ${args}`)
+        const status = args.indexOf('--status')
         assert(
-            args.includes('success'),
+            status >= 0 && args[status + 1] === 'success',
             `run list not scoped to green: ${args}`,
         )
         const event = args.indexOf('--event')
@@ -242,6 +248,7 @@ async function fakeGh(f: Fixture, args: string[]): Promise<CommandOutput> {
                 headSha,
                 event: 'push',
                 headBranch: 'main',
+                conclusion: 'success',
             })),
             ...f.extraRuns,
         ]))
@@ -470,6 +477,23 @@ Deno.test('mirror: refuses when the only green scan on the tag is not a push eve
             headSha: tagCommit,
             event: 'pull_request',
             headBranch: 'main',
+            conclusion: 'success',
+        })
+        await assertRefused(f, await mirror(f), 'no green Secret scan run')
+    })
+})
+
+Deno.test('mirror: refuses when the only scan on the tag did not succeed', async () => {
+    // `--status success` is asked of gh, but a run that did not succeed must
+    // not become provenance if that flag is ever dropped or ignored.
+    await withFixture(async (f) => {
+        const [tagCommit] = f.greenHeads
+        f.greenHeads.length = 0
+        f.extraRuns.push({
+            headSha: tagCommit,
+            event: 'push',
+            headBranch: 'main',
+            conclusion: 'failure',
         })
         await assertRefused(f, await mirror(f), 'no green Secret scan run')
     })
