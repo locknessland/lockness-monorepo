@@ -24,6 +24,11 @@ import {
     scanRange,
     writeBaseIgnoreFile,
 } from './prepush_secret_scan.ts'
+import {
+    outgoing,
+    published,
+    publishesNothingNew,
+} from './published_objects.ts'
 
 const ZERO = '0'.repeat(40)
 
@@ -722,6 +727,296 @@ Deno.test('runPrepushScan never mutates the developer real .gitleaksignore, incl
         assertEquals(
             await git(dir, 'config', '--get', 'core.bare').catch(() => 'false'),
             'false',
+        )
+    })
+})
+
+// ---------------------------------------------------------------------------
+// #431 — the published-objects admission rule. A ref update whose outgoing
+// trees and blobs are all already reachable from origin/main publishes
+// nothing new and passes without a gitleaks run; anything else is scanned.
+// ---------------------------------------------------------------------------
+
+const ADMITTED = 'publishes nothing origin/main has not already published'
+
+/** A monorepo-shaped fixture: two commits on origin/main, set by update-ref. */
+interface PublishedFixture {
+    dir: string
+    /** The older origin/main commit (packages/a at its first release). */
+    m1: string
+    /** The current origin/main commit (packages/a changed since m1). */
+    m2: string
+}
+
+/**
+ * Build a repository whose `refs/remotes/origin/main` holds two releases of
+ * `packages/a`, the way the monorepo holds every past mirror tree.
+ *
+ * @param dir - An empty temp directory.
+ * @returns The fixture's commits.
+ */
+async function publishedFixture(dir: string): Promise<PublishedFixture> {
+    await git(dir, 'init', '-q')
+    await Deno.mkdir(join(dir, 'packages/a/docs'), { recursive: true })
+    await Deno.writeTextFile(join(dir, 'packages/a/mod.ts'), 'export {}\n')
+    await Deno.writeTextFile(join(dir, 'packages/a/docs/DOCS.md'), '# a\n')
+    await git(dir, 'add', '.')
+    await git(dir, 'commit', '-q', '-m', 'release 1')
+    const m1 = await git(dir, 'rev-parse', 'HEAD')
+    await Deno.writeTextFile(
+        join(dir, 'packages/a/mod.ts'),
+        'export const a = 2\n',
+    )
+    await git(dir, 'add', '.')
+    await git(dir, 'commit', '-q', '-m', 'release 2')
+    const m2 = await git(dir, 'rev-parse', 'HEAD')
+    await git(dir, 'update-ref', 'refs/remotes/origin/main', m2)
+    return { dir, m1, m2 }
+}
+
+/**
+ * Cut a mirror-style commit whose tree IS `packages/a` at `source`.
+ *
+ * @param dir - The fixture repository.
+ * @param source - The commit-ish the subtree is read from.
+ * @param parent - The previous mirror commit, if any.
+ * @returns The new commit's sha.
+ */
+async function subtreeCommit(
+    dir: string,
+    source: string,
+    parent?: string,
+): Promise<string> {
+    const tree = await git(dir, 'rev-parse', `${source}:packages/a`)
+    const args = ['commit-tree', tree, '-m', 'Release']
+    if (parent) args.push('-p', parent)
+    return await git(dir, ...args)
+}
+
+/**
+ * A commit off `base` that adds one file to `packages/a`, never on
+ * origin/main — the source of a subtree holding one unpublished blob.
+ *
+ * @param dir - The fixture repository.
+ * @param base - The commit to branch from.
+ * @param write - Writes the new file into the working tree.
+ * @returns The side commit's sha.
+ */
+async function sideCommit(
+    dir: string,
+    base: string,
+    write: () => Promise<void>,
+): Promise<string> {
+    await git(dir, 'checkout', '-q', '--detach', base)
+    await write()
+    await git(dir, 'add', '.')
+    await git(dir, 'commit', '-q', '-m', 'unpublished')
+    return await git(dir, 'rev-parse', 'HEAD')
+}
+
+Deno.test('admission: an unparented subtree commit passes, and gitleaks is never invoked (realtime case)', async () => {
+    await withTempDir('prepush-admit-subtree-', async (dir) => {
+        const { m2 } = await publishedFixture(dir)
+        const commit = await subtreeCommit(dir, m2)
+
+        const out = await outgoing({ localSha: commit, remoteSha: ZERO }, dir)
+        assert(out !== null && out.size > 0, 'outgoing should list the tree')
+        assertEquals(publishesNothingNew(out, await published(dir)), true)
+
+        const { bin, marker } = await forbiddenGitleaks(dir)
+        const result = await runPrepushScan(
+            `refs/heads/main ${commit} refs/heads/main ${ZERO}\n`,
+            dir,
+            { installGitleaks: () => Promise.resolve(bin) },
+        )
+        assertEquals(result.ok, true, result.lines.join('\n'))
+        assert(
+            result.lines.some((l) => l.includes(`${ADMITTED}; not scanned`)),
+            result.lines.join('\n'),
+        )
+        assertEquals(await exists(marker), false, 'gitleaks was invoked')
+    })
+})
+
+Deno.test('admission: a release commit parented on the fetched mirror head passes (realtime branch push)', async () => {
+    await withTempDir('prepush-admit-parented-', async (dir) => {
+        const { m1, m2 } = await publishedFixture(dir)
+        const previous = await subtreeCommit(dir, m1)
+        const commit = await subtreeCommit(dir, m2, previous)
+
+        const { bin, marker } = await forbiddenGitleaks(dir)
+        const result = await runPrepushScan(
+            `refs/heads/main ${commit} refs/heads/main ${previous}\n`,
+            dir,
+            { installGitleaks: () => Promise.resolve(bin) },
+        )
+        assertEquals(result.ok, true, result.lines.join('\n'))
+        assert(result.lines.some((l) => l.includes(ADMITTED)))
+        assertEquals(await exists(marker), false, 'gitleaks was invoked')
+    })
+})
+
+Deno.test('admission: a chain from an older origin/main tree, pushed as a new ref, passes (mail-tag case)', async () => {
+    await withTempDir('prepush-admit-chain-', async (dir) => {
+        const { m1, m2 } = await publishedFixture(dir)
+        const first = await subtreeCommit(dir, m1)
+        const second = await subtreeCommit(dir, m2, first)
+
+        const out = await outgoing({ localSha: second, remoteSha: ZERO }, dir)
+        assertEquals(publishesNothingNew(out, await published(dir)), true)
+
+        const { bin, marker } = await forbiddenGitleaks(dir)
+        const result = await runPrepushScan(
+            `refs/tags/v2 ${second} refs/tags/v2 ${ZERO}\n`,
+            dir,
+            { installGitleaks: () => Promise.resolve(bin) },
+        )
+        assertEquals(result.ok, true, result.lines.join('\n'))
+        assert(result.lines.some((l) => l.includes(ADMITTED)))
+        assertEquals(await exists(marker), false, 'gitleaks was invoked')
+    })
+})
+
+Deno.test('admission: one new blob is not passed', async () => {
+    await withTempDir('prepush-admit-new-blob-', async (dir) => {
+        const { m2 } = await publishedFixture(dir)
+        const side = await sideCommit(dir, m2, async () => {
+            await Deno.writeTextFile(
+                join(dir, 'packages/a/new.txt'),
+                'never published\n',
+            )
+        })
+        const commit = await subtreeCommit(dir, side)
+        const newBlob = await git(
+            dir,
+            'rev-parse',
+            `${side}:packages/a/new.txt`,
+        )
+
+        const out = await outgoing({ localSha: commit, remoteSha: ZERO }, dir)
+        assert(out?.has(newBlob), 'outgoing must list the new blob')
+        assertEquals(publishesNothingNew(out, await published(dir)), false)
+    })
+})
+
+Deno.test('admission: an older chain whose first tree never reached origin/main is not passed', async () => {
+    await withTempDir('prepush-admit-chain-foreign-', async (dir) => {
+        const { m1, m2 } = await publishedFixture(dir)
+        const side = await sideCommit(dir, m1, async () => {
+            await Deno.writeTextFile(join(dir, 'packages/a/x.txt'), 'x\n')
+        })
+        const first = await subtreeCommit(dir, side)
+        const second = await subtreeCommit(dir, m2, first)
+        const out = await outgoing({ localSha: second, remoteSha: ZERO }, dir)
+        assertEquals(publishesNothingNew(out, await published(dir)), false)
+    })
+})
+
+Deno.test('admission: a foreign push carrying a new flagged blob is refused', async () => {
+    await withTempDir('prepush-admit-foreign-leak-', async (dir) => {
+        const { m2 } = await publishedFixture(dir)
+        const side = await sideCommit(
+            dir,
+            m2,
+            () => writeFakeSecret(dir, 'packages/a/secret.env'),
+        )
+        const commit = await subtreeCommit(dir, side)
+
+        // The REAL gitleaks (a cache hit once installed), as in the
+        // base-snapshot tests above: the refusal must come from a scan.
+        const result = await runPrepushScan(
+            `refs/heads/main ${commit} refs/heads/main ${ZERO}\n`,
+            dir,
+        )
+        assertEquals(result.ok, false, result.lines.join('\n'))
+        assert(!result.lines.some((l) => l.includes(ADMITTED)))
+        assert(result.lines.some((l) => l.includes('FAILED')))
+    })
+})
+
+Deno.test('admission: without origin/main nothing passes, not even an empty outgoing set', async () => {
+    await withTempDir('prepush-admit-no-origin-', async (dir) => {
+        const { m2 } = await publishedFixture(dir)
+        const commit = await subtreeCommit(dir, m2)
+        await git(dir, 'update-ref', '-d', 'refs/remotes/origin/main')
+
+        const pub = await published(dir)
+        assertEquals(pub.size, 0)
+        const out = await outgoing({ localSha: commit, remoteSha: ZERO }, dir)
+        assertEquals(publishesNothingNew(out, pub), false)
+        assertEquals(publishesNothingNew(new Set(), pub), false)
+
+        // It takes today's path instead: scanned (by a clean fake here).
+        const bin = await fakeGitleaks(dir, {
+            log: 'INF 1 commits scanned\n',
+            report: '[]',
+            exitCode: 0,
+        })
+        const result = await runPrepushScan(
+            `refs/heads/main ${commit} refs/heads/main ${ZERO}\n`,
+            dir,
+            { installGitleaks: () => Promise.resolve(bin) },
+        )
+        assertEquals(result.ok, true, result.lines.join('\n'))
+        assert(!result.lines.some((l) => l.includes(ADMITTED)))
+        assert(result.lines.some((l) => l.includes('clean')))
+    })
+})
+
+Deno.test('admission: a rev-list failure is not passed', async () => {
+    await withTempDir('prepush-admit-revlist-fail-', async (dir) => {
+        const { m2 } = await publishedFixture(dir)
+        const pub = await published(dir)
+        const missing = 'deadbeef'.repeat(5)
+        assertEquals(
+            await outgoing({ localSha: m2, remoteSha: missing }, dir),
+            null,
+        )
+        assertEquals(
+            await outgoing({ localSha: missing, remoteSha: ZERO }, dir),
+            null,
+        )
+        assertEquals(
+            await outgoing({ localSha: '--all', remoteSha: ZERO }, dir),
+            null,
+            'a non-sha argument must never reach rev-list as an option',
+        )
+        assertEquals(publishesNothingNew(null, pub), false)
+    })
+})
+
+Deno.test('admission: a remote sha missing locally is refused even when everything is published', async () => {
+    await withTempDir('prepush-admit-missing-remote-', async (dir) => {
+        const { m2 } = await publishedFixture(dir)
+        const missing = 'deadbeef'.repeat(5)
+        const { bin, marker } = await forbiddenGitleaks(dir)
+        const result = await runPrepushScan(
+            `refs/heads/main ${m2} refs/heads/main ${missing}\n`,
+            dir,
+            { installGitleaks: () => Promise.resolve(bin) },
+        )
+        assertEquals(result.ok, false, result.lines.join('\n'))
+        assert(
+            result.lines.some((l) =>
+                l.includes('cannot resolve range — fetch first')
+            ),
+            result.lines.join('\n'),
+        )
+        assertEquals(await exists(marker), false, 'gitleaks was invoked')
+    })
+})
+
+Deno.test('admission: outgoing leaves out commit ids but keeps trees and blobs', async () => {
+    await withTempDir('prepush-admit-commit-ids-', async (dir) => {
+        const { m1, m2 } = await publishedFixture(dir)
+        const out = await outgoing({ localSha: m2, remoteSha: m1 }, dir)
+        assert(out !== null)
+        assertEquals(out.has(m2), false, 'a commit id leaked into outgoing')
+        assert(out.has(await git(dir, 'rev-parse', `${m2}:packages/a/mod.ts`)))
+        assertEquals(
+            out.has(await git(dir, 'rev-parse', `${m2}:packages/a/docs`)),
+            false,
+            'an object the remote tip already has was listed as outgoing',
         )
     })
 })

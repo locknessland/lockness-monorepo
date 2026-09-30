@@ -39,6 +39,13 @@
  * temp worktree — never a mutated developer tree — and the next run's
  * `git worktree prune` sweeps it up.
  *
+ * A ref update whose trees and blobs are all already reachable from
+ * `origin/main` passes without a scan: it publishes nothing new
+ * (`scripts/published_objects.ts`, #431). That is how a package mirror push —
+ * a new commit over a subtree of `origin/main` — meets this scan on its own
+ * merits. Anything else, including any git failure computing the sets, takes
+ * the scan below.
+ *
  * Fails closed, mirroring `.github/workflows/secret-scan.yml`: the installer
  * failing, gitleaks logging an ERR/FTL line, an unreadable report, a
  * non-empty report paired with exit 0, a present `.gitleaks.toml`, or
@@ -53,31 +60,16 @@
  */
 
 import { dirname } from '@std/path'
+import { sanitizedGitEnv } from './git_env.ts'
 import { install as installGitleaks } from './install_gitleaks.ts'
+import {
+    outgoing,
+    published,
+    publishesNothingNew,
+} from './published_objects.ts'
 
 /** All-zero placeholder git uses for "this ref does not exist yet/anymore". */
 const ZERO_SHA_RE = /^0+$/
-
-/**
- * Environment variables git hooks export (`GIT_DIR`, `GIT_WORK_TREE`,
- * `GIT_INDEX_FILE`) that would otherwise redirect a git subprocess at the
- * hook's own repository/worktree instead of the `cwd` this script passes
- * explicitly — most dangerous for `git worktree add`, which must operate on
- * the disposable scan worktree, never the developer's checkout.
- */
-const GIT_ENV_LEAK_KEYS = ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE']
-
-/**
- * The current environment with {@link GIT_ENV_LEAK_KEYS} removed, for every
- * `git` subprocess this script spawns.
- *
- * @returns A env record safe to hand to `Deno.Command` alongside `clearEnv`.
- */
-function sanitizedGitEnv(): Record<string, string> {
-    const env = Deno.env.toObject()
-    for (const key of GIT_ENV_LEAK_KEYS) delete env[key]
-    return env
-}
 
 /** One line of pre-push stdin. */
 export interface RefUpdate {
@@ -493,9 +485,22 @@ export async function runPrepushScan(
     }
 
     let ok = true
+    // Enumerated once per push, and only if a non-delete update needs it.
+    let publishedSet: Set<string> | null = null
     for (const update of updates) {
         if (isDelete(update)) {
             lines.push(`${update.localRef}: delete, skipped`)
+            continue
+        }
+        // #431: nothing new leaves if every tree and blob this update sends
+        // is already reachable from origin/main, which is public. Otherwise —
+        // including any git failure — the scan below runs unchanged.
+        publishedSet ??= await published(cwd)
+        if (publishesNothingNew(await outgoing(update, cwd), publishedSet)) {
+            lines.push(
+                `${update.localRef}: publishes nothing origin/main has not ` +
+                    'already published; not scanned',
+            )
             continue
         }
         const base = await resolveBase(update, cwd)
