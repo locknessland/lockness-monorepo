@@ -16,6 +16,10 @@
  */
 
 import { dirname, fromFileUrl, join } from '@std/path'
+// The dependency-free subpath, not the `@lockness/cli` barrel: this module is
+// re-exported from `mod.ts`, which core loads at boot whenever a database is
+// configured, and the barrel would pull every built-in command in with it.
+import { CommandFailedError } from '@lockness/cli/command-failure'
 import { container } from '@lockness/container'
 import { Database } from './mod.ts'
 import { handleMakeFactory } from './generators/factory_generator.ts'
@@ -32,7 +36,11 @@ import {
 type CommandHandler = (args: string[]) => void | Promise<void>
 
 /**
- * Minimal CLI interface to avoid direct dependency on @lockness/cli.
+ * The one method of `@lockness/cli`'s `Cli` these commands need, kept
+ * structural so a test can register them on a recording fake.
+ *
+ * A handler reports failure by throwing a {@link CommandFailedError}; the CLI
+ * prints it once and exits non-zero (#428).
  */
 interface Cli {
     register(name: string, handler: CommandHandler, description?: string): void
@@ -249,10 +257,18 @@ export async function createFile(
  * `--allow-production` flag is passed — seeding writes rows unconditionally, so
  * an accidental run against production is guarded by {@link assertNotProduction}.
  *
+ * Every expected failure — the production guard, a connection that cannot be
+ * configured, a seeder module that is missing or exports no seeder — is a
+ * {@link CommandFailedError}. An error thrown by the seeder's own `run()` is
+ * user code failing, so it passes through unwrapped and the CLI prints its
+ * stack. The connection is closed on every path that opened it.
+ *
  * @param args - Command arguments (optional seeder name, optional
  *   `--allow-production` flag)
- * @throws {Error} When the environment is production and `--allow-production`
- *   was not passed.
+ * @param deps - The I/O seams.
+ * @throws {CommandFailedError} When the environment is production and
+ *   `--allow-production` was not passed, the connection cannot be configured,
+ *   or no seeder could be loaded.
  */
 async function handleSeed(
     args: string[],
@@ -260,93 +276,116 @@ async function handleSeed(
 ): Promise<void> {
     const allowProduction = args.includes(ALLOW_PRODUCTION_FLAG)
     // Guard BEFORE opening a connection: refuse a production write outright.
-    assertNotProduction('db:seed', allowProduction)
+    // `assertNotProduction` stays a plain Error — `factory.ts` calls it at
+    // runtime, outside any CLI — so the command translates it here.
+    try {
+        assertNotProduction('db:seed', allowProduction)
+    } catch (error) {
+        throw new CommandFailedError(getErrorMessage(error), { cause: error })
+    }
 
     console.log('🌱 Running seeders...')
 
-    const db = await deps.connect()
+    let db: DbConnection
+    try {
+        db = await deps.connect()
+    } catch (error) {
+        throw new CommandFailedError(getErrorMessage(error), { cause: error })
+    }
     const specificSeeder = args.find((a) => !a.startsWith('-'))
 
     try {
-        if (specificSeeder) {
-            await runSpecificSeeder(specificSeeder, deps.loadSeeder)
-        } else {
-            await runDatabaseSeeder(deps.loadSeeder)
-        }
-    } catch (error) {
-        console.error(`❌ Seeding failed: ${getErrorMessage(error)}`)
+        const seeder = specificSeeder
+            ? await loadSpecificSeeder(specificSeeder, deps.loadSeeder)
+            : await loadDatabaseSeeder(deps.loadSeeder)
+        await seeder.run()
     } finally {
         await db.close()
     }
 }
 
 /**
- * Run a specific seeder by name.
+ * Load a seeder module through the loader port, turning a load failure into a
+ * {@link CommandFailedError}.
  *
- * @param seederName - Name of the seeder (e.g., 'user')
- * @param loadSeeder - Seeder-loader port that resolves the seeder module
+ * @param path - The seeder file, relative to the project root.
+ * @param loadSeeder - Seeder-loader port that resolves the module.
+ * @returns The module namespace.
+ * @throws {CommandFailedError} When the module cannot be loaded; a missing
+ *   `database_seeder.ts` names the command that creates it.
  */
-async function runSpecificSeeder(
-    seederName: string,
+async function loadSeederModule(
+    path: string,
     loadSeeder: SeederLoader,
-): Promise<void> {
-    const fileName = `${seederName.toLowerCase()}_seeder.ts`
-    const filePath = `${SEEDERS_DIR}/${fileName}`
-
+): Promise<Record<string, unknown>> {
     try {
-        const module = await loadSeeder(filePath)
-        const SeederClass = Object.values(module).find(
-            (v): v is SeederConstructor =>
-                typeof v === 'function' &&
-                v.prototype?.run !== undefined,
-        )
-
-        if (SeederClass) {
-            const seeder = new SeederClass()
-            await seeder.run()
-        } else {
-            console.error(`❌ No valid seeder found in ${filePath}`)
-        }
+        return await loadSeeder(path)
     } catch (error) {
-        console.error(`❌ Failed to run seeder: ${getErrorMessage(error)}`)
+        const message = getErrorMessage(error)
+        if (
+            path.endsWith('/database_seeder.ts') &&
+            message.includes('Module not found')
+        ) {
+            throw new CommandFailedError(
+                'No database_seeder.ts found. Run `deno task cli make:seeder Database` first.',
+                { cause: error },
+            )
+        }
+        throw new CommandFailedError(
+            `Failed to load seeder ${path}: ${message}`,
+            { cause: error },
+        )
     }
 }
 
 /**
- * Run the main DatabaseSeeder orchestrator.
+ * Load and instantiate a specific seeder by name.
+ *
+ * @param seederName - Name of the seeder (e.g., 'user')
+ * @param loadSeeder - Seeder-loader port that resolves the seeder module
+ * @returns A seeder instance, not yet run.
+ * @throws {CommandFailedError} When the module cannot be loaded or exports no
+ *   class with a `run()` method.
+ */
+async function loadSpecificSeeder(
+    seederName: string,
+    loadSeeder: SeederLoader,
+): Promise<{ run(): Promise<void> }> {
+    const filePath = `${SEEDERS_DIR}/${seederName.toLowerCase()}_seeder.ts`
+    const module = await loadSeederModule(filePath, loadSeeder)
+    const SeederClass = Object.values(module).find(
+        (v): v is SeederConstructor =>
+            typeof v === 'function' &&
+            v.prototype?.run !== undefined,
+    )
+    if (!SeederClass) {
+        throw new CommandFailedError(`No valid seeder found in ${filePath}`)
+    }
+    return new SeederClass()
+}
+
+/**
+ * Load and instantiate the main `DatabaseSeeder` orchestrator.
  *
  * @param loadSeeder - Seeder-loader port that resolves the seeder module
+ * @returns The `DatabaseSeeder` instance, not yet run.
+ * @throws {CommandFailedError} When `database_seeder.ts` cannot be loaded or
+ *   does not export `DatabaseSeeder`.
  */
-async function runDatabaseSeeder(loadSeeder: SeederLoader): Promise<void> {
-    const mainSeederPath = `${SEEDERS_DIR}/database_seeder.ts`
-
-    try {
-        const module = await loadSeeder(mainSeederPath)
-        const DatabaseSeeder = module.DatabaseSeeder as
-            | SeederConstructor
-            | undefined
-
-        if (DatabaseSeeder) {
-            const seeder = new DatabaseSeeder()
-            await seeder.run()
-        } else {
-            console.error(
-                '❌ DatabaseSeeder class not found. Run `deno task cli make:seeder Database` first.',
-            )
-        }
-    } catch (error) {
-        const err = error as Error
-        if (err.message.includes('Module not found')) {
-            console.error(
-                '❌ No database_seeder.ts found. Run `deno task cli make:seeder Database` first.',
-            )
-        } else {
-            console.error(`❌ Seeding failed: ${err.message}`)
-            if (err.stack) {
-                console.error(err.stack)
-            }
-        }
+async function loadDatabaseSeeder(
+    loadSeeder: SeederLoader,
+): Promise<{ run(): Promise<void> }> {
+    const module = await loadSeederModule(
+        `${SEEDERS_DIR}/database_seeder.ts`,
+        loadSeeder,
+    )
+    const DatabaseSeeder = module.DatabaseSeeder
+    if (typeof DatabaseSeeder !== 'function') {
+        throw new CommandFailedError(
+            'DatabaseSeeder class not found. Run `deno task cli make:seeder Database` first.',
+        )
     }
+    return new (DatabaseSeeder as SeederConstructor)()
 }
 
 // =============================================================================
@@ -361,12 +400,17 @@ async function runDatabaseSeeder(loadSeeder: SeederLoader): Promise<void> {
  * - `db:migrate` - Run pending database migrations
  * - `db:push` - Push schema changes directly to database
  * - `db:studio` - Open Drizzle Studio GUI
- * - `db:status` - Check if migrations are up to date
+ * - `db:status` - Check the migration history for consistency
  * - `db:check` - Test database connection
  * - `db:fresh` - Drop all tables and re-migrate
  * - `db:seed` - Seed the database with test data
  * - `make:seeder` - Create a new database seeder
  * - `make:model` - Create a new Drizzle model
+ * - `make:factory` - Create a new model factory
+ *
+ * A `db:*` command that fails throws a {@link CommandFailedError}, so
+ * `@lockness/cli` prints the failure once and the process exits `1`; a
+ * command that succeeds exits `0`. Scripts and CI can branch on the status.
  *
  * @param cli - The CLI instance to register commands on
  * @param overrides - Optional I/O-seam overrides for testing; each unset field
@@ -381,7 +425,7 @@ async function runDatabaseSeeder(loadSeeder: SeederLoader): Promise<void> {
  * const cli = new Cli()
  * registerDrizzleCommands(cli)
  *
- * await cli.run()
+ * await cli.run(Deno.args)
  * ```
  */
 export function registerDrizzleCommands(
@@ -406,6 +450,25 @@ export function registerDrizzleCommands(
             args: [...DRIZZLE_KIT_ARGS, subcommand],
         })
 
+    /**
+     * Run a `drizzle-kit` subcommand and fail the command when it exits
+     * non-zero. drizzle-kit has already printed its own diagnostics to the
+     * inherited stderr; the thrown message says which step failed.
+     *
+     * @throws {CommandFailedError} `<failure> (drizzle-kit <sub> exited <n>)`.
+     */
+    const runKitOrFail = async (
+        subcommand: string,
+        failure: string,
+    ): Promise<void> => {
+        const code = await runKit(subcommand)
+        if (code !== 0) {
+            throw new CommandFailedError(
+                `${failure} (drizzle-kit ${subcommand} exited ${code})`,
+            )
+        }
+    }
+
     // -------------------------------------------------------------------------
     // Migration Commands
     // -------------------------------------------------------------------------
@@ -414,12 +477,8 @@ export function registerDrizzleCommands(
         'db:generate',
         async () => {
             console.log('📦 Generating migrations...')
-            const code = await runKit('generate')
-            if (code === 0) {
-                console.log('✅ Migrations generated successfully')
-            } else {
-                console.error('❌ Failed to generate migrations')
-            }
+            await runKitOrFail('generate', 'Failed to generate migrations')
+            console.log('✅ Migrations generated successfully')
         },
         'Generate migration files from schema changes',
     )
@@ -428,12 +487,8 @@ export function registerDrizzleCommands(
         'db:migrate',
         async () => {
             console.log('🚀 Running migrations...')
-            const code = await runKit('migrate')
-            if (code === 0) {
-                console.log('✅ Migrations applied successfully')
-            } else {
-                console.error('❌ Failed to apply migrations')
-            }
+            await runKitOrFail('migrate', 'Failed to apply migrations')
+            console.log('✅ Migrations applied successfully')
         },
         'Run pending database migrations',
     )
@@ -442,12 +497,8 @@ export function registerDrizzleCommands(
         'db:push',
         async () => {
             console.log('🔄 Pushing schema to database...')
-            const code = await runKit('push')
-            if (code === 0) {
-                console.log('✅ Schema pushed successfully')
-            } else {
-                console.error('❌ Failed to push schema')
-            }
+            await runKitOrFail('push', 'Failed to push schema')
+            console.log('✅ Schema pushed successfully')
         },
         'Push schema changes directly to database (without migrations)',
     )
@@ -456,28 +507,22 @@ export function registerDrizzleCommands(
         'db:studio',
         async () => {
             console.log('🎨 Starting Drizzle Studio...')
-            const code = await runKit('studio')
-            if (code !== 0) {
-                console.error('❌ Failed to start Drizzle Studio')
-            }
+            await runKitOrFail('studio', 'Failed to start Drizzle Studio')
         },
         'Open Drizzle Studio (database GUI)',
     )
 
+    // `drizzle-kit check` validates the migrations folder only — snapshot
+    // versions, malformed snapshots, collisions. It never reads the schema or
+    // the database, so this command must not claim to detect drift.
     cli.register(
         'db:status',
         async () => {
-            console.log('📊 Checking migration status...')
-            const code = await runKit('check')
-            if (code === 0) {
-                console.log('✅ Schema is up to date')
-            } else {
-                console.log(
-                    '⚠️  Schema changes detected. Run db:generate to create a migration',
-                )
-            }
+            console.log('📊 Checking migration history...')
+            await runKitOrFail('check', 'Migration history check failed')
+            console.log('✅ Migration history is consistent')
         },
-        'Check if migrations are up to date with schema',
+        'Check the migration history for consistency (drizzle-kit check)',
     )
 
     // -------------------------------------------------------------------------
@@ -494,11 +539,11 @@ export function registerDrizzleCommands(
                 await db.probe()
                 console.log('✅ Database connection successful')
             } catch (error) {
-                console.error(
-                    '❌ Database connection failed:',
-                    getErrorMessage(error),
+                throw new CommandFailedError(
+                    `Database connection failed: ${getErrorMessage(error)}\n` +
+                        '💡 Check your DATABASE_URL in .env',
+                    { cause: error },
                 )
-                console.log('\n💡 Check your DATABASE_URL in .env')
             } finally {
                 await db?.close()
             }
@@ -514,16 +559,16 @@ export function registerDrizzleCommands(
             await new Promise((resolve) => setTimeout(resolve, 3000))
 
             console.log('🗑️  Dropping database...')
-            await runKit('drop')
+            // A failed drop stops here: migrating on top of whatever is left
+            // would report a refresh that never happened.
+            await runKitOrFail(
+                'drop',
+                'Failed to drop the database; migrations were not run',
+            )
 
             console.log('🔄 Running migrations...')
-            const code = await runKit('migrate')
-
-            if (code === 0) {
-                console.log('✅ Database refreshed successfully')
-            } else {
-                console.error('❌ Failed to refresh database')
-            }
+            await runKitOrFail('migrate', 'Failed to refresh database')
+            console.log('✅ Database refreshed successfully')
         },
         'Drop all tables and run migrations from scratch',
     )

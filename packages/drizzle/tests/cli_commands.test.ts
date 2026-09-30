@@ -10,8 +10,15 @@
  * @module @lockness/drizzle/tests/cli_commands
  */
 
-import { assertEquals, assertRejects } from '@std/assert'
+import {
+    assert,
+    assertEquals,
+    assertRejects,
+    assertStringIncludes,
+} from '@std/assert'
 import { FakeTime } from '@std/testing/time'
+import { Cli } from '@lockness/cli'
+import { CommandFailedError } from '@lockness/cli/command-failure'
 import { container } from '@lockness/container'
 import { Database } from '../mod.ts'
 import {
@@ -117,6 +124,155 @@ const shellCommands: ReadonlyArray<readonly [string, string]> = [
     ['db:status', 'check'],
 ]
 
+// -----------------------------------------------------------------------------
+// Exit contract (#428) — a failed drizzle-kit run is a thrown CommandFailedError
+// -----------------------------------------------------------------------------
+
+for (const [command, subcommand] of shellCommands) {
+    Deno.test(`${command} - rejects with CommandFailedError when drizzle-kit ${subcommand} exits 1`, async () => {
+        const restore = muteConsole()
+        try {
+            const cli = new FakeCli()
+            const { run } = fakeRunner([1])
+            registerDrizzleCommands(cli, { runCommand: run })
+
+            const error = await assertRejects(
+                () => cli.run(command),
+                CommandFailedError,
+            )
+            assertStringIncludes(
+                error.message,
+                `(drizzle-kit ${subcommand} exited 1)`,
+            )
+            assertEquals(error.exitCode, 1)
+        } finally {
+            restore()
+        }
+    })
+
+    Deno.test(`${command} - resolves when drizzle-kit ${subcommand} exits 0`, async () => {
+        const restore = muteConsole()
+        try {
+            const cli = new FakeCli()
+            const { run } = fakeRunner([0])
+            registerDrizzleCommands(cli, { runCommand: run })
+
+            await cli.run(command)
+        } finally {
+            restore()
+        }
+    })
+}
+
+Deno.test('db:status - only claims migration-history consistency, never drift', async () => {
+    const lines: string[] = []
+    const { log } = console
+    console.log = (...args: unknown[]) => void lines.push(args.join(' '))
+    try {
+        const cli = new FakeCli()
+        registerDrizzleCommands(cli, { runCommand: fakeRunner([0]).run })
+        await cli.run('db:status')
+
+        const failing = new FakeCli()
+        registerDrizzleCommands(failing, { runCommand: fakeRunner([2]).run })
+        const error = await assertRejects(
+            () => failing.run('db:status'),
+            CommandFailedError,
+        )
+        assertEquals(
+            error.message,
+            'Migration history check failed (drizzle-kit check exited 2)',
+        )
+    } finally {
+        console.log = log
+    }
+    assertStringIncludes(lines.join('\n'), 'Migration history is consistent')
+    assert(!/up to date|schema changes/i.test(lines.join('\n')))
+})
+
+/**
+ * Run `db:fresh` with the runner returning `codes`, skipping the 3 s safety
+ * countdown, and settle it. The rejection assertion is attached before the
+ * clock moves so the failure is never an unhandled rejection.
+ */
+async function runFresh(codes: number[]): Promise<{
+    readonly calls: CommandSpec[]
+    readonly error: CommandFailedError | undefined
+}> {
+    using time = new FakeTime()
+    const cli = new FakeCli()
+    const { calls, run } = fakeRunner(codes)
+    registerDrizzleCommands(cli, { runCommand: run })
+
+    const settled = cli.run('db:fresh').then(
+        () => undefined,
+        (e: unknown) => e,
+    )
+    await time.tickAsync(3000)
+    const outcome = await settled
+    if (outcome !== undefined && !(outcome instanceof CommandFailedError)) {
+        throw outcome
+    }
+    return { calls, error: outcome }
+}
+
+Deno.test('db:fresh - a failed drop rejects and never runs migrate', async () => {
+    const restore = muteConsole()
+    try {
+        const { calls, error } = await runFresh([1])
+        assert(error instanceof CommandFailedError, 'db:fresh resolved')
+        assertStringIncludes(error.message, '(drizzle-kit drop exited 1)')
+        assertStringIncludes(error.message, 'migrations were not run')
+        assertEquals(calls.map((c) => c.args.at(-1)), ['drop'])
+    } finally {
+        restore()
+    }
+})
+
+Deno.test('db:fresh - a failed migrate after a good drop rejects', async () => {
+    const restore = muteConsole()
+    try {
+        const { calls, error } = await runFresh([0, 1])
+        assert(error instanceof CommandFailedError, 'db:fresh resolved')
+        assertStringIncludes(error.message, '(drizzle-kit migrate exited 1)')
+        assertEquals(calls.map((c) => c.args.at(-1)), ['drop', 'migrate'])
+    } finally {
+        restore()
+    }
+})
+
+Deno.test('db:fresh - resolves when drop and migrate both exit 0', async () => {
+    const restore = muteConsole()
+    try {
+        const { calls, error } = await runFresh([0, 0])
+        assertEquals(error, undefined)
+        assertEquals(calls.length, 2)
+    } finally {
+        restore()
+    }
+})
+
+Deno.test('wiring - a real Cli exits 1 on a failed db:migrate, printing one error line', async () => {
+    const errors: unknown[][] = []
+    const { log, error } = console
+    console.log = () => {}
+    console.error = (...args: unknown[]) => void errors.push(args)
+    try {
+        const cli = new Cli()
+        registerDrizzleCommands(cli, { runCommand: fakeRunner([1]).run })
+
+        const status = await cli.dispatch(['db:migrate'])
+
+        assertEquals(status, 1)
+        assertEquals(errors, [[
+            '❌ Failed to apply migrations (drizzle-kit migrate exited 1)',
+        ]])
+    } finally {
+        console.log = log
+        console.error = error
+    }
+})
+
 for (const [command, subcommand] of shellCommands) {
     Deno.test(`${command} - constructs the drizzle-kit \`${subcommand}\` argv`, async () => {
         const restore = muteConsole()
@@ -176,7 +332,7 @@ Deno.test('db:check - probes through the connection port then closes', async () 
     }
 })
 
-Deno.test('db:check - closes even when the probe fails', async () => {
+Deno.test('db:check - a failed probe rejects with one message, and still closes', async () => {
     const restore = muteConsole()
     try {
         const cli = new FakeCli()
@@ -185,9 +341,35 @@ Deno.test('db:check - closes even when the probe fails', async () => {
         })
         registerDrizzleCommands(cli, { connect })
 
-        await cli.run('db:check')
+        const error = await assertRejects(
+            () => cli.run('db:check'),
+            CommandFailedError,
+        )
 
+        assertEquals(
+            error.message,
+            'Database connection failed: unreachable\n' +
+                '💡 Check your DATABASE_URL in .env',
+        )
         assertEquals(events, ['probe', 'close'])
+    } finally {
+        restore()
+    }
+})
+
+Deno.test('db:check - a connect() that rejects is a CommandFailedError', async () => {
+    const restore = muteConsole()
+    try {
+        const cli = new FakeCli()
+        registerDrizzleCommands(cli, {
+            connect: () => Promise.reject(new Error('no client')),
+        })
+
+        const error = await assertRejects(
+            () => cli.run('db:check'),
+            CommandFailedError,
+        )
+        assertStringIncludes(error.message, 'no client')
     } finally {
         restore()
     }
@@ -254,41 +436,115 @@ Deno.test('db:seed <name> - loads the named seeder through the loader port', asy
     }
 })
 
-Deno.test('db:seed - closes the connection when the module has no seeder', async () => {
+Deno.test('db:seed - rejects, and closes the connection, when the module has no seeder', async () => {
     const restore = muteConsole()
     try {
         const cli = new FakeCli()
         const { events, connect } = fakeConnection()
-        // A module with no DatabaseSeeder export: nothing runs, but the
-        // connection opened by handleSeed must still be closed.
+        // A module with no DatabaseSeeder export: nothing runs, the command
+        // fails, and the connection opened by handleSeed is still closed.
         const loadSeeder: SeederLoader = () => Promise.resolve({})
         registerDrizzleCommands(cli, { connect, loadSeeder })
 
-        await cli.run('db:seed')
+        const error = await assertRejects(
+            () => cli.run('db:seed'),
+            CommandFailedError,
+        )
 
+        assertStringIncludes(error.message, 'DatabaseSeeder class not found')
         assertEquals(events, ['close'])
     } finally {
         restore()
     }
 })
 
-Deno.test('db:seed - closes the connection when the seeder throws', async () => {
+Deno.test('db:seed - the seeder’s own error passes through unwrapped, and the connection closes', async () => {
     const restore = muteConsole()
     try {
         const cli = new FakeCli()
         const { events, connect } = fakeConnection()
+        const boom = new Error('boom')
         class DatabaseSeeder {
             run(): Promise<void> {
-                return Promise.reject(new Error('boom'))
+                return Promise.reject(boom)
             }
         }
         const loadSeeder: SeederLoader = () =>
             Promise.resolve({ DatabaseSeeder })
         registerDrizzleCommands(cli, { connect, loadSeeder })
 
-        // The failure is swallowed and logged; the connection is still closed.
-        await cli.run('db:seed')
+        // User code failed: its own error (and stack) reaches the CLI, which
+        // prints it as an unexpected failure.
+        const error = await assertRejects(() => cli.run('db:seed'))
 
+        assertEquals(error, boom)
+        assertEquals(events, ['close'])
+    } finally {
+        restore()
+    }
+})
+
+Deno.test('db:seed <name> - rejects when the module exports no seeder class', async () => {
+    const restore = muteConsole()
+    try {
+        const cli = new FakeCli()
+        const { events, connect } = fakeConnection()
+        const loadSeeder: SeederLoader = () =>
+            Promise.resolve({ notASeeder: 42 })
+        registerDrizzleCommands(cli, { connect, loadSeeder })
+
+        const error = await assertRejects(
+            () => cli.run('db:seed', 'User'),
+            CommandFailedError,
+        )
+
+        assertStringIncludes(
+            error.message,
+            'No valid seeder found in ./database/seeders/user_seeder.ts',
+        )
+        assertEquals(events, ['close'])
+    } finally {
+        restore()
+    }
+})
+
+Deno.test('db:seed - a missing database_seeder.ts is a CommandFailedError with the fix', async () => {
+    const restore = muteConsole()
+    try {
+        const cli = new FakeCli()
+        const { connect } = fakeConnection()
+        const loadSeeder: SeederLoader = () =>
+            Promise.reject(new Error('Module not found "file:///x"'))
+        registerDrizzleCommands(cli, { connect, loadSeeder })
+
+        const error = await assertRejects(
+            () => cli.run('db:seed'),
+            CommandFailedError,
+        )
+
+        assertStringIncludes(error.message, 'No database_seeder.ts found')
+        assertStringIncludes(error.message, 'make:seeder Database')
+    } finally {
+        restore()
+    }
+})
+
+Deno.test('db:seed <name> - a module that fails to load is a CommandFailedError keeping the cause', async () => {
+    const restore = muteConsole()
+    try {
+        const cli = new FakeCli()
+        const { events, connect } = fakeConnection()
+        const syntax = new SyntaxError('Unexpected token')
+        const loadSeeder: SeederLoader = () => Promise.reject(syntax)
+        registerDrizzleCommands(cli, { connect, loadSeeder })
+
+        const error = await assertRejects(
+            () => cli.run('db:seed', 'User'),
+            CommandFailedError,
+        )
+
+        assertStringIncludes(error.message, 'Unexpected token')
+        assertEquals(error.cause, syntax)
         assertEquals(events, ['close'])
     } finally {
         restore()
@@ -335,7 +591,11 @@ Deno.test('db:seed - refuses to run under APP_ENV=production without --allow-pro
         registerDrizzleCommands(cli, { connect, loadSeeder })
 
         await withAppEnv('production', async () => {
-            await assertRejects(() => cli.run('db:seed'), Error, 'production')
+            await assertRejects(
+                () => cli.run('db:seed'),
+                CommandFailedError,
+                'production',
+            )
         })
 
         // The guard fires before any connection is opened or seeder loaded.
@@ -401,7 +661,11 @@ Deno.test('db:seed - stops before loading any seeder when connect() fails', asyn
         registerDrizzleCommands(cli, { loadSeeder })
 
         await withAppEnv(undefined, async () => {
-            await assertRejects(() => cli.run('db:seed'), Error, 'postgres')
+            await assertRejects(
+                () => cli.run('db:seed'),
+                CommandFailedError,
+                'postgres',
+            )
         })
 
         assertEquals(
