@@ -1,7 +1,7 @@
 /**
  * @fileoverview The CLI exit contract — how a command reports that it failed.
  *
- * A command handler reports failure by **throwing**. {@link Cli.dispatch}
+ * A command handler reports failure by **throwing**. `Cli.dispatch()`
  * prints the failure once and maps it to the process exit status, so a script
  * or CI job that branches on the status never reads a failed command as a
  * success (#428).
@@ -12,10 +12,20 @@
  * subclass of `Error`, and the check survives two copies of this package
  * being loaded side by side.
  *
- * This module imports nothing, so a package can reach it without pulling in
- * the command registry.
+ * This module imports nothing and is exported on its own as
+ * `@lockness/cli/command-failure`. A package whose runtime code must stay
+ * light — `@lockness/drizzle`'s commands are loaded whenever an application
+ * boots with a database — imports it from there rather than from the
+ * `@lockness/cli` barrel, which pulls in every built-in command.
  *
- * @module @lockness/cli/command_failure
+ * @example
+ * ```ts
+ * import { CommandFailedError } from '@lockness/cli/command-failure'
+ *
+ * throw new CommandFailedError('Failed to apply migrations (drizzle-kit migrate exited 1)')
+ * ```
+ *
+ * @module @lockness/cli/command-failure
  */
 
 /** Lowest exit status that signals failure. */
@@ -90,7 +100,7 @@ export function isCommandFailure(error: unknown): error is CommandFailure {
 /**
  * Thrown by a command handler to report that the command did not do its job.
  *
- * {@link Cli.dispatch} prints `❌ <message>` once — no stack, because the
+ * `Cli.dispatch()` prints `❌ <message>` once — no stack, because the
  * message already explains the failure — and exits with {@link exitCode}.
  * Throw a plain `Error` instead for a failure you did not anticipate; that one
  * is printed with its stack.
@@ -112,6 +122,8 @@ export class CommandFailedError extends Error {
     readonly exitCode: number
 
     /**
+     * Create a failure to throw from a command handler.
+     *
      * @param message - What failed, shown to the user as `❌ <message>`.
      * @param options - The exit status (default `1`) and an optional cause.
      */

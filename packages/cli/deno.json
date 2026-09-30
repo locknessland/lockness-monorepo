@@ -4,7 +4,8 @@
     "license": "MIT",
     "exports": {
         ".": "./mod.ts",
-        "./commands": "./core_commands.ts"
+        "./commands": "./core_commands.ts",
+        "./command-failure": "./command_failure.ts"
     },
     "publish": {
         "exclude": [

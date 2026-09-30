@@ -435,5 +435,6 @@ export class Cli {
     }
 }
 
+/** A shared `Cli` instance, for applications that need only one registry. */
 export const cli: Cli = new Cli()
 export { Stub }
