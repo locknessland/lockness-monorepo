@@ -26,7 +26,10 @@
  * - the local tag `v<version>` exists and equals `origin`'s;
  * - the tag's commit is an ancestor of `origin/main` and carries `<version>`
  *   in its `deno.jsonc`;
- * - a green `Secret scan` run on `main` has a head that contains the tag.
+ * - a green `Secret scan` run triggered by a **push** to `main` has a head
+ *   that is on `origin/main` and contains the tag. `--branch main` alone
+ *   would also match a pull request from a fork whose branch is named
+ *   `main`, whose head never reached `origin/main`.
  *
  * That provenance is what lets a mirror push meet the pre-push secret scan on
  * its own merits: every tree and blob it sends is already reachable from
@@ -64,6 +67,15 @@ const SECRET_SCAN_WORKFLOW = 'Secret scan'
 
 /** How many recent green `Secret scan` runs are searched for the tag. */
 const SCAN_RUNS_SEARCHED = 50
+
+/** A full object id, as `gh run list` reports a run's `headSha`. */
+const OBJECT_ID_RE = /^[0-9a-f]{40}([0-9a-f]{24})?$/
+
+/**
+ * How `gh repo view` reports a repository that does not exist. Any other
+ * failure (auth, network, rate limit) is not read as "missing".
+ */
+const REPO_NOT_FOUND_RE = /Could not resolve to a Repository with the name/
 
 /** What a subprocess (`git`, `gh`) returned. */
 export interface CommandOutput {
@@ -310,12 +322,14 @@ async function checkProvenance(
         SECRET_SCAN_WORKFLOW,
         '--branch',
         'main',
+        '--event',
+        'push',
         '--status',
         'success',
         '--limit',
         String(SCAN_RUNS_SEARCHED),
         '--json',
-        'headSha',
+        'headSha,event,headBranch',
     ])
     if (!runs.ok) {
         return {
@@ -327,13 +341,32 @@ async function checkProvenance(
     }
     let heads: string[]
     try {
-        heads = (JSON.parse(runs.stdout) as { headSha?: unknown }[])
+        const parsed = JSON.parse(runs.stdout) as {
+            headSha?: unknown
+            event?: unknown
+            headBranch?: unknown
+        }[]
+        // Re-check what `gh` filtered on: only a push to main counts.
+        heads = parsed
+            .filter((run) => run.event === 'push' && run.headBranch === 'main')
             .map((run) => run.headSha)
-            .filter((sha): sha is string => typeof sha === 'string')
+            .filter((sha): sha is string =>
+                typeof sha === 'string' && OBJECT_ID_RE.test(sha)
+            )
     } catch {
         return { error: ['gh run list returned unreadable JSON'] }
     }
     for (const head of heads) {
+        // The scanned head must itself be on origin/main, and the tag
+        // commit must be that head or one of its ancestors. A head this
+        // clone does not hold fails both checks and is skipped.
+        const onMain = await ctx.git([
+            'merge-base',
+            '--is-ancestor',
+            head,
+            'refs/remotes/origin/main',
+        ])
+        if (!onMain.ok) continue
         const contains = await ctx.git([
             'merge-base',
             '--is-ancestor',
@@ -344,8 +377,9 @@ async function checkProvenance(
     }
     return {
         error: [
-            `no green ${SECRET_SCAN_WORKFLOW} run on main contains ${tag} ` +
-            `(searched the last ${SCAN_RUNS_SEARCHED}) — wait for the scan`,
+            `no green ${SECRET_SCAN_WORKFLOW} run (push to main, head on ` +
+            `origin/main) contains ${tag} (searched the last ` +
+            `${SCAN_RUNS_SEARCHED}) — wait for the scan`,
         ],
     }
 }
@@ -378,14 +412,14 @@ async function packageNames(ctx: Context, commit: string): Promise<string[]> {
  * @param ctx - The run's helpers.
  * @param name - Package name.
  * @param commit - The release commit the tree is read from.
- * @returns The mirror's state.
+ * @returns The mirror's state, or why its existence could not be read.
  * @throws {Error} When the package has no tree at the release commit.
  */
 async function inspect(
     ctx: Context,
     name: string,
     commit: string,
-): Promise<MirrorState> {
+): Promise<MirrorState | { error: string[] }> {
     const tree = await ctx.git(['rev-parse', `${commit}:packages/${name}`])
     if (!tree.ok) throw new Error(`no tree for packages/${name} at ${commit}`)
     const view = await ctx.options.gh([
@@ -395,7 +429,18 @@ async function inspect(
         '--json',
         'name',
     ])
-    return { name, tree: tree.stdout, exists: view.ok }
+    if (view.ok) return { name, tree: tree.stdout, exists: true }
+    if (REPO_NOT_FOUND_RE.test(view.stderr)) {
+        return { name, tree: tree.stdout, exists: false }
+    }
+    // Fail closed: an auth, network or rate-limit error says nothing about
+    // whether the repository exists.
+    return {
+        error: [
+            `gh repo view ${OWNER}/${name} failed`,
+            ...stderrLines(view.stderr),
+        ],
+    }
 }
 
 /** The mirror description, so nobody mistakes a mirror for the source. */
@@ -512,13 +557,20 @@ async function syncMirror(
     if (!pushed.ok) return fail(`push (${kind}) refused`, pushed.stderr)
 
     if (pushes.includes(headRef)) {
-        await ctx.options.gh([
+        const edited = await ctx.options.gh([
             'repo',
             'edit',
             `${OWNER}/${mirror.name}`,
             '--description',
             description(mirror.name),
         ])
+        if (!edited.ok) {
+            return fail(
+                `v${version} (${kind}) pushed, but the [READ ONLY] ` +
+                    'description update failed',
+                edited.stderr,
+            )
+        }
     }
     return { ok: true, lines: [`✅${label} v${version} (${kind})`] }
 }
@@ -572,7 +624,14 @@ export async function mirrorPackages(
 
     const mirrors: MirrorState[] = []
     for (const name of names) {
-        mirrors.push(await inspect(ctx, name, provenance.commit))
+        const state = await inspect(ctx, name, provenance.commit)
+        if ('error' in state) {
+            say(`❌ could not tell whether ${OWNER}/${name} exists:`)
+            for (const line of state.error) say(`   ${line}`)
+            say('Nothing was pushed or created.')
+            return { ok: false, lines }
+        }
+        mirrors.push(state)
     }
 
     let ok = true

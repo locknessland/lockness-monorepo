@@ -78,8 +78,14 @@ interface Fixture {
     mirrors: string
     /** Where the mirrors' `post-receive` hooks append each push. */
     pushLog: string
-    /** Head shas the fake `gh` reports as green `Secret scan` runs. */
+    /** Head shas the fake `gh` reports as green `Secret scan` push runs. */
     greenHeads: string[]
+    /** Further green runs `run list` reports, with their own event/branch. */
+    extraRuns: { headSha: string; event: string; headBranch: string }[]
+    /** When set, `repo view` fails with this stderr (not a not-found). */
+    viewFailure: string | null
+    /** When set, `repo edit` fails with this stderr. */
+    editFailure: string | null
     /** Every `gh` invocation the script made. */
     ghCalls: string[][]
     /** The fake `gh`. */
@@ -169,6 +175,9 @@ async function fixture(base: string): Promise<Fixture> {
         mirrors,
         pushLog,
         greenHeads: [],
+        extraRuns: [],
+        viewFailure: null,
+        editFailure: null,
         ghCalls: [],
         gh: (args) => fakeGh(f, args),
         git: run,
@@ -184,8 +193,10 @@ async function fixture(base: string): Promise<Fixture> {
 
 /**
  * The fake `gh`: `repo view` succeeds when the mirror's bare repository
- * exists, `run list` reports {@link Fixture.greenHeads}, `repo edit`
- * succeeds, anything else fails.
+ * exists and answers gh's real not-found message otherwise, `run list`
+ * reports {@link Fixture.greenHeads} as push runs on main followed by
+ * {@link Fixture.extraRuns}, `repo edit` succeeds, anything else fails.
+ * {@link Fixture.viewFailure} and {@link Fixture.editFailure} inject errors.
  *
  * @param f - The fixture.
  * @param args - The `gh` arguments.
@@ -199,14 +210,20 @@ async function fakeGh(f: Fixture, args: string[]): Promise<CommandOutput> {
         stderr: '',
     })
     if (args[0] === 'repo' && args[1] === 'view') {
+        if (f.viewFailure !== null) {
+            return { ok: false, stdout: '', stderr: f.viewFailure }
+        }
         const name = args[2].split('/')[1]
         const exists = await Deno.stat(join(f.mirrors, `${name}.git`)).then(
             () => true,
             () => false,
         )
-        return exists
-            ? ok(JSON.stringify({ name }))
-            : { ok: false, stdout: '', stderr: 'Could not resolve' }
+        return exists ? ok(JSON.stringify({ name })) : {
+            ok: false,
+            stdout: '',
+            stderr: `GraphQL: Could not resolve to a Repository with ` +
+                `the name '${args[2]}'. (repository)`,
+        }
     }
     if (args[0] === 'run' && args[1] === 'list') {
         assert(args.includes('Secret scan'), `unexpected run list: ${args}`)
@@ -215,11 +232,25 @@ async function fakeGh(f: Fixture, args: string[]): Promise<CommandOutput> {
             args.includes('success'),
             `run list not scoped to green: ${args}`,
         )
-        return ok(
-            JSON.stringify(f.greenHeads.map((headSha) => ({ headSha }))),
+        const event = args.indexOf('--event')
+        assert(
+            event >= 0 && args[event + 1] === 'push',
+            `run list not scoped to push events: ${args}`,
         )
+        return ok(JSON.stringify([
+            ...f.greenHeads.map((headSha) => ({
+                headSha,
+                event: 'push',
+                headBranch: 'main',
+            })),
+            ...f.extraRuns,
+        ]))
     }
-    if (args[0] === 'repo' && args[1] === 'edit') return ok()
+    if (args[0] === 'repo' && args[1] === 'edit') {
+        return f.editFailure === null
+            ? ok()
+            : { ok: false, stdout: '', stderr: f.editFailure }
+    }
     return { ok: false, stdout: '', stderr: `fake gh: ${args.join(' ')}` }
 }
 
@@ -417,6 +448,94 @@ Deno.test('mirror: refuses when every green scan predates the tag', async () => 
         f.greenHeads.length = 0
         f.greenHeads.push(await f.git(f.mono, 'rev-parse', 'v1.0.0^{commit}~1'))
         await assertRefused(f, await mirror(f), 'no green Secret scan run')
+    })
+})
+
+Deno.test('mirror: refuses a green scan whose head contains the tag but is not on origin/main', async () => {
+    await withFixture(async (f) => {
+        // A descendant of the tag that never reached origin/main — what a
+        // run on a fork's pull request from a branch named main would scan.
+        await f.git(f.mono, 'commit', '-q', '--allow-empty', '-m', 'unmerged')
+        f.greenHeads.length = 0
+        f.greenHeads.push(await f.git(f.mono, 'rev-parse', 'HEAD'))
+        await assertRefused(f, await mirror(f), 'no green Secret scan run')
+    })
+})
+
+Deno.test('mirror: refuses when the only green scan on the tag is not a push event', async () => {
+    await withFixture(async (f) => {
+        const [tagCommit] = f.greenHeads
+        f.greenHeads.length = 0
+        f.extraRuns.push({
+            headSha: tagCommit,
+            event: 'pull_request',
+            headBranch: 'main',
+        })
+        await assertRefused(f, await mirror(f), 'no green Secret scan run')
+    })
+})
+
+Deno.test('mirror: a green scan on a later origin/main commit admits the tag', async () => {
+    await withFixture(async (f) => {
+        await f.git(f.mono, 'commit', '-q', '--allow-empty', '-m', 'later')
+        await f.git(f.mono, 'push', '-q', 'origin', 'main')
+        f.greenHeads.length = 0
+        f.greenHeads.push(await f.git(f.mono, 'rev-parse', 'HEAD'))
+        const result = await mirror(f)
+        assertEquals(result.ok, true, result.lines.join('\n'))
+    })
+})
+
+Deno.test('mirror: a gh repo view failure that is not "not found" fails closed', async () => {
+    await withFixture(async (f) => {
+        f.viewFailure = 'HTTP 502: Bad Gateway (https://api.github.com/graphql)'
+        const result = await mirror(f)
+        await assertRefused(f, result, 'could not tell whether')
+        assert(
+            result.lines.some((l) => l.includes('HTTP 502')),
+            result.lines.join('\n'),
+        )
+        assertEquals(
+            f.ghCalls.filter((c) => c[0] === 'repo' && c[1] !== 'view'),
+            [],
+            'a repository was created or edited',
+        )
+    })
+})
+
+Deno.test('mirror: a missing repository is reported, not created, without --create', async () => {
+    await withFixture(async (f) => {
+        await Deno.remove(join(f.mirrors, 'mail.git'), { recursive: true })
+        const result = await mirror(f)
+        assertEquals(result.ok, true, result.lines.join('\n'))
+        assert(
+            result.lines.some((l) =>
+                l.includes('mail') && l.includes('no repository')
+            ),
+            result.lines.join('\n'),
+        )
+        assert((await mirrorRef(f, 'realtime', 'refs/tags/v1.0.0')) !== null)
+    })
+})
+
+Deno.test('mirror: a failed description update is reported as a failure', async () => {
+    await withFixture(async (f) => {
+        f.editFailure = 'HTTP 403: Resource not accessible by integration'
+        const result = await mirror(f)
+        assertEquals(result.ok, false, result.lines.join('\n'))
+        assert(
+            result.lines.some((l) =>
+                l.includes('realtime') &&
+                l.includes('description update failed')
+            ),
+            result.lines.join('\n'),
+        )
+        assert(
+            result.lines.some((l) => l.includes('HTTP 403')),
+            result.lines.join('\n'),
+        )
+        // The push itself landed; only the description is behind.
+        assert((await mirrorRef(f, 'realtime', 'refs/tags/v1.0.0')) !== null)
     })
 })
 
