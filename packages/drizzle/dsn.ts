@@ -35,16 +35,18 @@ export const INVALID_DSN_MESSAGE =
     'DSN is not a valid URL; percent-encode reserved characters in the password'
 
 /**
- * The outcome of {@link inspectDsn}: refused, or accepted with the secrets a
- * failure render must remove.
+ * The outcome of {@link inspectDsn}: refused, or accepted with every form of
+ * the password a failure render must check for.
  */
 export type DsnInspection =
     | { readonly ok: false }
     | {
         readonly ok: true
         /**
-         * The password as written and as percent-decoded, with empty and
-         * duplicate values dropped. Empty when the DSN holds no password.
+         * Every form of the password a driver may echo: as written, as
+         * percent-decoded, and as WHATWG re-encodes it (`;` becomes `%3B`).
+         * Empty and duplicate values are dropped. Empty when the DSN holds no
+         * password.
          */
         readonly secrets: readonly string[]
     }
@@ -102,7 +104,8 @@ const NO_SECRETS: DsnInspection = { ok: true, secrets: [] }
  *
  * @param url - The DSN passed to `Database.connect()`.
  * @returns `{ ok: false }` when a driver could misparse the DSN; otherwise
- *   `{ ok: true, secrets }`. A `file:` or `sqlite:` path, and a DSN with no
+ *   `{ ok: true, secrets }` — the password as written, decoded, and
+ *   re-encoded by WHATWG. A `file:` or `sqlite:` path, and a DSN with no
  *   scheme, are accepted with no secrets.
  *
  * @example
@@ -169,7 +172,10 @@ export function inspectDsn(url: string): DsnInspection {
         if (first >= 0 && first < authorityStart + at + 1) return REFUSED
     }
 
-    const secrets = [...new Set([password, decodedPassword])]
+    // The third form is the one a driver that echoes `new URL(dsn).href`
+    // prints. WHATWG percent-encodes characters RFC 3986 allows raw.
+    const reencoded = new URL(collapsed).password
+    const secrets = [...new Set([password, decodedPassword, reencoded])]
         .filter((secret) => secret !== '')
     return { ok: true, secrets }
 }

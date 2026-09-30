@@ -76,7 +76,8 @@ export interface DriverHandle {
  * @throws If the client package is missing or the client constructor rejects
  * the URL. `Database.connect()` shows only the error's name, never its message,
  * which may quote the DSN; a default factory reports a missing package as an
- * internal `ClientUnavailableError`, whose import error is shown in full.
+ * internal `ClientUnavailableError`, whose import error is shown unless it
+ * holds the password.
  *
  * @example
  * ```typescript
@@ -110,7 +111,8 @@ export const CLIENT_PACKAGE: Record<Dialect, string> = {
  * It exists so `Database.connect()` can tell "package missing" apart from
  * "client rejected the configuration" (#425, #427). The two need opposite
  * treatment. An import error names a module and never holds the DSN, so it
- * is shown. A constructor error may quote the DSN in any rewritten form, so
+ * is shown — unless it holds the password, which a package name can be. A
+ * constructor error may quote the DSN in any rewritten form, so
  * its message is withheld. A custom factory cannot raise this error; its
  * failures always take the withheld path.
  *

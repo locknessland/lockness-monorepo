@@ -10,8 +10,9 @@
  *
  * #425: `connect()` refuses a DSN whose password a driver would misparse, with
  * a fixed message, before any factory runs; a client that cannot be built
- * reports its error NAME only, never its message; and `probe()` removes the
- * exact DSN and the whole held password before the shared pattern runs.
+ * reports its error NAME only, never its message; and `probe()` replaces the
+ * exact DSN whole, and withholds the whole message when any known form of the
+ * password occurs in it — driver text is never edited around a password.
  *
  * That render is the one `renderError` call site in the repository whose result
  * is **returned** (or re-thrown) rather than passed to `console.*`, so an
@@ -23,6 +24,7 @@
  */
 
 import { assertEquals, assertRejects } from '@std/assert'
+import { renderError } from '@lockness/contract'
 import { Database } from '../mod.ts'
 import {
     ClientUnavailableError,
@@ -322,51 +324,102 @@ Deno.test('#425 the issue passwords reach neither the result nor the log, and no
     }
 })
 
-Deno.test('#425 a percent-encoded password is removed whole from a probe failure', async () => {
-    // Every form a driver may echo once the DSN has passed the check: the
-    // exact DSN, its WHATWG href, the multi-host list collapsed to one host,
-    // and the password alone, encoded or decoded. The pattern reaches only
-    // the URL-shaped forms; the bare passwords need the held needles.
+/** The fixed sentence a probe failure holding the password renders as. */
+function probeWithheld(name?: string): string {
+    return `The database probe failed${
+        name === undefined ? '' : ` (${name})`
+    }; its message is withheld because it contains the database password`
+}
+
+/** Connect through a fake client whose probe rejects, and return the render. */
+async function probeFailure(dsn: string, error: unknown): Promise<string> {
+    const db = new Database()
+    db.setDriverFactory('postgres', failingFactory(error))
+    assertEquals((await db.connect(dsn, { silent: true })).success, true, dsn)
+    return messageOf(await assertRejects(() => db.probe()))
+}
+
+Deno.test('#425 a short password is withheld, never replaced inside driver text', async () => {
+    // Replacing by value turns the replacement into a detector: `e` would
+    // become `conn***ct … us***r`, and `5432` would mask the port. So the
+    // text is shown verbatim or withheld whole — never edited.
+    const cases: Array<[string, string]> = [
+        ['postgres://u:e@h/db', 'connect failed for user'],
+        ['postgres://u:5432@h/db', 'connect ECONNREFUSED 127.0.0.1:5432'],
+    ]
+    for (const [dsn, text] of cases) {
+        const message = await probeFailure(dsn, new Error(text))
+        assertEquals(message, probeWithheld('Error'), dsn)
+        assertEquals(message.includes('***'), false, message)
+    }
+})
+
+Deno.test('#425 the Docker default postgres:postgres is withheld, not masked', async () => {
+    const message = await probeFailure(
+        'postgres://postgres:postgres@localhost:5432/postgres',
+        new Error('password authentication failed for user "postgres"'),
+    )
+    assertEquals(message, probeWithheld('Error'))
+})
+
+Deno.test('#425 text holding no form of the password renders the same whatever the password', async () => {
+    // Output independence: the password must not influence a render it does
+    // not occur in. A foreign DSN proves the shared pattern still runs.
+    const text = 'could not reach postgres://other:Zz9Other@elsewhere/db'
+    const expected = renderError(new Error(text), { followCause: false })
+    for (
+        const dsn of [
+            'postgres://app:Aa1Fake@h/db',
+            'postgres://app:Bb2Fake@h/db',
+        ]
+    ) {
+        assertEquals(await probeFailure(dsn, new Error(text)), expected, dsn)
+    }
+})
+
+Deno.test('#425 every echo of a held password is withheld; the exact DSN is replaced whole', async () => {
+    // Every form a driver may echo once the DSN has passed the check. The
+    // exact DSN is replaced whole and the rest of the message kept; any other
+    // form of the password — the WHATWG href, the multi-host list collapsed
+    // to one host, the password alone encoded or decoded — withholds it all.
     const dsn = 'postgres://app:Qv7%2FRz9%40Lm2@h1:5432,h2:5433/prod'
     const collapsed = 'postgres://app:Qv7%2FRz9%40Lm2@h1:5432/prod'
+    assertEquals(
+        await probeFailure(dsn, new Error(`could not reach ${dsn}`)),
+        'Error: could not reach <dsn redacted>',
+    )
     const echoes = [
-        `could not reach ${dsn}`,
         `could not reach ${new URL(collapsed).href}`,
         `could not reach ${collapsed}`,
         'password authentication failed: Qv7/Rz9@Lm2',
         'password authentication failed: Qv7%2FRz9%40Lm2',
     ]
     for (const echo of echoes) {
-        const db = new Database()
-        db.setDriverFactory('postgres', failingFactory(new Error(echo)))
-        assertEquals((await db.connect(dsn, { silent: true })).success, true)
-        const message = messageOf(await assertRejects(() => db.probe()))
-        for (const fragment of ['Qv7', 'Rz9', 'Lm2']) {
-            assertEquals(
-                message.includes(fragment),
-                false,
-                `'${fragment}' leaked from "${echo}": ${message}`,
-            )
-        }
+        assertEquals(
+            await probeFailure(dsn, new Error(echo)),
+            probeWithheld('Error'),
+            echo,
+        )
     }
 })
 
-Deno.test('#425 a password WHATWG re-encodes is still redacted in its href', async () => {
+Deno.test('#425 a password WHATWG re-encodes is withheld in its href', async () => {
     // `;` and `=` are legal in the userinfo but WHATWG percent-encodes them
-    // in `href`, so the held password does not match that echo; the shared
-    // pattern does, because an accepted userinfo holds no terminator.
+    // in `href`: only the URL-parser form of the password matches that echo.
     const dsn = 'postgres://app:Nq4;Vd8=Jp3@h1:5432,h2:5433/prod'
     const href = new URL('postgres://app:Nq4;Vd8=Jp3@h1:5432/prod').href
-    const db = new Database()
-    db.setDriverFactory(
-        'postgres',
-        failingFactory(new Error(`could not reach ${href}`)),
+    assertEquals(
+        await probeFailure(dsn, new Error(`could not reach ${href}`)),
+        probeWithheld('Error'),
     )
-    assertEquals((await db.connect(dsn, { silent: true })).success, true)
-    const message = messageOf(await assertRejects(() => db.probe()))
-    for (const fragment of ['Nq4', 'Vd8', 'Jp3']) {
-        assertEquals(message.includes(fragment), false, message)
-    }
+    // A DSN nobody holds is still caught by the shared pattern.
+    assertEquals(
+        await probeFailure(
+            dsn,
+            new Error('could not reach postgres://other:Zz9Other@elsewhere/db'),
+        ),
+        'Error: could not reach postgres://***:***@elsewhere/db',
+    )
 })
 
 Deno.test('#425 an empty password does not splice a marker into the message', async () => {
@@ -414,13 +467,7 @@ Deno.test('#425 an error name that is not identifier-shaped is dropped', async (
         'its message is withheld because it may contain the DSN'
     const named = new Error('boom')
     named.name = 'Bad name Pw7Fake'
-    const hostile = new Error('boom')
-    Object.defineProperty(hostile, 'name', {
-        get(): never {
-            throw new Error('getter exploded')
-        },
-    })
-    for (const thrown of [named, hostile, 'Pw7Fake as a string', undefined]) {
+    for (const thrown of [named, 'Pw7Fake as a string', undefined]) {
         const db = new Database()
         db.setDriverFactory('mysql', throwingFactory(thrown))
         const { value: result } = await capturingErrors(() =>
@@ -428,6 +475,134 @@ Deno.test('#425 an error name that is not identifier-shaped is dropped', async (
         )
         assertEquals(result, { success: false, error: withheld })
     }
+})
+
+/** The fixed sentence a client that cannot be built renders as. */
+function configureWithheld(dialect: string, name?: string): string {
+    return `The '${dialect}' driver could not be configured${
+        name === undefined ? '' : ` (${name})`
+    }; its message is withheld because it may contain the DSN`
+}
+
+Deno.test('#425 an unreadable error name is marked in the one error line, with no warning', async () => {
+    const hostile = new Error('boom')
+    Object.defineProperty(hostile, 'name', {
+        get(): never {
+            throw new Error('GetterText Pw7Fake')
+        },
+    })
+    const warned: string[] = []
+    const originalWarn = console.warn
+    console.warn = (...args: unknown[]) => {
+        warned.push(args.map(String).join(' '))
+    }
+    let errorCalls = 0
+    const originalError = console.error
+    const logged: string[] = []
+    try {
+        const db = new Database()
+        db.setDriverFactory('postgres', throwingFactory(hostile))
+        console.error = (...args: unknown[]) => {
+            errorCalls++
+            logged.push(args.map(String).join(' '))
+        }
+        const result = await db.connect('postgres://u:Pw7Fake@h/db', {
+            silent: true,
+        })
+        console.error = originalError
+        assertEquals(result, {
+            success: false,
+            error: configureWithheld('postgres', '[unreadable name]'),
+        })
+        assertEquals(errorCalls, 1, 'the failure is logged once, at ERROR')
+        assertEquals(warned, [], 'a separate warning is logged')
+        const everything = `${result.error}\n${logged.join('\n')}`
+        assertEquals(everything.includes('GetterText'), false, everything)
+    } finally {
+        console.error = originalError
+        console.warn = originalWarn
+    }
+})
+
+Deno.test('#425 a throwing prototype lookup fails connect(), it does not reject', async () => {
+    // `instanceof` walks the prototype chain, and a Proxy can throw there.
+    const hostile = new Proxy({}, {
+        getPrototypeOf(): never {
+            throw new Error('trap Pw7Fake')
+        },
+    })
+    const db = new Database()
+    db.setDriverFactory('postgres', throwingFactory(hostile))
+    const { value: result, logged } = await capturingErrors(() =>
+        db.connect('postgres://u:Pw7Fake@h/db', { silent: true })
+    )
+    assertEquals(result, {
+        success: false,
+        error: configureWithheld('postgres', '[unreadable name]'),
+    })
+    assertEquals(logged.includes('trap'), false, logged)
+})
+
+Deno.test('#425 the unreadable-name marker cannot be spoofed by a name', async () => {
+    const cases: Array<[string, string]> = [
+        ['unreadableName', configureWithheld('postgres', 'unreadableName')],
+        ['x y', configureWithheld('postgres')],
+        ['[unreadable name]', configureWithheld('postgres')],
+    ]
+    for (const [name, expected] of cases) {
+        const thrown = new Error('boom')
+        thrown.name = name
+        const db = new Database()
+        db.setDriverFactory('postgres', throwingFactory(thrown))
+        const { value: result } = await capturingErrors(() =>
+            db.connect('postgres://u:Pw7Fake@h/db', { silent: true })
+        )
+        assertEquals(result, { success: false, error: expected }, name)
+    }
+})
+
+Deno.test('#425 an identifier-shaped name holding the password is dropped', async () => {
+    const thrown = new Error('boom')
+    thrown.name = 'Pw7FakeError'
+    const db = new Database()
+    db.setDriverFactory('mysql', throwingFactory(thrown))
+    const { value: result } = await capturingErrors(() =>
+        db.connect('mysql://u:Pw7Fake@h/db', { silent: true })
+    )
+    assertEquals(result, { success: false, error: configureWithheld('mysql') })
+
+    // The same name on a probe failure withholds the whole text, name too.
+    const clean = new Error('connection refused')
+    clean.name = 'Pw7FakeError'
+    assertEquals(
+        await probeFailure('postgres://u:Pw7Fake@h/db', clean),
+        probeWithheld(),
+    )
+})
+
+Deno.test('#425 an import error holding the password is withheld after the package sentence', async () => {
+    // The Docker default: the password is also the package name.
+    const db = new Database()
+    db.setDriverFactory(
+        'postgres',
+        throwingFactory(
+            new ClientUnavailableError(
+                'postgres',
+                new Error("Cannot find module 'npm:postgres'"),
+            ),
+        ),
+    )
+    const { value: result } = await capturingErrors(() =>
+        db.connect('postgres://postgres:postgres@localhost/db', {
+            silent: true,
+        })
+    )
+    assertEquals(result, {
+        success: false,
+        error: "The 'postgres' driver's client package (postgres) could not " +
+            'be imported; the import error is withheld because it contains ' +
+            'the database password',
+    })
 })
 
 Deno.test('#425 a missing client package is named, with the import error', async () => {

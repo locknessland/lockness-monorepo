@@ -213,7 +213,10 @@ const MUTATIONS: Mutation[] = [
     {
         label: "drizzle's identity redaction dropped",
         file: DRIZZLE,
-        edits: [["'<dsn redacted>',", "'',"]],
+        edits: [[
+            "const DSN_MARKER = '<dsn redacted>'",
+            "const DSN_MARKER = ''",
+        ]],
         // Was a known survivor while the pattern ran first and the identity
         // leg never fired. Since #420 the exact DSN is stripped from the raw
         // message before the pattern, and a fake client reaches the leg.

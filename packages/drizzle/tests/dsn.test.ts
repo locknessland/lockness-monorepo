@@ -200,12 +200,18 @@ Deno.test('#425 the password allow-list is exactly the one the docs state', () =
     assertEquals(inspectDsn('postgres://u:100%25@h/db').ok, true)
 })
 
-Deno.test('#425 secrets are the password as written and as decoded', () => {
+Deno.test('#425 secrets are the password as written, decoded and as WHATWG re-encodes it', () => {
     assertEquals(inspectDsn('postgres://u:p%40ss%2C%3F@h/db'), {
         ok: true,
         secrets: ['p%40ss%2C%3F', 'p@ss,?'],
     })
-    // A password with nothing to decode is held once.
+    // WHATWG percent-encodes `;` and `=`, which RFC 3986 allows raw: a
+    // driver echoing `new URL(dsn).href` prints that third form.
+    assertEquals(inspectDsn('postgres://u:Nq4;Vd8=Jp3@h1,h2/db'), {
+        ok: true,
+        secrets: ['Nq4;Vd8=Jp3', 'Nq4%3BVd8%3DJp3'],
+    })
+    // A password with nothing to decode or re-encode is held once.
     assertEquals(inspectDsn('postgres://u:Plain7@h1,h2/db'), {
         ok: true,
         secrets: ['Plain7'],
@@ -287,18 +293,19 @@ function withheld(dialect: string, name: string): string {
 // Each DSN passes the check, then makes the real client constructor throw —
 // no network involved — with a message that quotes the marker. Only the order
 // "import under loadClient, construct outside it" keeps that message out:
-// construct inside loadClient and it is shown as an import error.
+// construct inside loadClient and it is shown as an import error. The password
+// is one no error name contains: a name holding it would be dropped.
 const CONSTRUCTOR_FAILURES = [
     {
         dsn: 'libsql://h.invalid/db#Frag7Secret',
         error: withheld('sqlite', 'LibsqlError'),
     },
     {
-        dsn: 'postgres://u:p@h.invalid/db?target_session_attrs=Frag7Secret',
+        dsn: 'postgres://u:Pw7Fake@h.invalid/db?target_session_attrs=Frag7Secret',
         error: withheld('postgres', 'Error'),
     },
     {
-        dsn: 'mysql://u:p@h.invalid/db?ssl=Frag7Secret',
+        dsn: 'mysql://u:Pw7Fake@h.invalid/db?ssl=Frag7Secret',
         error: withheld('mysql', 'TypeError'),
     },
 ]
