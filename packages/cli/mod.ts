@@ -23,7 +23,13 @@
  */
 
 import { Stub } from './stubs.ts'
+import { isCommandFailure, toFailureStatus } from './command_failure.ts'
 
+export { CommandFailedError } from './command_failure.ts'
+export type {
+    CommandFailedErrorOptions,
+    CommandFailure,
+} from './command_failure.ts'
 export { registerCoreCommands } from './core_commands.ts'
 export {
     addPackage,
@@ -331,26 +337,101 @@ export class Cli {
                     }
                 }
             }
-        } catch (_e) {
-            // Directory doesn't exist, skip silently
+        } catch (e) {
+            // A project without a commands directory is normal; anything
+            // else (a permission error, say) hides commands and is reported.
+            if (!(e instanceof Deno.errors.NotFound)) {
+                console.warn(
+                    `⚠️ Failed to scan ${dirPath} for commands: ${
+                        (e as Error).message
+                    }`,
+                )
+            }
         }
     }
 
-    async run(args: string[]) {
+    /**
+     * Run the command named by `args[0]` and map its outcome to an exit
+     * status, without touching process state.
+     *
+     * | Outcome                                  | Status                         | Printed                          |
+     * | :--------------------------------------- | :----------------------------- | :------------------------------- |
+     * | no command                               | `0`                            | the command list                 |
+     * | unknown command                          | `0`                            | `❌ Unknown command: <name>` + list |
+     * | handler resolves                         | `0`                            | —                                |
+     * | handler throws a failure-shaped error    | its `exitCode` (`1`–`255`), else `1` | `❌ <message>`, no stack   |
+     * | handler throws anything else             | `1`                            | `❌ <name> failed:` + the error, with its stack |
+     *
+     * A failure-shaped error is any `Error` with an integer `exitCode` — see
+     * {@link CommandFailedError}. The failure is printed here, once; a handler
+     * that throws must not print it as well.
+     *
+     * @param args - The command name followed by its arguments.
+     * @returns The exit status: `0` on success, `1`–`255` on failure.
+     *
+     * @example
+     * ```ts
+     * const status = await cli.dispatch(['db:migrate'])
+     * if (status !== 0) console.log('migration failed')
+     * ```
+     */
+    async dispatch(args: string[]): Promise<number> {
         const [commandName, ...rest] = args
 
         if (!commandName) {
-            await this.commands.get('list')!.handler([])
-            return
+            await this.listCommands()
+            return 0
         }
 
         const command = this.commands.get(commandName)
-        if (command) {
-            await command.handler(rest)
-        } else {
+        if (!command) {
             console.error(`❌ Unknown command: ${commandName}`)
-            await this.commands.get('list')!.handler([])
+            await this.listCommands()
+            return 0
         }
+
+        try {
+            await command.handler(rest)
+            return 0
+        } catch (error) {
+            if (isCommandFailure(error)) {
+                console.error(`❌ ${error.message}`)
+                return toFailureStatus(error.exitCode)
+            }
+            console.error(`❌ ${commandName} failed:`, error)
+            return 1
+        }
+    }
+
+    /**
+     * Run a command as the process entry point: {@link Cli.dispatch}, then a
+     * non-zero status is written to `Deno.exitCode`.
+     *
+     * The status is set, never forced with `Deno.exit()`: the process ends
+     * normally, so `finally` blocks (closing a database connection) still run
+     * and output still being written is not cut off. A zero status leaves
+     * `Deno.exitCode` as it was.
+     *
+     * @param args - The command name followed by its arguments, usually
+     *   `Deno.args`.
+     * @returns The exit status, as {@link Cli.dispatch} computed it.
+     *
+     * @example
+     * ```ts
+     * await cli.run(Deno.args) // the process exits 1 if the command failed
+     * ```
+     */
+    async run(args: string[]): Promise<number> {
+        const status = await this.dispatch(args)
+        if (status !== 0) {
+            Deno.exitCode = status
+        }
+        return status
+    }
+
+    /** Print the command list through the built-in `list` command. */
+    private listCommands(): Promise<void> {
+        return this.commands.get('list')!.handler([])
     }
 }
 
