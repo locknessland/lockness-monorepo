@@ -9,6 +9,7 @@
 
 import { assertEquals } from '@std/assert'
 import { parse as parseJsonc } from '@std/jsonc'
+import * as semver from '@std/semver'
 import {
     getErrorMessage,
     isLocknessImport,
@@ -361,5 +362,57 @@ Deno.test('no workspace member pins a @lockness/* specifier off-version', async 
         `these specifiers name a version other than the root's ` +
             `${root.version}, so Deno resolves them from JSR instead of the ` +
             'workspace and the tree under test is not the tree being compiled',
+    )
+})
+
+Deno.test('the committed lockfile records the committed version', async () => {
+    // v0.4.0's first publish failed on this. The bump rewrote every manifest
+    // but not `deno.lock`, which records each member's `@lockness/*` range, so
+    // the release commit carried a lockfile naming 0.3. publish.yml runs the
+    // gate before `deno publish`; the gate's first deno command rewrote the
+    // lockfile, and `deno publish` aborted on the dirty tree.
+    //
+    // Read from HEAD, not from disk: every deno command in the gate refreshes
+    // the working-tree lockfile before this test runs, so the file on disk is
+    // always current and would hide exactly the drift this pins.
+    const show = async (path: string): Promise<string> => {
+        const { code, stdout, stderr } = await new Deno.Command('git', {
+            args: ['show', `HEAD:${path}`],
+        }).output()
+        if (code !== 0) {
+            throw new Error(
+                `git show HEAD:${path} failed: ${
+                    new TextDecoder().decode(stderr)
+                }`,
+            )
+        }
+        return new TextDecoder().decode(stdout)
+    }
+    const root = parseJsonc(await show('deno.jsonc')) as { version: string }
+    const lock = JSON.parse(await show('deno.lock')) as {
+        workspace?: {
+            dependencies?: string[]
+            members?: Record<string, { dependencies?: string[] }>
+        }
+    }
+    const version = semver.parse(root.version)
+    const specs = [
+        ...(lock.workspace?.dependencies ?? []),
+        ...Object.values(lock.workspace?.members ?? {}).flatMap((m) =>
+            m.dependencies ?? []
+        ),
+    ].filter((spec) => spec.startsWith('jsr:@lockness/'))
+
+    const stale = specs.filter((spec) => {
+        const range = spec.slice(spec.lastIndexOf('@') + 1)
+        return !semver.satisfies(version, semver.parseRange(range))
+    })
+
+    assertEquals(specs.length > 0, true, 'no @lockness/* range in deno.lock')
+    assertEquals(
+        [...new Set(stale)],
+        [],
+        `deno.lock at HEAD does not admit ${root.version}; run \`deno install\` ` +
+            'and commit the lockfile with the bump',
     )
 })
