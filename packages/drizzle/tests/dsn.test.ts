@@ -102,12 +102,20 @@ const MISPARSED = [
     ' postgres:u:Qx9frag@h/db',
     'postgres://u:p@h/db\x00',
     'postgres://u:p@h/db\x7F',
+    // A tab or newline inside the scheme keeps the `//`, so only the control
+    // check refuses these; WHATWG drops the character and parses the rest.
+    'post\tgres://u:2024/Spring@h/db',
+    'post\ngres://u:2024/Spring@h/db',
     // postgres.js collapses a host list by replacing its FIRST match anywhere
     // in the DSN — here inside the password, or straddling the `@` once the
     // list is decoded — so the password is rewritten, not the host list.
     'postgres://u:xdb1,db2x@db1,db2/db',
     'postgres://u:h1,h2@h1%2Ch2/db',
     'postgres://u:a,a@a,a%40a,a/db',
+    // postgres.js collapses the list with String.replace, which reads `$`
+    // sequences in the replacement as patterns (`$\``, `$'`, `$&`), so a
+    // host list holding `$` can splice the password into the database name.
+    'postgres://u:Zq7Fake@h$%60,x/h$`,x',
 ]
 
 /**

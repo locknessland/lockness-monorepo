@@ -170,6 +170,10 @@ export function inspectDsn(url: string): DsnInspection {
     if (list !== undefined && list.includes(',')) {
         const first = url.indexOf(list)
         if (first >= 0 && first < authorityStart + at + 1) return REFUSED
+        // The collapse is a String.replace, so `$` in the list is read as a
+        // replacement pattern (`$\``, `$'`, `$&`) and can splice the password
+        // into the database name. No real host name needs one.
+        if (list.includes('$')) return REFUSED
     }
 
     // The third form is the one a driver that echoes `new URL(dsn).href`
