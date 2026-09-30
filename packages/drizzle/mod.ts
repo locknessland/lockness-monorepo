@@ -32,6 +32,7 @@ import {
     type DialectDatabase,
     type DriverFactory,
     resolveDialect,
+    type SchemaMaintenance,
 } from './drivers.ts'
 import { inspectDsn, INVALID_DSN_MESSAGE } from './dsn.ts'
 
@@ -67,6 +68,8 @@ export type {
     DialectDatabase,
     DriverFactory,
     DriverHandle,
+    MigrateOptions,
+    SchemaMaintenance,
 } from './drivers.ts'
 
 // =============================================================================
@@ -137,6 +140,8 @@ export class Database<D extends Dialect = 'postgres'> {
     /** The configured client's close/probe closures, set at connect time. */
     #close: (() => Promise<void>) | undefined
     #probe: (() => Promise<void>) | undefined
+    /** The handle's maintenance capability, when its factory offers one. */
+    #maintenance: SchemaMaintenance | undefined
     /**
      * What a `probe()` failure must not carry: the DSN the configured client
      * was built from, and every known form of its password (#425).
@@ -226,6 +231,7 @@ export class Database<D extends Dialect = 'postgres'> {
         this.db = handle.db as DialectDatabase<D>
         this.#close = () => handle.close()
         this.#probe = () => handle.probe()
+        this.#maintenance = handle.maintenance
         this.#held = held
         this.#connected = true
 
@@ -252,8 +258,51 @@ export class Database<D extends Dialect = 'postgres'> {
         if (!close) return
         this.#close = undefined
         this.#probe = undefined
+        this.#maintenance = undefined
         this.#connected = false
         await close()
+    }
+
+    /**
+     * The configured client's schema-maintenance capability — what
+     * `db:fresh` resets and migrates through (#435) — or `undefined` when its
+     * driver factory offers none (a custom factory need not).
+     *
+     * Every failure is re-thrown the way {@link Database.probe} re-throws
+     * one: head-only, the exact DSN replaced whole, and the whole message
+     * withheld when any known form of the password occurs in it (#425).
+     *
+     * @returns The redacting capability, or `undefined` when there is none.
+     * @throws {Error} `Database is not connected` before `connect()` and after
+     *   {@link Database.close}.
+     *
+     * @example
+     * ```ts
+     * const maintenance = db.maintenance
+     * if (maintenance) await maintenance.query('SELECT 1')
+     * ```
+     */
+    public get maintenance(): SchemaMaintenance | undefined {
+        if (!this.#connected) {
+            throw new Error('Database is not connected')
+        }
+        const inner = this.#maintenance
+        if (!inner) return undefined
+        const held = this.#held
+        const redacted = async <T>(run: () => Promise<T>): Promise<T> => {
+            try {
+                return await run()
+            } catch (error) {
+                throw new Error(
+                    renderFailure(error, held, maintenanceWithheld),
+                )
+            }
+        }
+        return {
+            query: (sql) => redacted(() => inner.query(sql)),
+            execute: (statements) => redacted(() => inner.execute(statements)),
+            migrate: (options) => redacted(() => inner.migrate(options)),
+        }
     }
 
     /**
@@ -463,6 +512,18 @@ function configurationFailure(
  */
 function probeWithheld(name: string | undefined): string {
     return `The database probe failed${
+        parenthesised(name)
+    }; its message is withheld because it contains the database password`
+}
+
+/**
+ * The fixed sentence a maintenance failure holding the password renders as.
+ *
+ * @param name - The vetted error name to show, if any.
+ * @returns The sentence; it quotes no driver text but that name.
+ */
+function maintenanceWithheld(name: string | undefined): string {
+    return `The schema maintenance statement failed${
         parenthesised(name)
     }; its message is withheld because it contains the database password`
 }

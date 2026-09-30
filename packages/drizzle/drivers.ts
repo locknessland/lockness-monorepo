@@ -9,6 +9,8 @@
  * config — so (a) config can never steer a module load (security S2) and (b) a
  * Postgres-only app never executes the MySQL/SQLite import, so their client
  * packages (and libsql's native binding) are never loaded at runtime (SC-005).
+ * The drizzle-orm migrator each handle's `maintenance.migrate` runs (#435) is
+ * loaded the same way, and only when `db:fresh` asks for it.
  *
  * @module @lockness/drizzle/drivers
  * @since 0.2.1
@@ -52,6 +54,154 @@ export interface DriverHandle {
      * deliberate round trip, made only when `Database.probe()` is called.
      */
     probe(): Promise<void>
+    /**
+     * The schema-maintenance capability `db:fresh` resets and migrates
+     * through (#435). Optional, so a custom {@link DriverFactory} keeps
+     * working without it; `db:fresh` refuses a handle that has none.
+     */
+    readonly maintenance?: SchemaMaintenance
+}
+
+/**
+ * Where drizzle-orm's migrator keeps its bookkeeping, and the folder it reads.
+ * The same three values `drizzle-kit migrate` passes it.
+ */
+export interface MigrateOptions {
+    /** The migrations folder (`out` in `drizzle.config.ts`). It is only read. */
+    readonly folder: string
+    /** The bookkeeping table (`migrations.table`, default `__drizzle_migrations`). */
+    readonly table: string
+    /**
+     * The bookkeeping schema (`migrations.schema`, default `drizzle`).
+     * postgres only; the other dialects ignore it.
+     */
+    readonly schema?: string
+}
+
+/**
+ * What `db:fresh` needs from a connection, and nothing more (#435): read the
+ * catalogue, run a reset plan in one dedicated session, and apply every
+ * migration with the adapter's own drizzle-orm migrator.
+ *
+ * The policy — what to drop, what to refuse — lives in `reset.ts`; this is
+ * only the mechanism, because the session rules differ per client.
+ *
+ * @example
+ * ```ts
+ * const rows = await maintenance.query('SELECT 1 AS n') // [{ n: 1 }]
+ * await maintenance.execute(['DROP TABLE IF EXISTS "t"'])
+ * await maintenance.migrate({
+ *     folder: './database/migrations',
+ *     table: '__drizzle_migrations',
+ * })
+ * ```
+ */
+export interface SchemaMaintenance {
+    /**
+     * Run one read-only statement and return its rows as plain objects keyed
+     * by column name.
+     *
+     * @param sql - A complete SQL statement; it takes no parameters.
+     * @returns The rows.
+     * @throws Whatever the client raises.
+     */
+    query(sql: string): Promise<readonly Record<string, unknown>[]>
+    /**
+     * Run statements in order on one dedicated session that is discarded
+     * afterwards: one transaction on postgres, one write batch on libsql, and
+     * on MySQL a connection that is destroyed, never released to the pool
+     * (MySQL DDL auto-commits, so it is not atomic there).
+     *
+     * @param statements - Complete SQL statements, run in order.
+     * @returns Resolves once every statement ran.
+     * @throws The first statement failure; on postgres and libsql nothing is
+     *   kept.
+     */
+    execute(statements: readonly string[]): Promise<void>
+    /**
+     * Apply every pending migration through the adapter's own drizzle-orm
+     * migrator, on this connection. The folder is only read.
+     *
+     * @param options - Folder and bookkeeping location.
+     * @returns Resolves once every migration was applied.
+     * @throws When the folder cannot be read or a migration fails.
+     */
+    migrate(options: MigrateOptions): Promise<void>
+}
+
+/** The one MySQL connection a reset borrows. Internal. */
+export interface MysqlSession {
+    /** Run one statement. */
+    query(sql: string): Promise<unknown>
+    /** Close the socket and remove the connection from its pool. */
+    destroy(): void
+    /** Hand the connection back to the pool — never called by a reset. */
+    release(): void
+}
+
+/**
+ * Run statements on one dedicated MySQL connection, then destroy it.
+ *
+ * Never released: the plan sets `FOREIGN_KEY_CHECKS = 0`, and a released
+ * connection would carry that session setting to the next borrower — also
+ * when a statement fails before the plan turns the checks back on.
+ *
+ * @param pool - Anything that lends a connection.
+ * @param statements - The statements, run in order.
+ * @returns Resolves once every statement ran.
+ * @throws The first statement failure, after the connection is destroyed.
+ *
+ * @example
+ * ```ts
+ * await executeOnDedicatedSession(pool, [
+ *     'SET FOREIGN_KEY_CHECKS = 0',
+ *     'DROP TABLE IF EXISTS `t`',
+ * ])
+ * ```
+ */
+export async function executeOnDedicatedSession(
+    pool: { getConnection(): Promise<MysqlSession> },
+    statements: readonly string[],
+): Promise<void> {
+    const session = await pool.getConnection()
+    try {
+        for (const statement of statements) await session.query(statement)
+    } finally {
+        session.destroy()
+    }
+}
+
+/** The transaction entry point of a postgres.js client. Internal. */
+export interface PostgresTransactor {
+    /** Run `run` inside `BEGIN … COMMIT`, rolling back when it rejects. */
+    begin<T>(
+        run: (tx: { unsafe(sql: string): Promise<unknown> }) => Promise<T>,
+    ): Promise<T>
+}
+
+/**
+ * Run statements inside one postgres transaction: all of them are kept, or
+ * none is.
+ *
+ * @param client - A postgres.js client.
+ * @param statements - The statements, run in order.
+ * @returns Resolves once the transaction committed.
+ * @throws The first statement failure, after the rollback.
+ *
+ * @example
+ * ```ts
+ * await executeInTransaction(client, [
+ *     'DROP TABLE IF EXISTS "public"."t" CASCADE',
+ * ])
+ * ```
+ */
+export async function executeInTransaction(
+    client: PostgresTransactor,
+    statements: readonly string[],
+): Promise<void> {
+    await client.begin(async (tx) => {
+        for (const statement of statements) await tx.unsafe(statement)
+    })
 }
 
 /**
@@ -220,11 +370,31 @@ export const defaultDriverFactories: Record<Dialect, DriverFactory> = {
             }),
         )
         const client = postgres(url)
+        const db = drizzle(client)
         return {
-            db: drizzle(client),
+            db,
             close: () => client.end(),
             probe: async () => {
                 await client`SELECT 1`
+            },
+            maintenance: {
+                query: async (sql) => [...await client.unsafe(sql)],
+                execute: (statements) =>
+                    executeInTransaction(
+                        client as unknown as PostgresTransactor,
+                        statements,
+                    ),
+                migrate: async ({ folder, table, schema }) => {
+                    const { migrate } = await loadClient(
+                        'postgres',
+                        () => import('drizzle-orm/postgres-js/migrator'),
+                    )
+                    await migrate(db, {
+                        migrationsFolder: folder,
+                        migrationsTable: table,
+                        migrationsSchema: schema,
+                    })
+                },
             },
         }
     },
@@ -234,11 +404,37 @@ export const defaultDriverFactories: Record<Dialect, DriverFactory> = {
             mysql: (await import('mysql2/promise')).default,
         }))
         const pool = mysql.createPool(url)
+        const db = drizzle(pool)
         return {
-            db: drizzle(pool),
+            db,
             close: () => pool.end(),
             probe: async () => {
                 await pool.query('SELECT 1')
+            },
+            maintenance: {
+                query: async (sql) => {
+                    const [rows] = await pool.query(sql)
+                    return Array.isArray(rows)
+                        ? rows as Record<string, unknown>[]
+                        : []
+                },
+                execute: (statements) =>
+                    executeOnDedicatedSession(
+                        pool as unknown as {
+                            getConnection(): Promise<MysqlSession>
+                        },
+                        statements,
+                    ),
+                migrate: async ({ folder, table }) => {
+                    const { migrate } = await loadClient(
+                        'mysql',
+                        () => import('drizzle-orm/mysql2/migrator'),
+                    )
+                    await migrate(db, {
+                        migrationsFolder: folder,
+                        migrationsTable: table,
+                    })
+                },
             },
         }
     },
@@ -251,14 +447,40 @@ export const defaultDriverFactories: Record<Dialect, DriverFactory> = {
             }),
         )
         const client = createClient({ url })
+        const db = drizzle(client)
         return {
-            db: drizzle(client),
+            db,
             close: () => {
                 client.close()
                 return Promise.resolve()
             },
             probe: async () => {
                 await client.execute('SELECT 1')
+            },
+            maintenance: {
+                query: async (sql) => {
+                    const result = await client.execute(sql)
+                    return result.rows.map((row) =>
+                        Object.fromEntries(
+                            result.columns.map((column, i) => [column, row[i]]),
+                        )
+                    )
+                },
+                // One write batch: libsql runs it as one transaction, so a
+                // failed statement keeps nothing.
+                execute: async (statements) => {
+                    await client.batch([...statements], 'write')
+                },
+                migrate: async ({ folder, table }) => {
+                    const { migrate } = await loadClient(
+                        'sqlite',
+                        () => import('drizzle-orm/libsql/migrator'),
+                    )
+                    await migrate(db, {
+                        migrationsFolder: folder,
+                        migrationsTable: table,
+                    })
+                },
             },
         }
     },
