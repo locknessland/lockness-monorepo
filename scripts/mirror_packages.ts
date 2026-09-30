@@ -93,8 +93,9 @@ export interface MirrorOptions {
     /** Runs `gh` (repository view/create/edit, the workflow run list). */
     gh: GhRunner
     /**
-     * The environment git runs with, before `GIT_DIR` / `GIT_WORK_TREE` /
-     * `GIT_INDEX_FILE` are stripped. Defaults to this process's.
+     * The environment git runs with, before `sanitizedGitEnv` strips every
+     * repository-local variable and disables replace refs. Defaults to this
+     * process's.
      */
     gitEnv?: Record<string, string>
     /** Report the plan; push nothing and create nothing. */

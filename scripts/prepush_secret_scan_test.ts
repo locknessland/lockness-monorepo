@@ -913,6 +913,28 @@ Deno.test('admission: a chain from an older origin/main tree, pushed as a new re
     })
 })
 
+Deno.test('admission: a replace ref cannot hide a new blob behind a published commit', async () => {
+    await withTempDir('prepush-admit-replace-', async (dir) => {
+        const { m2 } = await publishedFixture(dir)
+        const side = await sideCommit(dir, m2, async () => {
+            await Deno.writeTextFile(join(dir, 'packages/a/new.ts'), 'new\n')
+        })
+        const blob = await git(
+            dir,
+            '--no-replace-objects',
+            'rev-parse',
+            `${side}:packages/a/new.ts`,
+        )
+        // refs/replace/<side> -> m2: a git honouring replace refs walks m2
+        // (all published), while pack-objects would send side and its blob.
+        await git(dir, 'replace', side, m2)
+
+        const out = await outgoing({ localSha: side, remoteSha: ZERO }, dir)
+        assert(out !== null && out.has(blob), 'the new blob is not outgoing')
+        assertEquals(publishesNothingNew(out, await published(dir)), false)
+    })
+})
+
 Deno.test('admission: one new blob is not passed', async () => {
     await withTempDir('prepush-admit-new-blob-', async (dir) => {
         const { m2 } = await publishedFixture(dir)
