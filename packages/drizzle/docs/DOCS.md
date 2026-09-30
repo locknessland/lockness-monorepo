@@ -164,22 +164,22 @@ timeout.
 
 ### What `connect()`, `probe()` and `isConnected()` mean
 
-| Method          | Round trips | Meaning                                                                                                                                                            |
-| :-------------- | :---------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `connect()`     | 0           | Checks the DSN, loads the driver and builds the client. `success: false` means the DSN was refused, the client package is missing, or the client rejected the URL. |
-| `probe()`       | 1           | Runs `SELECT 1`. Throws `Database is not connected` before `connect()` or after `close()`. Otherwise it re-throws a driver failure with the DSN redacted.          |
-| `isConnected()` | 0           | `true` once a client is configured and until `close()`. It does **not** mean that the database is reachable. Call `probe()` to find out.                           |
+| Method          | Round trips | Meaning                                                                                                                                                                                                                                                |
+| :-------------- | :---------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `connect()`     | 0           | Checks the DSN, loads the driver and builds the client. `success: false` means the DSN was refused, the client package is missing, or the client rejected the URL.                                                                                     |
+| `probe()`       | 1           | Runs `SELECT 1`. Throws `Database is not connected` before `connect()` or after `close()`. Otherwise it re-throws a driver failure: the exact DSN is replaced with `<dsn redacted>`, and a message holding the password is withheld whole (see below). |
+| `isConnected()` | 0           | `true` once a client is configured and until `close()`. It does **not** mean that the database is reachable. Call `probe()` to find out.                                                                                                               |
 
 A custom driver registered with `Database.setDriverFactory()` must follow the
 same contract: the factory constructs its client and makes no round trip.
 
 ### Where each failure surfaces
 
-| Failure                                           | At boot                                                                                                                                                      | After boot                                                                                                     |
-| :------------------------------------------------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------- |
-| DSN refused (see [DSN format](#dsn-format))       | `connect()` returns `success: false` with a fixed message that quotes no part of the DSN. Boot continues.                                                    | `/ready` returns `503` with `database: down`. `db:seed` and `db:check` print the error and exit 1.             |
-| Client package missing, or URL the client rejects | `connect()` returns `success: false` and logs a `❌` line: the package and import error, or the client's message withheld (error name only). Boot continues. | `/ready` returns `503` with `database: down`. `db:seed` and `db:check` print the error and exit 1.             |
-| Host unreachable, bad credentials, database down  | Nothing is sent, so nothing is reported.                                                                                                                     | `/ready` returns `503` within 3 s. The first query gets the driver's error. `db:check` reports it and exits 1. |
+| Failure                                           | At boot                                                                                                                                                                                          | After boot                                                                                                                            |
+| :------------------------------------------------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------ |
+| DSN refused (see [DSN format](#dsn-format))       | `connect()` returns `success: false` with a fixed message that quotes no part of the DSN. Boot continues.                                                                                        | `/ready` returns `503` with `database: down`. `db:seed` and `db:check` print the error and exit 1.                                    |
+| Client package missing, or URL the client rejects | `connect()` returns `success: false` and logs a `❌` line: the package and import error (withheld if it holds the password), or the client's message withheld (error name only). Boot continues. | `/ready` returns `503` with `database: down`. `db:seed` and `db:check` print the error and exit 1.                                    |
+| Host unreachable, bad credentials, database down  | Nothing is sent, so nothing is reported.                                                                                                                                                         | `/ready` returns `503` within 3 s. The first query gets the driver's error. `db:check` reports it, withheld if it holds the password. |
 
 ### Monitoring: `/health` for liveness, `/ready` for readiness
 
@@ -897,6 +897,17 @@ before any driver sees it; see [DSN format](#dsn-format). What that changes:
 - **A client that cannot be built no longer shows its message.** The message may
   quote the DSN, so `connect()` shows only the error's name. A missing client
   package is still reported with its name and the import error.
+- **A `probe()` failure that holds the password is withheld, not masked.** The
+  exact DSN is still replaced with `<dsn redacted>`. But the password is never
+  replaced inside driver text: replacing `postgres` would also mask
+  `user "postgres"`, and replacing `5432` would mask a port, which tells a
+  reader where the password is. So when any form of the password appears in the
+  message (as written, decoded, or as `new URL()` encodes it), `probe()` throws
+  `The database probe failed (<Name>); its message is withheld because it
+  contains the database password`
+  instead. A dev setup such as `postgres:postgres` therefore loses its probe
+  diagnostics. Use a password that does not also appear as a user, database or
+  host name.
 - **Still accepted unchanged:** multi-host DSNs with or without ports
   (`h1:5432,h2:5433`), IPv6 hosts, percent-encoded host names, and SQLite
   `file:` paths.
