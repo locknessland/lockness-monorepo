@@ -54,10 +54,10 @@ application installs it, or the feature stays off.
 
 | Kind      | Exports                                                                                                |
 | :-------- | :----------------------------------------------------------------------------------------------------- |
-| class     | `Cli`, `Stub`                                                                                          |
+| class     | `Cli`, `CommandFailedError`, `Stub`                                                                    |
 | function  | `Command`, `addPackage`, `loadPackageCommands`, `registerAll`, `registerCoreCommands`, `removePackage` |
-| interface | `CommandContext`, `CommandContract`, `CommandMetadata`                                                 |
-| typeAlias | `CommandClass`, `CommandHandler`                                                                       |
+| interface | `CommandContext`, `CommandContract`, `CommandFailedErrorOptions`, `CommandMetadata`                    |
+| typeAlias | `CommandClass`, `CommandFailure`, `CommandHandler`                                                     |
 | variable  | `cli`                                                                                                  |
 
 Anything not listed is internal and free to change.
@@ -85,8 +85,9 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-12 test files for 38 source files:
+13 test files for 39 source files:
 
+- `packages/cli/tests/cli_dispatch.test.ts`
 - `packages/cli/tests/debug_commands.test.ts`
 - `packages/cli/tests/make_command.test.ts`
 - `packages/cli/tests/make_component.test.ts`
@@ -113,7 +114,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 12 test files directly —
+Then, specific to this package: run its 13 test files directly —
 
 ```bash
 deno test -A packages/cli/
