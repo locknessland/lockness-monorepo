@@ -170,10 +170,11 @@ Deno.test('commitCount matches git rev-list --count', async () => {
     })
 })
 
-Deno.test('commitCount is 0 for a bad range rather than throwing', async () => {
+Deno.test('commitCount is null for a bad range, never 0 (#430 fails closed)', async () => {
     await withTempDir('prepush-count-bad-', async (dir) => {
         await git(dir, 'init', '-q')
-        assertEquals(await commitCount('not-a-real-range', dir), 0)
+        // "could not resolve" must never read as "nothing to scan".
+        assertEquals(await commitCount('not-a-real-range', dir), null)
     })
 })
 
@@ -296,6 +297,63 @@ Deno.test('scanRange fails a real finding reported honestly (exit 1)', async () 
             1,
         )
         assertEquals(result.ok, false)
+    })
+})
+
+/**
+ * Write a fake `gitleaks` that must never run: it records that it was called
+ * in a marker file beside itself and exits non-zero.
+ *
+ * @param dir - Where to write the fake binary.
+ * @returns The binary's path and the marker it writes when invoked.
+ */
+async function forbiddenGitleaks(
+    dir: string,
+): Promise<{ bin: string; marker: string }> {
+    const bin = join(dir, 'gitleaks-forbidden')
+    const marker = join(dir, 'gitleaks-was-called')
+    await Deno.writeTextFile(
+        bin,
+        `#!/bin/sh\necho called > ${JSON.stringify(marker)}\nexit 99\n`,
+    )
+    await Deno.chmod(bin, 0o755)
+    return { bin, marker }
+}
+
+/**
+ * Whether a path exists.
+ *
+ * @param path - The path to test.
+ * @returns `true` when something is there.
+ */
+async function exists(path: string): Promise<boolean> {
+    return await Deno.stat(path).then(() => true, () => false)
+}
+
+Deno.test('runPrepushScan refuses a remote sha missing from the local object store (#430)', async () => {
+    await withTempDir('prepush-missing-remote-', async (dir) => {
+        await git(dir, 'init', '-q')
+        await Deno.writeTextFile(join(dir, 'a.txt'), 'a\n')
+        await git(dir, 'add', 'a.txt')
+        await git(dir, 'commit', '-q', '-m', 'local work')
+        const local = await git(dir, 'rev-parse', 'HEAD')
+        // A `--force` push over a remote tip this clone never fetched.
+        const missing = 'deadbeef'.repeat(5)
+        const { bin, marker } = await forbiddenGitleaks(dir)
+
+        const result = await runPrepushScan(
+            `refs/heads/x ${local} refs/heads/x ${missing}\n`,
+            dir,
+            { installGitleaks: () => Promise.resolve(bin) },
+        )
+        assertEquals(result.ok, false, result.lines.join('\n'))
+        assert(
+            result.lines.some((l) =>
+                l.includes('cannot resolve range — fetch first')
+            ),
+            result.lines.join('\n'),
+        )
+        assertEquals(await exists(marker), false, 'gitleaks was invoked')
     })
 })
 

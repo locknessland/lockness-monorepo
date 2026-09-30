@@ -43,8 +43,11 @@
  * failing, gitleaks logging an ERR/FTL line, an unreadable report, a
  * non-empty report paired with exit 0, a present `.gitleaks.toml`, or
  * gitleaks reporting "0 commits scanned" for a range this script already knows
- * is non-empty (via `git rev-list --count`) all refuse the push. `--redact`
- * keeps a real secret out of the terminal.
+ * is non-empty (via `git rev-list --count`) all refuse the push. So does a
+ * range `git rev-list` cannot resolve — a remote tip absent from the local
+ * object store — with "cannot resolve range — fetch first" (#430): it is
+ * never read as an empty range. `--redact` keeps a real secret out of the
+ * terminal.
  *
  * @module
  */
@@ -291,15 +294,27 @@ export async function writeBaseIgnoreFile(
  * Count the commits a range actually contains, so "0 commits scanned" can be
  * told apart from "there was nothing to scan".
  *
+ * A range `git rev-list` cannot evaluate — typically a `--force` push over a
+ * remote tip this clone never fetched — is `null`, never `0`: reading "could
+ * not resolve" as "empty" let such a push out unscanned (#430).
+ *
  * @param range - A `git log`-compatible range.
  * @param cwd - The repository root.
- * @returns The commit count, or `0` if `git rev-list` itself fails.
+ * @returns The commit count, or `null` when the range cannot be resolved.
+ * @example
+ * ```ts
+ * await commitCount('HEAD~2..HEAD', cwd)        // 2
+ * await commitCount('not-a-real-range', cwd)    // null
+ * ```
  */
-export async function commitCount(range: string, cwd: string): Promise<number> {
+export async function commitCount(
+    range: string,
+    cwd: string,
+): Promise<number | null> {
     const out = await git(['rev-list', '--count', range], cwd)
-    if (out === null) return 0
+    if (out === null) return null
     const n = Number(out)
-    return Number.isFinite(n) ? n : 0
+    return Number.isInteger(n) && n >= 0 ? n : null
 }
 
 /** The outcome of scanning one range. */
@@ -410,6 +425,15 @@ export async function scanRange(
     }
 }
 
+/** Injectable dependencies of {@link runPrepushScan}. */
+export interface PrepushScanOptions {
+    /**
+     * Resolves the verified gitleaks binary's path. Defaults to
+     * `scripts/install_gitleaks.ts`'s `install`; tests hand in a fake.
+     */
+    installGitleaks?: () => Promise<string>
+}
+
 /** The overall outcome of a pre-push scan across every updated ref. */
 export interface PrepushResult {
     ok: boolean
@@ -423,11 +447,13 @@ export interface PrepushResult {
  *
  * @param stdin - The hook's stdin (the ref update lines).
  * @param cwd - The repository root.
+ * @param options - Injectable dependencies (the gitleaks installer).
  * @returns Whether the push may proceed, and a human-readable log.
  */
 export async function runPrepushScan(
     stdin: string,
     cwd: string,
+    options: PrepushScanOptions = {},
 ): Promise<PrepushResult> {
     const lines: string[] = []
 
@@ -458,7 +484,7 @@ export async function runPrepushScan(
 
     let gitleaksPath: string
     try {
-        gitleaksPath = await installGitleaks()
+        gitleaksPath = await (options.installGitleaks ?? installGitleaks)()
     } catch (error) {
         return {
             ok: false,
@@ -475,6 +501,13 @@ export async function runPrepushScan(
         const base = await resolveBase(update, cwd)
         const range = await resolveRange(update, cwd)
         const expected = await commitCount(range, cwd)
+        if (expected === null) {
+            ok = false
+            lines.push(
+                `${update.localRef}: ${range}: cannot resolve range — fetch first`,
+            )
+            continue
+        }
         if (expected === 0) {
             lines.push(`${update.localRef}: ${range} is empty, nothing to scan`)
             continue
