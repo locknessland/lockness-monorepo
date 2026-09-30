@@ -54,6 +54,8 @@ Anything not listed is internal and free to change.
 | Concern                                                  | Path              |
 | -------------------------------------------------------- | ----------------- |
 | Service and public API                                   | `mod.ts`          |
+| DSN check run before any driver factory (#425)           | `dsn.ts`          |
+| Dialects, default driver factories, `loadClient`         | `drivers.ts`      |
 | `db:migrate` / `db:rollback` / `db:seed`                 | `cli_commands.ts` |
 | `make:model` / `make:seeder` / `make:factory` generators | `generators/`     |
 | Project bootstrap                                        | `install.ts`      |
