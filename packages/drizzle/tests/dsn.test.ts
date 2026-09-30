@@ -40,6 +40,15 @@ const ACCEPTED = [
     'postgres://u:p%40ss%2C%3F@h/db',
     'postgres://u:a,b@h/db',
     '',
+    // The password may equal a host, or hold the first one: postgres.js's
+    // host-list replace only matters for a list, and only finds the list.
+    'postgres://postgres:postgres@postgres/db',
+    'postgres://u:db1@db1,db2/db',
+    // Scheme-only forms that are paths, not URLs.
+    'sqlite:local.db',
+    'FILE:local.db',
+    ':memory:',
+    'postgres://u:p@h/db?next=http://x',
 ]
 
 /**
@@ -77,6 +86,27 @@ const MISPARSED = [
     // Grammatical, but not a WHATWG URL once the host list is collapsed.
     'postgres://u:p@[1:2:3]/db',
     'postgres://u:p@h:99999,h2/db',
+    // A scheme with no `//`: postgres.js hands the rest to WHATWG as an
+    // opaque path, and the password becomes part of the database name.
+    'postgres:u:Qx9frag@h/db',
+    'mysql:u:Qx9frag@h/db',
+    'u:2024/Spring@h/db',
+    // A `://` later in the DSN is not an authority.
+    'postgres:u:Qx9frag@h/db?next=http://x',
+    // WHATWG drops a tab or newline anywhere and strips leading spaces and
+    // controls, so the text a driver parses is not the text checked.
+    'postgres:/\t/u:2024/Spring@h/db',
+    'postgres:/\n/u:2024/Spring@h/db',
+    ' postgres://u:2024/Spring@h/db',
+    ' postgres:u:Qx9frag@h/db',
+    'postgres://u:p@h/db\x00',
+    'postgres://u:p@h/db\x7F',
+    // postgres.js collapses a host list by replacing its FIRST match anywhere
+    // in the DSN — here inside the password, or straddling the `@` once the
+    // list is decoded — so the password is rewritten, not the host list.
+    'postgres://u:xdb1,db2x@db1,db2/db',
+    'postgres://u:h1,h2@h1%2Ch2/db',
+    'postgres://u:a,a@a,a%40a,a/db',
 ]
 
 /**
@@ -116,15 +146,13 @@ async function connectThroughSpy(
 }
 
 Deno.test('#425 inspectDsn accepts every form the drivers support', () => {
-    for (const dsn of ACCEPTED) {
-        assertEquals(inspectDsn(dsn).ok, true, dsn)
-    }
+    // Every refused form at once, so a failure names each of them.
+    assertEquals(ACCEPTED.filter((dsn) => !inspectDsn(dsn).ok), [])
 })
 
 Deno.test('#425 inspectDsn rejects every misparsed DSN', () => {
-    for (const dsn of MISPARSED) {
-        assertEquals(inspectDsn(dsn).ok, false, dsn)
-    }
+    // Every bypass at once, so a failure names each of them.
+    assertEquals(MISPARSED.filter((dsn) => inspectDsn(dsn).ok), [])
 })
 
 Deno.test('#425 a misparsed DSN is refused before any factory is called', async () => {
