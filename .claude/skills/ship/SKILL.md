@@ -406,7 +406,8 @@ deno task mirror
 
 The script builds every mirror from the release tag `v<version>`, never from
 `HEAD`. It first proves the tag's provenance: the tag is identical on `origin`,
-it is on `origin/main`, and a green `Secret scan` run contains it. Then each
+it is on `origin/main`, and a green `Secret scan` run for a push to `main`, whose
+head is on `origin/main`, contains it. Then each
 mirror gets one atomic push of only the refs that differ. A changed package gets
 a new `Release v<version>` commit plus its tag. An unchanged package gets the
 tag only. A mirror already in sync reports `already at v<version>`. Re-running

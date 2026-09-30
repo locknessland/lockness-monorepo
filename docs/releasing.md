@@ -143,8 +143,16 @@ release never reaches a mirror. Before building anything, the script runs
 - the tag `v<version>` exists locally and is identical on `origin`;
 - the tag's commit is an ancestor of `origin/main`, and its `deno.jsonc` carries
   `<version>`;
-- a green `Secret scan` run on `main` has a head that contains the tag. If the
-  scan is still running, wait for it and re-run.
+- a green `Secret scan` run triggered by a **push** to `main` has a head that is
+  on `origin/main` and contains the tag. A pull request run does not count, even
+  from a branch named `main`. If the scan is still running, wait for it and
+  re-run.
+
+If `gh` cannot say whether a mirror repository exists (an auth, network or
+rate-limit error rather than "not found"), the run stops before it pushes or
+creates anything. A failed `[READ ONLY]` description update after a push is
+reported as a failure. The push itself has landed and a re-run will not repeat
+the edit, so set the description with `gh repo edit` once the cause is fixed.
 
 That provenance is why a mirror push passes the pre-push secret scan without a
 bypass. Everything it sends is already reachable from `origin/main`, so the hook
