@@ -1,9 +1,9 @@
 {
     "name": "@lockness/sse",
-    "version": "0.3.0",
+    "version": "0.4.0",
     "license": "MIT",
     "imports": {
-        "@lockness/contract": "jsr:@lockness/contract@^0.3.0"
+        "@lockness/contract": "jsr:@lockness/contract@^0.4.0"
     },
     "exports": "./mod.ts"
 }
