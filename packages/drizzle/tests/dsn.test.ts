@@ -3,13 +3,13 @@
  * factory runs.
  *
  * A driver that cannot tell where a password ends does not fail: it rewrites
- * the DSN. postgres.js reads a comma as a host separator, and every client
- * reads the first `/`, `?` or `#` as the end of the authority, so password
- * fragments become hosts, ports or database names. They are then looked up in
+ * the DSN. postgres.js reads a comma as a host separator and ends the host
+ * part at the first `/` or `?`; the other clients end it at the first `/`, `?`
+ * or `#`. So password fragments become hosts, ports or database names. They are then looked up in
  * cleartext DNS and echoed in errors no exact-DSN redaction can match. The
  * check refuses those DSNs before a driver sees them, and still accepts every
  * form the drivers support: multi-host with and without ports, IPv6, a
- * percent-encoded unix socket, an empty authority and non-URL SQLite paths.
+ * percent-encoded host name, an empty authority and non-URL SQLite paths.
  *
  * All passwords here are fake markers.
  *
@@ -70,8 +70,10 @@ const MISPARSED = [
     // A percent sequence that does not decode.
     'postgres://u:%C3@h/db',
     'postgres://%C3:p@h/db',
-    // A host entry outside the registered-name grammar.
+    // A host entry outside the registered-name grammar. Only R3 refuses the
+    // second: once the list is collapsed to `h1`, WHATWG accepts it.
     'postgres://u:p@h o/db',
+    'postgres://u:p@h1,h o/db',
     // Grammatical, but not a WHATWG URL once the host list is collapsed.
     'postgres://u:p@[1:2:3]/db',
     'postgres://u:p@h:99999,h2/db',
@@ -175,11 +177,13 @@ Deno.test('#425 an empty or absent password holds no secret', () => {
     }
 })
 
-Deno.test('#425 multi-host, IPv6 and unix-socket DSNs configure the real postgres client', async () => {
+Deno.test('#425 multi-host, IPv6 and percent-encoded-host DSNs configure the real postgres client', async () => {
     // The real default factory, not a spy: the check must never reject what
     // postgres.js supports. The client is lazy, so building it sends nothing
     // and resolves no host — the op sanitizer fails this test if a lookup or
     // a socket were left pending.
+    // `%2F…` is not a unix socket to postgres.js 3.4.8: it keeps the host
+    // encoded, finds no `/` in it, and treats it as a TCP host name.
     for (
         const dsn of [
             'postgres://u:p@h1.invalid,h2.invalid/db',
@@ -194,3 +198,61 @@ Deno.test('#425 multi-host, IPv6 and unix-socket DSNs configure the real postgre
         await db.close()
     }
 })
+
+/**
+ * Connect `dsn` through the REAL default factories, capturing every
+ * `console.error` line, so a test can prove what reached the log.
+ */
+async function connectCapturingLog(
+    dsn: string,
+): Promise<{ result: unknown; logged: string }> {
+    const lines: string[] = []
+    const original = console.error
+    console.error = (...args: unknown[]) => {
+        lines.push(args.map(String).join(' '))
+    }
+    try {
+        const result = await new Database().connect(dsn, { silent: true })
+        return { result, logged: lines.join('\n') }
+    } finally {
+        console.error = original
+    }
+}
+
+/**
+ * The withheld message for a client the real driver cannot build. Spelled out
+ * so a change of wording, or a leak into it, is caught.
+ */
+function withheld(dialect: string, name: string): string {
+    return `The '${dialect}' driver could not be configured (${name}); ` +
+        'its message is withheld because it may contain the DSN'
+}
+
+// Each DSN passes the check, then makes the real client constructor throw —
+// no network involved — with a message that quotes the marker. Only the order
+// "import under loadClient, construct outside it" keeps that message out:
+// construct inside loadClient and it is shown as an import error.
+const CONSTRUCTOR_FAILURES = [
+    {
+        dsn: 'libsql://h.invalid/db#Frag7Secret',
+        error: withheld('sqlite', 'LibsqlError'),
+    },
+    {
+        dsn: 'postgres://u:p@h.invalid/db?target_session_attrs=Frag7Secret',
+        error: withheld('postgres', 'Error'),
+    },
+    {
+        dsn: 'mysql://u:p@h.invalid/db?ssl=Frag7Secret',
+        error: withheld('mysql', 'TypeError'),
+    },
+]
+
+for (const { dsn, error } of CONSTRUCTOR_FAILURES) {
+    Deno.test(`#425 a client the real factory cannot build withholds its message: ${dsn}`, async () => {
+        const { result, logged } = await connectCapturingLog(dsn)
+        assertEquals(result, { success: false, error })
+        assertEquals(logged, `❌ Database connection failed: ${error}`)
+        assertEquals(JSON.stringify(result).includes('Frag7Secret'), false)
+        assertEquals(logged.includes('Frag7Secret'), false)
+    })
+}

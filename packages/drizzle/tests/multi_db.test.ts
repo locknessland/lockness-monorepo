@@ -83,14 +83,20 @@ Deno.test('SC-001 default: no driver + postgres URL uses the postgres path', asy
     assertEquals(db.isConnected(), true)
 })
 
-Deno.test('a driver whose client cannot load fails with an actionable, dialect-named message', async () => {
+Deno.test('a custom factory that throws fails with the dialect-named withheld message', async () => {
+    // A custom factory cannot raise ClientUnavailableError, so even an
+    // import-looking failure takes the withheld path: dialect and error name,
+    // never the message.
     const db = new Database()
     db.setDriverFactory('mysql', () => {
         throw new Error('Cannot find module mysql2')
     })
     const res = await db.connect('mysql://h/db', { silent: true })
-    assertEquals(res.success, false)
-    assertStringIncludes(res.error ?? '', 'mysql')
+    assertEquals(res, {
+        success: false,
+        error: "The 'mysql' driver could not be configured (Error); its " +
+            'message is withheld because it may contain the DSN',
+    })
 })
 
 Deno.test('SC-006: a connection failure does not leak credentials from the error object', async () => {
