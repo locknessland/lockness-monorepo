@@ -187,6 +187,21 @@ async function runNative(
 }
 
 /**
+ * Run `deno install` so `deno.lock` records the bumped workspace ranges.
+ *
+ * @returns The subprocess exit code (0 on success).
+ */
+async function refreshLockfile(): Promise<number> {
+    const command = new Deno.Command('deno', {
+        args: ['install'],
+        stdout: 'inherit',
+        stderr: 'inherit',
+    })
+    const { code } = await command.output()
+    return code
+}
+
+/**
  * Print usage and the legacy escape hatch.
  */
 function printUsage(): void {
@@ -269,6 +284,22 @@ async function main(): Promise<void> {
         for (const path of swept) {
             console.log(`   ${path} specifiers -> ${bumped}`)
         }
+
+        // The lockfile records every member's `@lockness/*` range, so a bump
+        // leaves it naming the previous version. Left out of the release
+        // commit, the first deno command on the tagged tree rewrites it —
+        // publish.yml's gate does exactly that — and `deno publish` then
+        // aborts on the dirty tree. v0.4.0's first publish failed this way.
+        const lockCode = await refreshLockfile()
+        if (lockCode !== 0) {
+            console.error(
+                `deno install exited with code ${lockCode}; deno.lock was ` +
+                    'not refreshed, and a release commit without it cannot ' +
+                    'be published.',
+            )
+            Deno.exit(lockCode)
+        }
+        console.log('   deno.lock refreshed')
     }
     Deno.exit(code)
 }
