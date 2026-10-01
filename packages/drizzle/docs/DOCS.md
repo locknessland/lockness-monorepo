@@ -553,9 +553,13 @@ before it reads the config or connects.
     `postgres://`, `postgres:///`, `postgres://localhost:5432/`,
     `postgres://localhost/` and `postgres://host?sslmode=require` are refused,
     in either scheme spelling, as is a path that is only a dot segment (`/.`,
-    `/%2e`). The path is read the way the drivers read it, with the URL API. A
-    database named only in the query string (`?database=app`) is not read, and
-    neither is a URL with no `scheme://` part: name the database in the path.
+    `/%2e`). The path is read the way the drivers read it, with the URL API, and
+    a URL with no `scheme://` part names nothing: name the database in the path.
+    For postgresql a `database` query key is refused outright, because
+    postgres.js lets it override the path (an empty one sends no database at
+    all), and so is a host holding an encoded comma, which postgres.js decodes
+    into a host list and rewrites the URL around. mysql2 ignores a query
+    `database` when the path names one.
   - MySQL is checked here as well, not left to the `DATABASE()` check below, so
     it is refused before a connection is opened. The `DATABASE()` check stays,
     for a driver that selects no database by other means.
