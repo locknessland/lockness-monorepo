@@ -55,6 +55,7 @@ Anything not listed is internal and free to change.
 | --------------------------------------------------------- | ----------------------- |
 | Service and public API                                    | `mod.ts`                |
 | DSN check run before any driver factory (#425)            | `dsn.ts`                |
+| What a withheld failure may show: the vetted error name   | `error_name.ts`         |
 | Dialects, default driver factories, `loadClient`          | `drivers.ts`            |
 | `db:*` command wiring, seams and the production guard     | `cli_commands.ts`       |
 | `db:fresh` reset policy: scope, planners, refusals (#435) | `reset.ts`              |
