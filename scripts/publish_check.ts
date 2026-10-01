@@ -35,6 +35,11 @@
  *   `import.meta.resolve(spec)` is in no graph. One workspace
  *   `deno publish --dry-run` names each such site, and each must be inventoried
  *   with a count and a reason under `runtimeImports` in `deps.policy.jsonc`.
+ * - **Published `.tsx`** (Rule C, #470): a package may publish a `.tsx` only
+ *   with a `"jsx": "<reason>"` entry in `deps.policy.jsonc`. Under
+ *   `"jsx": "precompile"`, Deno transpiles a JSR `.tsx` with the CONSUMING
+ *   app's `jsxImportSource`, so a `.tsx` reached by an app without JSX fails
+ *   that app at load. A stale entry (no `.tsx` left) is red too.
  *
  * The message only names the fault:
  *
@@ -50,6 +55,8 @@
  * | `<file>:<line>: unresolved dynamic import: … — …` | any other dynamic edge error, e.g. `Unknown export` — still **fail** |
  * | `unrecognised graph failure: …` | `deno info` built no graph — still **fail** |
  * | `<pkg>/<file>: N unanalysable import site(s), …` | a runtime-import site missing from, or drifting against, the inventory |
+ * | `<pkg>: publishes N .tsx file(s) (…), no "jsx" entry …` | a published `.tsx` the policy does not allow |
+ * | `<pkg>: "jsx" entry …, but no .tsx is published …` | a stale `jsx` entry |
  * | `dry-run diagnostic: warning[…]` / `error[…]` | any other dry-run diagnostic |
  * | `deno publish --dry-run exited N: …` | the dry-run itself failed |
  * | anything else | unrecognised — still **fail** |
@@ -539,20 +546,26 @@ export function classifyCheck(
  * @param results - One result per package.
  * @param runtimeFaults - Faults from the workspace dry-run and the runtime
  *   import inventory ({@link runtimeImportFaults}); defaults to none.
+ * @param jsxFaults - Faults from the published-`.tsx` policy
+ *   ({@link jsxPolicyFaults}); defaults to none.
  * @returns The exit code, and the lines to print — the success line appears
  *   only when the code is `0`, so the log can never contradict the exit status.
  * @example
  * ```ts
  * resolutionVerdict([{ name: 'core', ok: false, detail: 'x' }]).code   // 1
  * resolutionVerdict([], ['cli/mod.ts: not inventoried']).code           // 1
+ * resolutionVerdict([], [], ['core: publishes 1 .tsx file(s)']).code    // 1
  * ```
  */
 export function resolutionVerdict(
     results: Result[],
     runtimeFaults: readonly string[] = [],
+    jsxFaults: readonly string[] = [],
 ): { code: 0 | 1; lines: string[] } {
     const failed = results.filter((r) => !r.ok)
-    if (failed.length > 0 || runtimeFaults.length > 0) {
+    if (
+        failed.length > 0 || runtimeFaults.length > 0 || jsxFaults.length > 0
+    ) {
         const lines: string[] = []
         if (failed.length > 0) {
             lines.push(
@@ -568,6 +581,15 @@ export function resolutionVerdict(
                 ...runtimeFaults.map((fault) => `   ${fault}`),
                 '   A non-literal import() or import.meta.resolve() is inventoried, with a reason,',
                 '   under that package\'s "runtimeImports" in deps.policy.jsonc.',
+            )
+        }
+        if (jsxFaults.length > 0) {
+            lines.push(
+                `\n❌ ${jsxFaults.length} jsx-policy fault(s) in the published files:`,
+                ...jsxFaults.map((fault) => `   ${fault}`),
+                "   A published .tsx is transpiled with the CONSUMING app's jsxImportSource",
+                '   and breaks an app without JSX (#470). Write it as .ts, or justify it',
+                '   under that package\'s "jsx" in deps.policy.jsonc.',
             )
         }
         return { code: 1, lines }
@@ -950,12 +972,90 @@ export function runtimeImportFaults(
     return faults
 }
 
+// ---- Rule C: a published .tsx needs a "jsx" policy entry (#470) -----------
+
+/** How many `.tsx` paths a fault names before eliding the rest. */
+const JSX_FAULT_SAMPLE = 3
+
+/**
+ * Compare each package's published `.tsx` files with the `"jsx"` entries in
+ * `deps.policy.jsonc`.
+ *
+ * A JSR `.tsx` is not self-contained: under `"jsx": "precompile"` Deno
+ * transpiles it with the consuming app's `jsxImportSource`, ignoring the
+ * pragma `deno publish` writes into it, and the runtime that names is not in
+ * the pre-loaded graph of an app that has no JSX of its own. That is how
+ * `@lockness/core@0.4.0` failed to load in the api and slim kits (#470). So a
+ * package publishes a `.tsx` only when the policy says why it may. Red when:
+ *
+ * - a package publishes a `.tsx` and has no `"jsx"` entry;
+ * - a `"jsx"` entry is not a non-empty string;
+ * - a `"jsx"` entry names a package that publishes no `.tsx` (stale).
+ *
+ * @param published - Per short package name, the files `deno publish` would
+ *   upload (after `publish.include` / `publish.exclude`, see
+ *   {@link selectPublishedFiles}) — so an excluded `demo/*.tsx` never counts.
+ * @param policy - The parsed `deps.policy.jsonc`, unvalidated; `undefined`
+ *   (no policy file) allows no `.tsx` anywhere.
+ * @returns One fault description per discrepancy, sorted by package; empty
+ *   when they agree.
+ * @example
+ * ```ts
+ * jsxPolicyFaults(
+ *     { ui: ['mod.ts', 'button.tsx'] },
+ *     { packages: { ui: { jsx: 'its consumers are JSX apps' } } },
+ * )
+ * // -> []
+ * ```
+ */
+export function jsxPolicyFaults(
+    published: Readonly<Record<string, readonly string[]>>,
+    policy: unknown,
+): string[] {
+    const packages = isRecord(policy) && isRecord(policy.packages)
+        ? policy.packages
+        : {}
+    const allowed: Record<string, unknown> = {}
+    for (const [pkg, entry] of Object.entries(packages)) {
+        if (isRecord(entry) && 'jsx' in entry) allowed[pkg] = entry.jsx
+    }
+
+    const faults: string[] = []
+    const names = new Set([...Object.keys(published), ...Object.keys(allowed)])
+    for (const pkg of [...names].sort()) {
+        const tsx = (published[pkg] ?? []).filter((f) => f.endsWith('.tsx'))
+            .sort()
+        if (!(pkg in allowed)) {
+            if (tsx.length === 0) continue
+            const sample = tsx.slice(0, JSX_FAULT_SAMPLE).join(', ') +
+                (tsx.length > JSX_FAULT_SAMPLE ? ', …' : '')
+            faults.push(
+                `${pkg}: publishes ${tsx.length} .tsx file(s) (${sample}), no "jsx" entry in deps.policy.jsonc`,
+            )
+            continue
+        }
+        const reason = allowed[pkg]
+        if (typeof reason !== 'string' || reason.trim() === '') {
+            faults.push(`${pkg}: "jsx" entry has no reason`)
+            continue
+        }
+        if (tsx.length === 0) {
+            faults.push(
+                `${pkg}: "jsx" entry in deps.policy.jsonc, but no .tsx is published — remove the stale entry`,
+            )
+        }
+    }
+    return faults
+}
+
 /** A package staged in its published shape, with the manifest it shipped. */
 interface StagedPackage {
     /** Short package name (its directory under `packages/`). */
     short: string
     /** The parsed `deno.json`. */
     manifest: Record<string, unknown>
+    /** The relative paths `deno publish` would upload. */
+    files: string[]
 }
 
 /**
@@ -1007,7 +1107,7 @@ async function stagePackage(
         await Deno.mkdir(dirname(target), { recursive: true })
         await Deno.copyFile(join(source, relative), target)
     }
-    return { short, manifest }
+    return { short, manifest, files: published }
 }
 
 /**
@@ -1134,6 +1234,40 @@ async function dynamicEdgeFaults(
 }
 
 /**
+ * Read and parse `deps.policy.jsonc` once, for Rules B and C.
+ *
+ * An absent file is an empty policy; an unparseable one is a fault, never a
+ * silent empty policy.
+ *
+ * @returns The parsed policy (`undefined` when absent or unparseable) and the
+ *   fault describing a parse failure, if any.
+ * @throws {Error} If the file exists but cannot be read.
+ */
+async function readPolicy(): Promise<{ policy: unknown; faults: string[] }> {
+    let text: string
+    try {
+        text = await Deno.readTextFile(join(ROOT, 'deps.policy.jsonc'))
+    } catch (error) {
+        if (error instanceof Deno.errors.NotFound) {
+            return { policy: undefined, faults: [] }
+        }
+        throw error
+    }
+    try {
+        return { policy: parseJsonc(text), faults: [] }
+    } catch (error) {
+        return {
+            policy: undefined,
+            faults: [
+                `deps.policy.jsonc is unparseable: ${
+                    error instanceof Error ? error.message : String(error)
+                }`,
+            ],
+        }
+    }
+}
+
+/**
  * Rule B (#463): run the workspace `deno publish --dry-run` once, and compare
  * its unanalysable runtime-import sites with the `runtimeImports` inventory.
  *
@@ -1141,9 +1275,10 @@ async function dynamicEdgeFaults(
  * because a pre-push run has uncommitted state by design. The dry-run's exit
  * status counts: non-zero is red, named by its first error line.
  *
+ * @param policy - The parsed `deps.policy.jsonc`, from {@link readPolicy}.
  * @returns One fault description per problem, empty when clean.
  */
-async function runtimeImportCheck(): Promise<string[]> {
+async function runtimeImportCheck(policy: unknown): Promise<string[]> {
     const result = await new Deno.Command(Deno.execPath(), {
         args: ['publish', '--dry-run', '--no-check', '--allow-dirty'],
         cwd: ROOT,
@@ -1153,27 +1288,7 @@ async function runtimeImportCheck(): Promise<string[]> {
     const output = new TextDecoder().decode(result.stderr) +
         new TextDecoder().decode(result.stdout)
 
-    let policy: unknown = undefined
-    const policyPath = join(ROOT, 'deps.policy.jsonc')
-    let policyText: string | null = null
-    try {
-        policyText = await Deno.readTextFile(policyPath)
-    } catch (error) {
-        if (!(error instanceof Deno.errors.NotFound)) throw error
-    }
     const faults: string[] = []
-    if (policyText !== null) {
-        try {
-            policy = parseJsonc(policyText)
-        } catch (error) {
-            faults.push(
-                `deps.policy.jsonc is unparseable: ${
-                    error instanceof Error ? error.message : String(error)
-                }`,
-            )
-        }
-    }
-
     if (!result.success) {
         const plain = stripAnsi(output)
         const error = plain.split('\n').map((l) => l.trim())
@@ -1314,18 +1429,34 @@ async function main(): Promise<void> {
     console.log(
         '\n🔎 Checking runtime imports (workspace deno publish --dry-run)...',
     )
-    const runtimeFaults = await runtimeImportCheck()
+    const { policy, faults: policyFaults } = await readPolicy()
+    const runtimeFaults = [
+        ...policyFaults,
+        ...await runtimeImportCheck(policy),
+    ]
     console.log(
         runtimeFaults.length === 0
             ? '  ✅ every unanalysable import site is inventoried'
             : `  ❌ ${runtimeFaults.length} runtime-import fault(s)`,
     )
 
+    // Rule C (#470): every published .tsx is allowed, with a reason, by policy.
+    console.log('\n🔎 Checking published .tsx files against the jsx policy...')
+    const jsxFaults = jsxPolicyFaults(
+        Object.fromEntries(staged.map(({ short, files }) => [short, files])),
+        policy,
+    )
+    console.log(
+        jsxFaults.length === 0
+            ? '  ✅ every published .tsx is allowed by deps.policy.jsonc'
+            : `  ❌ ${jsxFaults.length} jsx-policy fault(s)`,
+    )
+
     // Registry existence is a PRE-PUBLISH gate, not a pre-push one: a package
     // that has never been created on JSR is only a problem at publish time, and
     // failing every push over it would block unrelated work. Hence the flag —
     // `publish.yml` passes it, CI and the pre-push hook do not.
-    const verdict = resolutionVerdict(results, runtimeFaults)
+    const verdict = resolutionVerdict(results, runtimeFaults, jsxFaults)
     if (!Deno.args.includes('--registry')) {
         // The success line only on the path that exits 0: it used to print
         // before `Deno.exit(1)`, so a red run read green in the log (#388).
