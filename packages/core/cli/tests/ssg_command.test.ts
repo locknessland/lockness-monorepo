@@ -107,6 +107,35 @@ Deno.test('loadKernel - app/kernel.ts wins over app/kernel.tsx, as for compile (
     }
 })
 
+Deno.test('loadKernel - an undecorated app/kernel.ts is reported by name; app/kernel.tsx is not read (#485)', async () => {
+    const root = await Deno.makeTempDir()
+    const key = `__lockness_485_tsx_read_${crypto.randomUUID()}`
+    const decorators = import.meta.resolve('../../kernel/kernel_decorators.ts')
+    try {
+        await Deno.mkdir(join(root, 'app'))
+        await Deno.writeTextFile(
+            join(root, 'app/kernel.ts'),
+            'export class AppKernel {}\n',
+        )
+        await Deno.writeTextFile(
+            join(root, 'app/kernel.tsx'),
+            `import { KERNEL_CONFIG } from '${decorators}'\n` +
+                `;(globalThis as Record<string, unknown>)['${key}'] = true\n` +
+                `export class AppKernel { static [KERNEL_CONFIG] = {} }\n`,
+        )
+        const error = await assertRejects(() => loadKernel(root), Error)
+        assertStringIncludes(error.message, 'app/kernel.ts')
+        assertEquals(error.message.includes('app/kernel.tsx'), false)
+        assertEquals(
+            (globalThis as Record<string, unknown>)[key],
+            undefined,
+            'app/kernel.tsx was imported',
+        )
+    } finally {
+        await Deno.remove(root, { recursive: true })
+    }
+})
+
 // --- buildStaticSite --------------------------------------------------------
 
 Deno.test('buildStaticSite - warns (FR-013), renders the @Static page, reports it', async () => {
