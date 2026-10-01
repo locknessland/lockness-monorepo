@@ -4,15 +4,20 @@ on:
     release:
         types: [published]
 
+# Invariant (#476): `id-token: write` exists in exactly one job, `publish`,
+# and that job runs nothing but actions/checkout, denoland/setup-deno and
+# `deno publish`. With that permission, any process in the job can request an
+# OIDC token and publish as @lockness. So no job that holds it runs tests,
+# project scripts, scaffolded kits or third-party modules. `publish` takes
+# only the verdict of the jobs that check (`needs:`), never their bytes: no
+# cache, no artifact and no job output crosses into it. Every job checks out
+# github.sha, so the commit that was checked is the commit that is published.
+permissions:
+    contents: read
+
 jobs:
-    # Structural gate (#470): every starter kit must boot from the bundles
-    # `deno publish` produces for this exact commit, served by a
-    # localhost-only JSR registry, before anything reaches jsr.io. A job of
-    # its own, with no id-token, so the OIDC credential never exists in a job
-    # that runs scaffolded code. `publish` needs it, so a red kit publishes
-    # nothing.
-    kits:
-        name: Boot every kit from a local deno publish
+    gate:
+        name: Quality gate
         runs-on: ubuntu-latest
         permissions:
             contents: read
@@ -21,26 +26,8 @@ jobs:
             - name: Checkout code
               uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
               with:
+                  ref: ${{ github.sha }}
                   persist-credentials: false
-
-            - name: Setup Deno
-              uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2
-              with:
-                  deno-version: v2.x
-
-            - name: Publish locally, then scaffold and boot every kit
-              run: deno task kits:smoke --registry
-
-    publish:
-        needs: kits
-        runs-on: ubuntu-latest
-        permissions:
-            contents: read
-            id-token: write # Requis pour JSR
-
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
             - name: Setup Deno
               uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2
@@ -60,6 +47,54 @@ jobs:
             - name: Quality gate
               run: deno task gate --registry
 
-            # Publish only once the gate above is green.
+    # Structural gate (#470): every starter kit must boot from the bundles
+    # `deno publish` produces for this exact commit, served by a
+    # localhost-only JSR registry, before anything reaches jsr.io. It runs
+    # scaffolded code, so it holds no id-token (see the invariant above).
+    kits:
+        name: Boot every kit from a local deno publish
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+              with:
+                  ref: ${{ github.sha }}
+                  persist-credentials: false
+
+            - name: Setup Deno
+              uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2
+              with:
+                  deno-version: v2.x
+
+            - name: Publish locally, then scaffold and boot every kit
+              run: deno task kits:smoke --registry
+
+    # The only job holding `id-token: write`. It runs nothing but checkout,
+    # setup-deno and `deno publish` (see the invariant above), and publishes
+    # only once both `gate` and `kits` are green. `deno publish` keeps its
+    # own type-check: no `--no-check`.
+    publish:
+        name: Publish to JSR
+        needs: [gate, kits]
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            id-token: write # JSR trusted publishing (OIDC)
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+              with:
+                  ref: ${{ github.sha }}
+                  persist-credentials: false
+
+            - name: Setup Deno
+              uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2
+              with:
+                  deno-version: v2.x
+
             - name: Publish to JSR
               run: deno publish
