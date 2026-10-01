@@ -1,7 +1,7 @@
 # `@lockness/validator` — agent brief
 
 Validation with custom rules, async validators, sanitisers and a Zod decorator
-bridge. Two source files, eight test files — the best-covered package here.
+bridge. Among the best-covered packages here; the counts are in [Tests](#tests).
 
 User-facing documentation: [README.md](README.md) ·
 [docs/DOCS.md](docs/DOCS.md). This brief does not repeat it.
@@ -68,7 +68,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-8 test files for 5 source files:
+9 test files for 5 source files:
 
 - `packages/validator/tests/basic.test.ts`
 - `packages/validator/tests/class.test.ts`
@@ -78,6 +78,7 @@ Anything not listed is internal and free to change.
 - `packages/validator/tests/sanitizers.test.ts`
 - `packages/validator/tests/special.test.ts`
 - `packages/validator/tests/zod_decorator.test.ts`
+- `packages/validator/tests/zod_range.test.ts`
 
 <!-- /generated:tests -->
 
@@ -92,7 +93,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 8 test files directly —
+Then, specific to this package: run its 9 test files directly —
 
 ```bash
 deno test -A packages/validator/
