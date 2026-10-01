@@ -1,20 +1,27 @@
 /**
- * `docs:generate` imports the app's controllers through `importAppFile`
- * (#477).
+ * `loadDocumentedControllers` imports the app's controllers through
+ * `importAppFile` (#477), for `docs:generate` and for the scaffolded docs
+ * controller (#483).
  *
- * The command built `` import(`file://${Deno.cwd()}/${path}`) ``, a template
- * literal `deno publish` rewrites into a relative path — from JSR, a request to
- * the registry for the app's own path. That half cannot fail here, where
- * openapi loads from disk; `kits:smoke --registry` covers the registry. These
- * tests pin the other half: the scan imports from a directory whose path holds
- * a `#` and a space, and a controller that fails to load is named.
+ * Both built `` import(`file://${Deno.cwd()}/${path}`) ``, a template literal
+ * `deno publish` rewrites into a relative path — from JSR, a request to the
+ * registry for the app's own path. That half cannot fail here, where openapi
+ * loads from disk; `kits:smoke --registry` covers the registry. These tests pin
+ * the other half: the scan imports from a directory whose path holds a `#` and
+ * a space, and a controller that fails to load is named.
  *
  * @module @lockness/openapi/tests/discovery
  */
 
-import { assertEquals, assertRejects, assertStringIncludes } from '@std/assert'
+import {
+    assertEquals,
+    assertRejects,
+    assertStrictEquals,
+    assertStringIncludes,
+} from '@std/assert'
 import { join } from '@std/path'
 import { loadDocumentedControllers } from '../discovery.ts'
+import * as openapi from '../mod.ts'
 
 /** A directory name holding both characters `file://${…}` mis-parses. */
 const AWKWARD = 'app#dir with space'
@@ -42,7 +49,7 @@ async function withAwkwardDir(
     }
 }
 
-Deno.test("loadDocumentedControllers (docs:generate) - imports a controller under a path with '#' and a space", async () => {
+Deno.test("loadDocumentedControllers - imports a controller under a path with '#' and a space", async () => {
     await withAwkwardDir({
         'awkward_controller.ts':
             "export class AwkwardController { static _basePath = '/awkward' }\n",
@@ -53,7 +60,7 @@ Deno.test("loadDocumentedControllers (docs:generate) - imports a controller unde
     })
 })
 
-Deno.test('loadDocumentedControllers (docs:generate) - names a controller file that fails to load', async () => {
+Deno.test('loadDocumentedControllers - names a controller file that fails to load', async () => {
     await withAwkwardDir({
         'broken_controller.ts':
             'throw new Error("broken at load")\nexport {}\n',
@@ -61,4 +68,11 @@ Deno.test('loadDocumentedControllers (docs:generate) - names a controller file t
         const error = await assertRejects(() => loadDocumentedControllers(abs))
         assertStringIncludes(String(error), 'broken_controller.ts')
     })
+})
+
+Deno.test('loadDocumentedControllers - is exported from the package root, for the scaffolded docs controller', () => {
+    assertStrictEquals(
+        (openapi as Record<string, unknown>).loadDocumentedControllers,
+        loadDocumentedControllers,
+    )
 })
