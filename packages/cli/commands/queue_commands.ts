@@ -166,6 +166,7 @@ export function resolveQueueConfigFromEnv(
  * @param dir - The job directory, absolute or relative to the working
  *   directory.
  * @returns How many job classes were registered.
+ * @internal Exported for tests.
  *
  * @example
  * ```ts

@@ -44,6 +44,7 @@ export type RouteControllerClass = (new () => unknown) & {
  *   working directory.
  * @returns Every export with a `_basePath`, in directory order.
  * @throws When the directory itself cannot be read (missing, unreadable).
+ * @internal Exported for tests.
  *
  * @example
  * ```ts

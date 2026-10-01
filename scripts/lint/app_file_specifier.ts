@@ -24,7 +24,9 @@
  *
  * A path built with `join(Deno.cwd(), …)` and passed to `import()` through a
  * variable is NOT seen here; `publish:check` catches it as an uninventoried
- * non-literal import site.
+ * non-literal import site. Nor is a specifier grown by compound assignment
+ * (`let u = 'file://'; u += p`): the literal alone is harmless, and following
+ * the variable would need data flow, not a node match.
  *
  * @module scripts/lint/app_file_specifier
  */

@@ -1026,7 +1026,10 @@ async function smokeAgainstRegistry(
             kitOk = reportLeaks(registryLog.slice(logStart), appDirs) && kitOk
 
             // The cli, loaded from the registry, importing the kit's
-            // controllers (#477).
+            // controllers (#477). This guards against a regression to a bare
+            // or registry-relative path, NOT against `#` truncation: the kit
+            // directory holds no `#` or space, so a hand-built `file://`
+            // string would still pass here. The unit tests own that half.
             const listStart = registryLog.length
             const listed = await run(
                 'deno',
