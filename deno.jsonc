@@ -223,6 +223,10 @@
         ]
     },
     "lint": {
+        // `lockness/app-file-specifier` (#477): no hand-built specifier for a
+        // file of the user's app in package source — every one passes here and
+        // breaks from JSR. The rule scopes itself to `packages/`, outside tests.
+        "plugins": ["./scripts/lint/app_file_specifier.ts"],
         "exclude": [
             ".shadcn-ui/",
             "tests/fixtures/bump/"

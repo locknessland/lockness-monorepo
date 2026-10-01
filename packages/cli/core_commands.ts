@@ -69,7 +69,10 @@ export function registerCoreCommands(cli: Cli): void {
                 : `@lockness/${packageName}`
 
             try {
-                // Try to import and run the install script
+                // Try to import and run the install script. A package
+                // specifier the app's import map resolves, not an app file,
+                // so importAppFile does not apply; publish:check inventories it.
+                // deno-lint-ignore lockness/app-file-specifier
                 const module = await import(`${fullPackageName}/install`)
                 if (typeof module.default === 'function') {
                     await module.default()
