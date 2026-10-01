@@ -8,13 +8,34 @@
  * gets a second copy, and the bridge then rejects the app's schemas.
  */
 
-import { assert, assertMatch } from '@std/assert'
+import { assert, assertEquals, assertMatch } from '@std/assert'
+
+/** The bridge version whose zod peer range {@link BRIDGE_ZOD_FLOOR} records. */
+const BRIDGE_VERSION = '0.7.6'
 
 /**
  * The floor of `@hono/zod-validator@0.7.6`'s peer range for zod 3
- * (`^3.25.0 || ^4.0.0`). Update it together with the bridge version.
+ * (`^3.25.0 || ^4.0.0`). Update it together with {@link BRIDGE_VERSION}.
  */
 const BRIDGE_ZOD_FLOOR: readonly [number, number, number] = [3, 25, 0]
+
+Deno.test('the lockfile resolves the bridge whose peer floor this guard records', async () => {
+    const lock = JSON.parse(
+        await Deno.readTextFile(new URL('../../../deno.lock', import.meta.url)),
+    ) as { specifiers: Record<string, string> }
+    const resolved = Object.entries(lock.specifiers)
+        .filter(([specifier]) =>
+            specifier.startsWith('npm:@hono/zod-validator@')
+        )
+        .map(([, version]) => version.split('_')[0])
+
+    assertEquals(
+        resolved,
+        [BRIDGE_VERSION],
+        `@hono/zod-validator moved off ${BRIDGE_VERSION}: re-check its zod ` +
+            'peer range, then update BRIDGE_ZOD_FLOOR and BRIDGE_VERSION',
+    )
+})
 
 Deno.test('validator declares a zod floor inside the bridge peer range', async () => {
     const manifest = JSON.parse(
