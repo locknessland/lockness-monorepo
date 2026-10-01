@@ -168,7 +168,9 @@ missing or not an object, holds keys besides `url`, or its `url` is missing, not
 a string, empty or only whitespace (as `Deno.env.get('DATABASE_URL') ?? ''` is
 with the variable unset), or names no database — `postgres://localhost:5432/`,
 which a URL ending in an unset `DB_NAME` yields, or a `file:` URL with no path;
-MySQL included, checked before it connects; when the migrations journal or a
+MySQL included, checked before it connects; on postgres, when the URL carries a
+`database` query key or an encoded comma in its host, either of which lets the
+driver pick a database other than the path's; when the migrations journal or a
 file it lists is missing; when the driver has no schema-maintenance support;
 when MySQL has no database selected, or selects a system database (`mysql`,
 `sys`, `performance_schema`, `information_schema`); and, on postgres, when
