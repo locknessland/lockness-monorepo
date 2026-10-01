@@ -44,12 +44,19 @@ function tarball(files: Record<string, string>): ReadableStream<Bytes> {
         .pipeThrough(new CompressionStream('gzip'))
 }
 
+/** The per-run publish token the harness's handler expects. */
+const TOKEN = crypto.randomUUID()
+
+/** The header `deno publish --token <TOKEN>` sends. */
+const AUTH = { authorization: `Bearer ${TOKEN}` }
+
 /** A handler whose upstream records every URL it is asked for. */
 function harness() {
     const store = new LocalJsrStore()
     const upstream: string[] = []
     const handler = createLocalJsrHandler({
         store,
+        publishToken: TOKEN,
         fetchUpstream: (url) => {
             upstream.push(url.href)
             return Promise.resolve(
@@ -81,7 +88,7 @@ const CORE = {
 async function publishCore(at: ReturnType<typeof harness>['at']) {
     return await at(
         '/api/scopes/lockness/packages/core/versions/0.4.0?config=/deno.json',
-        { method: 'POST', body: tarball(CORE) },
+        { method: 'POST', body: tarball(CORE), headers: AUTH },
     )
 }
 
@@ -319,6 +326,7 @@ Deno.test('uploads are refused outside the scope, twice, or without exports', as
         const response = await at(path, {
             method: 'POST',
             body: tarball(files),
+            headers: AUTH,
         })
         await response.body?.cancel()
         return response.status
@@ -349,6 +357,7 @@ Deno.test('a request whose Host is not a loopback literal is refused', async () 
     const { store } = harness()
     const handler = createLocalJsrHandler({
         store,
+        publishToken: TOKEN,
         fetchUpstream: () => Promise.reject(new Error('must not be reached')),
     })
     for (const host of ['localhost', 'evil.example', '192.168.1.10']) {
@@ -357,6 +366,100 @@ Deno.test('a request whose Host is not a loopback literal is refused', async () 
         )
         await response.body?.cancel()
         assertEquals(response.status, 403, host)
+    }
+})
+
+Deno.test('a cross-site browser POST cannot publish (#470 review)', async () => {
+    const { at, store, upstream } = harness()
+    const path = '/api/scopes/lockness/packages/cli/versions/0.4.9999'
+    const attempts: [string, RequestInit][] = [
+        // What a page's no-cors form or fetch sends: Origin, a simple
+        // content-type, and no credential.
+        ['cross-site no-cors', {
+            method: 'POST',
+            body: tarball(CORE),
+            headers: {
+                origin: 'https://evil.example',
+                'content-type': 'text/plain',
+                'sec-fetch-site': 'cross-site',
+            },
+        }],
+        ['no Authorization', { method: 'POST', body: tarball(CORE) }],
+        ['wrong token', {
+            method: 'POST',
+            body: tarball(CORE),
+            headers: { authorization: 'Bearer not-the-run-token' },
+        }],
+        ['right token, but from a browser', {
+            method: 'POST',
+            body: tarball(CORE),
+            headers: { ...AUTH, origin: 'null' },
+        }],
+        ['right token, Sec-Fetch-Site only', {
+            method: 'POST',
+            body: tarball(CORE),
+            headers: { ...AUTH, 'sec-fetch-site': 'same-site' },
+        }],
+    ]
+    for (const [label, init] of attempts) {
+        const response = await at(path, init)
+        await response.body?.cancel()
+        assert(
+            [401, 403].includes(response.status),
+            `${label}: ${response.status}`,
+        )
+    }
+    assertEquals(store.names(), [], 'nothing may be stored')
+    assertEquals(upstream, [])
+
+    const published = await at(path, {
+        method: 'POST',
+        body: tarball(CORE),
+        headers: AUTH,
+    })
+    await published.body?.cancel()
+    assertEquals(published.status, 202)
+    assertEquals(store.versions('cli'), ['0.4.9999'])
+})
+
+Deno.test('any request carrying Origin or Sec-Fetch-Site is refused', async () => {
+    const { at, upstream } = harness()
+    await publishCore(at)
+    for (
+        const path of [
+            '/@lockness/core/meta.json',
+            '/@lockness/core/0.4.0/mod.ts',
+            '/@std/path/meta.json',
+            '/api/scopes/lockness/packages/core',
+        ]
+    ) {
+        for (
+            const headers of <Record<string, string>[]> [
+                { origin: 'https://evil.example' },
+                { 'sec-fetch-site': 'cross-site' },
+            ]
+        ) {
+            const response = await at(path, { headers })
+            await response.body?.cancel()
+            assertEquals(
+                response.status,
+                403,
+                `${path} ${JSON.stringify(headers)}`,
+            )
+        }
+    }
+    assertEquals(upstream, [])
+})
+
+Deno.test('startLocalJsr hands out a fresh per-run token', async () => {
+    const a = startLocalJsr()
+    const b = startLocalJsr()
+    try {
+        assert(/^[0-9a-f-]{36}$/.test(a.token))
+        assert(a.token !== b.token)
+    } finally {
+        await a.shutdown()
+        await b.shutdown()
     }
 })
 

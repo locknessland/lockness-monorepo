@@ -60,7 +60,7 @@ Deno.test('publishToRegistry refuses a non-loopback registry before spawning', a
         ]
     ) {
         await assertRejects(
-            () => publishToRegistry('/nonexistent', url, '/nonexistent'),
+            () => publishToRegistry('/nonexistent', url, '/nonexistent', 'x'),
             Error,
             'refusing',
             url,

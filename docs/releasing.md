@@ -360,8 +360,8 @@ What it does, in order:
    on an ephemeral port. It refuses any other bind address and any request whose
    `Host` is not a loopback literal.
 2. Runs `deno publish` on a `git archive HEAD` copy, with `JSR_URL` pointing at
-   it and a visibly fake token. The command refuses outright unless that URL is
-   loopback. It then checks that every publishable member arrived.
+   it and a per-run random token. The command refuses outright unless that URL
+   is loopback. It then checks that every publishable member arrived.
 3. Scaffolds each kit from `jsr:@lockness/init`, without re-pointing it at the
    workspace. Then it boots the kit with `JSR_URL` set and a `DENO_DIR` created
    for the run. The fresh cache matters: a warm one served an old `meta.json`

@@ -31,11 +31,23 @@
  * pass against code that is not the code under test — the exact blind spot
  * this gate exists to close.
  *
- * **Loopback only.** It refuses to bind anything but `127.0.0.1` (or another
- * `127.0.0.0/8` literal, or `::1`), and refuses any request whose `Host` is
- * not a loopback literal, so neither the network nor a DNS-rebinding page in
- * a local browser can publish into it or read from it. `localhost` is refused
- * on purpose: it is a name, and a name can be made to resolve elsewhere.
+ * **Who may talk to it.** It binds only a loopback literal (`127.0.0.0/8` or
+ * `::1`), so the network cannot reach it. Loopback alone does not stop a
+ * browser on the same machine. Any page can send a cross-site "no-cors" POST
+ * to `http://127.0.0.1:<port>`, and the `Host` check passes. Without a further
+ * check, that page could publish a higher version of a `@lockness/*` package,
+ * and `init` and the kits would then run its code with `-A`. Three checks close
+ * that:
+ *
+ * - Any request carrying `Origin` or `Sec-Fetch-Site` is refused with 403.
+ *   Browsers always send one of them; Deno's `fetch`, its module loader and
+ *   `deno publish` send neither.
+ * - A publish needs `Authorization: Bearer <token>`. The token is a fresh
+ *   `crypto.randomUUID()` per run ({@link LocalJsr.token}), handed only to
+ *   `deno publish --token` and never logged. Anything else gets 401.
+ * - A request whose `Host` is not a loopback literal is refused, which stops
+ *   DNS rebinding. `localhost` is refused on purpose: it is a name, and a name
+ *   can be made to resolve elsewhere.
  *
  * What it does not model, and the post-publish `/ship` check covers instead:
  * server-side dependency data in `_meta.json`, `createdAt` (so Deno's minimum
@@ -62,13 +74,6 @@ export const LOCAL_JSR_SCOPE = 'lockness'
 
 /** Where every scope other than {@link LOCAL_JSR_SCOPE} is read from. */
 export const JSR_UPSTREAM = 'https://jsr.io'
-
-/**
- * The token handed to `deno publish`. The registry ignores it; `deno publish`
- * merely refuses to start without one when there is no OIDC. Visibly not a
- * credential, so nobody mistakes it for one or tries to rotate it.
- */
-export const FAKE_PUBLISH_TOKEN = 'not-a-secret-local-jsr-only'
 
 /** Bytes backed by a plain `ArrayBuffer`, as Web Crypto and `Response` want them. */
 export type Bytes = Uint8Array<ArrayBuffer>
@@ -460,6 +465,11 @@ const VERSION = /^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$/
 export interface LocalJsrHandlerOptions {
     /** Where uploads go and reads come from. */
     readonly store: LocalJsrStore
+    /**
+     * The bearer token a publish must carry. Required: a handler that would
+     * take an unauthenticated upload is not constructible.
+     */
+    readonly publishToken: string
     /** Base URL every other scope is read from. Defaults to jsr.io. */
     readonly upstream?: string
     /** How the upstream is fetched; injectable for tests. */
@@ -472,12 +482,16 @@ export interface LocalJsrHandlerOptions {
  * The registry's request handler, without a socket — `Deno.serve` binds it in
  * {@link startLocalJsr}, and the tests call it directly.
  *
- * @param options - Store, upstream and logging.
+ * @param options - Store, publish token, upstream and logging.
  * @returns A `Deno.serve`-compatible handler.
+ * @throws {Error} When `publishToken` is too short to be a per-run random value.
  *
  * @example
  * ```ts
- * const handler = createLocalJsrHandler({ store: new LocalJsrStore() })
+ * const handler = createLocalJsrHandler({
+ *     store: new LocalJsrStore(),
+ *     publishToken: crypto.randomUUID(),
+ * })
  * await handler(new Request('http://127.0.0.1/@lockness/core/meta.json'))
  * // 404: never received, and never fetched from jsr.io
  * ```
@@ -486,6 +500,10 @@ export function createLocalJsrHandler(
     options: LocalJsrHandlerOptions,
 ): (request: Request) => Promise<Response> {
     const { store } = options
+    if (options.publishToken.length < 16) {
+        throw new Error('publishToken must be a per-run random value')
+    }
+    const expectedAuthorization = `Bearer ${options.publishToken}`
     const upstream = new URL(options.upstream ?? JSR_UPSTREAM)
     const fetchUpstream = options.fetchUpstream ??
         ((url: URL, init: RequestInit) => fetch(url, init))
@@ -531,6 +549,11 @@ export function createLocalJsrHandler(
         route: Extract<Route, { kind: 'publish' }>,
     ): Promise<Response> => {
         const { scope, name, version } = route
+        // Never logged: neither the expected value nor what was sent.
+        if (request.headers.get('authorization') !== expectedAuthorization) {
+            log(`401 POST @${scope}/${name}@${version}: no valid publish token`)
+            return apiError(401, 'unauthorized', 'publish token required')
+        }
         if (scope !== LOCAL_JSR_SCOPE) {
             return apiError(403, 'scopeNotAllowed', `only @${LOCAL_JSR_SCOPE}`)
         }
@@ -583,6 +606,13 @@ export function createLocalJsrHandler(
         if (!isLoopbackHostname(url.hostname)) {
             log(`403 host ${url.hostname}`)
             return apiError(403, 'hostNotAllowed', 'loopback hosts only')
+        }
+        if (
+            request.headers.has('origin') ||
+            request.headers.has('sec-fetch-site')
+        ) {
+            log(`403 ${request.method} ${url.pathname}: browser request`)
+            return apiError(403, 'browserNotAllowed', 'no browser requests')
         }
         const route = parseRoute(request.method, url.pathname)
         switch (route.kind) {
@@ -644,6 +674,11 @@ export function createLocalJsrHandler(
 export interface LocalJsr {
     /** Its base URL, `http://127.0.0.1:<ephemeral port>` — give it to `JSR_URL`. */
     readonly url: string
+    /**
+     * The per-run publish token (`crypto.randomUUID()`), for
+     * `deno publish --token` only. Never log it or write it to disk.
+     */
+    readonly token: string
     /** What it has received. */
     readonly store: LocalJsrStore
     /** Stop listening and wait until it has. Safe to call twice. */
@@ -685,6 +720,7 @@ export function startLocalJsr(options: StartLocalJsrOptions = {}): LocalJsr {
         throw new Error(`refusing to bind ${hostname}: loopback literals only`)
     }
     const store = new LocalJsrStore()
+    const token = crypto.randomUUID()
     const server = Deno.serve(
         {
             hostname: hostname.replace(/^\[|\]$/g, ''),
@@ -693,6 +729,7 @@ export function startLocalJsr(options: StartLocalJsrOptions = {}): LocalJsr {
         },
         createLocalJsrHandler({
             store,
+            publishToken: token,
             upstream: options.upstream,
             log: options.log,
         }),
@@ -703,6 +740,7 @@ export function startLocalJsr(options: StartLocalJsrOptions = {}): LocalJsr {
     let stopped: Promise<void> | undefined
     return {
         url: `http://${host}:${server.addr.port}`,
+        token,
         store,
         shutdown: () => {
             stopped ??= server.shutdown()

@@ -51,7 +51,6 @@ import { type KitName, KITS } from '@lockness/init'
 import { MIGRATIONS_DIR, readTree, shipsMigrations } from './kit_migrations.ts'
 import {
     assertLoopbackUrl,
-    FAKE_PUBLISH_TOKEN,
     type LocalJsr,
     type LocalJsrStore,
     startLocalJsr,
@@ -647,32 +646,35 @@ async function archiveHead(
  * `deno publish` a workspace into the localhost registry.
  *
  * Refuses before spawning anything unless `registry` is a loopback literal:
- * this command must never be able to reach a real registry, fake token or
- * not.
+ * this command must never be able to reach a real registry with any token.
+ * The token is the registry's per-run one ({@link LocalJsr.token}); it is
+ * redacted from the returned output, so a failure message never prints it.
  *
  * @param src - The workspace to publish (a `git archive` copy).
  * @param registry - The registry origin, given to `JSR_URL`.
  * @param denoDir - The `DENO_DIR` to use.
- * @returns Success and the combined output.
+ * @param token - The registry's per-run publish token.
+ * @returns Success and the combined output, token redacted.
  * @throws {Error} When `registry` is not loopback.
  *
  * @example
  * ```ts
- * await publishToRegistry(src, 'http://127.0.0.1:49152', denoDir)
+ * await publishToRegistry(src, jsr.url, denoDir, jsr.token)
  * ```
  */
 export async function publishToRegistry(
     src: string,
     registry: string,
     denoDir: string,
+    token: string,
 ): Promise<{ ok: boolean; output: string }> {
     const url = assertLoopbackUrl(registry)
-    return await run(
+    const result = await run(
         Deno.execPath(),
         [
             'publish',
             '--token',
-            FAKE_PUBLISH_TOKEN,
+            token,
             '--no-provenance',
             '--no-check',
             '--allow-dirty',
@@ -680,6 +682,10 @@ export async function publishToRegistry(
         src,
         { JSR_URL: url.origin, DENO_DIR: denoDir },
     )
+    return {
+        ok: result.ok,
+        output: result.output.replaceAll(token, '<publish-token>'),
+    }
 }
 
 /**
@@ -756,7 +762,12 @@ async function smokeAgainstRegistry(
         const env = { JSR_URL: registry, DENO_DIR: denoDir }
 
         const started = Date.now()
-        const published = await publishToRegistry(src, registry, denoDir)
+        const published = await publishToRegistry(
+            src,
+            registry,
+            denoDir,
+            jsr.token,
+        )
         if (!published.ok) {
             console.log(`  ❌ deno publish\n${tail(published.output, 30)}`)
             return false
