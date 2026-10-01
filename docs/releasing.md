@@ -326,10 +326,12 @@ same task, and its step list lives in `scripts/gate.ts` only, so there is no
 copy here to drift. Judge it by its exit status.
 
 `publish.yml` runs that same versioned gate — `deno task gate --registry` —
-before it publishes (#396). `--registry` reaches the `publish:check` step only,
-and it is not a formality: `deno publish --dry-run` passes inside the workspace
-even for a package whose manifest a consumer cannot resolve, so the dry run is
-**not** evidence.
+before it publishes (#396). It runs in a `gate` job of its own, which `publish`
+`needs:`; the `publish` job holds the JSR OIDC token and runs nothing but
+checkout, setup-deno and `deno publish` (#476). `--registry` reaches the
+`publish:check` step only, and it is not a formality: `deno publish --dry-run`
+passes inside the workspace even for a package whose manifest a consumer cannot
+resolve, so the dry run is **not** evidence.
 
 ### The kit boot gate
 

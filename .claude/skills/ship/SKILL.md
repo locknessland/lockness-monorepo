@@ -104,7 +104,7 @@ they are different operations:
 
 | Operation | Auth |
 | :--- | :--- |
-| **Publishing** a version | OIDC. No secret, ever. `publish.yml` declares only `id-token: write`. |
+| **Publishing** a version | OIDC. No secret, ever. `publish.yml` grants `id-token: write` to its `publish` job only (#476). |
 | **Linking** a package to a GitHub repo | A package-settings write. OIDC cannot cover it, because the link is *what JSR checks in order to authorise* the publish — it cannot authorise itself. |
 
 JSR matches the package's `githubRepository` against the repo running the
@@ -185,8 +185,9 @@ Every real import must be declared in its own package's `deno.json`, and each
 package must resolve standalone outside the workspace. `deno task publish:check`
 enforces both — it is the one owner of declarations, and it fails closed.
 `publish.yml` runs the same versioned gate as everywhere else
-(`deno task gate --registry`, #396) before `deno publish`; `--registry` reaches
-that `publish:check` step only. `deps:analyze` guards cycles and tier policy
+(`deno task gate --registry`, #396) in its own `gate` job, which the `publish`
+job `needs:` — the job holding the OIDC token runs only `deno publish` (#476);
+`--registry` reaches that `publish:check` step only. `deps:analyze` guards cycles and tier policy
 only; it does not check declarations (#388). Nothing to do by hand.
 
 ### Verify the state before starting

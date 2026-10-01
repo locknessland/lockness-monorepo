@@ -29,14 +29,32 @@ mutation batteries.
 
 ### `.github/workflows/publish.yml`
 
-Runs on `release: published`. Steps:
+Runs on `release: published`. The workflow defaults to `contents: read`, and
+it has three jobs (#476):
 
-1. Checkout.
-2. Setup Deno v2.x.
-3. `deno fmt --check`
-4. `deno lint`
-5. `deno task test -A`
-6. `deno publish` (uses `id-token: write` permission for JSR).
+1. **`gate`** — `contents: read`, no `id-token`. Runs
+   `deno task gate --registry`, the same versioned gate as everywhere else;
+   `--registry` reaches its `publish:check` step only (#396).
+2. **`kits`** — `contents: read`, no `id-token`. Runs
+   `deno task kits:smoke --registry`, which boots every starter kit from a
+   localhost-only JSR registry filled by `deno publish` (#470).
+3. **`publish`** — `needs: [gate, kits]`, `contents: read` +
+   `id-token: write`. Runs checkout, setup-deno and `deno publish`, and nothing
+   else. The type-check is kept: no `--no-check`.
+
+`gate` and `kits` run in parallel. Every checkout pins `ref: ${{ github.sha }}`
+and `persist-credentials: false`, so the commit that was checked is the commit
+that is published.
+
+**The invariant, stated at the top of the workflow:** `id-token: write` exists
+in exactly one job, and that job runs no test, project script, scaffolded kit or
+third-party module. Any process in that job can request an OIDC token and
+publish as `@lockness`. `publish` takes only the _verdict_ of `gate` and `kits`
+through `needs:`. Never add `actions/cache`, `upload-artifact`,
+`download-artifact` or job outputs that cross into it — a tag-triggered run can
+restore caches `test.yml` wrote. A new check goes into `gate` (via
+`scripts/gate.ts`) or a job of its own that `publish` needs, never into
+`publish`.
 
 > Both workflows use `deno-version: v2.x`. Bump with caution — pin a specific
 > minor if you need stability.
@@ -66,10 +84,9 @@ mechanics each step delegates to, not a second procedure.
 
 /ship step 3 → publish selected → release: published
    └─ .github/workflows/publish.yml
-         ├─ deno fmt --check
-         ├─ deno lint
-         ├─ deno task test -A
-         └─ deno publish                ← JSR
+         ├─ gate     deno task gate --registry        ┐ parallel, no id-token
+         ├─ kits     deno task kits:smoke --registry  ┘
+         └─ publish  needs [gate, kits] → deno publish  ← JSR (id-token: write)
 ```
 
 Default `--bump patch`. `bump-native.ts` reads the current version from
@@ -122,7 +139,7 @@ release mechanism predates the migration.
 | `tag.sh` exits "deno task bump produced no file changes"  | the bump ran but couldn't find the version field, or is already at target  | Re-run `deno task bump --patch` manually and inspect                                |
 | `publish.yml` doesn't trigger                             | Release not in "published" state (still draft), or workflow file edited    | `gh release view vX.Y.Z --json isDraft`; check `on: release: types: [published]`. A draft is promoted only by `/ship` step 3(e) — never from the GitHub UI |
 | `publish.yml` runs but `deno publish` fails on auth       | Trusted publishing not configured, or `id-token: write` permission missing | `.github/workflows/publish.yml` permissions block; JSR package "Trusted publishers" |
-| `publish.yml` fails on `deno fmt --check`                 | Drift slipped past local hook                                              | Run `deno fmt` locally on the bump commit, force-push not possible — open a new tag |
+| `publish.yml`'s `gate` or `kits` job is red, `publish` skipped | A gate step or a kit boot fails on the tagged commit (drift that slipped past the local hook, or a kit-only break) | Re-run `deno task gate --registry` / `deno task kits:smoke --registry` locally on the tag; fix on `main` and cut a new tag — a pushed tag is never amended |
 
 ## Deployment options
 
@@ -159,8 +176,9 @@ Multi-stage Dockerfile, runs as non-root, includes health check.
 
 ## Gotchas
 
-- The `publish.yml` workflow needs `id-token: write` permission for JSR's
-  trusted publishing — do not remove it.
+- The `publish.yml` `publish` job needs `id-token: write` for JSR's trusted
+  publishing — do not remove it, and do not grant it to any other job or add a
+  step to that job (#476).
 - Stubs reference `@lockness/...@^X.Y.Z`. After a bump, verify the `^`/`~`
   semantics are still intended; the bump script preserves them.
 - `deno.lock` is generated and managed by Deno. Never edit by hand.

@@ -287,9 +287,12 @@ async function main(): Promise<void> {
 
         // The lockfile records every member's `@lockness/*` range, so a bump
         // leaves it naming the previous version. Left out of the release
-        // commit, the first deno command on the tagged tree rewrites it —
-        // publish.yml's gate does exactly that — and `deno publish` then
-        // aborts on the dirty tree. v0.4.0's first publish failed this way.
+        // commit, the first deno command on the tagged tree rewrites it.
+        // v0.4.0's first publish failed this way: publish.yml's gate shared
+        // a job with `deno publish`, dirtied the tree, and the publish
+        // aborted. The gate now runs in a job of its own (#476), but
+        // `deno publish` still resolves the graph to type-check, so the
+        // release commit must carry a lockfile that matches its versions.
         const lockCode = await refreshLockfile()
         if (lockCode !== 0) {
             console.error(
