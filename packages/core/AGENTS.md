@@ -21,6 +21,10 @@ This brief does not repeat it.
 - **A soft dependency is never declared in `deno.json`.** The consuming
   application installs it, or the feature stays off. Declaring one would make an
   optional package mandatory for every consumer.
+- **Core publishes no `.tsx`.** A JSR `.tsx` is transpiled with the consuming
+  app's `jsxImportSource` under `"jsx": "precompile"`, so one `.tsx` here broke
+  every app without JSX at load (#470). Markup is written with `html` / `raw`
+  from `@lockness/hono` (see `exceptions/default_view.ts`).
 - **Bootstrap steps are ordered, and the order is load-bearing.** Controllers
   are built at step 550; anything that needs them must run after it.
 
@@ -86,7 +90,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-47 test files for 71 source files:
+48 test files for 71 source files:
 
 - `packages/core/cli/tests/ssg_command.test.ts`
 - `packages/core/ssg/tests/build.test.ts`
@@ -105,6 +109,7 @@ Anything not listed is internal and free to change.
 - `packages/core/tests/database_step.test.ts`
 - `packages/core/tests/declare_middleware.test.ts`
 - `packages/core/tests/declare_middleware_integration.test.ts`
+- `packages/core/tests/default_view.test.ts`
 - `packages/core/tests/environment.test.ts`
 - `packages/core/tests/events_debug_step.test.ts`
 - `packages/core/tests/events_reachability.test.ts`
@@ -149,7 +154,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 47 test files directly —
+Then, specific to this package: run its 48 test files directly —
 
 ```bash
 deno test -A packages/core/
