@@ -96,7 +96,7 @@
         "devtools": {
             "tier": "implementation",
             "allow": ["hono", "contract", "events", "session"],
-            "jsx": "KNOWN DEFECT, not a justification: an app without JSX that enables devtools (the slim kit with devtools: true) fails to load these .tsx the same way core did. Tracked as the #470 follow-up (devtools .tsx in no-JSX apps): convert devtools to .ts, or withdraw the no-JSX devtools claim."
+            "jsx": "KNOWN DEFECT, not a justification: an app without JSX that enables devtools (the slim kit with devtools: true) fails to load these .tsx the same way core did. Tracked as #471: convert devtools to .ts, or withdraw the no-JSX devtools claim."
         },
         "drizzle": {
             "tier": "implementation",
