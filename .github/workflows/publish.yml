@@ -5,7 +5,34 @@ on:
         types: [published]
 
 jobs:
+    # Structural gate (#470): every starter kit must boot from the bundles
+    # `deno publish` produces for this exact commit, served by a
+    # localhost-only JSR registry, before anything reaches jsr.io. A job of
+    # its own, with no id-token, so the OIDC credential never exists in a job
+    # that runs scaffolded code. `publish` needs it, so a red kit publishes
+    # nothing.
+    kits:
+        name: Boot every kit from a local deno publish
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+              with:
+                  persist-credentials: false
+
+            - name: Setup Deno
+              uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2
+              with:
+                  deno-version: v2.x
+
+            - name: Publish locally, then scaffold and boot every kit
+              run: deno task kits:smoke --registry
+
     publish:
+        needs: kits
         runs-on: ubuntu-latest
         permissions:
             contents: read

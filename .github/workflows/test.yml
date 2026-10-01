@@ -271,3 +271,14 @@ jobs:
             # purpose.
             - name: Scaffold, check, test and boot every kit
               run: deno task kits:smoke
+
+            # The same kits, booted from what `deno publish` would upload
+            # rather than from the raw source (#470): HEAD is published into a
+            # localhost-only JSR registry (scripts/local_jsr.ts) with a fake
+            # token, each kit is scaffolded from jsr:@lockness/init and booted
+            # with a fresh DENO_DIR, and an unknown path must answer an HTML
+            # 404. The step above passed while v0.4.0's api kit could not
+            # start. About 20s locally. No secret and no network listener
+            # beyond 127.0.0.1.
+            - name: Boot every kit from a local deno publish
+              run: deno task kits:smoke --registry
