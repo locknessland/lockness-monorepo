@@ -26,6 +26,7 @@ import { ControllerDiscovery } from '../routing/discovery.ts'
 import { discoverListeners } from '../events/listener_discovery.ts'
 import { loadControllers } from '../ssg/enumerate.ts'
 import { loadKernel } from '../cli/ssg_command.ts'
+import { loadCompileKernel } from '../cli/compile_command.ts'
 
 /** A directory name holding both characters `file://${…}` mis-parses. */
 const AWKWARD = 'app#dir with space'
@@ -226,5 +227,26 @@ export class AppKernel { static [KERNEL_CONFIG] = { staticDir: 'public' } }
     }, async ({ abs }) => {
         const kernel = await loadKernel(abs)
         assertEquals(kernel?.config.staticDir, 'public')
+    })
+})
+
+Deno.test("loadCompileKernel (compile) - imports the kernel under a path with '#' and a space", async () => {
+    const decorators = import.meta.resolve('../kernel/kernel_decorators.ts')
+    await withAwkwardDir({
+        'app/kernel.tsx': `
+import { KERNEL_CONFIG } from '${decorators}'
+export class AppKernel {
+    static [KERNEL_CONFIG] = { compile: { output: '_dist/awkward' } }
+}
+`,
+    }, async ({ abs }) => {
+        const kernel = await loadCompileKernel(abs)
+        assertEquals(kernel?.compile?.output, '_dist/awkward')
+    })
+})
+
+Deno.test('loadCompileKernel (compile) - an app with no kernel file loads nothing', async () => {
+    await withAwkwardDir({}, async ({ abs }) => {
+        assertEquals(await loadCompileKernel(abs), undefined)
     })
 })

@@ -12,7 +12,10 @@
 
 import { dirname, join, relative } from '@std/path'
 import { copy, ensureDir, exists, walk } from '@std/fs'
-import { KERNEL_CONFIG } from '../kernel/kernel_decorators.ts'
+import {
+    KERNEL_CONFIG,
+    type KernelConfig,
+} from '../kernel/kernel_decorators.ts'
 import { importAppFile } from '@lockness/contract'
 import { generateRoutesFile } from '../routing/generator.ts'
 
@@ -31,6 +34,37 @@ export interface CommandContract {
     handle(ctx: CommandContext): Promise<void>
 }
 
+/** The kernel file `compile` reads its config from, relative to the app root. */
+const COMPILE_KERNEL = join('app', 'kernel.tsx')
+
+/**
+ * Load the `@Kernel` config `compile` reads, from the app's `app/kernel.tsx`.
+ *
+ * @param root - The app root. Defaults to the working directory.
+ * @returns The kernel's config, or `undefined` when the file does not exist.
+ * @throws When the file fails to load, or declares no `@Kernel` class.
+ * @internal Exported for tests.
+ *
+ * @example
+ * ```ts
+ * const config = await loadCompileKernel()
+ * config?.compile?.output // '_dist/lockness' unless configured
+ * ```
+ */
+export async function loadCompileKernel(
+    root: string = Deno.cwd(),
+): Promise<KernelConfig | undefined> {
+    const kernelPath = join(root, COMPILE_KERNEL)
+    if (!(await exists(kernelPath))) return undefined
+    const module = await importAppFile(kernelPath)
+    for (const value of Object.values(module)) {
+        const config = (value as { [KERNEL_CONFIG]?: KernelConfig } | null)
+            ?.[KERNEL_CONFIG]
+        if (config !== undefined) return config
+    }
+    throw new Error(`No @Kernel decorated class found in ${COMPILE_KERNEL}`)
+}
+
 export class CompileCommand implements CommandContract {
     // We'll use a property instead of decorator to avoid dependency on CLI package
     static readonly _commandName = 'compile'
@@ -40,27 +74,13 @@ export class CompileCommand implements CommandContract {
     async handle(_ctx: CommandContext): Promise<void> {
         console.log('🚀 Orchestrating binary compilation...')
 
-        // 1. Find and load the Kernel
-        const kernelPath = join(Deno.cwd(), 'app', 'kernel.tsx')
-        if (!(await exists(kernelPath))) {
-            console.error(`❌ Kernel file not found at ${kernelPath}`)
-            return
-        }
-
         try {
-            const module = await importAppFile(kernelPath)
-            const KernelClass = Object.values(module).find(
-                (m: any) => m && m[KERNEL_CONFIG],
-            ) as any
-
-            if (!KernelClass) {
-                console.error(
-                    '❌ No @Kernel decorated class found in app/kernel.tsx',
-                )
+            // 1. Find and load the Kernel
+            const kernelConfig = await loadCompileKernel()
+            if (kernelConfig === undefined) {
+                console.error(`❌ Kernel file not found at ${COMPILE_KERNEL}`)
                 return
             }
-
-            const kernelConfig = KernelClass[KERNEL_CONFIG]
             const config = kernelConfig.compile || {}
             const output = config.output || '_dist/lockness'
             const assets = config.assets || []
