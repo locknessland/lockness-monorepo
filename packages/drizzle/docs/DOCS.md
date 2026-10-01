@@ -544,8 +544,8 @@ before it reads the config or connects.
   which is why its message points at the variable.
 - `dbCredentials.url` is not empty but **names no database**. A driver falls
   back to a default target here too: postgres.js connects to `PGDATABASE`, or to
-  a database named after the OS user, and libsql opens a throwaway temporary
-  database. It is what
+  a database named after the connecting user (the URL's username, or the OS
+  user), and libsql opens a throwaway temporary database. It is what
   `` url: `postgres://localhost:5432/${Deno.env.get('DB_NAME') ?? ''}` `` yields
   with the variable unset, so the message points at the variable the name is
   built from, and quotes nothing from the URL.
