@@ -128,11 +128,34 @@ does not detect schema drift):
 deno task cli db:status
 ```
 
-**Drop all tables and re-migrate:**
+**Empty the database and apply every migration from scratch:**
 
 ```bash
 deno task cli db:fresh
 ```
+
+`db:fresh` reads `drizzle.config.ts` (`dialect`, `out`, `dbCredentials.url`,
+`migrations.table`, `migrations.schema`, `schemaFilter`), then empties a managed
+scope and runs drizzle-orm's own migrator, in one process on one connection. It
+spawns nothing, never prompts, and never writes to the migrations folder. It
+drops:
+
+| Dialect         | What is dropped                                                                                                                                   |
+| :-------------- | :------------------------------------------------------------------------------------------------------------------------------------------------ |
+| sqlite / libsql | every table and view of the main database (not `sqlite_%`, `libsql_%`), in one write batch                                                        |
+| mysql           | every table and view of `DATABASE()`, the bookkeeping table included. Not atomic: MySQL DDL auto-commits                                          |
+| postgres        | every table, view, sequence, type and routine in `schemaFilter` (default `public`), plus the bookkeeping table. One transaction; schemas are kept |
+
+On postgres, extension members are kept, and a closing check rolls everything
+back if a `CASCADE` reached anything outside the scope.
+
+It is refused in production unless you pass `--allow-production`, the same guard
+as `db:seed`. It is also refused, before anything is dropped, when the config
+cannot be loaded, has no `out`, holds `dbCredentials` other than `url` or names
+a `driver`; when the migrations journal or a file it lists is missing; when the
+driver has no schema-maintenance support; when MySQL has no database selected;
+and, on postgres, when a migration creates a schema outside `schemaFilter`.
+There is no countdown any more.
 
 **Push schema (no migrations):**
 
@@ -168,7 +191,7 @@ deno task cli db:migrate && deno task start
 | `db:generate`, `db:migrate`, `db:push`, `db:studio` | the `drizzle-kit` subcommand exits non-zero                                                           |
 | `db:status`                                         | `drizzle-kit check` exits non-zero (it validates the migrations folder only)                          |
 | `db:check`                                          | the client cannot be configured or the `SELECT 1` probe fails                                         |
-| `db:fresh`                                          | the drop fails (migrations are then not run) or the migrate step fails                                |
+| `db:fresh`                                          | it is refused, the reset fails (migrations are then not run), or the migrate step fails               |
 | `db:seed`                                           | production without `--allow-production`, no client, no seeder to load, or the seeder's `run()` throws |
 
 Details: [docs/DOCS.md](docs/DOCS.md#exit-codes).
@@ -416,7 +439,8 @@ await db.instance.transaction(async (tx) => {
 ## Dependencies
 
 - `drizzle-orm` - ORM library
-- `drizzle-kit` - CLI tools for migrations
+- `drizzle-kit` - CLI tools for migrations, pinned to exactly `0.31.10` (the
+  `db:*` commands run it, and `install.ts` maps it in your `deno.json`)
 - `drizzle-zod` - Zod schema generation
 - `postgres` - PostgreSQL client
 

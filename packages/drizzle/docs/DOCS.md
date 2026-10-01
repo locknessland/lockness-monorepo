@@ -449,12 +449,58 @@ deno task cli db:migrate
 # Check the migrations folder for consistency (not schema drift)
 deno task cli db:status
 
-# Drop all tables and re-migrate
+# Empty the managed scope and apply every migration (see below)
 deno task cli db:fresh
 
 # Push schema without migrations (dev only)
 deno task cli db:push
 ```
+
+### `db:fresh`
+
+`db:fresh` resets and migrates in one process, over one connection. It reads
+`drizzle.config.ts` — `dialect`, `out`, `dbCredentials.url`, `migrations.table`,
+`migrations.schema` and `schemaFilter` — empties a managed scope, then runs
+drizzle-orm's own migrator on the same connection. It spawns no process and
+calls no prompt API, so it behaves the same with or without a TTY. The
+migrations folder is only read. There is no countdown.
+
+"Fresh" empties a **managed scope**, not "what the migrations created":
+
+| Dialect         | Scope                                                                                     | How                                                                                                                                     |
+| :-------------- | :---------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------- |
+| sqlite / libsql | every table and view of `main`, except `sqlite_%` and `libsql_%`                          | one write batch: `PRAGMA defer_foreign_keys = ON`, the views, then the tables. Atomic                                                   |
+| mysql           | every table and view of `DATABASE()`, the bookkeeping table included                      | a dedicated connection, destroyed afterwards: `FOREIGN_KEY_CHECKS` off, the drops, checks back on. Not atomic: MySQL DDL auto-commits   |
+| postgres        | the tables, views, sequences, types and routines in `schemaFilter` (default `['public']`) | one transaction: the bookkeeping table, then each object `CASCADE`, keeping its schema; a closing check rolls back an escaped `CASCADE` |
+
+On postgres, extension members (postgis, pgcrypto, vector…) and sequences owned
+by a column are not dropped directly. A schema is dropped only when a migration
+creates it with a plain `CREATE SCHEMA`. The bookkeeping table is
+`"<migrations.schema>"."<migrations.table>"`, `"drizzle"."__drizzle_migrations"`
+by default. Roles, extensions, collations, operators, text-search configs,
+publications and event triggers survive, and so do MySQL procedures, functions
+and events.
+
+**Guard.** Like `db:seed`, `db:fresh` refuses a production environment
+(`DENO_ENV`/`APP_ENV` is `production`) unless `--allow-production` is passed,
+before it reads the config or connects.
+
+**Refusals.** Each one happens before anything is dropped, and each ends with
+"Nothing was dropped.":
+
+- `drizzle.config.ts` cannot be imported; `out` is not set; `dbCredentials`
+  holds anything besides `url`; a `driver` is set; or the dialect is not
+  `postgresql`, `mysql`, `sqlite` or `turso`.
+- The migrations journal (`meta/_journal.json`), or a file it lists, is missing:
+  a database is never wiped that could not then be migrated.
+- The driver offers no schema maintenance (a custom `DriverFactory` need not).
+- MySQL: the connection has no database selected (`DATABASE()` is `NULL`).
+- postgres: a migration creates a schema outside `schemaFilter`, or a schema to
+  drop holds extension members.
+
+`db:fresh` prints one line naming the dialect and the scope — never the DSN.
+`db:migrate` still runs `drizzle-kit migrate`, which accepts credential forms
+that `db:fresh` refuses.
 
 ### Database Commands
 
@@ -490,7 +536,7 @@ A failure is printed once on stderr as `❌ <message>`; for the commands that ru
 | `db:studio`   | `drizzle-kit studio` exits non-zero                                                                                                                                                                                              |
 | `db:status`   | `drizzle-kit check` exits non-zero. It validates the migrations folder only (snapshot versions, malformed snapshots, collisions); it reads neither the schema nor the database, so it reports no drift and no pending migrations |
 | `db:check`    | the client cannot be configured, or the `SELECT 1` probe fails. The message ends with a hint to check `DATABASE_URL`                                                                                                             |
-| `db:fresh`    | the drop fails — migrations are then **not** run — or the migrate step fails                                                                                                                                                     |
+| `db:fresh`    | it is refused (see [`db:fresh`](#dbfresh)), the reset fails — migrations are then **not** run — or the migrate step fails                                                                                                        |
 | `db:seed`     | the environment is production without `--allow-production`, the client cannot be configured, the seeder file is missing or exports no seeder, or the seeder's own `run()` throws (printed with its stack)                        |
 
 ## Advanced Queries
@@ -948,6 +994,6 @@ it, and polling it keeps a scale-to-zero database awake.
 ## Dependencies
 
 - `drizzle-orm` - ORM library
-- `drizzle-kit` - CLI tools
+- `drizzle-kit` - CLI tools, pinned to exactly `0.31.10`
 - `drizzle-zod` - Zod schema generation
 - `postgres` - PostgreSQL client
