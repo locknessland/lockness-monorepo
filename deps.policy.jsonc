@@ -15,6 +15,12 @@
 //   deliberately NOT declared in the package's own `deno.json`: the consuming
 //   application installs it, or the feature stays off.
 //
+// `runtimeImports` — the exhaustive inventory of sites `deno publish` names
+//   unanalysable: a non-literal `import(spec)` or `import.meta.resolve(spec)`.
+//   No graph sees them, so they cannot be declared. Per file, the site
+//   count and the reason it must stay computed. `deno task publish:check`
+//   compares it with the workspace dry-run and fails on any drift (#463).
+//
 // Widening this file is a `chore(deps)` commit of its own — never bundled with
 // the change that needed the widening.
 {
@@ -50,7 +56,33 @@
         },
         "cli": {
             "tier": "implementation",
-            "allow": ["contract", "queue", "events"]
+            "allow": ["contract", "queue", "events"],
+            "runtimeImports": {
+                "commands/queue_commands.ts": {
+                    "sites": 1,
+                    "reason": "queue:work loads each job file found in the user app's app/job at runtime"
+                },
+                "commands/router_commands.ts": {
+                    "sites": 1,
+                    "reason": "router:list loads each controller file found in the user app's app/controller"
+                },
+                "commands/tinker_command.ts": {
+                    "sites": 2,
+                    "reason": "tinker loads the user app's model, service and repository files, then its app/kernel.ts, into the REPL"
+                },
+                "core_commands.ts": {
+                    "sites": 1,
+                    "reason": "package:install loads <package>/install for a package name the user types"
+                },
+                "mod.ts": {
+                    "sites": 1,
+                    "reason": "Cli.discoverCommands loads each *_command file of a directory the caller names"
+                },
+                "package_loader.ts": {
+                    "sites": 1,
+                    "reason": "loads each package named in the user app's lockness.packages config; the app installs it"
+                }
+            }
         },
         "deprecation-contracts": { "tier": "implementation", "allow": [] },
         "devtools": {
@@ -59,7 +91,13 @@
         },
         "drizzle": {
             "tier": "implementation",
-            "allow": ["cli", "container", "contract"]
+            "allow": ["cli", "container", "contract"],
+            "runtimeImports": {
+                "migration_settings.ts": {
+                    "sites": 1,
+                    "reason": "loads the user app's drizzle.config.ts from the working directory, the file drizzle-kit reads"
+                }
+            }
         },
         "events": { "tier": "implementation", "allow": ["contract", "hono"] },
         // `features` and `search` are pure-logic sinks: flag resolution /
@@ -82,7 +120,13 @@
         "mail": {
             "tier": "implementation",
             "allow": [],
-            "soft": ["markdown", "queue"]
+            "soft": ["markdown", "queue"],
+            "runtimeImports": {
+                "optional.ts": {
+                    "sites": 1,
+                    "reason": "tryImport's default importer loads the soft markdown or queue backing; a variable keeps the edge soft"
+                }
+            }
         },
         "markdown": { "tier": "implementation", "allow": ["hono"] },
         // `notification` is a pure sink: nothing imports it, so it cannot close
@@ -94,7 +138,13 @@
         "notification": {
             "tier": "implementation",
             "allow": ["contract", "container"],
-            "soft": ["mail", "queue", "logger", "sse", "drizzle"]
+            "soft": ["mail", "queue", "logger", "sse", "drizzle"],
+            "runtimeImports": {
+                "optional.ts": {
+                    "sites": 1,
+                    "reason": "tryImport's default importer loads a soft channel backing package; a variable keeps the edge soft"
+                }
+            }
         },
         "openapi": {
             "tier": "implementation",
@@ -115,7 +165,13 @@
         "realtime": {
             "tier": "implementation",
             "allow": ["contract", "deprecation-contracts", "hono", "redis"],
-            "soft": ["events"]
+            "soft": ["events"],
+            "runtimeImports": {
+                "events_bridge.ts": {
+                    "sites": 1,
+                    "reason": "soft-loads @lockness/events through a variable, so the edge stays soft"
+                }
+            }
         },
         "scheduler": { "tier": "implementation", "allow": [] },
         "session": {
@@ -141,13 +197,31 @@
         // does NOT import `ui` back (its default component map is plain HTML);
         // the styled map lives here in `ui/markdown.tsx`. The former cycle
         // (#127) is retired — do not re-add `ui` to `markdown`'s allow.
-        "ui": { "tier": "implementation", "allow": ["hono", "markdown"] },
+        "ui": {
+            "tier": "implementation",
+            "allow": ["hono", "markdown"],
+            "runtimeImports": {
+                "doc_loader.ts": {
+                    "sites": 1,
+                    "reason": "loads a component's examples.tsx from a components directory on disk, the development fallback"
+                }
+            }
+        },
         "upgrade": { "tier": "implementation", "allow": [] },
         "validator": { "tier": "implementation", "allow": ["hono"] },
         // `vite` is framework-agnostic build tooling: the SSR bridge takes
         // `App.fetch()` by injection, so it imports NOTHING from the workspace
         // (`allow: []`) and `core` never imports it — the DAG stays acyclic.
-        "vite": { "tier": "implementation", "allow": [] },
+        "vite": {
+            "tier": "implementation",
+            "allow": [],
+            "runtimeImports": {
+                "src/plugins/deno.ts": {
+                    "sites": 1,
+                    "reason": "import.meta.resolve of an npm: or https: specifier Vite asks the Deno resolver plugin about"
+                }
+            }
+        },
 
         // ---- Orchestration: the only package a user application imports.
         "core": {
@@ -179,7 +253,33 @@
                 "redis",
                 "session",
                 "telemetry"
-            ]
+            ],
+            "runtimeImports": {
+                "events/listener_discovery.ts": {
+                    "sites": 1,
+                    "reason": "discoverListeners loads each listener file found under the user app's directory"
+                },
+                "exceptions/handler.ts": {
+                    "sites": 1,
+                    "reason": "loads the user app's custom error handler file when it exists"
+                },
+                "kernel/bootstrap/helpers.ts": {
+                    "sites": 1,
+                    "reason": "tryImportOptionalPackage loads the soft-edge packages listed under soft; the name is an argument"
+                },
+                "routing/discovery.ts": {
+                    "sites": 1,
+                    "reason": "controller discovery loads each controller file found in the user app"
+                },
+                "scheduler/schedule_discovery.ts": {
+                    "sites": 1,
+                    "reason": "schedule discovery loads each task file found in the user app"
+                },
+                "ssg/enumerate.ts": {
+                    "sites": 1,
+                    "reason": "static generation loads each controller file to find the @Static ones"
+                }
+            }
         }
     }
 }
