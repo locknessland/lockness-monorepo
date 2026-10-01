@@ -61,7 +61,7 @@
  * @module
  */
 
-import { dirname, join } from '@std/path'
+import { dirname, join, toFileUrl } from '@std/path'
 import { parse as parseJsonc } from '@std/jsonc'
 import { parse, parseRange, satisfies } from '@std/semver'
 
@@ -512,32 +512,421 @@ export function classifyCheck(
 }
 
 /**
- * The verdict for a whole run over the resolution results.
+ * The verdict for a whole run over the resolution results and the runtime
+ * import inventory.
  *
  * @param results - One result per package.
+ * @param runtimeFaults - Faults from the workspace dry-run and the runtime
+ *   import inventory ({@link runtimeImportFaults}); defaults to none.
  * @returns The exit code, and the lines to print — the success line appears
  *   only when the code is `0`, so the log can never contradict the exit status.
  * @example
  * ```ts
  * resolutionVerdict([{ name: 'core', ok: false, detail: 'x' }]).code   // 1
+ * resolutionVerdict([], ['cli/mod.ts: not inventoried']).code           // 1
  * ```
  */
 export function resolutionVerdict(
     results: Result[],
+    runtimeFaults: readonly string[] = [],
 ): { code: 0 | 1; lines: string[] } {
     const failed = results.filter((r) => !r.ok)
-    if (failed.length > 0) {
-        return {
-            code: 1,
-            lines: [
+    if (failed.length > 0 || runtimeFaults.length > 0) {
+        const lines: string[] = []
+        if (failed.length > 0) {
+            lines.push(
                 `\n❌ ${failed.length} package(s) do not resolve standalone: ${
                     failed.map((r) => r.name).join(', ')
                 }`,
                 "   Fix each ❌ above. An undeclared import is declared in that package's own deno.json.",
-            ],
+            )
         }
+        if (runtimeFaults.length > 0) {
+            lines.push(
+                `\n❌ ${runtimeFaults.length} runtime-import fault(s) in the workspace dry-run:`,
+                ...runtimeFaults.map((fault) => `   ${fault}`),
+                '   A non-literal import() or import.meta.resolve() is inventoried, with a reason,',
+                '   under that package\'s "runtimeImports" in deps.policy.jsonc.',
+            )
+        }
+        return { code: 1, lines }
     }
     return { code: 0, lines: ['\n✅ Every package resolves standalone'] }
+}
+
+// ---- Rule A: dynamic edges, as Deno resolves them (#463) ------------------
+
+/**
+ * One faulty dynamic `import()` in a staged package, as Deno's module graph
+ * reports it.
+ */
+export interface DynamicImportFault {
+    /** The importing file, relative to the staged package root (POSIX). */
+    file: string
+    /** The 1-based line the specifier sits on. */
+    line: number
+    /** The specifier exactly as written in the source. */
+    specifier: string
+    /** What is wrong, for the log — never the basis of the verdict. */
+    reason: string
+}
+
+/** The file the dynamic-edge pass hands to `deno info`; never published. */
+export const GRAPH_ROOT_FILE = '.lockness-graph-root.ts'
+
+/**
+ * A plain-object guard for walking untyped JSON.
+ *
+ * @param value - Anything.
+ * @returns Whether it is a non-null, non-array object.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+/**
+ * Every dynamic edge of a staged package whose resolution Deno marks as
+ * failed, read from `deno info --json` over that package's graph root.
+ *
+ * `deno check` never fails on a dynamic import it cannot resolve (measured on
+ * Deno 2.9.6: an undeclared sibling, an undeclared third-party package and a
+ * non-exported subpath all exit 0, even with `--all`), so the declaration owner
+ * had a hole exactly where lazy drivers live. `deno info` records the failure
+ * as data. **The verdict is the presence of an `error` field** — on the edge
+ * itself (`code.error`) or on the module the edge resolved to — never a message
+ * match; the message only names the fault, so a reworded Deno error stays red.
+ *
+ * Only modules under `stagedRoot` are walked, and only their `isDynamic`
+ * edges: static edges belong to `deno check`, which already fails on them, and
+ * edges that start inside third-party modules are not this package's to fix.
+ *
+ * @param info - The parsed `deno info --json` output, unvalidated.
+ * @param stagedRoot - The staged package directory, as an absolute real path
+ *   (Deno reports canonical paths, so a symlinked temp dir must be resolved).
+ * @returns One fault per failed dynamic edge, empty when every one resolves.
+ * @throws {Error} When `info` is not a module graph (`unrecognised graph
+ *   failure`): a shape this function cannot read must never read as clean.
+ * @example
+ * ```ts
+ * const info = JSON.parse(stdoutOfDenoInfo)
+ * dynamicImportFaults(info, '/tmp/lockness-publish-x/root/drizzle')
+ * // -> [{ file: 'drivers.ts', line: 368, specifier: 'x', reason: 'undeclared dynamic import' }]
+ * ```
+ */
+export function dynamicImportFaults(
+    info: unknown,
+    stagedRoot: string,
+): DynamicImportFault[] {
+    if (!isRecord(info) || !Array.isArray(info.modules)) {
+        throw new Error(
+            'unrecognised graph failure: deno info --json returned no modules',
+        )
+    }
+    const rootUrl = toFileUrl(stagedRoot).href.replace(/\/?$/, '/')
+    const graphRootUrl = `${rootUrl}${GRAPH_ROOT_FILE}`
+    const undeclaredUrl = `${rootUrl}${UNDECLARED_DIR}/`
+
+    const moduleErrors = new Map<string, string>()
+    for (const module of info.modules) {
+        if (
+            isRecord(module) && typeof module.specifier === 'string' &&
+            typeof module.error === 'string'
+        ) {
+            moduleErrors.set(module.specifier, module.error)
+        }
+    }
+    const redirects = isRecord(info.redirects) ? info.redirects : {}
+    const targetError = (specifier: string): string | undefined => {
+        const redirected = redirects[specifier]
+        return moduleErrors.get(specifier) ??
+            (typeof redirected === 'string'
+                ? moduleErrors.get(redirected)
+                : undefined)
+    }
+
+    const faults: DynamicImportFault[] = []
+    for (const module of info.modules) {
+        if (!isRecord(module) || typeof module.specifier !== 'string') continue
+        const from = module.specifier
+        if (!from.startsWith(rootUrl) || from === graphRootUrl) continue
+        if (from.startsWith(undeclaredUrl)) continue
+        if (!Array.isArray(module.dependencies)) continue
+        const file = decodeURIComponent(from.slice(rootUrl.length))
+
+        for (const dependency of module.dependencies) {
+            if (!isRecord(dependency) || dependency.isDynamic !== true) continue
+            const specifier = typeof dependency.specifier === 'string'
+                ? dependency.specifier
+                : '<unknown>'
+            const code = isRecord(dependency.code) ? dependency.code : {}
+            const span = isRecord(code.span) ? code.span : {}
+            const start = isRecord(span.start) ? span.start : {}
+            const line = typeof start.line === 'number' ? start.line + 1 : 0
+
+            let reason: string | undefined
+            if (typeof code.error === 'string') {
+                reason = /not a dependency/.test(code.error)
+                    ? 'undeclared dynamic import'
+                    : `unresolved dynamic import: ${firstLine(code.error)}`
+            } else if (typeof code.specifier === 'string') {
+                const error = targetError(code.specifier)
+                if (error !== undefined) {
+                    reason = describeTarget(code.specifier, error, rootUrl)
+                }
+            }
+            if (reason !== undefined) {
+                faults.push({ file, line, specifier, reason })
+            }
+        }
+    }
+    return faults
+}
+
+/**
+ * Name a dynamic edge whose target module failed to load.
+ *
+ * @param target - The `file:` (or other) URL the edge resolved to.
+ * @param error - The target module's `error` field.
+ * @param rootUrl - The staged package root, as a `file:` URL ending in `/`.
+ * @returns The fault reason.
+ */
+function describeTarget(
+    target: string,
+    error: string,
+    rootUrl: string,
+): string {
+    const sentinel = target.startsWith(`${rootUrl}${UNDECLARED_DIR}/`)
+        ? /^(@[^/]+\/[^/]+)/.exec(
+            decodeURIComponent(
+                target.slice(`${rootUrl}${UNDECLARED_DIR}/`.length),
+            ),
+        )
+        : null
+    if (sentinel) return `undeclared dynamic import: ${sentinel[1]}`
+    if (target.startsWith(rootUrl)) {
+        return `missing from publish.include: ${
+            decodeURIComponent(target.slice(rootUrl.length))
+        }`
+    }
+    return `unresolved dynamic import: ${firstLine(error)}`
+}
+
+/**
+ * The first non-empty line of a message.
+ *
+ * @param text - A possibly multi-line message.
+ * @returns Its first non-empty line, trimmed.
+ */
+function firstLine(text: string): string {
+    return text.split('\n').map((l) => l.trim()).find((l) => l !== '') ?? text
+}
+
+/**
+ * Format a dynamic-import fault for the per-package log line.
+ *
+ * @param fault - The fault.
+ * @returns `<file>:<line>: <reason> — import('<specifier>')`.
+ * @example
+ * ```ts
+ * formatDynamicFault({ file: 'mod.ts', line: 2, specifier: 'x', reason: 'undeclared dynamic import' })
+ * // -> "mod.ts:2: undeclared dynamic import — import('x')"
+ * ```
+ */
+export function formatDynamicFault(fault: DynamicImportFault): string {
+    return `${fault.file}:${fault.line}: ${fault.reason} — import('${fault.specifier}')`
+}
+
+// ---- Rule B: the runtime-import inventory (#463) --------------------------
+
+/** The dry-run diagnostic codes that name a site Deno cannot analyse. */
+const RUNTIME_IMPORT_CODES = new Set([
+    'unanalyzable-dynamic-import',
+    'unanalyzable-import-meta-resolve',
+])
+
+/**
+ * What the workspace `deno publish --dry-run` reported, sorted into the sites
+ * the inventory accounts for and every other diagnostic.
+ */
+export interface DryRunDiagnostics {
+    /**
+     * Unanalysable runtime-import sites per package directory, then per file
+     * relative to it: `{ cli: { 'mod.ts': 1 } }`.
+     */
+    sites: Record<string, Record<string, number>>
+    /**
+     * Every other `warning[…]` / `error[…]` diagnostic, or an unanalysable
+     * site outside `packages/`, as `<level>[<code>] at <location>`.
+     */
+    other: string[]
+}
+
+/**
+ * Parse the diagnostics of a workspace `deno publish --dry-run` (stderr, ANSI
+ * included or not).
+ *
+ * Each diagnostic opens with `warning[<code>]` or `error[<code>]` at the start
+ * of a line and names its site on the next `--> <path>:<line>:<col>` line. The
+ * two codes for a site Deno cannot analyse are counted per package and file;
+ * any other code is collected verbatim, because the verdict has to see it.
+ * Deno's own box of deprecated npm packages carries no code and is not a
+ * diagnostic.
+ *
+ * @param dryRunOutput - The dry-run's combined output.
+ * @param root - The workspace root, as an absolute real path.
+ * @returns The sorted diagnostics.
+ * @example
+ * ```ts
+ * runtimeImportSites(
+ *     'warning[unanalyzable-dynamic-import]: unable to analyze dynamic import\n' +
+ *         '  --> /w/packages/cli/mod.ts:321:53\n',
+ *     '/w',
+ * )
+ * // -> { sites: { cli: { 'mod.ts': 1 } }, other: [] }
+ * ```
+ */
+export function runtimeImportSites(
+    dryRunOutput: string,
+    root: string,
+): DryRunDiagnostics {
+    const lines = stripAnsi(dryRunOutput).split('\n')
+    const packagesPrefix = `${root.replace(/[\\/]+$/, '')}/packages/`
+    const sites: Record<string, Record<string, number>> = {}
+    const other: string[] = []
+
+    for (let i = 0; i < lines.length; i++) {
+        const header = /^(warning|error)\[([A-Za-z0-9_-]+)\]/.exec(lines[i])
+        if (!header) continue
+        const [, level, code] = header
+        let location: string | undefined
+        for (let j = i + 1; j < lines.length; j++) {
+            if (/^(warning|error)\[/.test(lines[j])) break
+            const arrow = /^\s*-->\s+(.+?)\s*$/.exec(lines[j])
+            if (arrow) {
+                location = arrow[1]
+                break
+            }
+        }
+        const path = location === undefined
+            ? undefined
+            : location.replace(/:\d+:\d+$/, '').replace(/^file:\/\//, '')
+                .replaceAll('\\', '/')
+        if (
+            RUNTIME_IMPORT_CODES.has(code) && path !== undefined &&
+            path.startsWith(packagesPrefix)
+        ) {
+            const relative = path.slice(packagesPrefix.length)
+            const slash = relative.indexOf('/')
+            const pkg = relative.slice(0, slash)
+            const file = relative.slice(slash + 1)
+            sites[pkg] ??= {}
+            sites[pkg][file] = (sites[pkg][file] ?? 0) + 1
+            continue
+        }
+        const where = location === undefined
+            ? '(no location)'
+            : location.startsWith(root)
+            ? location.slice(root.length).replace(/^[\\/]/, '')
+            : location
+        other.push(`${level}[${code}] at ${where}`)
+    }
+    return { sites, other }
+}
+
+/**
+ * Compare the dry-run's unanalysable sites with the `runtimeImports`
+ * inventory in `deps.policy.jsonc`.
+ *
+ * A non-literal `import(spec)` is invisible to every graph — `deno info`
+ * included — so it can neither be declared nor checked. Listing it without
+ * failing would be a silent skip with a green log; refusing it outright would
+ * refuse the framework's own discovery loaders. So each one is **inventoried**:
+ * per package, per file, a site count and a reason. Red when:
+ *
+ * - a file with sites is not listed;
+ * - a listed count differs from the dry-run's, up or down;
+ * - a listed file has no sites left (a stale entry);
+ * - an entry has no reason, or a malformed count;
+ * - any other dry-run diagnostic appears.
+ *
+ * @param diagnostics - The parsed dry-run, from {@link runtimeImportSites}.
+ * @param policy - The parsed `deps.policy.jsonc`, unvalidated; `undefined`
+ *   (no policy file) is an empty inventory.
+ * @returns One fault description per discrepancy, empty when they agree.
+ * @example
+ * ```ts
+ * runtimeImportFaults(
+ *     { sites: { cli: { 'mod.ts': 1 } }, other: [] },
+ *     { packages: { cli: { runtimeImports: {
+ *         'mod.ts': { sites: 1, reason: 'a user-app module path' },
+ *     } } } },
+ * )
+ * // -> []
+ * ```
+ */
+export function runtimeImportFaults(
+    diagnostics: DryRunDiagnostics,
+    policy: unknown,
+): string[] {
+    const faults = diagnostics.other.map((d) => `dry-run diagnostic: ${d}`)
+    const packages = isRecord(policy) && isRecord(policy.packages)
+        ? policy.packages
+        : {}
+
+    const inventory: Record<string, Record<string, unknown>> = {}
+    for (const [pkg, entry] of Object.entries(packages)) {
+        if (isRecord(entry) && isRecord(entry.runtimeImports)) {
+            inventory[pkg] = entry.runtimeImports
+        }
+    }
+
+    const names = new Set([
+        ...Object.keys(diagnostics.sites),
+        ...Object.keys(inventory),
+    ])
+    for (const pkg of [...names].sort()) {
+        const found = diagnostics.sites[pkg] ?? {}
+        const listed = inventory[pkg] ?? {}
+        const files = new Set([...Object.keys(found), ...Object.keys(listed)])
+        for (const file of [...files].sort()) {
+            const at = `${pkg}/${file}`
+            const count = found[file] ?? 0
+            const entry = listed[file]
+            if (entry === undefined) {
+                faults.push(
+                    `${at}: ${count} unanalysable import site(s), not inventoried in deps.policy.jsonc runtimeImports`,
+                )
+                continue
+            }
+            if (!isRecord(entry)) {
+                faults.push(`${at}: inventory entry is not an object`)
+                continue
+            }
+            const { sites, reason } = entry
+            if (typeof reason !== 'string' || reason.trim() === '') {
+                faults.push(`${at}: inventory entry has no reason`)
+            }
+            if (
+                typeof sites !== 'number' || !Number.isInteger(sites) ||
+                sites < 1
+            ) {
+                faults.push(
+                    `${at}: inventory "sites" must be a positive integer`,
+                )
+                continue
+            }
+            if (count === 0) {
+                faults.push(
+                    `${at}: inventoried with ${sites} site(s), the dry-run finds none — remove the stale entry`,
+                )
+            } else if (count !== sites) {
+                faults.push(
+                    `${at}: ${count} unanalysable import site(s), inventory says ${sites}`,
+                )
+            }
+        }
+    }
+    return faults
 }
 
 /** A package staged in its published shape, with the manifest it shipped. */
@@ -651,7 +1040,131 @@ async function checkPackage(
     const output = new TextDecoder().decode(result.stderr) +
         new TextDecoder().decode(result.stdout)
 
-    return classifyCheck(name, result.success, output)
+    const checked = classifyCheck(name, result.success, output)
+
+    // Rule A (#463): `deno check` passes an unresolvable dynamic import, so
+    // read Deno's own resolution of every dynamic edge. Run even when the
+    // check failed, so one run names every fault.
+    const dynamic = await dynamicEdgeFaults(root, entries)
+    if (dynamic.length === 0) return checked
+    return {
+        name,
+        ok: false,
+        detail: [...(checked.ok ? [] : [checked.detail]), ...dynamic]
+            .join('; '),
+    }
+}
+
+/**
+ * Run `deno info --json` over a staged package's exports and report every
+ * dynamic edge Deno could not resolve.
+ *
+ * `deno info` takes one root file, so a graph root importing every export is
+ * written beside them (the `deps_analyzer.ts` precedent). It resolves with the
+ * same manifest, `links` and sentinels as `deno check`. It exits 0 even when
+ * the graph holds errors, so its exit status only catches a failure to build
+ * a graph at all — which is red, never skipped.
+ *
+ * @param root - The staged package directory.
+ * @param entries - Its type-checkable export paths.
+ * @returns One formatted fault per failed dynamic edge.
+ */
+async function dynamicEdgeFaults(
+    root: string,
+    entries: readonly string[],
+): Promise<string[]> {
+    await Deno.writeTextFile(
+        join(root, GRAPH_ROOT_FILE),
+        entries.map((entry) => `import './${entry.replace(/^\.\//, '')}'\n`)
+            .join(''),
+    )
+    const result = await new Deno.Command(Deno.execPath(), {
+        args: ['info', '--json', GRAPH_ROOT_FILE],
+        cwd: root,
+        stdout: 'piped',
+        stderr: 'piped',
+    }).output()
+    if (!result.success) {
+        return [
+            `unrecognised graph failure: deno info exited ${result.code}: ${
+                firstLine(
+                    stripAnsi(new TextDecoder().decode(result.stderr)),
+                ) || 'no output'
+            }`,
+        ]
+    }
+    let info: unknown
+    try {
+        info = JSON.parse(new TextDecoder().decode(result.stdout))
+    } catch (error) {
+        return [
+            `unrecognised graph failure: deno info printed no JSON: ${
+                error instanceof Error ? error.message : String(error)
+            }`,
+        ]
+    }
+    try {
+        return dynamicImportFaults(info, await Deno.realPath(root)).map(
+            formatDynamicFault,
+        )
+    } catch (error) {
+        return [error instanceof Error ? error.message : String(error)]
+    }
+}
+
+/**
+ * Rule B (#463): run the workspace `deno publish --dry-run` once, and compare
+ * its unanalysable runtime-import sites with the `runtimeImports` inventory.
+ *
+ * `--no-check` because type checking is the per-package pass's; `--allow-dirty`
+ * because a pre-push run has uncommitted state by design. The dry-run's exit
+ * status counts: non-zero is red, named by its first error line.
+ *
+ * @returns One fault description per problem, empty when clean.
+ */
+async function runtimeImportCheck(): Promise<string[]> {
+    const result = await new Deno.Command(Deno.execPath(), {
+        args: ['publish', '--dry-run', '--no-check', '--allow-dirty'],
+        cwd: ROOT,
+        stdout: 'piped',
+        stderr: 'piped',
+    }).output()
+    const output = new TextDecoder().decode(result.stderr) +
+        new TextDecoder().decode(result.stdout)
+
+    let policy: unknown = undefined
+    const policyPath = join(ROOT, 'deps.policy.jsonc')
+    let policyText: string | null = null
+    try {
+        policyText = await Deno.readTextFile(policyPath)
+    } catch (error) {
+        if (!(error instanceof Deno.errors.NotFound)) throw error
+    }
+    const faults: string[] = []
+    if (policyText !== null) {
+        try {
+            policy = parseJsonc(policyText)
+        } catch (error) {
+            faults.push(
+                `deps.policy.jsonc is unparseable: ${
+                    error instanceof Error ? error.message : String(error)
+                }`,
+            )
+        }
+    }
+
+    if (!result.success) {
+        const plain = stripAnsi(output)
+        const error = plain.split('\n').map((l) => l.trim())
+            .find((l) => /^error(\[|:)/.test(l))
+        faults.push(
+            `deno publish --dry-run exited ${result.code}: ${
+                error ?? firstLine(plain)
+            }`,
+        )
+    }
+    const diagnostics = runtimeImportSites(output, await Deno.realPath(ROOT))
+    return [...faults, ...runtimeImportFaults(diagnostics, policy)]
 }
 
 /**
@@ -775,11 +1288,23 @@ async function main(): Promise<void> {
     }
     await Deno.remove(scratch, { recursive: true }).catch(() => {})
 
+    // Rule B (#463): one workspace dry-run, after every package, so a single
+    // run reports the per-package faults and the runtime-import ones together.
+    console.log(
+        '\n🔎 Checking runtime imports (workspace deno publish --dry-run)...',
+    )
+    const runtimeFaults = await runtimeImportCheck()
+    console.log(
+        runtimeFaults.length === 0
+            ? '  ✅ every unanalysable import site is inventoried'
+            : `  ❌ ${runtimeFaults.length} runtime-import fault(s)`,
+    )
+
     // Registry existence is a PRE-PUBLISH gate, not a pre-push one: a package
     // that has never been created on JSR is only a problem at publish time, and
     // failing every push over it would block unrelated work. Hence the flag —
     // `publish.yml` passes it, CI and the pre-push hook do not.
-    const verdict = resolutionVerdict(results)
+    const verdict = resolutionVerdict(results, runtimeFaults)
     if (!Deno.args.includes('--registry')) {
         // The success line only on the path that exits 0: it used to print
         // before `Deno.exit(1)`, so a red run read green in the log (#388).
