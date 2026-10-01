@@ -35,4 +35,9 @@ Deno.test('api_docs_controller stub - imports no app file and delegates discover
         'the rendered stub must not import files itself',
     )
     assertStringIncludes(rendered, 'loadDocumentedControllers()')
+    assert(
+        !rendered.includes('catch'),
+        'the rendered stub must not swallow a discovery failure',
+    )
+    assertStringIncludes(rendered, '!== ApiDocsController')
 })
