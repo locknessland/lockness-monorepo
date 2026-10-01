@@ -13,16 +13,32 @@
  * report no schema changes (#444).
  *
  * **The scaffold is re-pointed at this working tree** before anything runs.
- * Left alone it would resolve `jsr:@lockness/core@^0.2.0` and test the *last
+ * Left alone it would resolve `jsr:@lockness/core@^0.4.0` and test the *last
  * release*, which is exactly the version that cannot contain the change you
- * are about to push. `deno task publish:check` is what covers resolution from
- * the registry; this covers the kits against the code in front of you.
+ * are about to push.
+ *
+ * **That re-pointing is also this mode's blind spot.** It loads the raw source.
+ * A user loads what `deno publish` uploaded, which is rewritten (it writes a
+ * `@jsxImportSource` pragma into every `.tsx`, among other things) and resolved
+ * through `jsr:` up front. `deno task publish:check` does not cover that
+ * either: it type-checks and analyses each package's graph, and loads no
+ * module at runtime. v0.4.0 passed both, and its api and slim kits could not
+ * start (#470).
+ *
+ * **`--registry` is the mode that covers it.** It `deno publish`es
+ * `git archive HEAD` into a localhost JSR registry (`scripts/local_jsr.ts`),
+ * scaffolds each kit from `jsr:@lockness/init` without re-pointing it, and
+ * boots it with `JSR_URL` set and a fresh `DENO_DIR`. Then it asks for an
+ * unknown path and expects core's HTML 404. Only `HEAD` is tested, never
+ * uncommitted edits. It does not type-check or test the kits: the default mode
+ * does that.
  *
  * @example
  * ```bash
- * deno task kits:smoke              # all kits
+ * deno task kits:smoke              # all kits, against the working tree
  * deno task kits:smoke --kit slim   # one of them
  * deno task kits:smoke --keep       # leave the scaffolds on disk to poke at
+ * deno task kits:smoke --registry   # all kits, from what deno publish ships
  * ```
  *
  * @module

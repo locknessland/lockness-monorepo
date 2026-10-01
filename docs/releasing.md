@@ -331,6 +331,55 @@ and it is not a formality: `deno publish --dry-run` passes inside the workspace
 even for a package whose manifest a consumer cannot resolve, so the dry run is
 **not** evidence.
 
+### The kit boot gate
+
+```bash
+deno task kits:smoke --registry
+```
+
+This boots every starter kit from the files `deno publish` would upload, before
+anything reaches jsr.io (#470). `publish.yml` runs it as its own `kits` job, and
+`publish` `needs:` that job. A red kit therefore means nothing is published. The
+`Starter kits` job in `test.yml` runs it on every push, so a break shows up long
+before a release.
+
+It exists because nothing else loads the published files. `deno publish`
+rewrites each module it bundles, for example by writing a `@jsxImportSource`
+pragma into every `.tsx`, and a user's Deno resolves those files through `jsr:`.
+Neither the workspace, Deno `links`, `publish:check` nor plain `kits:smoke`
+loads that output: they all load the raw source. v0.4.0 passed every one of
+them, and its api and slim kits could not start:
+
+```
+error: Unsupported scheme "jsr" for module "jsr:/@lockness/core@^0.4.0/jsx-runtime"
+```
+
+What it does, in order:
+
+1. Starts `scripts/local_jsr.ts`, a JSR-protocol registry bound to `127.0.0.1`
+   on an ephemeral port. It refuses any other bind address and any request whose
+   `Host` is not a loopback literal.
+2. Runs `deno publish` on a `git archive HEAD` copy, with `JSR_URL` pointing at
+   it and a visibly fake token. The command refuses outright unless that URL is
+   loopback. It then checks that every publishable member arrived.
+3. Scaffolds each kit from `jsr:@lockness/init`, without re-pointing it at the
+   workspace. Then it boots the kit with `JSR_URL` set and a `DENO_DIR` created
+   for the run. The fresh cache matters: a warm one served an old `meta.json`
+   and resolved the previous release of core, which is a pass against the wrong
+   code.
+4. Asks each kit for an unknown path and requires an HTML 404, which renders
+   core's error view at runtime.
+
+**The registry never falls back to jsr.io for `@lockness/*`.** A package it did
+not receive is a 404. Every other scope (`@std/*`, …) is read from jsr.io
+unchanged.
+
+What it does not model is server-side dependency data, `createdAt` (so the
+minimum dependency age never applies), provenance, and JSR's own publish-time
+validation. `/ship` step 5 boots the api kit from real JSR after the publish to
+cover these. That is a confirmation, not the gate. A failure there blocks the
+announcement and calls for a patch release.
+
 ## Irreversibility
 
 A published JSR version cannot be unpublished. A release publishes **all 27
