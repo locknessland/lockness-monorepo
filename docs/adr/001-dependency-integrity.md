@@ -110,8 +110,10 @@ orchestration package reaching a feature package). They cannot be parsed. They
 must be _declared_.
 
 `packages/cli/package_loader.ts:68` (`await import(fullPackageName)`, name read
-from a user app's `lockness.packages`) is genuinely unanalysable and is excluded
-by design.
+from a user app's `lockness.packages`) is genuinely unanalysable, so it is
+inventoried with a reason (#463): it is listed, with every other site
+`deno publish` names unanalysable, under `runtimeImports` in
+`deps.policy.jsonc`, and `publish:check` fails when that list drifts.
 
 ### 5.2 One script, three checks
 
@@ -143,6 +145,36 @@ integrity**, and it fails closed: only a `@lockness/*` version not yet on JSR is
 tolerated. `deps:analyze` keeps checks A and C; the letters are kept so older
 logs still line up. D2's reasoning — an undeclared dependency is an error — now
 holds through `publish:check`.
+
+**Amendment (#463, 2026-10-01) — dynamic imports reach the owner.**
+`publish:check` judged declarations through `deno check` alone, and `deno check`
+exits 0 on an unresolvable `import('…')`: measured on Deno 2.9.6 for an
+undeclared sibling, an undeclared third-party package and a non-exported
+subpath, with and without `--all`. So two rules were added, both reading Deno
+rather than re-implementing it, as D1 requires:
+
+- **Rule A — dynamic edges.** Per staged package, `deno info --json` runs over a
+  graph root that imports every export, under the same manifest, `links` and
+  sentinels. Every `isDynamic` edge starting in the package is red when it, or
+  the module it resolves to, carries an `error` field. The verdict is the
+  presence of the field; the message only names the fault. `deno info` is D1's
+  instrument, and §5.1 already lists `dynamic-literal` as seen by it.
+- **Rule B — the runtime-import inventory.** What no graph sees, a computed
+  `import(spec)` or `import.meta.resolve(spec)`, is named by the workspace
+  `deno publish --dry-run` as `unanalyzable-dynamic-import` /
+  `unanalyzable-import-meta-resolve`. Each site is inventoried, per file and
+  with a count and a reason, under `runtimeImports` in `deps.policy.jsonc`, the
+  runtime counterpart of `soft` (D3: one hand-written policy home). Drift either
+  way, an empty reason, any other dry-run diagnostic and a non-zero exit are
+  red.
+
+A static key scan was rejected: it re-implements the extractor (a hand grep got
+6 of 18 sites wrong) and the matcher, including the npm-derived subpaths that 7
+of drizzle's 10 dynamic edges need. Residue: an inventory cannot prove a
+computed site works at runtime, and a same-file swap keeps its count. Templates
+Deno can analyse (`` `file://${path}` ``) are flagged by neither rule. Modules
+no export reaches are not walked, and the `deno info --json` shape can drift
+across Deno versions; the integration tests are the tripwire for that.
 
 ### 5.3 The policy file
 

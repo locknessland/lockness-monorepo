@@ -103,6 +103,30 @@ a declared range the workspace version misses fails as `stale range` before
 `deno check` runs. Third-party dependencies still resolve against JSR/npm, so it
 needs the network.
 
+**Dynamic imports are covered too (#463).** `deno check` passes an `import('…')`
+it cannot resolve — an undeclared sibling, an undeclared third-party package or
+a non-exported subpath all exit 0. So each staged package also goes through
+`deno info --json`, under the same manifest, links and sentinels, and any
+dynamic edge that Deno marks with an error field fails. The verdict is the
+presence of that field, never the wording of the message. Because resolution is
+Deno's, the key rule, prefix keys and npm-derived subpaths such as
+`drizzle-orm/postgres-js/migrator` hold without a hand-written matcher. A
+failure names the package, file, line and specifier:
+
+```
+❌ drizzle   drivers.ts:368: undeclared dynamic import — import('postgres')
+```
+
+What no graph can read, a computed `import(spec)` or
+`import.meta.resolve(spec)`, is caught by one workspace
+`deno publish --dry-run --no-check --allow-dirty`. Every site it names
+unanalysable must be listed, per file and with a site count and a reason, under
+the package's `runtimeImports` in `deps.policy.jsonc`. An unlisted file, a count
+that drifts up or down, a stale entry, an empty reason, any other dry-run
+diagnostic and a non-zero exit are all red. So the dry-run is now part of every
+push, and its slow-type, missing-license and future warning codes are failures,
+not log noise.
+
 `deno task deps:analyze` does **not** check declarations. It had a "check B"
 that claimed to, and it was removed (#388): it read an import-map alias's
 _value_ as a declaration while Deno resolves by _key_, and it only saw

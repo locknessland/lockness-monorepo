@@ -22,8 +22,21 @@
  * and a declared range the workspace version does not satisfy would make Deno
  * fall back to JSR, so it is refused before `deno check` runs.
  *
- * It **tolerates no failure**: the verdict is `deno check`'s exit status. The
- * message only names the fault:
+ * It **tolerates no failure**. A run is red if `deno check` exits non-zero, OR
+ * a dynamic edge carries an error field, OR the workspace dry-run exits
+ * non-zero or emits a diagnostic that is not inventoried (#463).
+ *
+ * - **`deno check`** owns static imports and types, per staged package.
+ * - **Dynamic edges** (Rule A): `deno check` exits 0 on an `import('…')` it
+ *   cannot resolve, so `deno info --json` reads Deno's own resolution of every
+ *   dynamic edge in the staged package, under the same links and sentinels.
+ *   The verdict is the presence of an `error` field, never a message match.
+ * - **Runtime imports** (Rule B): a computed `import(spec)` or
+ *   `import.meta.resolve(spec)` is in no graph. One workspace
+ *   `deno publish --dry-run` names each such site, and each must be inventoried
+ *   with a count and a reason under `runtimeImports` in `deps.policy.jsonc`.
+ *
+ * The message only names the fault:
  *
  * | Message | Meaning |
  * | :------ | :------ |
@@ -31,6 +44,14 @@
  * | `TS2307 … not a dependency and not in import map` | the manifest is missing the dependency |
  * | `Cannot find module 'file:…/.lockness-undeclared/…'` | a sibling imported but not declared |
  * | `Cannot find module 'file:…'` | a file the exports reach is missing from `publish.include` |
+ * | `<file>:<line>: undeclared dynamic import — import('x')` | an `import()` of a package the manifest does not declare |
+ * | `<file>:<line>: undeclared dynamic import: @scope/x — …` | an `import()` of a sibling the manifest does not declare |
+ * | `<file>:<line>: missing from publish.include: … — …` | an `import()` of a file that was not staged |
+ * | `<file>:<line>: unresolved dynamic import: … — …` | any other dynamic edge error, e.g. `Unknown export` — still **fail** |
+ * | `unrecognised graph failure: …` | `deno info` built no graph — still **fail** |
+ * | `<pkg>/<file>: N unanalysable import site(s), …` | a runtime-import site missing from, or drifting against, the inventory |
+ * | `dry-run diagnostic: warning[…]` / `error[…]` | any other dry-run diagnostic |
+ * | `deno publish --dry-run exited N: …` | the dry-run itself failed |
  * | anything else | unrecognised — still **fail** |
  *
  * There used to be a tolerated "`@lockness/*` version not on JSR yet" case. It
