@@ -162,7 +162,7 @@ deno run -A jsr:@lockness/ui add button --force
 When modifying core framework files, check this list:
 
 - [ ] Modified `cli.ts`? → Update `cli.ts.stub`
-- [ ] Modified `app/kernel.tsx`? → Update `kernel.tsx.stub`
+- [ ] Modified `app/kernel.ts`? → Update `kernel.ts.stub`
 - [ ] Modified `deno.json` tasks? → Update `deno.json.stub`
 - [ ] Added new decorator/feature? → Update relevant `make:*` stubs
 - [ ] Changed validation pattern? → Update `controller.stub` in drizzle

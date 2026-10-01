@@ -75,7 +75,7 @@ dependency.
 #### 2. Create Application Kernel (Declarative)
 
 ```typescript
-// app/kernel.tsx
+// app/kernel.ts
 import { createApp, DeclareGlobalMiddleware, Kernel } from '@lockness/core'
 import { controllers } from './routes.ts'
 
@@ -95,7 +95,7 @@ export class AppKernel {
 ```typescript
 // main.ts
 import { createApp } from '@lockness/core'
-import { AppKernel } from './app/kernel.tsx'
+import { AppKernel } from './app/kernel.ts'
 
 const app = await createApp(AppKernel)
 

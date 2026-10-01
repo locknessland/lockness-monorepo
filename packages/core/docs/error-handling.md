@@ -37,7 +37,7 @@ as a warning.
 
 **Benefits:**
 
-- ✅ No imports needed in `kernel.tsx`
+- ✅ No imports needed in `kernel.ts`
 - ✅ No manual registration with `useErrorHandler()`
 - ✅ Convention over configuration
 - ✅ Automatic fallback to defaults

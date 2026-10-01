@@ -188,7 +188,7 @@ export class AuthMiddleware {
     }
 }
 
-// app/kernel.tsx
+// app/kernel.ts
 @Kernel({
     middlewaresDir: './app/middleware', // Auto-discovers @DeclareMiddleware
 })
@@ -227,7 +227,7 @@ registered via `config.listeners`.
 ## Complete Example
 
 ```typescript
-// app/kernel.tsx
+// app/kernel.ts
 import { DeclareGlobalMiddleware, Kernel, OnBoot } from '@lockness/core'
 import { sessionMiddleware } from '@lockness/session'
 import { initializeAuthMiddleware, SessionGuard } from '@lockness/auth'
@@ -263,7 +263,7 @@ export class AppKernel {
 
 // main.ts
 import { createApp } from '@lockness/core'
-import { AppKernel } from './app/kernel.tsx'
+import { AppKernel } from './app/kernel.ts'
 
 const app = await createApp(AppKernel)
 app.listen(8888)
@@ -274,7 +274,7 @@ app.listen(8888)
 ### Before (Imperative)
 
 ```typescript
-// app/kernel.tsx
+// app/kernel.ts
 export const bootstrap = async (): Promise<App> => {
     const db = container.get<Database>(Database)
     await db.connect(Deno.env.get('DATABASE_URL') || '...')
@@ -320,7 +320,7 @@ app.listen(8888)
 ### After (Declarative)
 
 ```typescript
-// app/kernel.tsx
+// app/kernel.ts
 @Kernel({
     database: { url: Deno.env.get('DATABASE_URL') },
     session: { driver: 'cookie', lifetime: 7200 },

@@ -10,7 +10,7 @@ Your project will have the following structure, after the initialization:
 ```
 my-app/
 ├── app/
-│   ├── kernel.tsx              # Application bootstrap
+│   ├── kernel.ts               # Application bootstrap
 │   ├── routes.ts               # Auto-generated routes registry
 │   ├── controller/             # HTTP controllers
 │   │   └── app_controller.tsx
@@ -152,7 +152,7 @@ Scaffold a complete auth system:
 deno task cli make:auth
 ```
 
-Configure in `app/kernel.tsx`:
+Configure in `app/kernel.ts`:
 
 ```typescript
 import { DeclareGlobalMiddleware, Kernel } from '@lockness/core'

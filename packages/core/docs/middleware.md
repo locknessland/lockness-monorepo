@@ -184,7 +184,7 @@ export class AdminMiddleware implements MiddlewareContract {
 Configure middleware auto-discovery in your kernel:
 
 ```typescript
-// app/kernel.tsx
+// app/kernel.ts
 await app.init({
     // Auto-discover middlewares decorated with @DeclareMiddleware
     middlewaresDir: './app/middleware',

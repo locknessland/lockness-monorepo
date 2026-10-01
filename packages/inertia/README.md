@@ -28,7 +28,7 @@ import { inertiaMiddleware } from '@lockness/inertia'
 ### Basic Setup
 
 ```typescript
-// kernel.tsx
+// kernel.ts
 import { App } from '@lockness/contract'
 import { inertiaMiddleware } from '@lockness/inertia'
 
@@ -111,7 +111,7 @@ app.useMiddleware(inertiaMiddleware(inertiaConfig))
 Share data that should be available in all Inertia responses:
 
 ```typescript
-// kernel.tsx
+// kernel.ts
 app.useMiddleware(async (c, next) => {
     const inertia = c.get('inertia')
 

@@ -2,7 +2,7 @@
 
 ## Basic Setup
 
-### In your kernel.tsx
+### In your kernel.ts
 
 ```typescript
 import { App } from 'lockness/core'

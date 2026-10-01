@@ -8,20 +8,25 @@ management, and framework invariants.
 ## How it works
 
 The compilation process is controlled through the `@Kernel` decorator in your
-`app/kernel.tsx`. When you run `deno task compile` (which calls
+`app/kernel.ts`. When you run `deno task compile` (which calls
 `deno task cli compile`), the Lockness CLI performs the following steps in
 order:
 
-1. **Preparation**: Ensures the output directory (default: `_dist`) exists.
-2. **Routes Generation**: Automatically scans your controllers and generates
+1. **Kernel lookup**: Reads the `@Kernel` from `app/kernel.ts`, the file
+   `lockness init` and every kit ship. `app/kernel.tsx` also works. If both
+   exist, `app/kernel.ts` wins and the `.tsx` is not read. `ssg:build` uses the
+   same lookup. If neither file exists, `compile` prints both paths it tried and
+   builds nothing.
+2. **Preparation**: Ensures the output directory (default: `_dist`) exists.
+3. **Routes Generation**: Automatically scans your controllers and generates
    `app/routes.ts`. This ensures all routes are statically available for the
    binary, as runtime directory scanning is not possible in a compiled
    executable.
-3. **User Scripts**: Executes any custom scripts or commands defined in your
+4. **User Scripts**: Executes any custom scripts or commands defined in your
    kernel's `compile.scripts` list (e.g., CSS building, documentation syncing).
-4. **Asset Management**: Copies declared files and folders to the distribution
+5. **Asset Management**: Copies declared files and folders to the distribution
    directory alongside the binary.
-5. **Compilation**: Executes the native `deno compile` command with your
+6. **Compilation**: Executes the native `deno compile` command with your
    configured flags.
 
 ## Configuration
@@ -55,10 +60,10 @@ export const compileConfig: CompileConfig = {
 
 ### 2. Register in the Kernel
 
-Then, reference it in your `app/kernel.tsx`:
+Then, reference it in your `app/kernel.ts`:
 
 ```tsx
-// app/kernel.tsx
+// app/kernel.ts
 import { config } from '../config/mod.ts'
 
 @Kernel({
@@ -71,7 +76,7 @@ export class AppKernel {}
 ## Why externalize configuration?
 
 Lockness follows the **Dependency Inversion Principle**. By moving configuration
-out of the `app/kernel.tsx`, you ensure that:
+out of the `app/kernel.ts`, you ensure that:
 
 - The Kernel remains a declarative overview of the application components.
 - Configuration is easily testable and discoverable in the `config/` directory.

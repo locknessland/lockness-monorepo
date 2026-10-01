@@ -85,7 +85,7 @@ export { mountPointConfig } from './routing.ts'
 ```
 
 ```typescript
-// app/kernel.tsx
+// app/kernel.ts
 import { Kernel } from '@lockness/core'
 import { mountPointConfig } from '../config/mod.ts'
 

@@ -645,7 +645,7 @@ Evolution management with Devtools integration. See:
 │   ├── middleware/        # Custom middlewares
 │   ├── model/             # Database Models
 │   ├── service/           # Business Logic
-│   └── kernel.tsx         # App Initialization
+│   └── kernel.ts          # App Initialization
 ├── docs/                  # Documentation (Markdown)
 ├── scripts/               # Build & Internal Scripts
 ├── main.ts                # Entry point

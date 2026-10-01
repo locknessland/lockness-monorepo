@@ -22,7 +22,7 @@ Le système de cache se configure directement dans votre **Kernel** via le
 décorateur `@Kernel`.
 
 ```typescript
-// app/kernel.tsx
+// app/kernel.ts
 @Kernel({
     // Configuration simple (utilise les valeurs par défaut : memory, ttl 3600)
     cache: true,

@@ -14,7 +14,7 @@ import { inertiaMiddleware } from '@lockness/inertia'
 ### Configure Middleware
 
 ```typescript
-// app/kernel.tsx
+// app/kernel.ts
 import { App } from '@lockness/core'
 import { inertiaMiddleware } from '@lockness/inertia'
 
@@ -59,7 +59,7 @@ export class DashboardController {
 Share data available in all Inertia responses:
 
 ```typescript
-// app/kernel.tsx
+// app/kernel.ts
 app.useMiddleware(async (c, next) => {
     const inertia = c.get('inertia')
 

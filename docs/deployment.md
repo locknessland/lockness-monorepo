@@ -151,7 +151,7 @@ for the full contract.
 - ✅ Change `SESSION_SECRET` to a strong random value
 - ✅ Set `APP_ENV=production`
 - ✅ Use HTTPS in production (automatic with Deno Deploy)
-- ✅ Disable devtools (check `kernel.tsx`)
+- ✅ Disable devtools (check `kernel.ts`)
 
 ## 🐳 Docker Deployment
 
@@ -199,7 +199,7 @@ whether to send traffic to an instance.
 Lockness logs are structured and production-ready:
 
 ```typescript
-// In kernel.tsx
+// In kernel.ts
 app.useMiddleware(LoggerMiddleware)
 ```
 

@@ -46,7 +46,7 @@ export class AuthMiddleware implements MiddlewareContract {
 ### 2. Enable Auto-Discovery
 
 ```typescript
-// app/kernel.tsx
+// app/kernel.ts
 import { DeclareGlobalMiddleware, Kernel } from '@lockness/core'
 
 @Kernel({
@@ -185,7 +185,7 @@ export class UserController {
     }
 }
 
-// In kernel.tsx
+// In kernel.ts
 @Kernel({ controllersDir: './app/controller' })
 export class AppKernel {
     @DeclareGlobalMiddleware()
@@ -401,7 +401,7 @@ sendEmail(c: Context) { ... }
 **Before:**
 
 ```typescript
-// kernel.tsx
+// kernel.ts
 await app.init({
     middlewares: {
         auth: class AuthMiddleware {
@@ -424,7 +424,7 @@ export class AuthMiddleware implements MiddlewareContract {
     }
 }
 
-// kernel.tsx
+// kernel.ts
 await app.init({
     middlewaresDir: './app/middleware', // Auto-discover
 })

@@ -156,7 +156,7 @@ class AppKernel {
 Use `@OnBoot` with the declarative `@Kernel` decorator:
 
 ```typescript
-// app/kernel.tsx
+// app/kernel.ts
 import {
     createApp,
     DeclareGlobalMiddleware,
@@ -213,7 +213,7 @@ export class BaseKernel {
     }
 }
 
-// app/kernel.tsx
+// app/kernel.ts
 import { DeclareGlobalMiddleware, Kernel, OnBoot } from '@lockness/core'
 import { BaseKernel } from './kernel/base_kernel.ts'
 
