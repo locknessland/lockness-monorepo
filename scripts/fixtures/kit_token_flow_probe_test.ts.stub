@@ -1,0 +1,166 @@
+/**
+ * #452 probe — copied INTO a freshly scaffolded, migrated api app by
+ * `scripts/kit_token_flow_live_test.ts` and run there with `deno test -A
+ * --env`, so it resolves through the app's own import map, schema and
+ * `createUserProvider`, against the app's own database.
+ *
+ * A `.stub`, not a `.ts`: in the repository its `@model/` and `../main.ts`
+ * imports resolve to nothing, so the root type-check must not see it.
+ */
+
+import { assert, assertEquals, assertNotEquals } from '@std/assert'
+import { container } from '@lockness/container'
+import { Database } from '@lockness/drizzle'
+import { hashPassword } from '@lockness/auth'
+import { eq, sql } from 'drizzle-orm'
+import app from '../main.ts'
+import { accessTokens, users } from '@model/user.ts'
+import { createUserProvider } from '../app/auth/user_provider.ts'
+
+/** The README's user, verbatim. */
+const EMAIL = 'you@example.com'
+const PASSWORD = 'correct horse battery staple'
+
+/** SHA-256, lowercase hex — what the provider promises to store. */
+async function sha256(value: string): Promise<string> {
+    const digest = await crypto.subtle.digest(
+        'SHA-256',
+        new TextEncoder().encode(value),
+    )
+    return Array.from(new Uint8Array(digest))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('')
+}
+
+/** The README's `POST /auth/token`, through the whole application. */
+async function issue(email: string, password: string): Promise<string> {
+    const response = await app.fetch(
+        new Request('http://localhost/auth/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password }),
+        }),
+    )
+    const body = await response.json()
+    assertEquals(response.status, 201, JSON.stringify(body))
+    assertEquals(Object.keys(body).sort(), ['token', 'type'])
+    assertEquals(body.type, 'Bearer')
+    assert(typeof body.token === 'string' && body.token.length > 0)
+    return body.token
+}
+
+/** The README's `GET /auth/me`, with a bearer token. */
+async function me(token: string): Promise<{ status: number; body: unknown }> {
+    const response = await app.fetch(
+        new Request('http://localhost/auth/me', {
+            headers: { Authorization: `Bearer ${token}` },
+        }),
+    )
+    const text = await response.text()
+    // Only the 200 is the README's JSON; a refusal is whatever page the
+    // error handler renders, and only its status is the contract here.
+    return {
+        status: response.status,
+        body: response.status === 200 ? JSON.parse(text) : null,
+    }
+}
+
+Deno.test({
+    name: '#452 probe: the README token flow, storage, expiry and revocation',
+    // The app holds its pool and its cache for the life of the process.
+    sanitizeResources: false,
+    sanitizeOps: false,
+    async fn(t) {
+        const database = container.get<Database>(Database)
+        const db = database.db
+        try {
+            const [you] = await db.insert(users).values({
+                email: EMAIL,
+                password: await hashPassword(PASSWORD),
+            }).returning()
+            const [other] = await db.insert(users).values({
+                email: 'other@example.com',
+                password: await hashPassword('another horse, another battery'),
+            }).returning()
+
+            const token = await issue(EMAIL, PASSWORD)
+
+            await t.step('the token authenticates GET /auth/me', async () => {
+                assertEquals(await me(token), {
+                    status: 200,
+                    body: { user: { id: you.id, email: EMAIL, name: null } },
+                })
+            })
+
+            await t.step('only the hash is stored, and last use is recorded', async () => {
+                const rows = await db.execute<Record<string, unknown>>(
+                    sql`SELECT * FROM access_tokens WHERE user_id = ${you.id}`,
+                )
+                assertEquals(rows.length, 1)
+                const [row] = rows
+                assertEquals(row.hash, await sha256(token))
+                for (const [column, value] of Object.entries(row)) {
+                    assertNotEquals(
+                        String(value),
+                        token,
+                        `${column} holds the plaintext`,
+                    )
+                }
+                assert(row.last_used_at !== null, 'last_used_at was not set')
+                assert(row.expires_at !== null, 'expires_at was not set')
+            })
+
+            await t.step('an unknown token is refused', async () => {
+                assertEquals((await me('not-a-token-anyone-issued')).status, 401)
+            })
+
+            await t.step('an expired token is refused', async () => {
+                const expiring = await issue(EMAIL, PASSWORD)
+                assertEquals((await me(expiring)).status, 200)
+                await db.update(accessTokens)
+                    .set({ expiresAt: new Date('2000-01-01T00:00:00Z') })
+                    .where(eq(accessTokens.hash, await sha256(expiring)))
+                assertEquals((await me(expiring)).status, 401)
+            })
+
+            const provider = createUserProvider(db)
+            const youUser = await provider.findById(you.id)
+            const otherUser = await provider.findById(other.id)
+            assert(youUser && otherUser)
+
+            await t.step('deleteToken revokes, and only for the owner', async () => {
+                const second = await provider.createToken(youUser, 'second')
+                assertEquals((await me(second.value)).status, 200)
+
+                await provider.deleteToken(otherUser, second.identifier)
+                assertEquals(
+                    (await me(second.value)).status,
+                    200,
+                    'another user revoked it',
+                )
+
+                await provider.deleteToken(youUser, second.identifier)
+                assertEquals((await me(second.value)).status, 401)
+            })
+
+            await t.step("deleteAllTokens revokes that user's tokens only", async () => {
+                const othersToken = await issue(
+                    'other@example.com',
+                    'another horse, another battery',
+                )
+                const third = await provider.createToken(youUser, 'third')
+                const fourth = await provider.createToken(youUser, 'fourth')
+                assertEquals((await me(third.value)).status, 200)
+                assertEquals((await me(fourth.value)).status, 200)
+
+                await provider.deleteAllTokens(youUser)
+                assertEquals((await me(token)).status, 401)
+                assertEquals((await me(third.value)).status, 401)
+                assertEquals((await me(fourth.value)).status, 401)
+                assertEquals((await me(othersToken)).status, 200)
+            })
+        } finally {
+            await database.close()
+        }
+    },
+})
