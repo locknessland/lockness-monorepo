@@ -27,7 +27,8 @@ import {
     assertStringIncludes,
 } from '@std/assert'
 import { fromFileUrl, join, resolve, toFileUrl } from '@std/path'
-import { appFileUrl, importAppFile } from '../app_file.ts'
+import { importAppFile } from '../app_file.ts'
+import { appFileUrl } from '../app_file_url.ts'
 
 /** A directory name holding both characters `file://${…}` mis-parses. */
 const AWKWARD = 'app#dir with space'

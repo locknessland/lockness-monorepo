@@ -23,42 +23,32 @@
  * site for every app file in the framework, and nothing for a caller to get
  * wrong.
  *
+ * This is an entry point for Lockness packages, not for apps: it is on no root
+ * surface, because `@lockness/core` re-exports the contract root with
+ * `export *`.
+ *
  * The helper reports nothing and catches nothing: whether a missing file is
  * normal, and how a broken one is reported, is each caller's policy.
  *
- * @module @lockness/contract/app_file
+ * @module @lockness/contract/app-file/internal
  */
 
-import { resolve, toFileUrl } from '@std/path'
+import { appFileUrl } from './app_file_url.ts'
 
 /**
- * Build the `file:` URL of an app file.
+ * Import a file of the user's app.
  *
- * Exported for tests only; callers import through {@link importAppFile}.
+ * The specifier is a `file:` URL resolved against `root`, never against the
+ * URL of the package calling this, so it loads the same way from disk and from
+ * JSR.
  *
- * @param path - The file, relative to `root` or absolute.
- * @param root - The app root a relative `path` is anchored to. Defaults to the
- * working directory, which is where an app runs from.
- * @returns A `file:` URL `href`, with `#`, `?` and spaces escaped.
- *
- * @example
- * ```typescript
- * appFileUrl('app/kernel.ts', '/srv/my app')
- * // 'file:///srv/my%20app/app/kernel.ts'
- * ```
- */
-export function appFileUrl(path: string, root: string = Deno.cwd()): string {
-    return toFileUrl(resolve(root, path)).href
-}
-
-/**
- * Import a file of the user's app, anchored at the app root.
- *
- * The specifier is a `file:` URL built from `root`, never from the URL of the
- * package calling this, so it loads the same way from disk and from JSR.
+ * `root` anchors a relative `path`; it does not confine it. A `..` segment or
+ * an absolute `path` loads any readable module, and the module runs with the
+ * process's full permissions. This is not a sandbox: callers pass paths their
+ * own code found on disk, and must never pass request-derived data.
  *
  * @param path - The file, relative to `root` or absolute.
- * @param root - The app root a relative `path` is anchored to. Defaults to the
+ * @param root - What a relative `path` is resolved against. Defaults to the
  * working directory, which is where an app runs from.
  * @returns The module namespace.
  * @throws Whatever the import throws — a missing file, a syntax error, an
@@ -66,7 +56,7 @@ export function appFileUrl(path: string, root: string = Deno.cwd()): string {
  *
  * @example
  * ```typescript
- * import { importAppFile } from '@lockness/contract'
+ * import { importAppFile } from '@lockness/contract/app-file/internal'
  *
  * const module = await importAppFile('app/job/send_welcome_job.ts')
  * ```
