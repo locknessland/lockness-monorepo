@@ -202,10 +202,10 @@ The suite is skipped unless you turn it on, so `deno task test` is unchanged.
 ### Running it
 
 ```bash
-# A throwaway broker on a port nothing else uses.
-docker run -d --rm --name lockness-it-redis -p 63790:6379 redis:7-alpine
+# A throwaway broker, published on loopback only, on a free port of your choice.
+docker run -d --rm --name lockness-it-redis -p 127.0.0.1:<port>:6379 redis:7-alpine
 
-LOCKNESS_REDIS_PORT=63790 deno task test:redis
+LOCKNESS_REDIS_PORT=<port> deno task test:redis
 
 docker stop lockness-it-redis
 ```
@@ -272,22 +272,25 @@ against a `postgres:16` service on every push and pull request.
 It is skipped unless you turn it on:
 
 ```bash
-docker run -d --rm --name lockness-it-pg -p 54320:5432 \
+# Trust auth makes this a password-less superuser: publish it on loopback
+# only (127.0.0.1:), never on every interface. Pick any free <port>.
+docker run -d --rm --name lockness-it-pg -p 127.0.0.1:<port>:5432 \
     -e POSTGRES_HOST_AUTH_METHOD=trust postgres:16
 
-LOCKNESS_POSTGRES_URL=postgres://postgres@127.0.0.1:54320/postgres \
+LOCKNESS_POSTGRES_URL=postgres://postgres@127.0.0.1:<port>/postgres \
     deno task test:postgres
 
 docker stop lockness-it-pg
 ```
 
-| Variable                        | Default | Notes                                                 |
-| ------------------------------- | ------- | ----------------------------------------------------- |
-| `LOCKNESS_POSTGRES_INTEGRATION` | unset   | `1` runs the suite. Set by `deno task test:postgres`. |
-| `LOCKNESS_POSTGRES_URL`         | unset   | Required. Refused unless the host is loopback.        |
+| Variable                        | Default | Notes                                                                                                   |
+| ------------------------------- | ------- | ------------------------------------------------------------------------------------------------------- |
+| `LOCKNESS_POSTGRES_INTEGRATION` | unset   | `1` runs the suite. Set by `deno task test:postgres`.                                                   |
+| `LOCKNESS_POSTGRES_URL`         | unset   | Required. Refused unless every host it names is loopback — a host list (`a,b`) is checked host by host. |
 
-The suite creates and drops only schemas named `lockness_fresh_*` and one event
-trigger, `lockness_fresh_ddl`, and it needs a superuser for that event trigger.
+The suite creates and drops only schemas named `lockness_fresh_*` — with the
+`citext` extension inside one of them — and one event trigger,
+`lockness_fresh_ddl`, and it needs a superuser for that event trigger.
 
 ## Mutation batteries
 
