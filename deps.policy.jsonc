@@ -269,6 +269,14 @@
                 "telemetry"
             ],
             "runtimeImports": {
+                "cli/compile_command.ts": {
+                    "sites": 1,
+                    "reason": "compile loads the user app's app/kernel.tsx to read its compile config; was a template literal deno publish rewrote (#474)"
+                },
+                "cli/ssg_command.ts": {
+                    "sites": 1,
+                    "reason": "ssg:build loads the user app's app/kernel.ts(x); was a template literal deno publish rewrote (#474)"
+                },
                 "events/listener_discovery.ts": {
                     "sites": 1,
                     "reason": "discoverListeners loads each listener file found under the user app's directory"
@@ -276,6 +284,10 @@
                 "exceptions/handler.ts": {
                     "sites": 1,
                     "reason": "loads the user app's custom error handler file when it exists"
+                },
+                "http/resolver.ts": {
+                    "sites": 1,
+                    "reason": "middleware discovery loads each file in the user app's middlewaresDir; was a template literal deno publish rewrote (#474)"
                 },
                 "kernel/bootstrap/helpers.ts": {
                     "sites": 1,
