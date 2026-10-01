@@ -161,3 +161,26 @@ drizzle-zod generates Zod schemas from your Drizzle table definitions, so you
 define your data structure once in the model. You can add custom refinements
 (like email format, min length) while the base schema stays in sync with your
 database.
+
+## Upgrading to v0.5.0
+
+One item, for apps on zod 3.22, 3.23 or 3.24. **Migration step:** upgrade zod to
+3.25 or later.
+
+### 1. `@lockness/validator` requires zod 3.25 or later
+
+The declared zod range narrows from `^3.22.0` to `^3.25.0` (#464). Validator
+hands your schemas to `@hono/zod-validator`, which accepts zod
+`^3.25.0 || ^4.0.0` as a peer. An app on zod 3.22 to 3.24 satisfied validator's
+old range but not the bridge's, so the bridge resolved a second copy of zod.
+Schemas built by the app then came from a different zod instance than the one
+`zValidator` checks with: type errors at best, identity mismatches at run time
+at worst. The new range rules that second copy out.
+
+- **Who is affected:** an app whose `deno.json` pins zod below 3.25, for example
+  `"zod": "npm:zod@~3.23.0"`. An app on `^3.22.0` that already resolves 3.25 or
+  later is not affected; `deno info` shows which version you resolve.
+- **The fix:** raise the import to `"zod": "npm:zod@^3.25.0"`, then refresh the
+  lockfile with `deno install`. zod 3.25 keeps the zod 3 API, so schemas need no
+  change.
+- **Not changed:** zod 4 is still not supported by `@lockness/validator`.
