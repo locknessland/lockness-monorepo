@@ -209,7 +209,7 @@ Deno.test('#444 api: access_tokens.user_id references users, cascading, indexed'
             onDelete: 'cascade',
         }],
     )
-    // The UNIQUE constraint on `token` already indexes it; a second index on
+    // The UNIQUE constraint on `hash` already indexes it; a second index on
     // the same column is write cost for nothing.
     assertEquals(Object.keys(tokens.indexes), ['access_tokens_user_id_idx'])
 })

@@ -30,17 +30,22 @@ export const users = pgTable('users', {
 })
 
 /**
- * Issued access tokens.
+ * Issued access tokens — the table `DrizzleTokenProvider` reads and writes.
  *
- * Only the **hash** of a token is stored. The plaintext is returned once, at
- * creation, and is unrecoverable afterwards — a leaked database is then not a
- * set of working credentials.
+ * Only the **hash** of a token is stored (SHA-256, hex). The plaintext is
+ * returned once, at creation, and is unrecoverable afterwards — a leaked
+ * database is then not a set of working credentials.
+ *
+ * The provider needs exactly these seven properties: `id`, `userId`, `name`,
+ * `hash`, `expiresAt`, `lastUsedAt` and `createdAt`. Rename a SQL column if
+ * you like; rename a property and the provider refuses the table at boot.
  *
  * Every authenticated request looks a token up by its hash, so that lookup is
- * on the hot path; the UNIQUE constraint on `token` already indexes it. A
- * token belongs to one user and goes with them: deleting the user cascades to
- * their tokens, and `access_tokens_user_id_idx` keeps "this user's tokens"
- * (and that cascade) from scanning the table.
+ * on the hot path; the UNIQUE constraint on `hash` already indexes it. Every
+ * token expires — the provider always writes `expiresAt`. A token belongs to
+ * one user and goes with them: deleting the user cascades to their tokens,
+ * and `access_tokens_user_id_idx` keeps "this user's tokens" (revoking them
+ * all, and that cascade) from scanning the table.
  */
 export const accessTokens = pgTable('access_tokens', {
     id: serial('id').primaryKey(),
@@ -48,9 +53,10 @@ export const accessTokens = pgTable('access_tokens', {
         onDelete: 'cascade',
     }),
     name: text('name').notNull(),
-    token: text('token').notNull().unique(),
-    expiresAt: timestamp('expires_at'),
-    createdAt: timestamp('created_at').defaultNow(),
+    hash: text('hash').notNull().unique(),
+    expiresAt: timestamp('expires_at').notNull(),
+    lastUsedAt: timestamp('last_used_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
 }, (table) => [index('access_tokens_user_id_idx').on(table.userId)])
 
 /** A row as it comes back from a select. */

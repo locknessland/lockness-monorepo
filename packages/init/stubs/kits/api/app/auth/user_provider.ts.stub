@@ -2,8 +2,9 @@
  * @fileoverview How the token guard finds a user.
  *
  * `DrizzleTokenProvider` from `@lockness/auth-provider` does the token work —
- * generation, hashing, lookup. It does not know your schema, so the two
- * lookups it needs are supplied here. That is the whole of the wiring.
+ * generation, hashing, storage, expiry, revocation — in the `accessTokens`
+ * table it is handed. It does not know your users, so the two user lookups
+ * are supplied here. Those, and the table, are the whole of the wiring.
  *
  * @module app/auth/user_provider
  */
@@ -14,7 +15,7 @@ import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 // the ORM-agnostic bases, so that a Kysely project never loads Drizzle.
 import { DrizzleTokenProvider } from '@lockness/auth-provider/drizzle'
 import { verifyPassword } from '@lockness/auth'
-import { users } from '@model/user.ts'
+import { accessTokens, users } from '@model/user.ts'
 
 /** The user shape the guard hands back to a controller. */
 export interface ApiUser extends Record<string, unknown> {
@@ -29,7 +30,8 @@ type Db = PostgresJsDatabase<Record<string, unknown>>
  * Build the provider the `api` guard authenticates against.
  *
  * @param db - The Drizzle instance from the container.
- * @returns A provider bound to this application's `users` table.
+ * @returns A provider bound to this application's `users` and
+ * `access_tokens` tables.
  *
  * @example
  * ```ts
@@ -39,7 +41,9 @@ type Db = PostgresJsDatabase<Record<string, unknown>>
 export function createUserProvider(db: Db): DrizzleTokenProvider<ApiUser> {
     return new DrizzleTokenProvider<ApiUser>({
         db,
-        tokensTable: 'access_tokens',
+        // The table OBJECT, not its name: the provider builds its queries
+        // from these columns, and refuses a table that lacks one.
+        tokensTable: accessTokens,
 
         findUserById: async (database: Db, id: string | number) => {
             const rows = await database.select().from(users)

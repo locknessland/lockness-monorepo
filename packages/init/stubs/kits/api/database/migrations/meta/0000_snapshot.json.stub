@@ -1,5 +1,5 @@
 {
-  "id": "b31d5a26-a7bd-49f3-9860-530347ec2536",
+  "id": "ab20f725-302d-4fcd-b6e6-0e00f04b5374",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -26,8 +26,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "token": {
-          "name": "token",
+        "hash": {
+          "name": "hash",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -36,13 +36,19 @@
           "name": "expires_at",
           "type": "timestamp",
           "primaryKey": false,
+          "notNull": true
+        },
+        "last_used_at": {
+          "name": "last_used_at",
+          "type": "timestamp",
+          "primaryKey": false,
           "notNull": false
         },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "default": "now()"
         }
       },
@@ -80,11 +86,11 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "access_tokens_token_unique": {
-          "name": "access_tokens_token_unique",
+        "access_tokens_hash_unique": {
+          "name": "access_tokens_hash_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "token"
+            "hash"
           ]
         }
       },

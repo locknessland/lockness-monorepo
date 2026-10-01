@@ -63,7 +63,7 @@ reissued, not recovered.
 app/
 ├── auth/
 │   ├── guards.ts         # the 'api' TokenGuard
-│   └── user_provider.ts  # the two lookups the provider needs
+│   └── user_provider.ts  # the token table and the two user lookups
 ├── controller/
 │   ├── health_controller.ts  # GET /
 │   └── token_controller.ts   # POST /auth/token, GET /auth/me
