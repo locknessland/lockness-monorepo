@@ -11,21 +11,33 @@
  * This check copies each package's publishable files, alone, next to its own
  * `deno.json` and outside the workspace, then type-checks its exports. It is
  * the **one owner of declaration integrity**: `deps:analyze` does not check
- * declarations (#388). It **fails closed** — exactly one failure is tolerated,
- * and anything it does not recognise is a failure:
+ * declarations (#388).
  *
- * | Message | Meaning | Verdict |
- * | :------ | :------ | :------ |
- * | `TS2307 … not a dependency and not in import map` | the manifest is missing the dependency | **fail** |
- * | `Cannot find module 'file:…'` | a file the exports reach is missing from `publish.include` | **fail** |
- * | `Could not find version of '@lockness/…' that matches`, and no other error | declared, but that lockstep version is not on JSR yet | pass |
- * | anything else | unrecognised | **fail** |
+ * **Workspace packages resolve against their staged siblings, never JSR.** Every
+ * package is staged first; each one is then checked with a Deno `links` entry
+ * per sibling, so a declared `jsr:@lockness/x@^V` resolves to the local copy —
+ * including subpaths and symbols not published yet. Two guards keep that
+ * honest: a linked name resolves even when undeclared, so every sibling the
+ * manifest does **not** declare is mapped to a sentinel path that cannot load;
+ * and a declared range the workspace version does not satisfy would make Deno
+ * fall back to JSR, so it is refused before `deno check` runs.
  *
- * The tolerated case is the expected state for an unreleased version and must
- * not be confused with the first. It is limited to `@lockness/*`: a third-party
- * version that does not exist is a real fault, not a pre-release state.
+ * It **tolerates no failure**: the verdict is `deno check`'s exit status. The
+ * message only names the fault:
  *
- * It resolves against JSR, so it needs network access.
+ * | Message | Meaning |
+ * | :------ | :------ |
+ * | `stale range: …` | a declared `@lockness/*` range the workspace version misses |
+ * | `TS2307 … not a dependency and not in import map` | the manifest is missing the dependency |
+ * | `Cannot find module 'file:…/.lockness-undeclared/…'` | a sibling imported but not declared |
+ * | `Cannot find module 'file:…'` | a file the exports reach is missing from `publish.include` |
+ * | anything else | unrecognised — still **fail** |
+ *
+ * There used to be a tolerated "`@lockness/*` version not on JSR yet" case. It
+ * was blind: that is a graph error, so `deno check` never reached type checking
+ * and dropped every undeclared import in the same file.
+ *
+ * Third-party dependencies resolve against JSR/npm, so it needs network access.
  *
  * It also asks JSR whether each package **exists in the registry**. A package
  * must be created there before anything can be published to it, and
@@ -43,6 +55,7 @@
 
 import { dirname, join } from '@std/path'
 import { parse as parseJsonc } from '@std/jsonc'
+import { parse, parseRange, satisfies } from '@std/semver'
 
 const ROOT = Deno.cwd()
 const PACKAGES_DIR = join(ROOT, 'packages')
@@ -247,9 +260,152 @@ export function selectPublishedFiles(
     })
 }
 
-/** A tolerated pre-release condition: a lockstep version not on JSR yet. */
-const PRE_RELEASE =
-    /^error: Could not find version of '@lockness\/[a-z0-9-]+' that matches specified version constraint '[^']+'$/
+/**
+ * A workspace package as the check sees it once staged: the name it is
+ * imported by, the directory it was staged under, and the version a declared
+ * range must accept.
+ */
+export interface WorkspaceSibling {
+    /** The package name, e.g. `@lockness/cli`. */
+    name: string
+    /** Its directory under `packages/`, e.g. `cli`. */
+    short: string
+    /** Its manifest version, e.g. `0.4.0`. */
+    version: string
+}
+
+/**
+ * The directory, relative to a staged package, that sentinel import-map
+ * entries point into. Nothing is ever written there, so an import routed to
+ * it fails to load during type checking.
+ */
+const UNDECLARED_DIR = '.lockness-undeclared'
+
+/** `jsr:<@scope/name>@<range>[/subpath]`. */
+const JSR_SPECIFIER = /^jsr:\/?(@[^/@]+\/[^/@]+)(?:@([^/]+))?(\/.*)?$/
+
+/**
+ * The `imports` of a manifest as a string map, ignoring anything malformed.
+ *
+ * @param manifest - A parsed `deno.json`.
+ * @returns The string-valued entries of its `imports` field.
+ */
+function importsOf(manifest: Record<string, unknown>): Record<string, string> {
+    const raw = manifest.imports
+    if (raw === null || typeof raw !== 'object') return {}
+    const out: Record<string, string> = {}
+    for (const [key, value] of Object.entries(raw)) {
+        if (typeof value === 'string') out[key] = value
+    }
+    return out
+}
+
+/**
+ * Every declared `@lockness/*` range the workspace sibling's own version does
+ * not satisfy.
+ *
+ * Linking only holds while the declared range accepts the linked version: when
+ * it does not, Deno warns and quietly resolves the import against JSR instead,
+ * which can type-check green against an older published release. So a range
+ * miss is refused here, before `deno check` gets the chance.
+ *
+ * @param manifest - The parsed `deno.json` of the package being checked.
+ * @param siblings - Every staged workspace package.
+ * @returns One `stale range: …` description per offending entry, empty when
+ *   every sibling range is satisfied. Entries naming a non-sibling are ignored.
+ *
+ * @example
+ * ```ts
+ * workspaceRangeFaults(
+ *     { imports: { '@lockness/cli': 'jsr:@lockness/cli@^0.3.0' } },
+ *     [{ name: '@lockness/cli', short: 'cli', version: '0.4.0' }],
+ * )
+ * // -> ['stale range: @lockness/cli declares ^0.3.0, workspace is 0.4.0']
+ * ```
+ */
+export function workspaceRangeFaults(
+    manifest: Record<string, unknown>,
+    siblings: readonly WorkspaceSibling[],
+): string[] {
+    const versions = new Map(siblings.map((s) => [s.name, s.version]))
+    const faults: string[] = []
+    for (const [key, value] of Object.entries(importsOf(manifest))) {
+        const match = JSR_SPECIFIER.exec(value)
+        if (!match) continue
+        const [, name, range] = match
+        const version = versions.get(name)
+        if (version === undefined || range === undefined) continue
+        let ok: boolean
+        try {
+            ok = satisfies(parse(version), parseRange(range))
+        } catch {
+            ok = false
+        }
+        if (!ok) {
+            faults.push(
+                `stale range: ${key} declares ${range}, workspace is ${version}`,
+            )
+        }
+    }
+    return faults
+}
+
+/**
+ * The manifest a staged package is checked with: its own, plus a `links` entry
+ * per workspace sibling and a sentinel for every sibling it does not declare.
+ *
+ * - `links` points each sibling (never the package itself) at its staged copy
+ *   in `../../pkgs/<short>`, so a declared `jsr:@lockness/x@^V` resolves to the
+ *   local code, unpublished subpaths and symbols included, with no download.
+ * - A linked name resolves **even when undeclared**, which would hide exactly
+ *   the fault this check exists for. So every sibling not declared by key —
+ *   the key equals its name or starts with `<name>/`, the rule Deno resolves
+ *   by (#388) — gets `<name>` and `<name>/` mapped into a directory that does
+ *   not exist. Importing it then fails type checking with a `Cannot find
+ *   module` naming the sentinel, which {@link classifyCheck} reports.
+ *
+ * Declared entries are carried over unchanged. Siblings keep their own
+ * manifests: `links` is honoured only in the root config.
+ *
+ * @param manifest - The package's parsed `deno.json`.
+ * @param selfName - The package's own name, excluded from `links`.
+ * @param siblings - Every staged workspace package.
+ * @returns A new manifest; the input is not modified.
+ *
+ * @example
+ * ```ts
+ * withWorkspaceLinks({ name: '@lockness/a', imports: {} }, '@lockness/a', [
+ *     { name: '@lockness/a', short: 'a', version: '0.4.0' },
+ *     { name: '@lockness/b', short: 'b', version: '0.4.0' },
+ * ])
+ * // -> { name: '@lockness/a', links: ['../../pkgs/b'], imports: {
+ * //      '@lockness/b': './.lockness-undeclared/@lockness/b',
+ * //      '@lockness/b/': './.lockness-undeclared/@lockness/b/' } }
+ * ```
+ */
+export function withWorkspaceLinks(
+    manifest: Record<string, unknown>,
+    selfName: string,
+    siblings: readonly WorkspaceSibling[],
+): Record<string, unknown> {
+    const declared = importsOf(manifest)
+    const keys = Object.keys(declared)
+    const others = siblings.filter((s) => s.name !== selfName)
+    const sentinels: Record<string, string> = {}
+    for (const { name } of others) {
+        const isDeclared = keys.some((key) =>
+            key === name || key.startsWith(`${name}/`)
+        )
+        if (isDeclared) continue
+        sentinels[name] = `./${UNDECLARED_DIR}/${name}`
+        sentinels[`${name}/`] = `./${UNDECLARED_DIR}/${name}/`
+    }
+    return {
+        ...manifest,
+        links: others.map((s) => `../../pkgs/${s.short}`),
+        imports: { ...sentinels, ...declared },
+    }
+}
 
 /**
  * Remove ANSI colour sequences, so matching does not depend on whether the
@@ -264,9 +420,9 @@ function stripAnsi(text: string): string {
 }
 
 /**
- * Classify one package's `deno check` outcome. **Fails closed**: a failed run
- * passes only when every error it reports is the one recognised pre-release
- * condition — a `@lockness/*` version not published yet.
+ * Classify one package's `deno check` outcome. **Tolerates no failure**: the
+ * verdict is the exit status (`ok === success`), and the output only decides
+ * how a failure is named.
  *
  * @param name - Short package name.
  * @param success - Whether `deno check` exited 0.
@@ -283,14 +439,27 @@ export function classifyCheck(
     success: boolean,
     rawOutput: string,
 ): Result {
+    if (success) return { name, ok: true, detail: 'resolves' }
+
     const output = stripAnsi(rawOutput)
 
     // The failure this check exists for: an import the manifest never declared.
+    // A third-party one reads "not a dependency"; a workspace sibling one hits
+    // the sentinel `withWorkspaceLinks` put in its place. The sentinel rule has
+    // to run before the `file:` rule below, which would otherwise report it as
+    // a file missing from publish.include.
     const undeclared = [
-        ...output.matchAll(
-            /Import "([^"]+)" not a dependency and not in import map/g,
-        ),
-    ].map((m) => m[1])
+        ...[
+            ...output.matchAll(
+                /Import "([^"]+)" not a dependency and not in import map/g,
+            ),
+        ].map((m) => m[1]),
+        ...[
+            ...output.matchAll(
+                /Cannot find module ['"]file:[^'"]*\/\.lockness-undeclared\/(@[^/'"]+\/[^/'"]+)[^'"]*['"]/g,
+            ),
+        ].map((m) => m[1]),
+    ]
 
     if (undeclared.length > 0) {
         return {
@@ -302,9 +471,7 @@ export function classifyCheck(
 
     // A local file the exports reach but `publish.include` never listed: the
     // allowlist is incomplete, so the file was not staged and `deno check`
-    // fails to load it. A real publish failure — distinct from the tolerated
-    // "version not on JSR yet" below, which names a JSR specifier, not a
-    // `file:` URL.
+    // fails to load it.
     const missingLocal = [
         ...output.matchAll(/Cannot find module ['"](file:[^'"]+)['"]/g),
     ].map((m) => m[1].split('/').pop() ?? m[1])
@@ -318,23 +485,12 @@ export function classifyCheck(
         }
     }
 
-    if (success) return { name, ok: true, detail: 'resolves' }
-
-    // Fail closed. `deno check` failed, so pass ONLY when every error line is
-    // the recognised pre-release condition. A type error, a missing third-party
-    // version, a network failure, a crash — anything else is red. This used to
-    // be the other way round, and a failure it did not recognise read green.
+    // Anything else is red too, named by its first error line. There is no
+    // tolerated failure: the old "@lockness/* version not on JSR yet" pass was
+    // a graph error that hid every undeclared import beside it.
     const errors = output.split('\n')
         .map((line) => line.trim())
         .filter((line) => /^error:|\[ERROR\]/.test(line))
-    if (errors.length > 0 && errors.every((line) => PRE_RELEASE.test(line))) {
-        return {
-            name,
-            ok: true,
-            detail:
-                'declared; some @lockness versions not on JSR yet (expected pre-release)',
-        }
-    }
     const first = errors[0] ??
         output.split('\n').map((l) => l.trim()).find((l) => l !== '') ??
         'deno check failed with no output'
@@ -370,49 +526,110 @@ export function resolutionVerdict(
     return { code: 0, lines: ['\n✅ Every package resolves standalone'] }
 }
 
+/** A package staged in its published shape, with the manifest it shipped. */
+interface StagedPackage {
+    /** Short package name (its directory under `packages/`). */
+    short: string
+    /** The parsed `deno.json`. */
+    manifest: Record<string, unknown>
+}
+
 /**
- * Check one package in isolation.
+ * Copy every file under `from` into `to`, keeping relative paths.
  *
- * @param name - Short package name.
- * @param scratch - Directory to stage the copy in.
- * @returns The outcome.
+ * @param from - Source directory.
+ * @param to - Destination directory, created as needed.
  */
-async function checkPackage(name: string, scratch: string): Promise<Result> {
-    const source = join(PACKAGES_DIR, name)
+async function copyTree(from: string, to: string): Promise<void> {
+    await Deno.mkdir(to, { recursive: true })
+    for (const relative of await enumerateFiles(from)) {
+        const target = join(to, relative)
+        await Deno.mkdir(dirname(target), { recursive: true })
+        await Deno.copyFile(join(from, relative), target)
+    }
+}
+
+/**
+ * Stage one package's published files, unmodified, in `<scratch>/pkgs/<short>`.
+ * That copy is what every other package links against, so it is never
+ * rewritten.
+ *
+ * @param short - Short package name.
+ * @param scratch - The run's scratch root.
+ * @returns The staged package.
+ */
+async function stagePackage(
+    short: string,
+    scratch: string,
+): Promise<StagedPackage> {
+    const source = join(PACKAGES_DIR, short)
     const manifest = JSON.parse(
         await Deno.readTextFile(join(source, 'deno.json')),
-    )
-    const include: string[] = manifest.publish?.include ?? []
-    const exclude: string[] = manifest.publish?.exclude ?? []
+    ) as Record<string, unknown>
+    const publish = (manifest.publish ?? {}) as {
+        include?: string[]
+        exclude?: string[]
+    }
 
-    const staged = join(scratch, name)
+    const staged = join(scratch, 'pkgs', short)
     await Deno.mkdir(staged, { recursive: true })
-
     const published = selectPublishedFiles(
         await enumerateFiles(source),
-        include,
-        exclude,
+        publish.include ?? [],
+        publish.exclude ?? [],
     )
     for (const relative of published) {
         const target = join(staged, relative)
         await Deno.mkdir(dirname(target), { recursive: true })
         await Deno.copyFile(join(source, relative), target)
     }
+    return { short, manifest }
+}
+
+/**
+ * Check one staged package against its staged siblings.
+ *
+ * @param pkg - The package, already staged by {@link stagePackage}.
+ * @param siblings - Every staged workspace package.
+ * @param scratch - The run's scratch root.
+ * @returns The outcome.
+ */
+async function checkPackage(
+    pkg: StagedPackage,
+    siblings: readonly WorkspaceSibling[],
+    scratch: string,
+): Promise<Result> {
+    const { short: name, manifest } = pkg
+
+    // A range the linked version misses makes Deno fall back to JSR, which can
+    // pass against an older release -- so it is refused before `deno check`.
+    const stale = workspaceRangeFaults(manifest, siblings)
+    if (stale.length > 0) {
+        return { name, ok: false, detail: stale.join('; ') }
+    }
 
     const exportsField = manifest.exports ?? {}
     const entries = (
         typeof exportsField === 'string'
             ? [exportsField]
-            : Object.values(exportsField) as string[]
-    ).filter((v) => typeof v === 'string' && /\.tsx?$/.test(v))
+            : Object.values(exportsField as Record<string, unknown>)
+    ).filter((v): v is string => typeof v === 'string' && /\.tsx?$/.test(v))
 
     if (entries.length === 0) {
         return { name, ok: true, detail: 'no type-checkable exports' }
     }
 
+    const root = join(scratch, 'root', name)
+    await copyTree(join(scratch, 'pkgs', name), root)
+    const selfName = typeof manifest.name === 'string' ? manifest.name : ''
+    await Deno.writeTextFile(
+        join(root, 'deno.json'),
+        JSON.stringify(withWorkspaceLinks(manifest, selfName, siblings)),
+    )
+
     const result = await new Deno.Command(Deno.execPath(), {
         args: ['check', ...entries],
-        cwd: staged,
+        cwd: root,
         stdout: 'piped',
         stderr: 'piped',
     }).output()
@@ -519,9 +736,22 @@ async function main(): Promise<void> {
     console.log(
         `🔎 Checking ${names.length} packages in their published shape...\n`,
     )
+    // Stage every package before checking any: each check links against the
+    // staged copies of all the others.
+    const staged: StagedPackage[] = []
+    for (const name of names) staged.push(await stagePackage(name, scratch))
+    const siblings: WorkspaceSibling[] = staged.flatMap(
+        ({ short, manifest }) =>
+            typeof manifest.name === 'string' &&
+                typeof manifest.version === 'string'
+                ? [{ name: manifest.name, short, version: manifest.version }]
+                : [],
+    )
+
     const results: Result[] = []
-    for (const name of names) {
-        const result = await checkPackage(name, scratch)
+    for (const pkg of staged) {
+        const name = pkg.short
+        const result = await checkPackage(pkg, siblings, scratch)
         results.push(result)
         console.log(
             `${result.ok ? '  ✅' : '  ❌'} ${
