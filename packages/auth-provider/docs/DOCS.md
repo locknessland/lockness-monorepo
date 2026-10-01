@@ -540,6 +540,52 @@ app.use(
 | TypeORM | 🔄 Coming Soon |                                   |
 | Prisma  | 🔄 Coming Soon |                                   |
 
+## Upgrading to v0.5.0
+
+One item, breaking at compile time. **Migration step:** pass your Drizzle
+`access_tokens` table object as `tokensTable`, and reshape the table to the
+seven-property contract before you regenerate migrations.
+
+### 1. `DrizzleTokenProvider` takes `tokensTable` as a Drizzle table, and `access_tokens` is reshaped
+
+Before, `tokensTable` was a table name, which the provider accepted and never
+read (#452). Now the provider builds every token query from the table object you
+pass, and [`TokenProviderBase`](#tokenproviderbase) owns the token lifecycle.
+What that changes:
+
+- **A table name is a compile error.** `tokensTable: 'access_tokens'` fails with
+  TS2322: `Type 'string' is not assignable to type 'DrizzleAccessTokensTable'`.
+  From JavaScript, construction throws a `TypeError`. Import the table from your
+  schema instead:
+
+  ```diff
+  -import { users } from '@model/user.ts'
+  +import { accessTokens, users } from '@model/user.ts'
+   ...
+  -        tokensTable: 'access_tokens',
+  +        tokensTable: accessTokens,
+  ```
+
+- **The table needs seven properties:** `id`, `userId`, `name`, `hash`,
+  `expiresAt`, `lastUsedAt` and `createdAt` (see
+  [Access Tokens Table](#access-tokens-table)). A table without one is also
+  TS2322, naming the missing properties, and a `TypeError` at construction.
+- **`access_tokens` is reshaped**, in this order:
+  1. `token` becomes `hash`, still unique;
+  2. `expires_at` and `created_at` become NOT NULL;
+  3. `last_used_at`, a nullable timestamp, is added.
+- **Replace the schema definition before regenerating migrations.** drizzle-kit
+  generates from your schema: regenerate first and the migration keeps the old
+  `token` column.
+- **No stored token is lost.** Tokens issued before the upgrade never
+  authenticated, so deleting the rows the new shape cannot hold (no expiry)
+  removes nothing usable.
+
+For an app scaffolded from the v0.4.0 `api` kit, the whole procedure (the exact
+schema, the provider change, regenerated migrations, and the SQL for a database
+that already holds data) is step 3 onwards of
+[`@lockness/init`'s v0.5.0 item](../../init/docs/DOCS.md#upgrading-to-v050).
+
 ## Contributing
 
 To add support for a new ORM:
