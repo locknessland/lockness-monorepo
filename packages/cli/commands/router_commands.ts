@@ -9,7 +9,8 @@
 // deno-lint-ignore-file no-explicit-any
 import type { Cli } from '../mod.ts'
 import { join } from '@std/path'
-import { importAppFile, renderError, safeForLog } from '@lockness/contract'
+import { importAppFile } from '@lockness/contract/app-file/internal'
+import { renderError, safeForLog } from '@lockness/contract'
 
 /**
  * Information about a registered route.

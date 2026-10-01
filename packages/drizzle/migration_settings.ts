@@ -23,7 +23,7 @@
  * @since 0.4.1
  */
 
-import { importAppFile } from '@lockness/contract'
+import { importAppFile } from '@lockness/contract/app-file/internal'
 import type { MigrationMeta } from 'drizzle-orm/migrator'
 import type { Dialect } from './drivers.ts'
 import {

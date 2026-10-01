@@ -16,7 +16,7 @@ import {
     KERNEL_CONFIG,
     type KernelConfig,
 } from '../kernel/kernel_decorators.ts'
-import { importAppFile } from '@lockness/contract'
+import { importAppFile } from '@lockness/contract/app-file/internal'
 import { generateRoutesFile } from '../routing/generator.ts'
 
 /**

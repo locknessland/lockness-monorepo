@@ -14,7 +14,7 @@
 
 import { join, resolve } from '@std/path'
 import { KERNEL_CONFIG } from '../kernel/kernel_decorators.ts'
-import { importAppFile } from '@lockness/contract'
+import { importAppFile } from '@lockness/contract/app-file/internal'
 import { createApp } from '../kernel/loader.ts'
 import type { KernelConfig } from '../kernel/kernel_decorators.ts'
 import type { RouteInfo } from '../app.ts'

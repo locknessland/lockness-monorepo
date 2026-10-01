@@ -21,7 +21,7 @@
  */
 
 import { join, resolve, SEPARATOR } from '@std/path'
-import { importAppFile } from '@lockness/contract'
+import { importAppFile } from '@lockness/contract/app-file/internal'
 import { container } from '@lockness/container'
 import {
     DEFAULT_SCHEDULES_DIR,

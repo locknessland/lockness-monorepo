@@ -9,7 +9,8 @@
 import type { Cli } from '../mod.ts'
 import type { JobClass, QueueConfig } from '@lockness/queue'
 import { join } from '@std/path'
-import { importAppFile, renderError, safeForLog } from '@lockness/contract'
+import { importAppFile } from '@lockness/contract/app-file/internal'
+import { renderError, safeForLog } from '@lockness/contract'
 
 /**
  * Raised when `QUEUE_DRIVER=redis` is selected but the Redis connection

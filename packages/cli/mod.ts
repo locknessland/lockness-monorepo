@@ -23,7 +23,8 @@
  */
 
 import { join } from '@std/path'
-import { importAppFile, renderError, safeForLog } from '@lockness/contract'
+import { importAppFile } from '@lockness/contract/app-file/internal'
+import { renderError, safeForLog } from '@lockness/contract'
 import { Stub } from './stubs.ts'
 import { isCommandFailure, toFailureStatus } from './command_failure.ts'
 

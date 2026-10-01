@@ -8,7 +8,7 @@
  */
 
 import { join } from '@std/path'
-import { importAppFile } from '@lockness/contract'
+import { importAppFile } from '@lockness/contract/app-file/internal'
 import { container } from '@lockness/container'
 import {
     dispatcher,

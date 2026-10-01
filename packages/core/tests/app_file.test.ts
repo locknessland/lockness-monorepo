@@ -2,7 +2,7 @@
  * Every core site that imports an app file loads it from a path holding `#`
  * and a space (#474).
  *
- * The sites import through `importAppFile` from `@lockness/contract`, whose own
+ * The sites import through `importAppFile` (`@lockness/contract/app-file/internal`), whose own
  * suite pins the URL it builds and that it loads from a module served over
  * HTTP (`packages/contract/tests/app_file.test.ts`). These tests pin that each
  * site really goes through it: a hand-built `` `file://${path}` `` makes the

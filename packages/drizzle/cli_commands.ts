@@ -21,7 +21,7 @@ import { dirname, fromFileUrl, join } from '@std/path'
 // configured, and the barrel would pull every built-in command in with it.
 import { CommandFailedError } from '@lockness/cli/command-failure'
 import { container } from '@lockness/container'
-import { importAppFile } from '@lockness/contract'
+import { importAppFile } from '@lockness/contract/app-file/internal'
 import { Database } from './mod.ts'
 import { handleMakeFactory } from './generators/factory_generator.ts'
 import { handleMakeModel } from './generators/model_generator.ts'

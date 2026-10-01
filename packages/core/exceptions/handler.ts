@@ -1,7 +1,7 @@
 import type { ErrorHandler } from '../types.ts'
 import { defaultErrorHandler } from './default_view.ts'
 import { renderError, safeForLog } from '../logging/sanitize.ts'
-import { importAppFile } from '@lockness/contract'
+import { importAppFile } from '@lockness/contract/app-file/internal'
 import { resolve } from '@std/path'
 
 /**

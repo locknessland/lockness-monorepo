@@ -9,10 +9,10 @@ import type { Cli } from '@lockness/cli'
 import { generateOpenAPISpec } from './generator.ts'
 import {
     type ControllerClass,
-    importAppFile,
     renderError,
     safeForLog,
 } from '@lockness/contract'
+import { importAppFile } from '@lockness/contract/app-file/internal'
 import { join } from '@std/path'
 
 /**

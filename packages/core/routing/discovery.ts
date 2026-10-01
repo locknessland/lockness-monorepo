@@ -19,7 +19,8 @@
 
 import { join } from '@std/path'
 import type { ControllerClass } from '../types.ts'
-import { importAppFile, renderError, safeForLog } from '@lockness/contract'
+import { importAppFile } from '@lockness/contract/app-file/internal'
+import { renderError, safeForLog } from '@lockness/contract'
 
 /** Supported file extensions for controller files */
 const CONTROLLER_EXTENSIONS = ['.ts', '.js', '.tsx'] as const

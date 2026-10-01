@@ -19,7 +19,7 @@ import { join } from '@std/path'
 import type { ControllerWithMetadata } from '@lockness/contract'
 import type { RouteInfo } from '../app.ts'
 import { outputPathFor } from './paths.ts'
-import { importAppFile } from '@lockness/contract'
+import { importAppFile } from '@lockness/contract/app-file/internal'
 
 /** A discovered controller class as the enumerator reads it: metadata + name. */
 export type StaticControllerRef = ControllerWithMetadata & {
