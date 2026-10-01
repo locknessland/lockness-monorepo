@@ -16,9 +16,10 @@
  * `drivers.ts`; this module only decides. Each planner reads the catalogue
  * first and refuses before returning a single statement, so every refusal
  * happens before the first `DROP`. A system target is never in scope: a
- * MySQL url selecting `mysql`, `sys`, `performance_schema` or
- * `information_schema`, and a postgres `schemaFilter` or `migrations.schema`
- * naming `information_schema` or any `pg_*` schema, are refused.
+ * MySQL `DATABASE()` naming `mysql`, `sys`, `performance_schema` or
+ * `information_schema` — what the session selected, whatever the url says —
+ * and a postgres `schemaFilter` or `migrations.schema` naming
+ * `information_schema` or any `pg_*` schema, are refused.
  *
  * @module @lockness/drizzle/reset
  * @since 0.4.1

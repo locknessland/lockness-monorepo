@@ -478,7 +478,10 @@ by a column are not dropped directly. A schema is dropped only when a migration
 creates it with a plain `CREATE SCHEMA`. The bookkeeping table is
 `"<migrations.schema>"."<migrations.table>"`, `"drizzle"."__drizzle_migrations"`
 by default. Roles, extensions, collations, text-search configs and publications
-survive, and so do MySQL procedures, functions and events.
+survive, and so do MySQL procedures, functions and events. Operators and event
+triggers survive only while their function lies outside the scope: when it is in
+scope, the `CASCADE` would take them along, so they count as escapes and the
+closing check below rolls the reset back.
 
 **The closing check (R7) is a set check.** After the bookkeeping table is
 dropped and before the first `CASCADE`, the transaction records every object
