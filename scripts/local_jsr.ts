@@ -364,11 +364,72 @@ export function normaliseTarPath(path: string): string {
     return `/${relative}`
 }
 
+/** Size caps on one upload, checked while it streams, never after. */
+export interface TarballLimits {
+    /** The gzipped body, as sent. */
+    readonly maxCompressedBytes: number
+    /** The tar stream once gunzipped, headers included. */
+    readonly maxDecompressedBytes: number
+    /** Any one file, from its tar header, before it is buffered. */
+    readonly maxFileBytes: number
+}
+
 /**
- * Gunzip and untar a bundle into memory.
+ * The default caps. The largest workspace bundle is a few MB once gunzipped;
+ * a measured 510 KB bomb grew to 1.78 GB of memory without them.
+ */
+export const DEFAULT_TARBALL_LIMITS: TarballLimits = {
+    maxCompressedBytes: 20 * 1024 * 1024,
+    maxDecompressedBytes: 200 * 1024 * 1024,
+    maxFileBytes: 20 * 1024 * 1024,
+}
+
+/**
+ * An upload crossed one of the {@link TarballLimits}. The handler answers
+ * 413 for it.
+ *
+ * @example
+ * ```ts
+ * throw new TarballTooLargeError('decompressed', 200 * 1024 * 1024)
+ * ```
+ */
+export class TarballTooLargeError extends Error {
+    /**
+     * @param what - Which cap: `compressed`, `decompressed` or a file path.
+     * @param cap - The cap, in bytes.
+     */
+    constructor(what: string, cap: number) {
+        super(`upload too large: ${what} exceeds ${cap} bytes`)
+        this.name = 'TarballTooLargeError'
+    }
+}
+
+/** A pass-through that errors the stream once more than `cap` bytes go by. */
+function byteCap(what: string, cap: number): TransformStream<Bytes, Bytes> {
+    let seen = 0
+    return new TransformStream({
+        transform(chunk, controller) {
+            seen += chunk.byteLength
+            if (seen > cap) {
+                controller.error(new TarballTooLargeError(what, cap))
+                return
+            }
+            controller.enqueue(chunk)
+        },
+    })
+}
+
+/**
+ * Gunzip and untar a bundle into memory, within size caps.
+ *
+ * Files land in an in-memory `Map` keyed by {@link normaliseTarPath}, so
+ * nothing is ever written to disk. An absolute entry (`/etc/x`) is simply
+ * rooted into that map as `/etc/x`, and a `..` segment is refused.
  *
  * @param body - The gzipped tarball `deno publish` uploads.
+ * @param limits - Size caps; {@link DEFAULT_TARBALL_LIMITS} by default.
  * @returns Every regular file, keyed by {@link normaliseTarPath}.
+ * @throws {TarballTooLargeError} When a cap is crossed, as soon as it is.
  * @throws {Error} When the stream is not a gzipped tar, or an entry path is
  * refused.
  *
@@ -380,17 +441,25 @@ export function normaliseTarPath(path: string): string {
  */
 export async function readTarball(
     body: ReadableStream<Bytes>,
+    limits: TarballLimits = DEFAULT_TARBALL_LIMITS,
 ): Promise<Map<string, Bytes>> {
     const files = new Map<string, Bytes>()
     const entries = body
+        .pipeThrough(byteCap('compressed', limits.maxCompressedBytes))
         .pipeThrough(new DecompressionStream('gzip'))
+        .pipeThrough(byteCap('decompressed', limits.maxDecompressedBytes))
         .pipeThrough(new UntarStream())
     for await (const entry of entries) {
         if (entry.readable === undefined) continue
+        const path = normaliseTarPath(entry.path)
+        if (entry.header.size > limits.maxFileBytes) {
+            await entry.readable.cancel()
+            throw new TarballTooLargeError(path, limits.maxFileBytes)
+        }
         const bytes = new Uint8Array(
             await new Response(entry.readable).arrayBuffer(),
         )
-        files.set(normaliseTarPath(entry.path), bytes)
+        files.set(path, bytes)
     }
     return files
 }
@@ -495,6 +564,8 @@ export interface LocalJsrHandlerOptions {
      * take an unauthenticated upload is not constructible.
      */
     readonly publishToken: string
+    /** Upload size caps; {@link DEFAULT_TARBALL_LIMITS} by default. */
+    readonly limits?: TarballLimits
     /** Base URL every other scope is read from. Defaults to jsr.io. */
     readonly upstream?: string
     /** How the upstream is fetched; injectable for tests. */
@@ -529,6 +600,7 @@ export function createLocalJsrHandler(
         throw new Error('publishToken must be a per-run random value')
     }
     const expectedAuthorization = `Bearer ${options.publishToken}`
+    const limits = options.limits ?? DEFAULT_TARBALL_LIMITS
     const upstream = new URL(options.upstream ?? JSR_UPSTREAM)
     const fetchUpstream = options.fetchUpstream ??
         ((url: URL, init: RequestInit) => fetch(url, init))
@@ -597,12 +669,23 @@ export function createLocalJsrHandler(
         if (request.body === null) {
             return apiError(400, 'missingTarball', 'empty body')
         }
+        const declared = Number(request.headers.get('content-length') ?? 0)
+        if (declared > limits.maxCompressedBytes) {
+            await request.body.cancel()
+            log(`413 @${scope}/${name}@${version}: ${declared} bytes declared`)
+            return apiError(413, 'tooLarge', 'compressed body over the cap')
+        }
         let files: Map<string, Bytes>
         try {
-            files = await readTarball(request.body)
+            files = await readTarball(request.body, limits)
         } catch (error) {
-            log(`400 @${scope}/${name}@${version}: ${(error as Error).message}`)
-            return apiError(400, 'invalidTarball', (error as Error).message)
+            const status = error instanceof TarballTooLargeError ? 413 : 400
+            log(
+                `${status} @${scope}/${name}@${version}: ${
+                    (error as Error).message
+                }`,
+            )
+            return apiError(status, 'invalidTarball', (error as Error).message)
         }
         const configPath = url.searchParams.get('config') ?? '/deno.json'
         const configBytes = files.get(configPath)

@@ -21,6 +21,7 @@ import {
     readExports,
     readTarball,
     startLocalJsr,
+    TarballTooLargeError,
     versionMeta,
 } from './local_jsr.ts'
 
@@ -246,6 +247,88 @@ Deno.test('readTarball gunzips and untars a bundle', async () => {
         new TextDecoder().decode(files.get('/mod.ts')),
         CORE['./mod.ts'],
     )
+})
+
+/** `count` zero bytes: gzip shrinks them to almost nothing, a tiny bomb. */
+const zeros = (count: number) => '\0'.repeat(count)
+
+Deno.test('readTarball stops a decompression bomb at the decompressed cap', async () => {
+    // 256 KiB of zeros gzips to a few hundred bytes; the cap is 32 KiB.
+    await assertRejects(
+        () =>
+            readTarball(tarball({ './big.ts': zeros(256 * 1024) }), {
+                maxCompressedBytes: 1024 * 1024,
+                maxDecompressedBytes: 32 * 1024,
+                maxFileBytes: 1024 * 1024,
+            }),
+        TarballTooLargeError,
+        'decompressed',
+    )
+})
+
+Deno.test('readTarball refuses a file over the per-file cap before buffering it', async () => {
+    await assertRejects(
+        () =>
+            readTarball(tarball({ './big.ts': zeros(8 * 1024) }), {
+                maxCompressedBytes: 1024 * 1024,
+                maxDecompressedBytes: 1024 * 1024,
+                maxFileBytes: 4 * 1024,
+            }),
+        TarballTooLargeError,
+        '/big.ts',
+    )
+})
+
+Deno.test('readTarball refuses a body over the compressed cap', async () => {
+    const random = crypto.getRandomValues(new Uint8Array(32 * 1024))
+    const body = ReadableStream.from([random])
+    await assertRejects(
+        () =>
+            readTarball(body, {
+                maxCompressedBytes: 8 * 1024,
+                maxDecompressedBytes: 1024 * 1024,
+                maxFileBytes: 1024 * 1024,
+            }),
+        TarballTooLargeError,
+        'compressed',
+    )
+})
+
+Deno.test('a publish over a cap is a 413 and stores nothing', async () => {
+    const store = new LocalJsrStore()
+    const handler = createLocalJsrHandler({
+        store,
+        publishToken: TOKEN,
+        limits: {
+            maxCompressedBytes: 64 * 1024,
+            maxDecompressedBytes: 32 * 1024,
+            maxFileBytes: 1024 * 1024,
+        },
+        fetchUpstream: () => Promise.reject(new Error('must not be reached')),
+    })
+    const url =
+        'http://127.0.0.1:4507/api/scopes/lockness/packages/core/versions/0.4.0'
+
+    const declared = await handler(
+        new Request(url, {
+            method: 'POST',
+            headers: { ...AUTH, 'content-length': String(65 * 1024) },
+            body: new Uint8Array(65 * 1024),
+        }),
+    )
+    await declared.body?.cancel()
+    assertEquals(declared.status, 413)
+
+    const bomb = await handler(
+        new Request(url, {
+            method: 'POST',
+            headers: AUTH,
+            body: tarball({ ...CORE, './big.ts': zeros(256 * 1024) }),
+        }),
+    )
+    await bomb.body?.cancel()
+    assertEquals(bomb.status, 413)
+    assertEquals(store.names(), [])
 })
 
 Deno.test('readTarball refuses a traversal entry', async () => {
