@@ -11,7 +11,7 @@
  * import { authConfig } from './auth/guards.ts'
  * import { initializeAuthMiddleware } from '@lockness/auth'
  *
- * // In kernel.tsx
+ * // In kernel.ts
  * initializeAuthMiddleware(authConfig)
  * ```
  */

@@ -3,7 +3,7 @@
  *
  * Demonstrates the REAL mount point feature with locale prefix at START of URL.
  *
- * With mount point configured in app/kernel.tsx, routes are accessible:
+ * With mount point configured in app/kernel.ts, routes are accessible:
  * - At root: /demo/mount-points (no locale context)
  * - Under mount point: /fr/ca/demo/mount-points (with locale context)
  *

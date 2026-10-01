@@ -9,7 +9,7 @@
  * @example
  * ```typescript
  * import { createApp } from '@lockness/core'
- * import { AppKernel } from './app/kernel.tsx'
+ * import { AppKernel } from './app/kernel.ts'
  *
  * const app = await createApp(AppKernel)
  * app.listen(8888)
@@ -44,7 +44,7 @@ import { config } from '../config/mod.ts'
  * @example Basic usage
  * ```typescript
  * import { createApp } from '@lockness/core'
- * import { AppKernel } from './app/kernel.tsx'
+ * import { AppKernel } from './app/kernel.ts'
  *
  * const app = await createApp(AppKernel)
  * app.listen(8888)

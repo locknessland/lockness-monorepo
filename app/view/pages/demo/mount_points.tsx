@@ -137,7 +137,7 @@ export function MountPointsPage({ langId, countryId }: MountPointsProps) {
                     </Title>
                     <p class='text-muted-foreground text-lg'>
                         {hasLocale
-                            ? 'Locale extracted by mount point middleware in app/kernel.tsx'
+                            ? 'Locale extracted by mount point middleware in app/kernel.ts'
                             : 'Select a locale to see the mount point feature in action'}
                     </p>
                 </div>
@@ -256,7 +256,7 @@ export function MountPointsPage({ langId, countryId }: MountPointsProps) {
                 {/* Kernel Code */}
                 <Card class='mb-8'>
                     <CardHeader>
-                        <CardTitle>app/kernel.tsx Configuration</CardTitle>
+                        <CardTitle>app/kernel.ts Configuration</CardTitle>
                         <CardDescription>
                             Real mount points configuration powering this demo
                         </CardDescription>
