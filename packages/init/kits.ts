@@ -101,6 +101,7 @@ export const KITS: Readonly<Record<KitName, Kit>> = {
             'config/routing.ts.stub',
             'config/session.ts.stub',
             'app/controller/app_controller.tsx.stub',
+            'drizzle.config.ts.stub',
         ],
         overlay: [
             '.env.exemple.stub',
@@ -115,6 +116,8 @@ export const KITS: Readonly<Record<KitName, Kit>> = {
             'app/model/user.ts.stub',
             'app/view/pages/login.tsx.stub',
             'database/migrations/0000_create_users.sql.stub',
+            'database/migrations/meta/_journal.json.stub',
+            'database/migrations/meta/0000_snapshot.json.stub',
             'tests/smoke.test.ts.stub',
         ],
         binaries: WEB_BINARIES,
@@ -129,6 +132,7 @@ export const KITS: Readonly<Record<KitName, Kit>> = {
         base: [
             ...COMMON,
             'config/cache.ts.stub',
+            'drizzle.config.ts.stub',
         ],
         overlay: [
             '.env.exemple.stub',
@@ -144,6 +148,8 @@ export const KITS: Readonly<Record<KitName, Kit>> = {
             'app/controller/token_controller.ts.stub',
             'app/model/user.ts.stub',
             'database/migrations/0000_create_users.sql.stub',
+            'database/migrations/meta/_journal.json.stub',
+            'database/migrations/meta/0000_snapshot.json.stub',
             'tests/smoke.test.ts.stub',
         ],
         binaries: [],

@@ -34,6 +34,9 @@
         "drizzle-kit": "npm:drizzle-kit@0.31.10",
         "postgres": "npm:postgres@^3.4.4"
     },
+    "lockness": {
+        "packages": ["drizzle"]
+    },
     "fmt": {
         "indentWidth": 4,
         "useTabs": false,

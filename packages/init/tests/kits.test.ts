@@ -159,3 +159,80 @@ Deno.test('a kit never lists the same path twice within one tree', () => {
         }
     }
 })
+
+/** The kits whose overlay ships a migrations folder. */
+const MIGRATING_KITS = KIT_NAMES.filter((kit) =>
+    KITS[kit].overlay.some((f) => f.startsWith('database/migrations/'))
+)
+
+Deno.test('#444 web and api ship migrations; slim ships none', () => {
+    assertEquals(MIGRATING_KITS, ['web', 'api'])
+})
+
+Deno.test('#444 a migrating kit ships drizzle.config.ts and registers db:*', async () => {
+    for (const kit of KIT_NAMES) {
+        const migrates = MIGRATING_KITS.includes(kit)
+        // Without the config, drizzle-kit migrate and db:fresh have nothing
+        // to read; without `lockness.packages`, `db:migrate` is an unknown
+        // command — and the kit's README tells the user to run it.
+        assertEquals(
+            KITS[kit].base.includes('drizzle.config.ts.stub'),
+            migrates,
+            `${kit}: drizzle.config.ts`,
+        )
+        const denoJson = JSON.parse(
+            await Deno.readTextFile(
+                join(STUBS, 'kits', kit, 'deno.json.stub'),
+            ),
+        ) as { lockness?: { packages?: string[] } }
+        assertEquals(
+            denoJson.lockness?.packages?.includes('drizzle') ?? false,
+            migrates,
+            `${kit}: lockness.packages names drizzle`,
+        )
+    }
+})
+
+Deno.test('#444 drizzle.config.ts never falls back to an empty url', async () => {
+    const config = await Deno.readTextFile(
+        join(STUBS, 'init', 'drizzle.config.ts.stub'),
+    )
+    // `?? ''` type-checks, and db:fresh then accepts an empty url — the driver
+    // falls back to its default connection, a target nobody chose.
+    assertEquals(/(\?\?|\|\|)\s*(''|""|``)/.test(config), false)
+    assertEquals(
+        config.includes('...(url ? { dbCredentials: { url } } : {})'),
+        true,
+    )
+})
+
+Deno.test('#444 every shipped migration is in the journal, with its snapshot', async () => {
+    const dir = 'database/migrations/'
+    for (const kit of MIGRATING_KITS) {
+        const overlay = KITS[kit].overlay
+        const journalStub = `${dir}meta/_journal.json.stub`
+        // drizzle-orm's migrator reads the journal, not the folder: a .sql
+        // file it does not list is never applied, and no journal at all is
+        // "Can't find meta/_journal.json file".
+        assertEquals(overlay.includes(journalStub), true, `${kit}: journal`)
+        const journal = JSON.parse(
+            await Deno.readTextFile(join(STUBS, 'kits', kit, journalStub)),
+        ) as { entries: { idx: number; tag: string }[] }
+
+        const listed = journal.entries.map((e) => `${dir}${e.tag}.sql.stub`)
+        const shipped = overlay.filter((f) =>
+            f.startsWith(dir) && f.endsWith('.sql.stub')
+        )
+        assertEquals(shipped.sort(), listed.sort(), `${kit}: sql files`)
+        for (const entry of journal.entries) {
+            const snapshot = `${dir}meta/${
+                String(entry.idx).padStart(4, '0')
+            }_snapshot.json.stub`
+            assertEquals(
+                overlay.includes(snapshot),
+                true,
+                `${kit}: ${snapshot}`,
+            )
+        }
+    }
+})

@@ -28,6 +28,9 @@ DATABASE_URL=postgres://user:pass@localhost:5432/{{ projectName }}
 deno task db:migrate
 ```
 
+The migration was generated from `app/model/user.ts`. Change a model, then
+`deno task cli db:generate` writes the next one.
+
 Then create a user. The `password` column holds a **hash** — never a password:
 
 ```ts
@@ -68,7 +71,10 @@ app/
 ├── kernel.ts             # CORS, auth, database, cache
 └── routes.ts             # explicit registry, for production
 config/                   # app, cache, compile, database, listeners
-database/migrations/      # 0000_create_users.sql
+database/migrations/      # generated from app/model by drizzle-kit
+├── 0000_create_users.sql
+└── meta/                 # journal + snapshot — db:migrate reads them
+drizzle.config.ts         # what db:generate, db:migrate and db:fresh read
 tests/smoke.test.ts
 ```
 

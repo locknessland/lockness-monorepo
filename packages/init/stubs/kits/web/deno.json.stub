@@ -43,6 +43,9 @@
     "unstable": [
         "kv"
     ],
+    "lockness": {
+        "packages": ["drizzle"]
+    },
     "fmt": {
         "indentWidth": 4,
         "useTabs": false,

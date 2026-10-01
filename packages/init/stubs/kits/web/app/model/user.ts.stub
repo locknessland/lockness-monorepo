@@ -5,6 +5,13 @@ import { pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core'
  *
  * `password` holds a **hash**, never a password. Write it with
  * `hashPassword()` from `@lockness/auth`.
+ *
+ * Every login looks a user up by email, and the UNIQUE constraint on `email`
+ * already indexes it — no second index is needed.
+ *
+ * This schema is the source of truth. `database/migrations/` was generated
+ * from it with `drizzle-kit generate`; change the schema, then run
+ * `deno task cli db:generate` for the next migration.
  */
 export const users = pgTable('users', {
     id: serial('id').primaryKey(),
