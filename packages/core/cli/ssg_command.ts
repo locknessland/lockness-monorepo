@@ -12,10 +12,11 @@
  * @module @lockness/core/cli/ssg_command
  */
 
-import { join, resolve } from '@std/path'
+import { resolve } from '@std/path'
 import { KERNEL_CONFIG } from '../kernel/kernel_decorators.ts'
 import { importAppFile } from '@lockness/contract/app-file/internal'
 import { createApp } from '../kernel/loader.ts'
+import { KERNEL_CANDIDATES, resolveKernelFile } from './kernel_file.ts'
 import type { KernelConfig } from '../kernel/kernel_decorators.ts'
 import type { RouteInfo } from '../app.ts'
 import {
@@ -63,19 +64,6 @@ export const SSG_SECRET_WARNING =
     'environment loaded. Keep them state-free and secret-free: no per-request ' +
     'tokens/nonces, no env secrets in the page body — the output is published as-is.'
 
-/** Candidate kernel file paths (relative to the base dir), in resolution order. */
-const KERNEL_CANDIDATES = ['app/kernel.ts', 'app/kernel.tsx']
-
-/** Whether a path exists (native, so no `@std/fs` dependency is needed). */
-async function fileExists(path: string): Promise<boolean> {
-    try {
-        await Deno.stat(path)
-        return true
-    } catch {
-        return false
-    }
-}
-
 /**
  * Find the `@Kernel`-decorated class in an imported module.
  *
@@ -101,21 +89,20 @@ export function findKernel(
 /**
  * Resolve and import the `@Kernel`-decorated class from an app base directory.
  *
- * @param baseDir - The directory holding `app/kernel.ts(x)` (defaults to cwd).
- * @returns The resolved kernel, or `undefined` when no kernel file or decorated
- * class is found.
+ * The file is found by the lookup `compile` shares (`resolveKernelFile`):
+ * `app/kernel.ts`, then `app/kernel.tsx`; when both exist, `app/kernel.ts`
+ * wins.
+ *
+ * @param baseDir - The directory holding the app's kernel file (defaults to cwd).
+ * @returns The resolved kernel, or `undefined` when no kernel file exists or
+ * the one found declares no decorated class.
  */
 export async function loadKernel(
     baseDir: string = Deno.cwd(),
 ): Promise<ResolvedKernel | undefined> {
-    for (const candidate of KERNEL_CANDIDATES) {
-        const path = join(baseDir, candidate)
-        if (!(await fileExists(path))) continue
-        const module = await importAppFile(path)
-        const found = findKernel(module)
-        if (found) return found
-    }
-    return undefined
+    const kernel = await resolveKernelFile(baseDir)
+    if (kernel === undefined) return undefined
+    return findKernel(await importAppFile(kernel.path))
 }
 
 /** The outcome of a static build: the render result and whether it was empty. */
@@ -188,7 +175,9 @@ export class SsgCommand implements CommandContract {
         const loaded = await loadKernel()
         if (!loaded) {
             throw new Error(
-                'No @Kernel-decorated class found in app/kernel.ts(x); cannot build.',
+                `No @Kernel-decorated class found in ${
+                    KERNEL_CANDIDATES.join(' or ')
+                }; cannot build.`,
             )
         }
         const { KernelClass, config } = loaded

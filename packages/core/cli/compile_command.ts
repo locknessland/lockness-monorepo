@@ -18,6 +18,7 @@ import {
 } from '../kernel/kernel_decorators.ts'
 import { importAppFile } from '@lockness/contract/app-file/internal'
 import { generateRoutesFile } from '../routing/generator.ts'
+import { kernelFileNotFoundMessage, resolveKernelFile } from './kernel_file.ts'
 
 /**
  * Interface definition copied from @lockness/cli to avoid circular dependency.
@@ -34,14 +35,15 @@ export interface CommandContract {
     handle(ctx: CommandContext): Promise<void>
 }
 
-/** The kernel file `compile` reads its config from, relative to the app root. */
-const COMPILE_KERNEL = join('app', 'kernel.tsx')
-
 /**
- * Load the `@Kernel` config `compile` reads, from the app's `app/kernel.tsx`.
+ * Load the `@Kernel` config `compile` reads, from the app's kernel file.
+ *
+ * The file is found by the lookup `ssg:build` shares (`resolveKernelFile`):
+ * `app/kernel.ts` — what every scaffold ships — then `app/kernel.tsx`; when
+ * both exist, `app/kernel.ts` wins.
  *
  * @param root - The app root. Defaults to the working directory.
- * @returns The kernel's config, or `undefined` when the file does not exist.
+ * @returns The kernel's config, or `undefined` when no kernel file exists.
  * @throws When the file fails to load, or declares no `@Kernel` class.
  * @internal Exported for tests.
  *
@@ -54,15 +56,15 @@ const COMPILE_KERNEL = join('app', 'kernel.tsx')
 export async function loadCompileKernel(
     root: string = Deno.cwd(),
 ): Promise<KernelConfig | undefined> {
-    const kernelPath = join(root, COMPILE_KERNEL)
-    if (!(await exists(kernelPath))) return undefined
-    const module = await importAppFile(kernelPath)
+    const kernel = await resolveKernelFile(root)
+    if (kernel === undefined) return undefined
+    const module = await importAppFile(kernel.path)
     for (const value of Object.values(module)) {
         const config = (value as { [KERNEL_CONFIG]?: KernelConfig } | null)
             ?.[KERNEL_CONFIG]
         if (config !== undefined) return config
     }
-    throw new Error(`No @Kernel decorated class found in ${COMPILE_KERNEL}`)
+    throw new Error(`No @Kernel decorated class found in ${kernel.candidate}`)
 }
 
 export class CompileCommand implements CommandContract {
@@ -78,7 +80,7 @@ export class CompileCommand implements CommandContract {
             // 1. Find and load the Kernel
             const kernelConfig = await loadCompileKernel()
             if (kernelConfig === undefined) {
-                console.error(`❌ Kernel file not found at ${COMPILE_KERNEL}`)
+                console.error(`❌ ${kernelFileNotFoundMessage()}`)
                 return
             }
             const config = kernelConfig.compile || {}
