@@ -216,7 +216,10 @@ registration.
 **Auto-Discovery:**
 
 The framework checks for a custom error handler at
-`app/view/pages/errors/error_handler.tsx`. If found, it's used automatically.
+`app/view/pages/errors/error_handler.tsx`. If found, it's used automatically. If
+the file exists but fails to load, or exports no `errorHandler` function, the
+default pages are used and the failure is logged (an error on a failed import, a
+warning on a missing export); an absent file stays silent.
 
 **Creating Custom Error Pages:**
 

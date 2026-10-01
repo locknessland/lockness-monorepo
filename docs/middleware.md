@@ -285,7 +285,9 @@ manually registered ones with the same name.
 ## Auto-Discovery
 
 When `middlewaresDir` is configured, Lockness automatically imports all `.ts`
-and `.tsx` files in that directory, triggering `@DeclareMiddleware` decorators:
+and `.tsx` files in that directory, triggering `@DeclareMiddleware` decorators.
+A file that fails to import is logged as an error and skipped; the other files
+still register. An absent directory stays silent:
 
 ```typescript
 await app.init({
