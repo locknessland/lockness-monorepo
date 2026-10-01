@@ -16,6 +16,13 @@
  * @module @lockness/contract/logging/sanitize
  */
 
+import {
+    diagnosticLocation,
+    formatCompileDiagnostic,
+    readCompileDiagnostic,
+} from './compile_diagnostic.ts'
+import { redactQueryCredentials } from './credential_params.ts'
+
 /**
  * Longest run of **input** this encoder consumes before truncating.
  *
@@ -335,9 +342,18 @@ function redactDsnCredentials(message: string): string {
  * carries a URL with its token in the query string. Log stores routinely have
  * broader access than the database those credentials open.
  *
- * The DSN userinfo is redacted **before** truncation and encoding, so the
- * cleartext password can never reach the sink — it is gone before the string is
- * bounded or escaped, not merely hidden past the truncation boundary.
+ * The DSN userinfo and every credential-named `name=value` pair (see
+ * `redactQueryCredentials`) are redacted **before** truncation and encoding, so
+ * the cleartext secret can never reach the sink — it is gone before the string
+ * is bounded or escaped, not merely hidden past the truncation boundary.
+ *
+ * **A module that failed to compile or link renders as its kind and location
+ * only** (#478): `TypeError: SyntaxError at file:///…/broken.ts:2:19 [source
+ * excerpt withheld]`. The runtime's message quotes the failing source line, in
+ * its excerpt and in its headline, and that line can hold a credential
+ * literal. `importAppFile` translates the same failure earlier, with the path
+ * relative to the app root; this is the backstop for an import that bypassed
+ * it.
  *
  * The encoding half is not theoretical either:
  * `packages/session/drivers/redis.ts:104` throws a Redis server's error reply
@@ -439,20 +455,47 @@ function renderOne(error: unknown): string {
             // `name` and `message` are typed `string` and are not guaranteed to
             // be one — an application subclass can assign anything.
             const name = typeof error.name === 'string' ? error.name : 'Error'
-            const message = typeof error.message === 'string'
+            const raw = typeof error.message === 'string'
                 ? error.message
                 : String(error.message)
+            // Recognised first, on the raw text: the excerpt and the headline
+            // are dropped whole, so neither redaction has to know about them.
+            const diagnostic = readCompileDiagnostic(name, raw)
+            const message = diagnostic === undefined
+                ? raw
+                : formatCompileDiagnostic(
+                    diagnostic.kind,
+                    diagnosticLocation(diagnostic),
+                )
             const redacted = redactDsnCredentials(message)
-            return `${safeForLog(capCodePoints(name, MAX_NAME))}: ${
-                safeForLog(capCodePoints(redacted, MAX_MESSAGE))
-            }`
+            // `SyntaxError: SyntaxError at …` says one thing twice.
+            return renderHead(
+                diagnostic?.kind === name ? undefined : name,
+                redactQueryCredentials(redacted),
+            )
         }
         return safeForLog(
-            capCodePoints(redactDsnCredentials(String(error)), MAX_MESSAGE),
+            capCodePoints(
+                redactQueryCredentials(redactDsnCredentials(String(error))),
+                MAX_MESSAGE,
+            ),
         )
     } catch {
         return '[unrenderable error]'
     }
+}
+
+/**
+ * Cap and encode one error's name and its already-redacted message.
+ *
+ * @param name - The error's name, or `undefined` to render the message alone.
+ * @param redacted - The message, with both redactions already applied.
+ * @returns `name: message`, or the message alone.
+ */
+function renderHead(name: string | undefined, redacted: string): string {
+    const shown = safeForLog(capCodePoints(redacted, MAX_MESSAGE))
+    if (name === undefined) return shown
+    return `${safeForLog(capCodePoints(name, MAX_NAME))}: ${shown}`
 }
 
 /** How a sink wants an error rendered. */

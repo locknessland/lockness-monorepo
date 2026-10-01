@@ -152,9 +152,11 @@ const MUTATIONS: Mutation[] = [
     {
         label: 'the non-Error branch skips redaction entirely',
         file: SOURCE,
+        // Re-anchored when #478 added the query-credential redaction to this
+        // branch: the mutant now skips both redactions, as it skipped the one.
         edits: [[
-            'capCodePoints(redactDsnCredentials(String(error)), MAX_MESSAGE)',
-            'capCodePoints(String(error), MAX_MESSAGE)',
+            'redactQueryCredentials(redactDsnCredentials(String(error)))',
+            'String(error)',
         ]],
         killedBy: 'a non-Error at the TOP level is redacted too',
     },
