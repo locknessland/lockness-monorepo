@@ -127,6 +127,18 @@ diagnostic and a non-zero exit are all red. So the dry-run is now part of every
 push, and its slow-type, missing-license and future warning codes are failures,
 not log noise.
 
+**A published `.tsx` needs a reason (#470).** Under `"jsx": "precompile"`, Deno
+transpiles a JSR `.tsx` with the _consuming_ app's `jsxImportSource`, ignoring
+the pragma `deno publish` wrote into it. In an app with no JSX of its own, that
+runtime was never pre-loaded, and the app fails at load with
+`Unsupported scheme` — how `@lockness/core@0.4.0` broke the api and slim kits.
+So a package may publish a `.tsx` only with a `"jsx": "<reason>"` entry in
+`deps.policy.jsonc`. A published `.tsx` without one, an empty reason and a stale
+entry (no `.tsx` published any more) are all red. The rule reads the files each
+package actually publishes, so an excluded `demo/` never counts. `core`
+publishes none; `ui`, `markdown` and `devtools` carry entries, the last one
+recorded as a known defect.
+
 `deno task deps:analyze` does **not** check declarations. It had a "check B"
 that claimed to, and it was removed (#388): it read an import-map alias's
 _value_ as a declaration while Deno resolves by _key_, and it only saw
