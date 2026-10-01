@@ -29,6 +29,12 @@ app/view/pages/errors/error_handler.tsx
 If found, it's used automatically. If not, the framework uses its built-in
 default error handler.
 
+A file that exists but cannot be used never fails boot, and is never skipped in
+silence either. When it fails to import, the default handler takes over and the
+reason is logged as an error that names the file. When it imports but has no
+`errorHandler` function export, or cannot be read, the same fallback is logged
+as a warning.
+
 **Benefits:**
 
 - ✅ No imports needed in `kernel.tsx`

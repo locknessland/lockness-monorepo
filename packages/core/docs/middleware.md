@@ -198,6 +198,9 @@ All files in `middlewaresDir` are imported, and classes decorated with
 `@DeclareMiddleware` are automatically registered. No need to manually import or
 configure each middleware!
 
+A file that fails to import is logged as an error that names it, and the other
+files still register. A `middlewaresDir` that does not exist is not an error.
+
 ## Global Middleware
 
 Apply middleware to all routes in `app/kernel.ts`:
