@@ -38,6 +38,12 @@
  * and dropped every undeclared import in the same file.
  *
  * Third-party dependencies resolve against JSR/npm, so it needs network access.
+ * Third-party *types* are not this check's to prove: Deno's npm peer
+ * resolution is order-dependent in a staged subgraph and can silently type a
+ * module as `any`, and the workspace `deno check` owns typing under the
+ * lockfile. Every fault this check owns is a graph error, which does not depend
+ * on third-party types. The workspace lockfile is deliberately NOT copied in: a
+ * peer variant computed for the whole workspace does not exist for a subgraph.
  *
  * It also asks JSR whether each package **exists in the registry**. A package
  * must be created there before anything can be published to it, and
