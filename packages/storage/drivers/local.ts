@@ -9,7 +9,7 @@
 
 // deno-lint-ignore-file require-await
 
-import { join, resolve, SEPARATOR } from '@std/path'
+import { join, resolve, SEPARATOR, toFileUrl } from '@std/path'
 import { ensureDir } from '@std/fs'
 import type { FileMetadata, StorageConfig, StorageDriver } from '../types.ts'
 
@@ -159,6 +159,8 @@ export class LocalStorageDriver implements StorageDriver {
         if (this.config.publicUrl) {
             return `${this.config.publicUrl}/${path}`
         }
-        return `file://${this.resolvePath(path)}`
+        // toFileUrl escapes the path: a '#' or '?' left raw starts a fragment
+        // or a query, and the URL names a different, truncated file (#477).
+        return toFileUrl(this.resolvePath(path)).href
     }
 }
