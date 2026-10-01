@@ -64,6 +64,9 @@ const PACKAGES = join(ROOT, 'packages')
 /** How long a kit's server gets to answer before the boot step fails. */
 const BOOT_TIMEOUT_MS = 30_000
 
+/** How long a stopped server's pipes get to reach EOF before being cancelled. */
+const DRAIN_GRACE_MS = 2_000
+
 /** What one step produced. */
 export interface StepResult {
     readonly ok: boolean
@@ -276,9 +279,20 @@ export async function boots(
     // Drained as it arrives: an unread pipe fills up and stalls a chatty
     // server, and the text is the failure message when the server dies.
     let output = ''
+    // A grandchild that inherited the pipes keeps them open after the server
+    // is killed; this lets the wait for EOF be cut short.
+    const stopDrain = new AbortController()
     const drain = async (stream: ReadableStream<Uint8Array<ArrayBuffer>>) => {
-        for await (const text of stream.pipeThrough(new TextDecoderStream())) {
-            output += text
+        try {
+            for await (
+                const text of stream.pipeThrough(new TextDecoderStream(), {
+                    signal: stopDrain.signal,
+                })
+            ) {
+                output += text
+            }
+        } catch (error) {
+            if (!stopDrain.signal.aborted) throw error
         }
     }
     const drained = Promise.all([drain(child.stdout), drain(child.stderr)])
@@ -337,9 +351,22 @@ export async function boots(
                 // Exited between the check and the kill: nothing to stop.
             }
         }
-        // Awaited so the pipes close and the sanitizer stays quiet.
+        // Awaited so the pipes close and the sanitizer stays quiet, but only
+        // for DRAIN_GRACE_MS: past that, the pipes are cancelled.
         await status
-        await drained
+        let timer: ReturnType<typeof setTimeout> | undefined
+        const grace = new Promise<'timeout'>((resolve) => {
+            timer = setTimeout(() => resolve('timeout'), DRAIN_GRACE_MS)
+        })
+        const outcome = await Promise.race([
+            drained.then(() => 'drained' as const),
+            grace,
+        ])
+        clearTimeout(timer)
+        if (outcome === 'timeout') {
+            stopDrain.abort()
+            await drained
+        }
     }
 }
 
