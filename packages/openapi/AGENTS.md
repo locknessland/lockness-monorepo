@@ -20,12 +20,12 @@ names does not belong here._
 
 <!-- generated:deps -->
 
-| Direction                                      | Packages                                              |
-| :--------------------------------------------- | :---------------------------------------------------- |
-| Imports (static)                               | `cli`, `contract` _(type-only)_, `hono` _(type-only)_ |
-| Imports (soft, via `tryImportOptionalPackage`) | —                                                     |
-| Imported by                                    | —                                                     |
-| **Must never import**                          | nothing — no package depends on this one              |
+| Direction                                      | Packages                                 |
+| :--------------------------------------------- | :--------------------------------------- |
+| Imports (static)                               | `cli`, `contract`, `hono` _(type-only)_  |
+| Imports (soft, via `tryImportOptionalPackage`) | —                                        |
+| Imported by                                    | —                                        |
+| **Must never import**                          | nothing — no package depends on this one |
 
 Enforced by `deno task deps:analyze` against `deps.policy.jsonc`. A soft edge is
 deliberately **not** declared in this package's `deno.json`: the consuming
@@ -66,8 +66,9 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-3 test files for 7 source files:
+4 test files for 7 source files:
 
+- `packages/openapi/tests/app_file.test.ts`
 - `packages/openapi/tests/generator.test.ts`
 - `packages/openapi/tests/generator_resources.test.ts`
 - `packages/openapi/tests/generator_shape.test.ts`
@@ -85,7 +86,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 3 test files directly —
+Then, specific to this package: run its 4 test files directly —
 
 ```bash
 deno test -A packages/openapi/

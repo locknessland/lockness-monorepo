@@ -1,8 +1,11 @@
 # `@lockness/contract` — agent brief
 
-Shared types, interfaces and decorator declarations with **no runtime
-behaviour**. It exists to break dependency cycles: if a type is needed by two
-packages that must not know about each other, it belongs here.
+Shared types, interfaces and decorator declarations, plus the few runtime
+helpers every layer needs and only the foundation can offer: the log encoder
+(`safeForLog`, `renderError`), the routes-file generator, the environment
+readers, and `importAppFile`, the one way the framework imports a file of the
+user's app (#477). It exists to break dependency cycles: if something is needed
+by two packages that must not know about each other, it belongs here.
 
 It is not dependency-free — it takes Hono's types through the `hono` alias in
 its own `deno.json`. Every one of those is an `import type`, so the edge erases
@@ -44,13 +47,13 @@ application installs it, or the feature stays off.
 
 <!-- generated:surface -->
 
-| Kind      | Exports                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| :-------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| class     | `KeyMaterialError`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| function  | `Cache`, `CacheKey`, `CacheTTL`, `ComposeMiddleware`, `Controller`, `DeclareMiddleware`, `Middleware`, `Static`, `Throttle`, `ThrottleApi`, `ThrottleHeavy`, `ThrottleLogin`, `ThrottleSensitive`, `Use`, `UseMiddleware`, `clampPage`, `clampPerPage`, `compose`, `composeMiddleware`, `decodeBase64`, `deregisterDisposable`, `deregisterHealthCheck`, `deriveJsonSchema`, `disposableCount`, `encodeBase64`, `generateAppKey`, `generateRoutesContent`, `generateRoutesFile`, `healthCheckCount`, `isDevelopment`, `isExplicitlyDevelopment`, `isProduction`, `paginateCursor`, `paginateOffset`, `parseTimeWindow`, `readPaginationParams`, `registerDisposable`, `registerHealthCheck`, `renderError`, `resolveEnvName`, `resolveKeyMaterial`, `safeForLog`, `scanControllers`, `toPaginationProps` |
-| interface | `CacheContract`, `CacheOptions`, `ContainerContract`, `ContainerRegistration`, `ControllerInfo`, `ControllerMetadata`, `ControllerWithMetadata`, `CursorEnvelope`, `CursorLinks`, `CursorMeta`, `Disposable`, `DisposableHandle`, `GenerateRoutesResult`, `HealthCheck`, `HealthCheckHandle`, `HealthResult`, `JsonSchema`, `MiddlewareContract`, `OffsetEnvelope`, `OffsetLinks`, `OffsetMeta`, `PaginationComponentProps`, `PaginationParams`, `RenderErrorOptions`, `ResourceSchema`, `Route`, `RouteMetadata`, `RouteOptions`, `StaticOptions`, `ThrottleConfig`, `ThrottleOptions`, `ThrottleStoreContract`                                                                                                                                                                                         |
-| typeAlias | `ComposableMiddleware`, `Constructor`, `Context`, `ControllerClass`, `FileExtension`, `KeyRejection`, `MiddlewareClass`, `MiddlewareHandler`, `MiddlewareInput`, `MiddlewareRegistry`, `Next`, `PaginationEnvelope`, `PaginationMeta`, `QuerySource`, `ServiceToken`, `ThrottleKey`, `TimeWindow`, `ValidationTargets`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| variable  | `CacheServiceToken`, `DEFAULT_CURSOR_PARAM`, `DEFAULT_PAGE_PARAM`, `DEFAULT_PER_PAGE`, `Delete`, `Get`, `KEY_BYTES`, `KEY_PREFIX`, `MAX_PER_PAGE`, `MIDDLEWARE_NAME_KEY`, `Patch`, `Post`, `Put`, `REJECTED_KEYS`, `declaredMiddlewares`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Kind      | Exports                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| :-------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| class     | `KeyMaterialError`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| function  | `Cache`, `CacheKey`, `CacheTTL`, `ComposeMiddleware`, `Controller`, `DeclareMiddleware`, `Middleware`, `Static`, `Throttle`, `ThrottleApi`, `ThrottleHeavy`, `ThrottleLogin`, `ThrottleSensitive`, `Use`, `UseMiddleware`, `clampPage`, `clampPerPage`, `compose`, `composeMiddleware`, `decodeBase64`, `deregisterDisposable`, `deregisterHealthCheck`, `deriveJsonSchema`, `disposableCount`, `encodeBase64`, `generateAppKey`, `generateRoutesContent`, `generateRoutesFile`, `healthCheckCount`, `importAppFile`, `isDevelopment`, `isExplicitlyDevelopment`, `isProduction`, `paginateCursor`, `paginateOffset`, `parseTimeWindow`, `readPaginationParams`, `registerDisposable`, `registerHealthCheck`, `renderError`, `resolveEnvName`, `resolveKeyMaterial`, `safeForLog`, `scanControllers`, `toPaginationProps` |
+| interface | `CacheContract`, `CacheOptions`, `ContainerContract`, `ContainerRegistration`, `ControllerInfo`, `ControllerMetadata`, `ControllerWithMetadata`, `CursorEnvelope`, `CursorLinks`, `CursorMeta`, `Disposable`, `DisposableHandle`, `GenerateRoutesResult`, `HealthCheck`, `HealthCheckHandle`, `HealthResult`, `JsonSchema`, `MiddlewareContract`, `OffsetEnvelope`, `OffsetLinks`, `OffsetMeta`, `PaginationComponentProps`, `PaginationParams`, `RenderErrorOptions`, `ResourceSchema`, `Route`, `RouteMetadata`, `RouteOptions`, `StaticOptions`, `ThrottleConfig`, `ThrottleOptions`, `ThrottleStoreContract`                                                                                                                                                                                                          |
+| typeAlias | `ComposableMiddleware`, `Constructor`, `Context`, `ControllerClass`, `FileExtension`, `KeyRejection`, `MiddlewareClass`, `MiddlewareHandler`, `MiddlewareInput`, `MiddlewareRegistry`, `Next`, `PaginationEnvelope`, `PaginationMeta`, `QuerySource`, `ServiceToken`, `ThrottleKey`, `TimeWindow`, `ValidationTargets`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| variable  | `CacheServiceToken`, `DEFAULT_CURSOR_PARAM`, `DEFAULT_PAGE_PARAM`, `DEFAULT_PER_PAGE`, `Delete`, `Get`, `KEY_BYTES`, `KEY_PREFIX`, `MAX_PER_PAGE`, `MIDDLEWARE_NAME_KEY`, `Patch`, `Post`, `Put`, `REJECTED_KEYS`, `declaredMiddlewares`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 
 Anything not listed is internal and free to change.
 
@@ -66,10 +69,17 @@ Anything not listed is internal and free to change.
 
 ## Pitfalls
 
-- **Never add a runtime import here.** This package is the bottom of the graph;
-  an import turns a clean tree into a cycle.
-- It has no tests and no `docs/` — the types are the documentation, so JSDoc on
-  every exported symbol is not optional.
+- **Never add a runtime `@lockness/*` import here.** This package is the bottom
+  of the graph; such an import turns a clean tree into a cycle. `@std/*` value
+  imports are fine — `app_file.ts` and `routing/generator.ts` use `@std/path`.
+- **Every app-file import of the framework goes through `importAppFile`**
+  (`app_file.ts`). Its one `import()` is the only app-file site
+  `deps.policy.jsonc` inventories, and the `lockness/app-file-specifier` lint
+  rule (`scripts/lint/`) rejects a hand-built specifier anywhere else. It
+  catches nothing on purpose: whether a missing file is normal and how a broken
+  one is reported belong to each caller.
+- It has tests (`tests/`) but no `docs/` — JSDoc is the documentation, so it is
+  not optional on any exported symbol.
 - Renaming an exported type here is a breaking change for eight packages at
   once.
 
@@ -77,8 +87,9 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-8 test files for 26 source files:
+9 test files for 27 source files:
 
+- `packages/contract/tests/app_file.test.ts`
 - `packages/contract/tests/crypto_key.test.ts`
 - `packages/contract/tests/disposables.test.ts`
 - `packages/contract/tests/environment.test.ts`
@@ -110,7 +121,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 8 test files directly —
+Then, specific to this package: run its 9 test files directly —
 
 ```bash
 deno test -A packages/contract/

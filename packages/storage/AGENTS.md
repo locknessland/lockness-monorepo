@@ -66,11 +66,12 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-4 test files for 8 source files:
+5 test files for 8 source files:
 
 - `packages/storage/tests/cloud.test.ts`
 - `packages/storage/tests/local.test.ts`
 - `packages/storage/tests/local_path_traversal.test.ts`
+- `packages/storage/tests/local_public_url.test.ts`
 - `packages/storage/tests/manager.test.ts`
 
 <!-- /generated:tests -->
@@ -86,7 +87,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 4 test files directly —
+Then, specific to this package: run its 5 test files directly —
 
 ```bash
 deno test -A packages/storage/
