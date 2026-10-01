@@ -10,6 +10,7 @@
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import { fromFileUrl } from '@std/path'
 import {
+    appPathRequests,
     judgeNotFound,
     missingFromRegistry,
     publishableMembers,
@@ -49,6 +50,38 @@ Deno.test('judgeNotFound passes only an HTML 404', () => {
     assert(!judgeNotFound(500, 'text/html', 'boom').ok)
     assert(!judgeNotFound(200, 'text/html', '<html>').ok)
     assert(!judgeNotFound(404, null, '').ok)
+})
+
+Deno.test('appPathRequests flags a registry line naming a path inside the app (#474)', () => {
+    // The line the #470 slim boot logged and nobody acted on: an app file
+    // requested from the registry, which means core resolved it against its
+    // own URL instead of the app root. On macOS the app's cwd is the
+    // realpath, so both spellings of the directory are given.
+    const lines = [
+        '404 GET /@lockness/nope/meta.json (not received; never fetched from jsr.io)',
+        '404 GET //private/var/folders/x/T/run-1/slim-app/app/middleware/example_middleware.ts (not served)',
+        '404 GET //tmp/run-1/other-app/app/x.ts (not served)',
+    ]
+    assertEquals(
+        appPathRequests(lines, [
+            '/var/folders/x/T/run-1/slim-app',
+            '/private/var/folders/x/T/run-1/slim-app',
+        ]),
+        [lines[1]],
+    )
+    assertEquals(
+        appPathRequests(lines.slice(0, 1), ['/tmp/run-1/slim-app']),
+        [],
+    )
+})
+
+Deno.test('appPathRequests does not match a sibling directory sharing a prefix', () => {
+    assertEquals(
+        appPathRequests(['404 GET //tmp/slim-app-2/app/x.ts (not served)'], [
+            '/tmp/slim-app',
+        ]),
+        [],
+    )
 })
 
 Deno.test('publishToRegistry refuses a non-loopback registry before spawning', async () => {

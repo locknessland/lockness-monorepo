@@ -29,7 +29,9 @@
  * `git archive HEAD` into a localhost JSR registry (`scripts/local_jsr.ts`),
  * scaffolds each kit from `jsr:@lockness/init` without re-pointing it, and
  * boots it with `JSR_URL` set and a fresh `DENO_DIR`. Then it asks for an
- * unknown path and expects core's HTML 404. Only `HEAD` is tested, never
+ * unknown path and expects core's HTML 404, and fails the kit if the registry
+ * was asked for any of the kit's own files — the sign that core resolved an
+ * app-local import against its own URL (#474). Only `HEAD` is tested, never
  * uncommitted edits. It does not type-check or test the kits: the default mode
  * does that.
  *
@@ -678,6 +680,35 @@ export function judgeNotFound(
     }
 }
 
+/**
+ * The registry log lines that name a path inside the app (#474).
+ *
+ * The registry serves packages and nothing else, so a request for one of the
+ * app's own files means core resolved an app-local import against its own URL
+ * instead of the app root. The import fails quietly enough that the kit still
+ * boots, which is how the #470 slim run logged
+ * `404 GET //<tmp>/slim-app/app/middleware/example_middleware.ts` and passed.
+ *
+ * @param lines - What the registry logged while the kit ran.
+ * @param appDirs - The kit's directory, in every spelling its process may use
+ * (the path as created and its realpath, which differ under macOS `/var`).
+ * @returns The offending lines, in order; empty when none.
+ *
+ * @example
+ * ```ts
+ * appPathRequests(['404 GET //tmp/a/app/x.ts (not served)'], ['/tmp/a'])
+ * // ['404 GET //tmp/a/app/x.ts (not served)']
+ * ```
+ */
+export function appPathRequests(
+    lines: readonly string[],
+    appDirs: readonly string[],
+): string[] {
+    return lines.filter((line) =>
+        appDirs.some((dir) => line.includes(`${dir}/`))
+    )
+}
+
 /** Ask a running kit for {@link MISSING_PATH}. */
 async function notFoundIsHtml(origin: string): Promise<StepResult> {
     const response = await fetch(`${origin}${MISSING_PATH}`)
@@ -782,6 +813,9 @@ async function smokeAgainstRegistry(
         prefix: 'lockness-kits-registry-',
     })
     let jsr: LocalJsr | undefined
+    // Every line the registry logged, so each kit's share can be checked
+    // for requests that name the app's own files.
+    const registryLog: string[] = []
     let cleaning: Promise<void> | undefined
     // Children first, then the registry they talk to, then the files they
     // hold open. Reached from `finally` and from a signal, whichever is first.
@@ -818,6 +852,7 @@ async function smokeAgainstRegistry(
     try {
         jsr = startLocalJsr({
             log: (line) => {
+                registryLog.push(line)
                 if (!line.startsWith('published ')) {
                     console.log(`  · registry: ${line}`)
                 }
@@ -896,6 +931,7 @@ async function smokeAgainstRegistry(
             console.log(
                 `  ✅ scaffold from jsr:@lockness/init@${init.version}`,
             )
+            const logStart = registryLog.length
             const booted = await boots(scaffold.dir, freePort(), {
                 env,
                 timeoutMs: REGISTRY_BOOT_TIMEOUT_MS,
@@ -903,6 +939,22 @@ async function smokeAgainstRegistry(
             })
             console.log(`  ${booted.ok ? '✅' : '❌'} boots — ${booted.detail}`)
             if (!booted.ok) failed.push(kit)
+            // Booting is not enough: a kit whose app file was resolved
+            // against the registry still boots, without that file (#474).
+            const leaked = appPathRequests(registryLog.slice(logStart), [
+                scaffold.dir,
+                await Deno.realPath(scaffold.dir),
+            ])
+            if (leaked.length > 0) {
+                console.log(
+                    `  ❌ app files requested from the registry\n${
+                        leaked.map((line) => `     ${line}`).join('\n')
+                    }`,
+                )
+                if (booted.ok) failed.push(kit)
+            } else {
+                console.log('  ✅ no app file requested from the registry')
+            }
         }
 
         console.log(
