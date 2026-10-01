@@ -35,6 +35,7 @@ import {
     type SchemaMaintenance,
 } from './drivers.ts'
 import { inspectDsn, INVALID_DSN_MESSAGE } from './dsn.ts'
+import { holdsPassword, shownName, UNREADABLE_NAME } from './error_name.ts'
 
 export { registerDrizzleCommands } from './cli_commands.ts'
 export type {
@@ -386,16 +387,6 @@ const NOTHING_HELD: Held = { dsn: '', passwords: [] }
 /** What replaces the exact DSN in driver text. */
 const DSN_MARKER = '<dsn redacted>'
 
-/** The name shown when reading an error's name threw. */
-const UNREADABLE_NAME = '[unreadable name]'
-
-/**
- * The error name a failure may show: a plain identifier, so a name an
- * application assigned cannot smuggle text in. It also rejects `[`, space and
- * `]`, so no name can forge {@link UNREADABLE_NAME}.
- */
-const IDENTIFIER = /^[A-Za-z][A-Za-z0-9]{0,63}$/
-
 /**
  * Log a `connect()` failure and return it as the result.
  *
@@ -443,34 +434,6 @@ function classify(error: unknown, passwords: readonly string[]): Classified {
     } catch {
         return { kind: 'other', name: UNREADABLE_NAME }
     }
-}
-
-/**
- * The name a failure may show: identifier-shaped, and holding no form of the
- * password. A name is driver text like the message, so it is shown verbatim or
- * dropped — never edited.
- *
- * @param name - The error's `name`, as read.
- * @param passwords - Every known form of the password.
- * @returns The name, or `undefined` when it may not be shown.
- */
-function shownName(
-    name: unknown,
-    passwords: readonly string[],
-): string | undefined {
-    if (typeof name !== 'string' || !IDENTIFIER.test(name)) return undefined
-    return holdsPassword(name, passwords) ? undefined : name
-}
-
-/**
- * Whether a text holds any known form of the password.
- *
- * @param text - Driver text: a name, or a piece of a message.
- * @param passwords - Every known form of the password, none empty.
- * @returns True when any of them occurs in `text`.
- */
-function holdsPassword(text: string, passwords: readonly string[]): boolean {
-    return passwords.some((password) => text.includes(password))
 }
 
 /**
