@@ -67,6 +67,8 @@ const MISPARSED = [
     'libsql://u:2024/Spring@h/db',
     // postgres.js rewrites the comma, then accepts: hosts `u`, `Qfrag`.
     'postgres://u:1,Qfrag/Rfrag@h/db',
+    // Empty userinfo and host: still refused here with a database named (#456).
+    'postgres://:@:5432/app',
     // A raw `@` in the password.
     'postgres://u:Pa@Qfrag,Rfrag@h/db',
     'postgres://u:Pa@Qfrag@h1,h2/db',

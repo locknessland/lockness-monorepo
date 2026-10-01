@@ -216,9 +216,10 @@ function parseConfig(
     const url = credentialsUrl(config.dbCredentials)
     if (!namesDatabase(kitDialect as KitDialect, url)) {
         throw refused(
-            '`dbCredentials.url` names no database, so the driver would ' +
-                'connect to a default of its own; the environment variable ' +
-                'the database name is built from is probably unset',
+            '`dbCredentials.url` names no database in its path, so the driver ' +
+                'would connect to a default of its own; the environment ' +
+                'variable the database name is built from is probably unset, ' +
+                'or the name is only in the query string: put it in the path',
         )
     }
     const migrations = config.migrations === undefined ? {} : config.migrations
@@ -312,7 +313,8 @@ const FILE_URL = /^file:(?:\/\/[^/?#]*)?(?<path>[^?#]*)/i
  * Whether a URL names the database a destructive command acts on (#456).
  *
  * A driver given a URL that names none falls back to a default target of its
- * own: postgres.js to `PGDATABASE`, then a database named after the OS user;
+ * own: postgres.js to `PGDATABASE`, then a database named after the connecting
+ * user (the URL's username, or the OS user);
  * libsql to a throwaway temporary database. That is what
  * `` `postgres://localhost:5432/${Deno.env.get('DB_NAME') ?? ''}` `` yields
  * with the variable unset. Only the URL's path is asked, never its

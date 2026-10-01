@@ -296,12 +296,14 @@ Deno.test('#449 R2 keeps a url with surrounding blanks as written', async () => 
 
 // #456 — a url that names no database is refused, because the driver would
 // fall back to a default target of its own (postgres.js: PGDATABASE, then the
-// OS user's database; libsql: a throwaway temporary database).
+// connecting user's database — the URL's username, or the OS user; libsql: a
+// throwaway temporary database).
 
 /** The one R2 message for a url that names no database (#456). */
-const NO_DATABASE = '`dbCredentials.url` names no database, so the driver ' +
-    'would connect to a default of its own; the environment variable the ' +
-    'database name is built from is probably unset'
+const NO_DATABASE = '`dbCredentials.url` names no database in its path, so ' +
+    'the driver would connect to a default of its own; the environment ' +
+    'variable the database name is built from is probably unset, or the name ' +
+    'is only in the query string: put it in the path'
 
 /** Every url refused as naming no database, by the dialect it is read for. */
 const NAMES_NO_DATABASE: readonly (readonly [string, readonly string[]])[] = [
@@ -315,6 +317,10 @@ const NAMES_NO_DATABASE: readonly (readonly [string, readonly string[]])[] = [
         'postgresql:///',
         'postgresql://localhost:5432/',
         'postgresql://localhost/',
+        // A name only in the query string is not read (the path is the rule),
+        // and an empty-userinfo form with no path is refused here, before R3.
+        'postgres://localhost/?database=app',
+        'postgres://:@:5432/',
         // What `postgres://localhost:5432/${DB_NAME ?? ''}` becomes with
         // credentials and a query string around the missing name.
         `postgres://app:pw@${URL_HOST}:5432/`,
@@ -340,6 +346,7 @@ const NAMES_NO_DATABASE: readonly (readonly [string, readonly string[]])[] = [
         'localhost',
     ]],
     ['mysql', [
+        'mysql://localhost?database=app',
         'mysql://',
         'mysql:///',
         'mysql://localhost:3306/',
