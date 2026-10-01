@@ -1,7 +1,7 @@
 /**
  * @fileoverview The one rule for what a withheld failure may still show: the
- * error's name, only when it is identifier-shaped and holds no form of the
- * password (#425). Shared by `Database` (driver failures) and `db:fresh` (a
+ * error's name, only when it is identifier-shaped and holds no form of a
+ * database credential (#425, #438). Shared by `Database` (driver failures) and `db:fresh` (a
  * `drizzle.config.ts` that cannot be imported, #435). Internal: not exported
  * from the package.
  *
@@ -20,34 +20,34 @@ export const UNREADABLE_NAME = '[unreadable name]'
 const IDENTIFIER = /^[A-Za-z][A-Za-z0-9]{0,63}$/
 
 /**
- * The name a failure may show: identifier-shaped, and holding no form of the
- * password. A name is driver text like the message, so it is shown verbatim or
- * dropped — never edited.
+ * The name a failure may show: identifier-shaped, and holding no form of a
+ * credential. A name is driver text like the message, so it is shown verbatim
+ * or dropped — never edited.
  *
  * @param name - The error's `name`, as read.
- * @param passwords - Every known form of the password.
+ * @param secrets - Every known form of every credential.
  * @returns The name, or `undefined` when it may not be shown.
  */
 export function shownName(
     name: unknown,
-    passwords: readonly string[],
+    secrets: readonly string[],
 ): string | undefined {
     if (typeof name !== 'string' || !IDENTIFIER.test(name)) return undefined
-    return holdsPassword(name, passwords) ? undefined : name
+    return holdsSecret(name, secrets) ? undefined : name
 }
 
 /**
- * Whether a text holds any known form of the password.
+ * Whether a text holds any known form of any credential.
  *
  * @param text - Driver text: a name, or a piece of a message.
- * @param passwords - Every known form of the password, none empty.
+ * @param secrets - Every known form of every credential, none empty.
  * @returns True when any of them occurs in `text`.
  */
-export function holdsPassword(
+export function holdsSecret(
     text: string,
-    passwords: readonly string[],
+    secrets: readonly string[],
 ): boolean {
-    return passwords.some((password) => text.includes(password))
+    return secrets.some((secret) => text.includes(secret))
 }
 
 /**
@@ -58,19 +58,19 @@ export function holdsPassword(
  * caller puts into the failure it reports — the failure is not swallowed.
  *
  * @param error - Whatever was thrown.
- * @param passwords - Every known form of the password; empty when none is
+ * @param secrets - Every known form of every credential; empty when none is
  *   known yet.
  * @returns The vetted name, {@link UNREADABLE_NAME}, or `undefined` when there
  *   is none to show.
  */
 export function vettedErrorName(
     error: unknown,
-    passwords: readonly string[],
+    secrets: readonly string[],
 ): string | undefined {
     try {
         return shownName(
             error instanceof Error ? error.name : undefined,
-            passwords,
+            secrets,
         )
     } catch {
         return UNREADABLE_NAME

@@ -35,7 +35,7 @@ import {
     type SchemaMaintenance,
 } from './drivers.ts'
 import { inspectDsn, INVALID_DSN_MESSAGE } from './dsn.ts'
-import { holdsPassword, shownName, UNREADABLE_NAME } from './error_name.ts'
+import { holdsSecret, shownName, UNREADABLE_NAME } from './error_name.ts'
 
 export { registerDrizzleCommands } from './cli_commands.ts'
 export type {
@@ -152,7 +152,7 @@ export class Database<D extends Dialect = 'postgres'> {
     #maintenance: SchemaMaintenance | undefined
     /**
      * What a `probe()` failure must not carry: the DSN the configured client
-     * was built from, and every known form of its password (#425).
+     * was built from, and every known form of its credentials (#425, #438).
      */
     #held: Held = NOTHING_HELD
     #connected = false
@@ -227,7 +227,7 @@ export class Database<D extends Dialect = 'postgres'> {
         const dialect = resolveDialect(options.driver, url)
         const inspection = inspectDsn(url)
         if (!inspection.ok) return failed(INVALID_DSN_MESSAGE)
-        const held: Held = { dsn: url, passwords: inspection.secrets }
+        const held: Held = { dsn: url, secrets: inspection.secrets }
 
         let handle
         try {
@@ -278,7 +278,7 @@ export class Database<D extends Dialect = 'postgres'> {
      *
      * Every failure is re-thrown the way {@link Database.probe} re-throws
      * one: head-only, the exact DSN replaced whole, and the whole message
-     * withheld when any known form of the password occurs in it (#425).
+     * withheld when any known form of a credential occurs in it (#425).
      *
      * @returns The redacting capability, or `undefined` when there is none.
      * @throws {Error} `Database is not connected` before `connect()` and after
@@ -322,8 +322,10 @@ export class Database<D extends Dialect = 'postgres'> {
      * A driver failure is re-thrown as a new `Error` carrying a redacted,
      * head-only render: the exact DSN replaced whole, then the shared
      * pattern; no cause chain, and none of the original error object's
-     * properties. Driver text is never edited around the password: when any
-     * known form of it occurs in the message or the name, the message is
+     * properties. Driver text is never edited around a credential: when any
+     * known form of one — the userinfo password, or a credential-named query
+     * value such as libsql's `authToken` (#438) — occurs in the message or the
+     * name, the message is
      * withheld whole behind a fixed sentence that shows only a vetted name.
      *
      * @returns Resolves when the probe succeeds.
@@ -366,10 +368,10 @@ export class Database<D extends Dialect = 'postgres'> {
 // =============================================================================
 
 /**
- * What a failure render holds about the configured DSN (#425).
+ * What a failure render holds about the configured DSN (#425, #438).
  *
  * The two are treated oppositely. The exact DSN is replaced whole: it is long
- * and unique, so replacing it tells a reader nothing. A password is never
+ * and unique, so replacing it tells a reader nothing. A credential is never
  * replaced: replacing by value turns the replacement into a detector — the
  * password `postgres` masks `user "postgres"`, `5432` masks a port — so text
  * holding one is withheld whole instead.
@@ -377,12 +379,15 @@ export class Database<D extends Dialect = 'postgres'> {
 interface Held {
     /** The exact DSN, replaced whole by {@link DSN_MARKER}. Empty: none. */
     readonly dsn: string
-    /** Every known form of the password, none empty. */
-    readonly passwords: readonly string[]
+    /**
+     * Every known form of every credential the DSN carries — the userinfo
+     * password and each credential-named query value — none empty.
+     */
+    readonly secrets: readonly string[]
 }
 
 /** Nothing held: before any `connect()`. */
-const NOTHING_HELD: Held = { dsn: '', passwords: [] }
+const NOTHING_HELD: Held = { dsn: '', secrets: [] }
 
 /** What replaces the exact DSN in driver text. */
 const DSN_MARKER = '<dsn redacted>'
@@ -420,17 +425,17 @@ type Classified =
  * returned — the failure is reported, not swallowed.
  *
  * @param error - Whatever a factory threw.
- * @param passwords - Every known form of the password.
+ * @param secrets - Every known form of every credential.
  * @returns `missing` for a {@link ClientUnavailableError}; otherwise `other`
  *   with the name to show, or `undefined` when there is none to show.
  */
-function classify(error: unknown, passwords: readonly string[]): Classified {
+function classify(error: unknown, secrets: readonly string[]): Classified {
     try {
         if (error instanceof ClientUnavailableError) {
             return { kind: 'missing', error }
         }
         const name = error instanceof Error ? error.name : undefined
-        return { kind: 'other', name: shownName(name, passwords) }
+        return { kind: 'other', name: shownName(name, secrets) }
     } catch {
         return { kind: 'other', name: UNREADABLE_NAME }
     }
@@ -449,7 +454,7 @@ function classify(error: unknown, passwords: readonly string[]): Classified {
  *
  * @param dialect - The dialect whose factory failed.
  * @param error - Whatever the factory threw.
- * @param held - The DSN and the password forms to check an import error for.
+ * @param held - The DSN and the credential forms to check an import error for.
  * @returns The message for the log and the result.
  */
 function configurationFailure(
@@ -457,7 +462,7 @@ function configurationFailure(
     error: unknown,
     held: Held,
 ): string {
-    const classified = classify(error, held.passwords)
+    const classified = classify(error, held.secrets)
     if (classified.kind === 'missing') {
         const head = classified.error.message
         return renderFailure(
@@ -465,7 +470,7 @@ function configurationFailure(
             held,
             () =>
                 `${head}; the import error is withheld because it contains ` +
-                'the database password',
+                'a database credential',
             (text) => `${head}: ${text}`,
         )
     }
@@ -475,7 +480,7 @@ function configurationFailure(
 }
 
 /**
- * The fixed sentence a probe failure holding the password renders as.
+ * The fixed sentence a probe failure holding a credential renders as.
  *
  * @param name - The vetted error name to show, if any.
  * @returns The sentence; it quotes no driver text but that name.
@@ -483,11 +488,11 @@ function configurationFailure(
 function probeWithheld(name: string | undefined): string {
     return `The database probe failed${
         parenthesised(name)
-    }; its message is withheld because it contains the database password`
+    }; its message is withheld because it contains a database credential`
 }
 
 /**
- * The fixed sentence a maintenance failure holding the password renders as.
+ * The fixed sentence a maintenance failure holding a credential renders as.
  *
  * @param name - The vetted error name to show, if any.
  * @returns The sentence; it quotes no driver text but that name.
@@ -495,7 +500,7 @@ function probeWithheld(name: string | undefined): string {
 function maintenanceWithheld(name: string | undefined): string {
     return `The schema maintenance statement failed${
         parenthesised(name)
-    }; its message is withheld because it contains the database password`
+    }; its message is withheld because it contains a database credential`
 }
 
 /**
@@ -516,7 +521,7 @@ function parenthesised(name: string | undefined): string {
  *
  * 1. The name and message are read under one guard.
  * 2. The message is split on the exact DSN.
- * 3. If any known form of the password occurs in the name or in any piece,
+ * 3. If any known form of a credential occurs in the name or in any piece,
  *    the fixed `withheld` sentence is returned.
  * 4. Otherwise the pieces are joined with {@link DSN_MARKER} and rendered by
  *    `renderError`, whose pattern is the net for a DSN nobody holds.
@@ -536,7 +541,7 @@ function parenthesised(name: string | undefined): string {
  * draws for a span.
  *
  * @param raw - The driver failure.
- * @param held - The DSN to replace and the password forms to check for.
+ * @param held - The DSN to replace and the credential forms to check for.
  * @param withheld - The fixed sentence, given the name that may be shown.
  * @param shown - Frames the rendered text when it is shown; identity by
  *   default.
@@ -558,12 +563,11 @@ function renderFailure(
         const head = readHead(raw)
         if (head === undefined) return shown(UNRENDERABLE)
         const pieces = head.message.split(held.dsn)
-        const holds = (text: string): boolean =>
-            holdsPassword(text, held.passwords)
+        const holds = (text: string): boolean => holdsSecret(text, held.secrets)
         if (
             (head.name !== undefined && holds(head.name)) || pieces.some(holds)
         ) {
-            return withheld(shownName(head.name, held.passwords))
+            return withheld(shownName(head.name, held.secrets))
         }
         const message = pieces.join(DSN_MARKER)
         error = head.name === undefined

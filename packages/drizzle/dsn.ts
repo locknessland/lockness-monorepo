@@ -27,6 +27,8 @@
  * @internal
  */
 
+import { isCredentialParamName } from '@lockness/contract/logging/internal'
+
 /**
  * The one message a refused DSN produces. It quotes no part of the DSN: any
  * substring of an ambiguous DSN may be a password fragment.
@@ -36,17 +38,19 @@ export const INVALID_DSN_MESSAGE =
 
 /**
  * The outcome of {@link inspectDsn}: refused, or accepted with every form of
- * the password a failure render must check for.
+ * every credential a failure render must check for.
  */
 export type DsnInspection =
     | { readonly ok: false }
     | {
         readonly ok: true
         /**
-         * Every form of the password a driver may echo: as written, as
-         * percent-decoded, and as WHATWG re-encodes it (`;` becomes `%3B`).
-         * Empty and duplicate values are dropped. Empty when the DSN holds no
-         * password.
+         * Every form of every credential a driver may echo. For the userinfo
+         * password: as written, as percent-decoded, and as WHATWG re-encodes
+         * it (`;` becomes `%3B`). For each credential-named query parameter
+         * (#438): as written, as percent-decoded, as `URLSearchParams` reads
+         * it (`+` is a space), and as WHATWG serialises the query. Empty and
+         * duplicate values are dropped. Empty when the DSN holds none.
          */
         readonly secrets: readonly string[]
     }
@@ -103,15 +107,24 @@ const NO_SECRETS: DsnInspection = { ok: true, secrets: [] }
  *   rewrite the password instead.
  *
  * @param url - The DSN passed to `Database.connect()`.
+ * Accepted, it also holds the value of every query parameter whose name
+ * `isCredentialParamName` marks as a credential (#438) — libsql's
+ * `authToken`, a `?password=`, an `sslpassword`. The rule is the contract's,
+ * shared with `renderError`, so the two never disagree on a name. No new
+ * refusal comes with it: a query value cannot move the password boundary.
+ *
  * @returns `{ ok: false }` when a driver could misparse the DSN; otherwise
  *   `{ ok: true, secrets }` — the password as written, decoded, and
- *   re-encoded by WHATWG. A `file:` or `sqlite:` path, and a DSN with no
- *   scheme, are accepted with no secrets.
+ *   re-encoded by WHATWG, then each credential query value in its four forms.
+ *   A `file:` or `sqlite:` path, and a DSN with no scheme, are accepted with
+ *   no secrets.
  *
  * @example
  * ```ts
  * inspectDsn('postgres://u:p%40ss@h1:5432,h2:5433/db')
  * // { ok: true, secrets: ['p%40ss', 'p@ss'] }
+ * inspectDsn('libsql://db.example.com?authToken=a%2Bb')
+ * // { ok: true, secrets: ['a%2Bb', 'a+b'] }
  * inspectDsn('postgres://u:2024/Spring@h/db') // { ok: false }
  * inspectDsn('postgres:u:pw@h/db') // { ok: false }
  * ```
@@ -178,10 +191,69 @@ export function inspectDsn(url: string): DsnInspection {
 
     // The third form is the one a driver that echoes `new URL(dsn).href`
     // prints. WHATWG percent-encodes characters RFC 3986 allows raw.
-    const reencoded = new URL(collapsed).password
-    const secrets = [...new Set([password, decodedPassword, reencoded])]
-        .filter((secret) => secret !== '')
+    const parsed = new URL(collapsed)
+    const secrets = [
+        ...new Set([
+            password,
+            decodedPassword,
+            parsed.password,
+            ...queryCredentials(tail, parsed.search),
+        ]),
+    ].filter((secret) => secret !== '')
     return { ok: true, secrets }
+}
+
+/**
+ * Every form of every credential-named query parameter's value.
+ *
+ * A driver may echo a value as written, decoded, decoded the form way (`+` as
+ * a space), or as WHATWG serialised the URL it rebuilt — and #425 withholds on
+ * any form it holds, so each one is collected. Every value of a repeated name
+ * is held. Empty values are dropped by the caller.
+ *
+ * @param tail - The DSN after its authority: path, query and fragment.
+ * @param serialised - `new URL(dsn).search`, the query as WHATWG writes it.
+ * @returns The forms, possibly with duplicates and empty strings.
+ */
+function queryCredentials(tail: string, serialised: string): string[] {
+    const written = queryPairs(tail)
+    const rewritten = queryPairs(serialised)
+    const forms: string[] = []
+    written.forEach(([name, value], index) => {
+        if (!isCredentialParamName(name)) return
+        forms.push(value)
+        const plain = decoded(value)
+        if (plain !== undefined) forms.push(plain)
+        for (const form of new URLSearchParams(`x=${value}`).values()) {
+            forms.push(form)
+        }
+        // WHATWG never splits or reorders a query, so the pair at the same
+        // index is this one, re-encoded.
+        if (rewritten.length === written.length) {
+            forms.push(rewritten[index][1])
+        }
+    })
+    return forms
+}
+
+/**
+ * Split the query of a URL tail into raw `[name, value]` pairs.
+ *
+ * @param tail - Text whose query starts at its first `?` and ends at `#`.
+ * @returns The pairs as written; a pair with no `=` has an empty value.
+ */
+function queryPairs(tail: string): [string, string][] {
+    const start = tail.indexOf('?')
+    if (start < 0) return []
+    const hash = tail.indexOf('#', start)
+    const query = tail.slice(start + 1, hash < 0 ? undefined : hash)
+    if (query === '') return []
+    return query.split('&').map((pair) => {
+        const equals = pair.indexOf('=')
+        return equals < 0
+            ? [pair, '']
+            : [pair.slice(0, equals), pair.slice(equals + 1)]
+    })
 }
 
 /**

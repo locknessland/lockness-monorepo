@@ -328,7 +328,7 @@ Deno.test('#425 the issue passwords reach neither the result nor the log, and no
 function probeWithheld(name?: string): string {
     return `The database probe failed${
         name === undefined ? '' : ` (${name})`
-    }; its message is withheld because it contains the database password`
+    }; its message is withheld because it contains a database credential`
 }
 
 /** Connect through a fake client whose probe rejects, and return the render. */
@@ -601,7 +601,7 @@ Deno.test('#425 an import error holding the password is withheld after the packa
         success: false,
         error: "The 'postgres' driver's client package (postgres) could not " +
             'be imported; the import error is withheld because it contains ' +
-            'the database password',
+            'a database credential',
     })
 })
 
