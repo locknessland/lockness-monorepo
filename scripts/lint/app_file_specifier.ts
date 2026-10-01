@@ -33,7 +33,7 @@
 
 /** The rule's message, naming the one sanctioned way. */
 const MESSAGE =
-    'Hand-built app-file specifier: import app files through importAppFile() from @lockness/contract (#477)'
+    'Hand-built app-file specifier: import app files through importAppFile() from @lockness/contract/app-file/internal (#477)'
 
 /** The hint shown under the message. */
 const HINT =
