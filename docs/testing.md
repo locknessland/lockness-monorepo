@@ -260,6 +260,35 @@ For your own deployment, generate one and read it from the environment:
 openssl rand -hex 32   # then: REALTIME_SECRET=... in your environment
 ```
 
+## Live-postgres integration tests
+
+`db:fresh`'s closing check on postgres (R7) classifies objects through
+`pg_depend` and `pg_identify_object`. Its SQL is pinned offline in
+`packages/drizzle/tests/reset.test.ts`, but only a real server proves the
+classification, so `packages/drizzle/tests/fresh_postgres_live.test.ts` runs the
+real postgres driver and reset against one. The `live-postgres` CI job runs it
+against a `postgres:16` service on every push and pull request.
+
+It is skipped unless you turn it on:
+
+```bash
+docker run -d --rm --name lockness-it-pg -p 54320:5432 \
+    -e POSTGRES_HOST_AUTH_METHOD=trust postgres:16
+
+LOCKNESS_POSTGRES_URL=postgres://postgres@127.0.0.1:54320/postgres \
+    deno task test:postgres
+
+docker stop lockness-it-pg
+```
+
+| Variable                        | Default | Notes                                                 |
+| ------------------------------- | ------- | ----------------------------------------------------- |
+| `LOCKNESS_POSTGRES_INTEGRATION` | unset   | `1` runs the suite. Set by `deno task test:postgres`. |
+| `LOCKNESS_POSTGRES_URL`         | unset   | Required. Refused unless the host is loopback.        |
+
+The suite creates and drops only schemas named `lockness_fresh_*` and one event
+trigger, `lockness_fresh_ddl`, and it needs a superuser for that event trigger.
+
 ## Mutation batteries
 
 A test that passes proves the code ran. It does not prove the test would have

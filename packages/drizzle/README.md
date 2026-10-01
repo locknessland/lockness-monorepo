@@ -143,17 +143,23 @@ drops:
 | Dialect         | What is dropped                                                                                                                                                  |
 | :-------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | sqlite / libsql | every table and view of the main database (not `sqlite_%`, `libsql_%`), in one write batch                                                                       |
-| mysql           | every table and view of `DATABASE()`, the bookkeeping table included. Not atomic: MySQL DDL auto-commits                                                         |
+| mysql           | every table and view of `DATABASE()`, the bookkeeping table included, each `DROP` naming the database (`` `db`.`name` ``). Not atomic: MySQL DDL auto-commits    |
 | postgres        | every table, view, sequence, type and routine in `schemaFilter` (default `public`), plus the bookkeeping table. One transaction; schemas are kept, but see below |
 
 On postgres, schemas are kept, with one exception: a schema that a migration
 creates with a plain `CREATE SCHEMA "<name>"`, as drizzle-kit generates it, is
 dropped, because that migration could not run again otherwise.
 `CREATE SCHEMA IF NOT EXISTS` re-runs cleanly, so such a schema is kept.
-Extension members are kept, and a closing check rolls everything back if a
-`CASCADE` reached a table, type, routine, constraint, trigger or policy outside
-the scope. Operators and event triggers are not counted by that check, so one
-built on a routine in scope is dropped with it.
+Extension members are kept. Before the first `CASCADE`, the reset records the
+set of every object outside the scope that `pg_depend` knows; a closing check
+rolls everything back if any of them is gone, and names up to ten of them. So an
+outside view, rule, column, foreign key, operator or event trigger built on an
+object in scope makes the reset fail instead of vanishing with it. Objects
+created by another session meanwhile are not compared. This check is proven
+against a real postgres in the `live-postgres` CI job.
+
+On MySQL, `DATABASE()` and the table list are read in one statement, and every
+`DROP` names that database, so the reset cannot empty a different one.
 
 It is refused in production unless you pass `--allow-production`, the same guard
 as `db:seed`. It is also refused, before anything is dropped, when the config

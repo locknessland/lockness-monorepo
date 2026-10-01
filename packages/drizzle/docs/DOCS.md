@@ -467,11 +467,11 @@ migrations folder is only read. There is no countdown.
 
 "Fresh" empties a **managed scope**, not "what the migrations created":
 
-| Dialect         | Scope                                                                                     | How                                                                                                                                     |
-| :-------------- | :---------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------- |
-| sqlite / libsql | every table and view of `main`, except `sqlite_%` and `libsql_%`                          | one write batch: `PRAGMA defer_foreign_keys = ON`, the views, then the tables. Atomic                                                   |
-| mysql           | every table and view of `DATABASE()`, the bookkeeping table included                      | a dedicated connection, destroyed afterwards: `FOREIGN_KEY_CHECKS` off, the drops, checks back on. Not atomic: MySQL DDL auto-commits   |
-| postgres        | the tables, views, sequences, types and routines in `schemaFilter` (default `['public']`) | one transaction: the bookkeeping table, then each object `CASCADE`, keeping its schema; a closing check rolls back an escaped `CASCADE` |
+| Dialect         | Scope                                                                                     | How                                                                                                                                                                                                                                        |
+| :-------------- | :---------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| sqlite / libsql | every table and view of `main`, except `sqlite_%` and `libsql_%`                          | one write batch: `PRAGMA defer_foreign_keys = ON`, the views, then the tables. Atomic                                                                                                                                                      |
+| mysql           | every table and view of `DATABASE()`, the bookkeeping table included                      | one read for the database and its tables; a dedicated connection, destroyed afterwards: `FOREIGN_KEY_CHECKS` off, the bookkeeping table, then each view and table as `` `db`.`name` ``, checks back on. Not atomic: MySQL DDL auto-commits |
+| postgres        | the tables, views, sequences, types and routines in `schemaFilter` (default `['public']`) | one transaction: the bookkeeping table, then each object `CASCADE`, keeping its schema; a closing set check rolls back an escaped `CASCADE` and names what it reached                                                                      |
 
 On postgres, extension members (postgis, pgcrypto, vector…) and sequences owned
 by a column are not dropped directly. A schema is dropped only when a migration
@@ -480,10 +480,40 @@ creates it with a plain `CREATE SCHEMA`. The bookkeeping table is
 by default. Roles, extensions, collations, text-search configs and publications
 survive, and so do MySQL procedures, functions and events.
 
-Operators and event triggers survive **only when their function is outside
-`schemaFilter`**. One built on a routine in scope is dropped with it by that
-routine's `CASCADE`, wherever the operator lives, and the closing check does not
-count operators or event triggers, so it does not roll that back.
+**The closing check (R7) is a set check.** After the bookkeeping table is
+dropped and before the first `CASCADE`, the transaction records every object
+`pg_depend` knows outside the scope — `(classid, objid, objsubid)` with its
+`pg_identify_object` type and identity. `pg_catalog`, `information_schema`,
+`pg_toast*` and `pg_temp*` are not outside. An object without a schema of its
+own (a trigger, a policy, a rule, a column default) is outside unless the object
+owning it — through an auto, internal or partition dependency — is in scope. A
+`CASCADE` walks only `pg_depend`, so every outside object it can reach is in
+that set. The last statement looks for set members with no `pg_depend` row left,
+and if any is gone it raises with their count and up to ten of them by type and
+identity, and the whole reset is rolled back:
+
+```text
+db:fresh: a CASCADE reached outside the managed scope and dropped 1 object(s)
+outside it (view audit.recent_users); the reset was rolled back
+```
+
+So an outside view, rule, column of an in-scope type, foreign key to an in-scope
+table, operator over an in-scope function, or event trigger on one fails the
+reset rather than vanishing with it. It is strict on purpose: a global object
+that exists only through in-scope ones (a custom cast, a transform, a language,
+an access method or a foreign-data wrapper with an in-scope handler), and an
+outside object owned by an in-scope one, also roll back. Objects another session
+creates during the reset are never compared; one it **drops** meanwhile causes a
+rollback, the safe direction. The check is proven against a real postgres 16 in
+the `live-postgres` CI job; the catalogue read that lists what to drop still
+runs before the transaction opens.
+
+**MySQL reads once.** `DATABASE()` and the database's tables and views come back
+from one statement — two reads from the pool could come from two connections —
+and every `DROP` is qualified as `` `db`.`name` ``, so the reset empties the
+database it read even if the dedicated connection selects another. The
+bookkeeping table is always dropped first, listed or not. The migrator still
+runs unqualified on the pool.
 
 **Guard.** Like `db:seed`, `db:fresh` refuses a production environment
 (`DENO_ENV`/`APP_ENV` is `production`) unless `--allow-production` is passed,
@@ -501,9 +531,10 @@ before it reads the config or connects.
 - The migrations journal (`meta/_journal.json`), or a file it lists, is missing:
   a database is never wiped that could not then be migrated.
 - The driver offers no schema maintenance (a custom `DriverFactory` need not).
-- MySQL: the connection has no database selected (`DATABASE()` is `NULL`), or it
-  selects a system database — `mysql`, `sys`, `performance_schema` or
-  `information_schema`, in any letter case.
+- MySQL: the connection has no database selected (`DATABASE()` is `NULL`), the
+  catalogue read names more than one database, or it selects a system database —
+  `mysql`, `sys`, `performance_schema` or `information_schema`, in any letter
+  case.
 - postgres: `schemaFilter` or `migrations.schema` names a system schema —
   `information_schema` or any `pg_*` schema (`pg_catalog`, `pg_toast`…), in any
   letter case. This is checked before the catalogue is even read.
