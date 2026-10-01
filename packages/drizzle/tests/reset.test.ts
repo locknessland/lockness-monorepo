@@ -15,6 +15,7 @@ import {
     assertEquals,
     assertRejects,
     assertStringIncludes,
+    assertThrows,
 } from '@std/assert'
 import type { SchemaMaintenance } from '../drivers.ts'
 import {
@@ -145,6 +146,34 @@ Deno.test('#435 R5 mysql refuses when DATABASE() is NULL, before any drop', asyn
     assertStringIncludes(error.message, 'no database selected')
     assertEquals(calls.includes('execute'), false)
 })
+
+for (
+    const database of [
+        'mysql',
+        'sys',
+        'performance_schema',
+        'information_schema',
+        'MySQL',
+        'SYS',
+        'Performance_Schema',
+        'INFORMATION_SCHEMA',
+    ]
+) {
+    Deno.test(`#435 mysql refuses the system database ${database}, before any drop`, async () => {
+        const { calls, maintenance } = fakeMaintenance({
+            'information_schema.TABLES': [{ name: 'user', type: 'BASE TABLE' }],
+            'DATABASE() AS name': [{ name: database }],
+        })
+
+        const error = await assertRejects(
+            () => resetDatabase(maintenance, scope('mysql')),
+            FreshRefusedError,
+        )
+
+        assertStringIncludes(error.message, 'system database')
+        assertEquals(calls, ['query'], 'it read the catalogue or dropped')
+    })
+}
 
 Deno.test('#435 mysql reset lists only the current database', async () => {
     const { executed, maintenance } = fakeMaintenance({
@@ -357,6 +386,58 @@ Deno.test('#435 R6 refuses to drop a schema that holds extension members', () =>
     })()
     assert(error instanceof FreshRefusedError, String(error))
     assertStringIncludes(error.message, 'extension')
+})
+
+const SYSTEM_SCHEMA_SCOPES: ReadonlyArray<
+    readonly [string, Partial<ResetScope>]
+> = [
+    ['schemaFilter pg_catalog', { schemaFilter: ['public', 'pg_catalog'] }],
+    ['schemaFilter information_schema', {
+        schemaFilter: ['information_schema'],
+    }],
+    ['schemaFilter pg_toast', { schemaFilter: ['pg_toast'] }],
+    ['schemaFilter any pg_*', { schemaFilter: ['pg_temp_3'] }],
+    ['schemaFilter, in another case', { schemaFilter: ['PG_Catalog'] }],
+    ['migrations.schema pg_catalog', { schema: 'pg_catalog' }],
+    ['migrations.schema information_schema', {
+        schema: 'Information_Schema',
+    }],
+]
+
+for (const [label, overrides] of SYSTEM_SCHEMA_SCOPES) {
+    Deno.test(`#435 postgres refuses a system schema (${label}), before any read or drop`, async () => {
+        const { calls, maintenance } = fakeMaintenance({})
+
+        const error = await assertRejects(
+            () => resetDatabase(maintenance, scope('postgres', overrides)),
+            FreshRefusedError,
+        )
+
+        assertStringIncludes(error.message, 'system schema')
+        assertEquals(calls, [], 'it read the catalogue or dropped')
+    })
+
+    Deno.test(`#435 planPostgresReset refuses a system schema (${label})`, () => {
+        assertThrows(
+            () => planPostgresReset(EMPTY, scope('postgres', overrides)),
+            FreshRefusedError,
+            'system schema',
+        )
+    })
+}
+
+Deno.test('#435 postgres accepts a schema that merely contains pg_ or information_schema', () => {
+    const plan = planPostgresReset(
+        EMPTY,
+        scope('postgres', {
+            schemaFilter: ['app_pg_data', 'my_information_schema'],
+            schema: 'meta_pg',
+        }),
+    )
+    assertEquals(
+        plan[0],
+        'DROP TABLE IF EXISTS "meta_pg"."__drizzle_migrations"',
+    )
 })
 
 Deno.test('#435 the census excludes the scope, pg_catalog, information_schema, pg_toast* and pg_temp*', () => {
