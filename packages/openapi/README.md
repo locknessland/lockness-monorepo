@@ -116,26 +116,23 @@ export class UserController {
 
 ### Serve Swagger UI
 
-Create a docs controller to serve the Swagger UI:
+Create a docs controller to serve the Swagger UI. `loadDocumentedControllers()`
+finds the controllers in `app/controller` and names any file that fails to load:
 
 ```typescript
+import { type Context, Controller, Get } from '@lockness/core'
 import {
-    type Context,
-    Controller,
-    type ControllerClass,
-    Get,
-} from 'lockness/core'
-import { ApiDoc, generateOpenAPISpec, serveSwaggerUI } from '@lockness/openapi'
-
-async function loadControllers(): Promise<ControllerClass[]> {
-    // Load your controllers...
-}
+    generateOpenAPISpec,
+    loadDocumentedControllers,
+    serveSwaggerUI,
+} from '@lockness/openapi'
 
 @Controller('/api-docs')
 export class ApiDocsController {
     @Get('/')
     async index(c: Context) {
-        const controllers = await loadControllers()
+        const controllers = (await loadDocumentedControllers())
+            .filter((controller) => controller !== ApiDocsController)
         const spec = generateOpenAPISpec(controllers, {
             title: 'My API',
             version: '1.0.0',
@@ -148,7 +145,8 @@ export class ApiDocsController {
 
     @Get('/openapi.json')
     async spec(c: Context) {
-        const controllers = await loadControllers()
+        const controllers = (await loadDocumentedControllers())
+            .filter((controller) => controller !== ApiDocsController)
         const spec = generateOpenAPISpec(controllers, {
             title: 'My API',
             version: '1.0.0',

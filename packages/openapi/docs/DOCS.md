@@ -110,20 +110,26 @@ export class UserController {
 
 ### Serve Swagger UI
 
+`loadDocumentedControllers()` imports every `*_controller.ts(x)` file in
+`app/controller` and returns the exported classes whose name ends in
+`Controller`. A file that fails to load throws an error naming it, so the
+document never silently loses a controller. Filter out the docs controller
+itself:
+
 ```typescript
+import { type Context, Controller, Get } from '@lockness/core'
 import {
-    type Context,
-    Controller,
-    type ControllerClass,
-    Get,
-} from '@lockness/core'
-import { generateOpenAPISpec, serveSwaggerUI } from '@lockness/openapi'
+    generateOpenAPISpec,
+    loadDocumentedControllers,
+    serveSwaggerUI,
+} from '@lockness/openapi'
 
 @Controller('/api-docs')
 export class ApiDocsController {
     @Get('/')
     async index(c: Context) {
-        const controllers = await loadControllers()
+        const controllers = (await loadDocumentedControllers())
+            .filter((controller) => controller !== ApiDocsController)
         const spec = generateOpenAPISpec(controllers, {
             title: 'My API',
             version: '1.0.0',
@@ -136,7 +142,8 @@ export class ApiDocsController {
 
     @Get('/openapi.json')
     async spec(c: Context) {
-        const controllers = await loadControllers()
+        const controllers = (await loadDocumentedControllers())
+            .filter((controller) => controller !== ApiDocsController)
         const spec = generateOpenAPISpec(controllers, {
             title: 'My API',
             version: '1.0.0',

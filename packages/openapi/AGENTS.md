@@ -39,7 +39,7 @@ application installs it, or the feature stays off.
 
 | Kind      | Exports                                                                                                                                                          |
 | :-------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| function  | `ApiDoc`, `generateOpenAPISpec`, `getApiDocMetadata`, `hasApiDoc`, `registerOpenAPICommands`, `serveSwaggerUI`                                                   |
+| function  | `ApiDoc`, `generateOpenAPISpec`, `getApiDocMetadata`, `hasApiDoc`, `loadDocumentedControllers`, `registerOpenAPICommands`, `serveSwaggerUI`                      |
 | interface | `ApiDocMetadata`, `GenerateSpecOptions`, `MediaType`, `OpenAPISpec`, `Operation`, `Parameter`, `PathItem`, `RequestBody`, `Response`, `Schema`, `SecurityScheme` |
 
 Anything not listed is internal and free to change.
@@ -54,6 +54,7 @@ Anything not listed is internal and free to change.
 | `@ApiOperation` and friends | `decorator.ts`    |
 | Spec-serving UI             | `ui.ts`           |
 | `openapi:*` commands        | `cli_commands.ts` |
+| Controller discovery        | `discovery.ts`    |
 
 ## Pitfalls
 
@@ -66,9 +67,10 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-4 test files for 7 source files:
+5 test files for 8 source files:
 
-- `packages/openapi/tests/app_file.test.ts`
+- `packages/openapi/tests/api_docs_controller_stub.test.ts`
+- `packages/openapi/tests/discovery.test.ts`
 - `packages/openapi/tests/generator.test.ts`
 - `packages/openapi/tests/generator_resources.test.ts`
 - `packages/openapi/tests/generator_shape.test.ts`
@@ -86,7 +88,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 4 test files directly —
+Then, specific to this package: run its 5 test files directly —
 
 ```bash
 deno test -A packages/openapi/
