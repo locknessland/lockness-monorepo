@@ -356,7 +356,14 @@ export interface TokenUserProviderContract<
     findByCredentials(email: string, password: string): Promise<User | null>
 
     /**
-     * Create an access token for a user
+     * Create an access token for a user.
+     *
+     * @param user - The owner.
+     * @param name - A label for the token.
+     * @param expiresIn - Lifetime in **milliseconds** (unlike remember-me
+     * tokens, whose `expiresIn` is in seconds).
+     * @returns The token, its plaintext in `value` — the only time it is
+     * available.
      */
     createToken(
         user: User,
@@ -365,7 +372,11 @@ export interface TokenUserProviderContract<
     ): Promise<AccessToken>
 
     /**
-     * Verify an access token and return the user
+     * Verify an access token and return the user.
+     *
+     * @param tokenValue - The presented plaintext.
+     * @returns The user and the stored token (`value` is `''`), or `null`
+     * when the token is unknown, expired or revoked.
      */
     verifyToken(
         tokenValue: string,
@@ -470,7 +481,8 @@ export interface AccessToken {
     name: string
 
     /**
-     * The token value (hashed in database, plain returned once)
+     * The plaintext token. Only the result of `createToken` carries it; it is
+     * never stored, so a token returned by `verifyToken` has `value: ''`.
      */
     value: string
 
