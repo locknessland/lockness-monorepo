@@ -477,6 +477,36 @@ Deno.test('db:seed - a missing database_seeder.ts is a CommandFailedError with t
     }
 })
 
+Deno.test('#478 db:seed - a seeder load failure is rendered, never embedded raw', async () => {
+    // A fake marker assembled at run time, so the secret scan never sees it.
+    const head = 'FA' + 'KE'
+    const tail = 'MA' + 'RK'
+    const restore = muteConsole()
+    try {
+        const cli = new FakeCli()
+        const { connect } = fakeConnection()
+        const loadSeeder: SeederLoader = () =>
+            Promise.reject(
+                new Error(
+                    `fetch https://api.example.com/?token=${head}${tail}`,
+                ),
+            )
+        registerDrizzleCommands(cli, { connect, loadSeeder })
+
+        const error = await assertRejects(
+            () => cli.run('db:seed', 'User'),
+            CommandFailedError,
+        )
+
+        assertStringIncludes(error.message, 'Failed to load seeder')
+        assertStringIncludes(error.message, 'token=***')
+        assert(!error.message.includes(head), error.message)
+        assert(!error.message.includes(tail), error.message)
+    } finally {
+        restore()
+    }
+})
+
 Deno.test('db:seed <name> - a module that fails to load is a CommandFailedError keeping the cause', async () => {
     const restore = muteConsole()
     try {
