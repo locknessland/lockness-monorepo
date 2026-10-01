@@ -909,6 +909,10 @@ Deno.test('db:fresh - R2 and R3 refuse before the connection is opened', async (
                 ['R2 url not a string', { url: 42 }],
                 ['R2 url empty', { url: '' }],
                 ['R2 url blank', { url: ' \t' }],
+                // #456 — a url that names no database.
+                ['R2 url names no database', {
+                    url: 'postgres://localhost:5432/',
+                }],
             ] as const).map(([label, dbCredentials]) =>
                 [label, () =>
                     Promise.resolve({
@@ -982,6 +986,66 @@ Deno.test('db:fresh - an empty dbCredentials.url never reaches a driver (#449)',
                 )
                 assertStringIncludes(error.message, 'Nothing was dropped.')
                 assertEquals(lines.join('\n').includes('refreshed'), false)
+            }
+            assertEquals(factoryCalls, [], 'a driver connection was attempted')
+            assertEquals(container.get(Database).isConnected(), false)
+        } finally {
+            container.delete(Database)
+        }
+    })
+})
+
+Deno.test('db:fresh - a dbCredentials.url that names no database never reaches a driver (#456)', async () => {
+    // Assembled at runtime, so no scanner reads a credential into the source.
+    const host = ['secret-host', 'db.example'].join('.')
+    await withMigrations(async (folder) => {
+        container.delete(Database)
+        try {
+            const factoryCalls: string[] = []
+            for (const dialect of ['postgres', 'mysql', 'sqlite'] as const) {
+                container.get(Database).setDriverFactory(dialect, () => {
+                    factoryCalls.push(dialect)
+                    return Promise.reject(new Error('a driver was created'))
+                })
+            }
+            for (
+                const [kitDialect, url] of [
+                    ['postgresql', 'postgres://'],
+                    ['postgresql', 'postgres:///'],
+                    ['postgresql', `postgres://app:pw@${host}:5432/`],
+                    ['postgresql', `postgresql://${host}/?sslmode=require`],
+                    ['mysql', `mysql://app:pw@${host}:3306/`],
+                    ['sqlite', 'file:'],
+                    ['turso', 'file://'],
+                ]
+            ) {
+                const { deps } = freshDeps(folder)
+                const cli = new FakeCli()
+                registerDrizzleCommands(cli, {
+                    runCommand: deps.runCommand,
+                    loadMigrationConfig: () =>
+                        Promise.resolve({
+                            dialect: kitDialect,
+                            out: folder,
+                            dbCredentials: { url },
+                        }),
+                })
+
+                const { lines, error } = await capture(() =>
+                    withAppEnv(undefined, () => cli.run('db:fresh'))
+                )
+
+                assert(error instanceof CommandFailedError, url)
+                assertStringIncludes(
+                    error.message,
+                    '`dbCredentials.url` names no database',
+                    url,
+                )
+                assertStringIncludes(error.message, 'Nothing was dropped.', url)
+                const output = `${lines.join('\n')}\n${error.message}`
+                assertEquals(output.includes('secret-host'), false, url)
+                assertEquals(output.includes('pw@'), false, url)
+                assertEquals(output.includes('refreshed'), false, url)
             }
             assertEquals(factoryCalls, [], 'a driver connection was attempted')
             assertEquals(container.get(Database).isConnected(), false)

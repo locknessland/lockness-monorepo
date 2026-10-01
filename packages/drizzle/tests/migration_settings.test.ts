@@ -294,6 +294,156 @@ Deno.test('#449 R2 keeps a url with surrounding blanks as written', async () => 
     assertEquals(settings.url, url)
 })
 
+// #456 — a url that names no database is refused, because the driver would
+// fall back to a default target of its own (postgres.js: PGDATABASE, then the
+// OS user's database; libsql: a throwaway temporary database).
+
+/** The one R2 message for a url that names no database (#456). */
+const NO_DATABASE = '`dbCredentials.url` names no database, so the driver ' +
+    'would connect to a default of its own; the environment variable the ' +
+    'database name is built from is probably unset'
+
+/** Every url refused as naming no database, by the dialect it is read for. */
+const NAMES_NO_DATABASE: readonly (readonly [string, readonly string[]])[] = [
+    ['postgresql', [
+        // The issue's list, in both scheme spellings.
+        'postgres://',
+        'postgres:///',
+        'postgres://localhost:5432/',
+        'postgres://localhost/',
+        'postgresql://',
+        'postgresql:///',
+        'postgresql://localhost:5432/',
+        'postgresql://localhost/',
+        // What `postgres://localhost:5432/${DB_NAME ?? ''}` becomes with
+        // credentials and a query string around the missing name.
+        `postgres://app:pw@${URL_HOST}:5432/`,
+        `postgres://app:pw@${URL_HOST}:5432/?sslmode=require`,
+        `postgres://${URL_HOST}?sslmode=require`,
+        `postgres://${URL_HOST}#app`,
+        // WHATWG drops a dot segment, percent-encoded or not, and postgres.js
+        // reads the database from the WHATWG pathname.
+        `postgres://${URL_HOST}/.`,
+        `postgres://${URL_HOST}/..`,
+        `postgres://${URL_HOST}/%2e`,
+        `postgres://${URL_HOST}/%2E%2e/`,
+        // Parsed under its own scheme: for a WHATWG special scheme `\` ends a
+        // segment too, so this path is a dot segment and names nothing.
+        `http://${URL_HOST}/.\\`,
+        // A host list WHATWG cannot parse whole still names no database.
+        `postgres://h1:5432,${URL_HOST}:5433/`,
+        // Trailing blanks around a missing name.
+        'postgres://localhost:5432/ ',
+        // No `scheme://` authority to read a database after: postgres.js
+        // parses `file:` with an empty path and falls back to PGDATABASE.
+        'file:',
+        'localhost',
+    ]],
+    ['mysql', [
+        'mysql://',
+        'mysql:///',
+        'mysql://localhost:3306/',
+        `mysql://app:pw@${URL_HOST}/?ssl=true`,
+        `mysql://${URL_HOST}/.`,
+    ]],
+    ['sqlite', [
+        'file:',
+        'file://',
+        'FILE:',
+        'file:?tls=0',
+        'file://localhost',
+    ]],
+    ['turso', ['file:', 'file://']],
+]
+
+/** Every url that names its database, and is accepted. */
+const NAMES_A_DATABASE: readonly (readonly [string, readonly string[]])[] = [
+    ['postgresql', [
+        'postgres://localhost:5432/app',
+        'postgresql://localhost:5432/app',
+        'postgres://localhost/app',
+        `postgres://app:pw@${URL_HOST}:5432/app`,
+        `postgres://app:pw@${URL_HOST}:5432/app?sslmode=require`,
+        `postgres://${URL_HOST}/app?sslmode=require#x`,
+        `postgres://h1:5432,${URL_HOST}:5433/app`,
+        `postgres://[::1]:5432/app`,
+        `postgres://${URL_HOST}/%61pp`,
+        `postgres://${URL_HOST}/app/.`,
+    ]],
+    ['mysql', ['mysql://localhost:3306/app', `mysql://app:pw@${URL_HOST}/app`]],
+    ['sqlite', [
+        'file:./app.db',
+        'file:app.db',
+        'file:///var/db/app.db',
+        'file://localhost/var/db/app.db',
+        'FILE:app.db',
+        'file::memory:',
+        ':memory:',
+    ]],
+    ['turso', [
+        'file:./app.db',
+        `libsql://${URL_HOST}`,
+        `https://${URL_HOST}`,
+    ]],
+]
+
+for (const [dialect, urls] of NAMES_NO_DATABASE) {
+    Deno.test(`#456 R2 refuses a ${dialect} url that names no database`, async () => {
+        for (const url of urls) {
+            const { folders, read } = reader()
+            const error = await assertRejects(
+                () =>
+                    loadMigrationSettings(
+                        () =>
+                            Promise.resolve({
+                                ...base,
+                                dialect,
+                                dbCredentials: { url },
+                            }),
+                        read,
+                    ),
+                FreshRefusedError,
+                undefined,
+                url,
+            )
+            assertEquals(
+                error.message,
+                `db:fresh refused: drizzle.config.ts: ${NO_DATABASE}. ` +
+                    'Nothing was dropped.',
+                url,
+            )
+            const text = exposed(error)
+            assertEquals(text.includes('secret-host'), false, url)
+            assertEquals(text.includes('pw@'), false, url)
+            assertEquals(text.includes('localhost'), false, url)
+            assertEquals(error.cause, undefined, url)
+            assertEquals(folders, [], `${url}: the migrations were read`)
+        }
+    })
+}
+
+for (const [dialect, urls] of NAMES_A_DATABASE) {
+    Deno.test(`#456 R2 accepts a ${dialect} url that names its database`, async () => {
+        for (const url of urls) {
+            const settings = await loadMigrationSettings(
+                () =>
+                    Promise.resolve({
+                        ...base,
+                        dialect,
+                        dbCredentials: { url },
+                    }),
+                reader().read,
+            )
+            assertEquals(settings.url, url)
+        }
+    })
+}
+
+Deno.test('#456 R2 gives a url that names no database its own message', () => {
+    const messages: readonly string[] = Object.values(CREDENTIAL_FAULTS)
+    assertEquals(messages.includes(NO_DATABASE), false)
+})
+
 Deno.test('#435 R2 refuses a config that names a driver', async () => {
     await assertRefused(
         () => Promise.resolve({ ...base, driver: 'pglite' }),

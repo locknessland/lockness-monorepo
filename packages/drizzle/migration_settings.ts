@@ -212,6 +212,13 @@ function parseConfig(
         throw refused('`out` (the migrations folder) is not set')
     }
     const url = credentialsUrl(config.dbCredentials)
+    if (!namesDatabase(kitDialect as KitDialect, url)) {
+        throw refused(
+            '`dbCredentials.url` names no database, so the driver would ' +
+                'connect to a default of its own; the environment variable ' +
+                'the database name is built from is probably unset',
+        )
+    }
     const migrations = config.migrations === undefined ? {} : config.migrations
     if (!isRecord(migrations)) {
         throw refused('`migrations` is not an object')
@@ -283,6 +290,68 @@ function credentialsUrl(credentials: unknown): string {
         )
     }
     return url
+}
+
+/**
+ * `scheme://authority`: everything a server URL holds before its path. The
+ * authority ends where WHATWG ends it for a non-special scheme, at the first
+ * `/`, `?` or `#`.
+ */
+const SERVER_AUTHORITY = /^[A-Za-z][A-Za-z0-9+.-]*:\/\/[^/?#]*/
+
+/**
+ * A libsql `file:` URL, in libsql's own RFC 3986 grammar: an optional
+ * `//authority`, then the path up to the first `?` or `#`. The scheme is
+ * matched in any letter case, as libsql lower-cases it.
+ */
+const FILE_URL = /^file:(?:\/\/[^/?#]*)?(?<path>[^?#]*)/i
+
+/**
+ * Whether a URL names the database a destructive command acts on (#456).
+ *
+ * A driver given a URL that names none falls back to a default target of its
+ * own: postgres.js to `PGDATABASE`, then a database named after the OS user;
+ * libsql to a throwaway temporary database. That is what
+ * `` `postgres://localhost:5432/${Deno.env.get('DB_NAME') ?? ''}` `` yields
+ * with the variable unset. Only the URL's path is asked, never its
+ * reachability: the connection reports that.
+ *
+ * - **postgresql, mysql** — the path after the authority must be non-empty
+ *   once WHATWG has parsed it, since postgres.js and mysql2 both read the
+ *   database from `new URL(dsn).pathname`. The URL API is used for that
+ *   reason: it drops a dot segment, `%2e` included, so `/.` names nothing.
+ *   The authority is swapped for a placeholder first, because a postgres.js
+ *   host list (`h1:5432,h2:5433`) is not WHATWG and is not what is judged.
+ *   The path is not percent-decoded: a name is empty encoded exactly when it
+ *   is empty decoded, and a malformed escape is `inspectDsn`'s to refuse. A
+ *   URL with no `scheme://` part names no database here; postgres.js reads
+ *   `file:` as one with an empty path and falls back.
+ * - **sqlite, turso** — a `file:` URL must hold a path. WHATWG cannot be
+ *   asked: it normalises `file:` to `file:///`, so libsql's own grammar is
+ *   mirrored instead. A remote URL (`libsql://`, `https://`) names its
+ *   database by host, and `:memory:` is a target the config chose.
+ *
+ * A database named only in the query string (`?database=app`) is not read:
+ * the named target is the one in the path.
+ *
+ * @param dialect - The dialect the URL is read for.
+ * @param url - `dbCredentials.url`, non-blank. Never quoted.
+ * @returns True when the URL names a database.
+ */
+function namesDatabase(dialect: KitDialect, url: string): boolean {
+    const trimmed = url.trim()
+    if (dialect === 'sqlite' || dialect === 'turso') {
+        return FILE_URL.exec(trimmed)?.groups?.path !== ''
+    }
+    const authority = SERVER_AUTHORITY.exec(trimmed)?.[0]
+    if (authority === undefined) return false
+    const scheme = authority.slice(0, authority.indexOf(':'))
+    // `URL.parse`, not `new URL`: the TypeError the constructor throws quotes
+    // the input. A placeholder authority and a tail that starts with `/`, `?`
+    // or `#` always parse, so the empty default only keeps this fail-closed.
+    const path = URL.parse(`${scheme}://h${trimmed.slice(authority.length)}`)
+        ?.pathname ?? ''
+    return path.slice(1) !== ''
 }
 
 /**
