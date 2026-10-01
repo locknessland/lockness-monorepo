@@ -9,7 +9,8 @@
  *
  * - **R2** — the file cannot be imported (its error is withheld, since it may
  *   quote the DSN; only an identifier-shaped error name is shown); `out` is
- *   absent; `dbCredentials` holds anything besides `url`; a `driver` is
+ *   absent; `dbCredentials` is missing, holds anything besides `url`, or its
+ *   `url` is missing, not a string, empty or blank (#449); a `driver` is
  *   named; or the dialect is not postgresql, mysql, sqlite or turso.
  * - **R3** — the journal, or a file it lists, is missing. The migrations are
  *   read up front with drizzle-orm's own `readMigrationFiles`: a database is

@@ -529,12 +529,19 @@ before it reads the config or connects.
 **Refusals.** Each one happens before anything is dropped, and each ends with
 "Nothing was dropped.":
 
-- `drizzle.config.ts` cannot be imported; `out` is not set; `dbCredentials`
-  holds anything besides `url`; a `driver` is set; or the dialect is not
-  `postgresql`, `mysql`, `sqlite` or `turso`. An import error is withheld, since
-  the file builds the DSN and its error may quote it: only the error's name is
-  shown, and only when it is a plain identifier. Import the file directly to see
-  the error.
+- `drizzle.config.ts` cannot be imported; `out` is not set; a `driver` is set;
+  or the dialect is not `postgresql`, `mysql`, `sqlite` or `turso`. An import
+  error is withheld, since the file builds the DSN and its error may quote it:
+  only the error's name is shown, and only when it is a plain identifier. Import
+  the file directly to see the error.
+- `dbCredentials` does not name one database. Each fault has its own message,
+  and none quotes the URL: `dbCredentials` is not set or is not an object;
+  `dbCredentials.url` is not set or is not a string; it holds keys besides
+  `url`; or `dbCredentials.url` is **empty or only whitespace**. A driver given
+  no URL falls back to its own default target, so an empty URL would reset a
+  database the config never named. It is what
+  `url: Deno.env.get('DATABASE_URL') ?? ''` yields with the variable unset,
+  which is why its message points at the variable.
 - The migrations journal (`meta/_journal.json`), or a file it lists, is missing:
   a database is never wiped that could not then be migrated.
 - The driver offers no schema maintenance (a custom `DriverFactory` need not).
