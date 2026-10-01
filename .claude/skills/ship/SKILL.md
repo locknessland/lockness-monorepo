@@ -394,6 +394,37 @@ means the publish did not come from GitHub Actions OIDC.
 age blocks recently published versions against supply-chain attacks. That is
 expected, not a fault; `--min-dep-age 0` bypasses it for a smoke test.
 
+#### Boot the api kit from real JSR — before step 6
+
+The gate ran before publish: `publish.yml`'s `kits` job booted every kit
+against a localhost registry filled by `deno publish` (#470). This step
+confirms the same thing against jsr.io, which that registry only imitates.
+It is a confirmation, not the gate. The api kit is the one with no `.tsx` of
+its own, so it is the one #470 broke.
+
+Use a fresh `DENO_DIR`, or a cached `meta.json` resolves the previous release:
+
+```bash
+dir=$(mktemp -d)
+trap 'kill $pid 2>/dev/null; rm -rf "$dir"' EXIT
+cd "$dir"
+DENO_DIR="$dir/.deno" deno run -A --min-dep-age 0 \
+  jsr:@lockness/init@<version> api-app --kit api
+cd api-app
+DENO_DIR="$dir/.deno" PORT=<free-port> deno run -A --min-dep-age 0 main.ts & pid=$!
+# poll until it answers, then:
+curl -s -o /dev/null -w '%{http_code} %{content_type}\n' \
+  http://127.0.0.1:<free-port>/__lockness_kit_gate_missing__
+```
+
+It must answer `404 text/html…`. Judge the boot by the server staying up and
+answering, never by a pipe's status.
+
+**On failure, stop here.** Do not run step 6, and do not announce the
+release. The version is public and immutable, so the fix is a **patch
+release**: fix forward, then run `/ship patch`. Note the broken version in
+that Release's notes.
+
 ### 6. Refresh the read-only mirrors
 
 **After** the `Secret scan` run on `main` that contains the release tag is
