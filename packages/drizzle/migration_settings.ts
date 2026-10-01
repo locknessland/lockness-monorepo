@@ -22,6 +22,7 @@
  */
 
 import { join, toFileUrl } from '@std/path'
+import type { MigrationMeta } from 'drizzle-orm/migrator'
 import type { Dialect } from './drivers.ts'
 import {
     DIALECT_FROM_KIT,
@@ -104,7 +105,12 @@ export const defaultLoadMigrationConfig: MigrationConfigLoader = async () =>
  */
 const defaultReadMigrations: MigrationReader = async (folder) => {
     const { readMigrationFiles } = await import('drizzle-orm/migrator')
-    return readMigrationFiles({ migrationsFolder: folder }).map((m) => m.sql)
+    // Explicit, not redundant: in publish:check's staged subgraph Deno can
+    // resolve drizzle-orm's types as `any` depending on import order, and the
+    // inferred parameter then fails TS7006. The type import is erased at runtime.
+    return readMigrationFiles({ migrationsFolder: folder }).map((
+        m: MigrationMeta,
+    ) => m.sql)
 }
 
 /**
