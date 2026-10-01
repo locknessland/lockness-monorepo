@@ -1,47 +1,10 @@
+import { type Context, Controller, Get } from '@lockness/core'
 import {
-    type Context,
-    Controller,
-    type ControllerClass,
-    Get,
-} from '@lockness/core'
-import { ApiDoc, generateOpenAPISpec, serveSwaggerUI } from '@lockness/openapi'
-import { join } from '@std/path'
-
-async function loadControllers(): Promise<ControllerClass[]> {
-    const controllers: ControllerClass[] = []
-    const controllersDir = './app/controller'
-
-    try {
-        for await (const entry of Deno.readDir(controllersDir)) {
-            if (
-                entry.isFile &&
-                (entry.name.endsWith('_controller.ts') ||
-                    entry.name.endsWith('_controller.tsx')) &&
-                entry.name !== 'api_docs_controller.ts' // Skip self
-            ) {
-                const modulePath = join(controllersDir, entry.name)
-                const module = await import(
-                    `file://${Deno.cwd()}/${modulePath}`
-                )
-
-                // Get all exported controllers
-                for (const key of Object.keys(module)) {
-                    const exported = module[key]
-                    if (
-                        typeof exported === 'function' &&
-                        key.endsWith('Controller')
-                    ) {
-                        controllers.push(exported as ControllerClass)
-                    }
-                }
-            }
-        }
-    } catch (error) {
-        console.error('❌ Error loading controllers:', error)
-    }
-
-    return controllers
-}
+    ApiDoc,
+    generateOpenAPISpec,
+    loadDocumentedControllers,
+    serveSwaggerUI,
+} from '@lockness/openapi'
 
 @Controller('/api-docs')
 export class ApiDocsController {
@@ -52,7 +15,8 @@ export class ApiDocsController {
         tags: ['Documentation'],
     })
     async index(c: Context) {
-        const controllers = await loadControllers()
+        const controllers = (await loadDocumentedControllers())
+            .filter((controller) => controller !== ApiDocsController)
         const spec = generateOpenAPISpec(controllers, {
             title: 'Lockness API',
             version: '1.0.0',
@@ -82,7 +46,8 @@ export class ApiDocsController {
         },
     })
     async spec(c: Context) {
-        const controllers = await loadControllers()
+        const controllers = (await loadDocumentedControllers())
+            .filter((controller) => controller !== ApiDocsController)
         const spec = generateOpenAPISpec(controllers, {
             title: 'Lockness API',
             version: '1.0.0',
