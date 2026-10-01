@@ -60,6 +60,14 @@ so a same-named file wins — that is how `api` gets its own `deno.json` and
 `packages/init/tests/kits.test.ts` asserts the manifest and the tree agree in
 both directions: no listed file missing, no stub file unlisted.
 
+The web and api kits' `database/migrations/` is generated, not written: it is
+drizzle-kit's output from the kit's schema stub (SQL, `meta/_journal.json`,
+`meta/0000_snapshot.json`), regenerated with `deno task kits:migrations` and
+guarded by `scripts/kit_migrations_test.ts`. Both kits also ship
+`drizzle.config.ts` and name `drizzle` in `lockness.packages`, so `db:migrate`,
+`db:generate` and `db:fresh` work in a fresh app; `kits:smoke` requires the
+app's first `db:generate` to report no schema changes.
+
 ## Smoke testing
 
 ```bash

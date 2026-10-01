@@ -292,6 +292,10 @@ The suite creates and drops only schemas named `lockness_fresh_*` — with the
 `citext` extension inside one of them — and one event trigger,
 `lockness_fresh_ddl`, and it needs a superuser for that event trigger.
 
+The same task runs `scripts/kit_migrations_live_test.ts` (#444): it scaffolds
+the web and api kits, points each at a throwaway database it creates and drops
+(`lockness_kit_<kit>_<random>`), and runs `db:migrate` twice and `db:fresh`.
+
 ## Mutation batteries
 
 A test that passes proves the code ran. It does not prove the test would have

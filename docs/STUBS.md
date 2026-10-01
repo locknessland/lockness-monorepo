@@ -28,7 +28,7 @@ project.
 | `public/android-chrome-512x512.png` | `packages/init/stubs/init/public/android-chrome-512x512.png`      | ✅    |
 | `deno.json`                         | `packages/init/stubs/init/deno.json.stub`                         | ✅    |
 | `README.md`                         | `packages/init/stubs/init/README.md.stub`                         | ✅    |
-| `drizzle.config.ts`                 | `packages/drizzle/stubs/drizzle.config.ts.stub`                   | ✅    |
+| `drizzle.config.ts`                 | `packages/init/stubs/init/drizzle.config.ts.stub`                 | ✅    |
 | `.env.exemple`                      | `packages/init/stubs/init/.env.exemple.stub`                      | ✅    |
 | `.gitignore`                        | `packages/init/stubs/init/.gitignore.stub`                        | ✅    |
 | `config/mod.ts`                     | `packages/init/stubs/init/config/mod.ts.stub`                     | ✅    |
@@ -46,6 +46,19 @@ project.
 | `app/view/components/ui.tsx`        | `packages/init/stubs/init/app/view/components/ui.tsx.stub`        | ✅    |
 | `app/view/layouts/main_layout.tsx`  | `packages/init/stubs/init/app/view/layouts/main_layout.tsx.stub`  | ✅    |
 | `app/view/pages/home.tsx`           | `packages/init/stubs/init/app/view/pages/home.tsx.stub`           | ✅    |
+
+`drizzle.config.ts` above is the web and api kits' copy (no URL fallback);
+`packages/drizzle/stubs/drizzle.config.ts.stub` is what `@lockness/drizzle`'s
+installer writes into an existing project.
+
+### Kit migrations (generated, never hand-edited)
+
+The web and api kits ship `database/migrations/` as drizzle-kit's own output
+from their `app/model/user.ts.stub`: `0000_create_users.sql.stub`,
+`meta/_journal.json.stub` and `meta/0000_snapshot.json.stub`, under
+`packages/init/stubs/kits/<kit>/`. Change the schema stub, then run
+`deno task kits:migrations`; `scripts/kit_migrations_test.ts` fails the suite
+when the shipped folder no longer matches a fresh generation.
 
 ---
 
