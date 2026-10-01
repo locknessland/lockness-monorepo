@@ -1,0 +1,226 @@
+Publishing a workspace...
+[0m[33m╭[0m [0m[1m[33mWarning[0m
+[0m[33m│[0m
+[0m[33m│[0m  The following packages are deprecated:
+[0m[33m│[0m  [0m[38;5;245mnpm:unist-util-find-between-all@1.1.3 (Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.)[0m
+[0m[33m│[0m  [0m[38;5;245mnpm:mathjax-full@3.2.2 (Version 4 replaces this package with the scoped package @mathjax/src)[0m
+[0m[33m│[0m  [0m[38;5;245mnpm:@esbuild-kit/esm-loader@2.6.5 (Merged into tsx: https://tsx.hirok.io)[0m
+[0m[33m│[0m  [0m[38;5;245mnpm:@ungap/structured-clone@1.3.0 (Potential CWE-502 - Update to 1.3.1 or higher)[0m
+[0m[33m│[0m  [0m[38;5;245mnpm:@esbuild-kit/core-utils@3.3.2 (Merged into tsx: https://tsx.hirok.io)[0m
+[0m[33m│[0m  [0m[38;5;245mnpm:@xmldom/xmldom@0.9.8 (this version has critical issues, please update to the latest version)[0m
+[0m[33m╰─[0m
+Checking for slow types in the public API...
+[0m[1m[33mwarning[unanalyzable-dynamic-import][0m: [0m[1munable to analyze dynamic import[0m
+   [0m[38;5;12m-->[0m [0m[36m/placeholder/lockness/packages/cli/commands/queue_commands.ts[0m[0m[33m:204:49[0m
+   [0m[38;5;12m | [0m
+[0m[38;5;12m204 | [0m                    const module = await import(modulePath)
+   [0m[38;5;12m | [0m                                                [0m[1m[33m^^^^^^^^^^[0m [0m[1m[33mthe unanalyzable dynamic import[0m
+   [0m[38;5;12m | [0m
+
+  [0m[38;5;12minfo[0m: after publishing this package, imports from the local import map / package.json do not work
+  [0m[38;5;12minfo[0m: dynamic imports that can not be analyzed at publish time will not be rewritten automatically
+  [0m[38;5;12minfo[0m: make sure the dynamic import is resolvable at runtime without an import map / package.json
+
+[0m[1m[33mwarning[unanalyzable-dynamic-import][0m: [0m[1munable to analyze dynamic import[0m
+  [0m[38;5;12m-->[0m [0m[36m/placeholder/lockness/packages/cli/commands/router_commands.ts[0m[0m[33m:58:52[0m
+  [0m[38;5;12m | [0m
+[0m[38;5;12m58 | [0m                                /* @vite-ignore */ filePath
+  [0m[38;5;12m | [0m                                                   [0m[1m[33m^^^^^^^^[0m [0m[1m[33mthe unanalyzable dynamic import[0m
+  [0m[38;5;12m | [0m
+
+  [0m[38;5;12minfo[0m: after publishing this package, imports from the local import map / package.json do not work
+  [0m[38;5;12minfo[0m: dynamic imports that can not be analyzed at publish time will not be rewritten automatically
+  [0m[38;5;12minfo[0m: make sure the dynamic import is resolvable at runtime without an import map / package.json
+
+[0m[1m[33mwarning[unanalyzable-dynamic-import][0m: [0m[1munable to analyze dynamic import[0m
+  [0m[38;5;12m-->[0m [0m[36m/placeholder/lockness/packages/cli/commands/tinker_command.ts[0m[0m[33m:66:53[0m
+  [0m[38;5;12m | [0m
+[0m[38;5;12m66 | [0m                        const module = await import(modulePath)
+  [0m[38;5;12m | [0m                                                    [0m[1m[33m^^^^^^^^^^[0m [0m[1m[33mthe unanalyzable dynamic import[0m
+  [0m[38;5;12m | [0m
+
+  [0m[38;5;12minfo[0m: after publishing this package, imports from the local import map / package.json do not work
+  [0m[38;5;12minfo[0m: dynamic imports that can not be analyzed at publish time will not be rewritten automatically
+  [0m[38;5;12minfo[0m: make sure the dynamic import is resolvable at runtime without an import map / package.json
+
+[0m[1m[33mwarning[unanalyzable-dynamic-import][0m: [0m[1munable to analyze dynamic import[0m
+  [0m[38;5;12m-->[0m [0m[36m/placeholder/lockness/packages/cli/commands/tinker_command.ts[0m[0m[33m:86:44[0m
+  [0m[38;5;12m | [0m
+[0m[38;5;12m86 | [0m        const drizzleModule = await import(`${Deno.cwd()}/app/kernel.ts`)
+  [0m[38;5;12m | [0m                                           [0m[1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [0m[1m[33mthe unanalyzable dynamic import[0m
+  [0m[38;5;12m | [0m
+
+  [0m[38;5;12minfo[0m: after publishing this package, imports from the local import map / package.json do not work
+  [0m[38;5;12minfo[0m: dynamic imports that can not be analyzed at publish time will not be rewritten automatically
+  [0m[38;5;12minfo[0m: make sure the dynamic import is resolvable at runtime without an import map / package.json
+
+[0m[1m[33mwarning[unanalyzable-dynamic-import][0m: [0m[1munable to analyze dynamic import[0m
+  [0m[38;5;12m-->[0m [0m[36m/placeholder/lockness/packages/cli/core_commands.ts[0m[0m[33m:73:45[0m
+  [0m[38;5;12m | [0m
+[0m[38;5;12m73 | [0m                const module = await import(`${fullPackageName}/install`)
+  [0m[38;5;12m | [0m                                            [0m[1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [0m[1m[33mthe unanalyzable dynamic import[0m
+  [0m[38;5;12m | [0m
+
+  [0m[38;5;12minfo[0m: after publishing this package, imports from the local import map / package.json do not work
+  [0m[38;5;12minfo[0m: dynamic imports that can not be analyzed at publish time will not be rewritten automatically
+  [0m[38;5;12minfo[0m: make sure the dynamic import is resolvable at runtime without an import map / package.json
+
+[0m[1m[33mwarning[unanalyzable-dynamic-import][0m: [0m[1munable to analyze dynamic import[0m
+   [0m[38;5;12m-->[0m [0m[36m/placeholder/lockness/packages/cli/mod.ts[0m[0m[33m:321:53[0m
+   [0m[38;5;12m | [0m
+[0m[38;5;12m321 | [0m                        const module = await import(filePath)
+   [0m[38;5;12m | [0m                                                    [0m[1m[33m^^^^^^^^[0m [0m[1m[33mthe unanalyzable dynamic import[0m
+   [0m[38;5;12m | [0m
+
+  [0m[38;5;12minfo[0m: after publishing this package, imports from the local import map / package.json do not work
+  [0m[38;5;12minfo[0m: dynamic imports that can not be analyzed at publish time will not be rewritten automatically
+  [0m[38;5;12minfo[0m: make sure the dynamic import is resolvable at runtime without an import map / package.json
+
+[0m[1m[33mwarning[unanalyzable-dynamic-import][0m: [0m[1munable to analyze dynamic import[0m
+  [0m[38;5;12m-->[0m [0m[36m/placeholder/lockness/packages/cli/package_loader.ts[0m[0m[33m:68:45[0m
+  [0m[38;5;12m | [0m
+[0m[38;5;12m68 | [0m                const module = await import(fullPackageName)
+  [0m[38;5;12m | [0m                                            [0m[1m[33m^^^^^^^^^^^^^^^[0m [0m[1m[33mthe unanalyzable dynamic import[0m
+  [0m[38;5;12m | [0m
+
+  [0m[38;5;12minfo[0m: after publishing this package, imports from the local import map / package.json do not work
+  [0m[38;5;12minfo[0m: dynamic imports that can not be analyzed at publish time will not be rewritten automatically
+  [0m[38;5;12minfo[0m: make sure the dynamic import is resolvable at runtime without an import map / package.json
+
+[0m[1m[33mwarning[unanalyzable-dynamic-import][0m: [0m[1munable to analyze dynamic import[0m
+   [0m[38;5;12m-->[0m [0m[36m/placeholder/lockness/packages/core/events/listener_discovery.ts[0m[0m[33m:112:31[0m
+   [0m[38;5;12m | [0m
+[0m[38;5;12m112 | [0m                return import(fileUrl.href)
+   [0m[38;5;12m | [0m                              [0m[1m[33m^^^^^^^^^^^^[0m [0m[1m[33mthe unanalyzable dynamic import[0m
+   [0m[38;5;12m | [0m
+
+  [0m[38;5;12minfo[0m: after publishing this package, imports from the local import map / package.json do not work
+  [0m[38;5;12minfo[0m: dynamic imports that can not be analyzed at publish time will not be rewritten automatically
+  [0m[38;5;12minfo[0m: make sure the dynamic import is resolvable at runtime without an import map / package.json
+
+[0m[1m[33mwarning[unanalyzable-dynamic-import][0m: [0m[1munable to analyze dynamic import[0m
+  [0m[38;5;12m-->[0m [0m[36m/placeholder/lockness/packages/core/exceptions/handler.ts[0m[0m[33m:54:52[0m
+  [0m[38;5;12m | [0m
+[0m[38;5;12m54 | [0m                const customHandler = await import(customErrorHandlerPath)
+  [0m[38;5;12m | [0m                                                   [0m[1m[33m^^^^^^^^^^^^^^^^^^^^^^[0m [0m[1m[33mthe unanalyzable dynamic import[0m
+  [0m[38;5;12m | [0m
+
+  [0m[38;5;12minfo[0m: after publishing this package, imports from the local import map / package.json do not work
+  [0m[38;5;12minfo[0m: dynamic imports that can not be analyzed at publish time will not be rewritten automatically
+  [0m[38;5;12minfo[0m: make sure the dynamic import is resolvable at runtime without an import map / package.json
+
+[0m[1m[33mwarning[unanalyzable-dynamic-import][0m: [0m[1munable to analyze dynamic import[0m
+   [0m[38;5;12m-->[0m [0m[36m/placeholder/lockness/packages/core/kernel/bootstrap/helpers.ts[0m[0m[33m:101:29[0m
+   [0m[38;5;12m | [0m
+[0m[38;5;12m101 | [0m        return await import(packageName) as T
+   [0m[38;5;12m | [0m                            [0m[1m[33m^^^^^^^^^^^[0m [0m[1m[33mthe unanalyzable dynamic import[0m
+   [0m[38;5;12m | [0m
+
+  [0m[38;5;12minfo[0m: after publishing this package, imports from the local import map / package.json do not work
+  [0m[38;5;12minfo[0m: dynamic imports that can not be analyzed at publish time will not be rewritten automatically
+  [0m[38;5;12minfo[0m: make sure the dynamic import is resolvable at runtime without an import map / package.json
+
+[0m[1m[33mwarning[unanalyzable-dynamic-import][0m: [0m[1munable to analyze dynamic import[0m
+   [0m[38;5;12m-->[0m [0m[36m/placeholder/lockness/packages/core/routing/discovery.ts[0m[0m[33m:167:36[0m
+   [0m[38;5;12m | [0m
+[0m[38;5;12m167 | [0m                /* @vite-ignore */ filePath
+   [0m[38;5;12m | [0m                                   [0m[1m[33m^^^^^^^^[0m [0m[1m[33mthe unanalyzable dynamic import[0m
+   [0m[38;5;12m | [0m
+
+  [0m[38;5;12minfo[0m: after publishing this package, imports from the local import map / package.json do not work
+  [0m[38;5;12minfo[0m: dynamic imports that can not be analyzed at publish time will not be rewritten automatically
+  [0m[38;5;12minfo[0m: make sure the dynamic import is resolvable at runtime without an import map / package.json
+
+[0m[1m[33mwarning[unanalyzable-dynamic-import][0m: [0m[1munable to analyze dynamic import[0m
+   [0m[38;5;12m-->[0m [0m[36m/placeholder/lockness/packages/core/scheduler/schedule_discovery.ts[0m[0m[33m:207:37[0m
+   [0m[38;5;12m | [0m
+[0m[38;5;12m207 | [0m        const module = await import(toFileUrl(file).href)
+   [0m[38;5;12m | [0m                                    [0m[1m[33m^^^^^^^^^^^^^^^^^^^^[0m [0m[1m[33mthe unanalyzable dynamic import[0m
+   [0m[38;5;12m | [0m
+
+  [0m[38;5;12minfo[0m: after publishing this package, imports from the local import map / package.json do not work
+  [0m[38;5;12minfo[0m: dynamic imports that can not be analyzed at publish time will not be rewritten automatically
+  [0m[38;5;12minfo[0m: make sure the dynamic import is resolvable at runtime without an import map / package.json
+
+[0m[1m[33mwarning[unanalyzable-dynamic-import][0m: [0m[1munable to analyze dynamic import[0m
+   [0m[38;5;12m-->[0m [0m[36m/placeholder/lockness/packages/core/ssg/enumerate.ts[0m[0m[33m:198:35[0m
+   [0m[38;5;12m | [0m
+[0m[38;5;12m198 | [0m            module = await import(fileUrl)
+   [0m[38;5;12m | [0m                                  [0m[1m[33m^^^^^^^[0m [0m[1m[33mthe unanalyzable dynamic import[0m
+   [0m[38;5;12m | [0m
+
+  [0m[38;5;12minfo[0m: after publishing this package, imports from the local import map / package.json do not work
+  [0m[38;5;12minfo[0m: dynamic imports that can not be analyzed at publish time will not be rewritten automatically
+  [0m[38;5;12minfo[0m: make sure the dynamic import is resolvable at runtime without an import map / package.json
+
+[0m[1m[33mwarning[unanalyzable-dynamic-import][0m: [0m[1munable to analyze dynamic import[0m
+  [0m[38;5;12m-->[0m [0m[36m/placeholder/lockness/packages/drizzle/migration_settings.ts[0m[0m[33m:96:19[0m
+  [0m[38;5;12m | [0m
+[0m[38;5;12m96 | [0m    (await import(toFileUrl(join(Deno.cwd(), 'drizzle.config.ts')).href))
+  [0m[38;5;12m | [0m                  [0m[1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [0m[1m[33mthe unanalyzable dynamic import[0m
+  [0m[38;5;12m | [0m
+
+  [0m[38;5;12minfo[0m: after publishing this package, imports from the local import map / package.json do not work
+  [0m[38;5;12minfo[0m: dynamic imports that can not be analyzed at publish time will not be rewritten automatically
+  [0m[38;5;12minfo[0m: make sure the dynamic import is resolvable at runtime without an import map / package.json
+
+[0m[1m[33mwarning[unanalyzable-dynamic-import][0m: [0m[1munable to analyze dynamic import[0m
+  [0m[38;5;12m-->[0m [0m[36m/placeholder/lockness/packages/mail/optional.ts[0m[0m[33m:48:46[0m
+  [0m[38;5;12m | [0m
+[0m[38;5;12m48 | [0m    importer: ModuleImporter = (s) => import(s),
+  [0m[38;5;12m | [0m                                             [0m[1m[33m^[0m [0m[1m[33mthe unanalyzable dynamic import[0m
+  [0m[38;5;12m | [0m
+
+  [0m[38;5;12minfo[0m: after publishing this package, imports from the local import map / package.json do not work
+  [0m[38;5;12minfo[0m: dynamic imports that can not be analyzed at publish time will not be rewritten automatically
+  [0m[38;5;12minfo[0m: make sure the dynamic import is resolvable at runtime without an import map / package.json
+
+[0m[1m[33mwarning[unanalyzable-dynamic-import][0m: [0m[1munable to analyze dynamic import[0m
+   [0m[38;5;12m-->[0m [0m[36m/placeholder/lockness/packages/notification/optional.ts[0m[0m[33m:104:54[0m
+   [0m[38;5;12m | [0m
+[0m[38;5;12m104 | [0m    importer: ModuleImporter = (specifier) => import(specifier),
+   [0m[38;5;12m | [0m                                                     [0m[1m[33m^^^^^^^^^[0m [0m[1m[33mthe unanalyzable dynamic import[0m
+   [0m[38;5;12m | [0m
+
+  [0m[38;5;12minfo[0m: after publishing this package, imports from the local import map / package.json do not work
+  [0m[38;5;12minfo[0m: dynamic imports that can not be analyzed at publish time will not be rewritten automatically
+  [0m[38;5;12minfo[0m: make sure the dynamic import is resolvable at runtime without an import map / package.json
+
+[0m[1m[33mwarning[unanalyzable-dynamic-import][0m: [0m[1munable to analyze dynamic import[0m
+  [0m[38;5;12m-->[0m [0m[36m/placeholder/lockness/packages/realtime/events_bridge.ts[0m[0m[33m:57:34[0m
+  [0m[38;5;12m | [0m
+[0m[38;5;12m57 | [0m        const mod = await import(specifier) as {
+  [0m[38;5;12m | [0m                                 [0m[1m[33m^^^^^^^^^[0m [0m[1m[33mthe unanalyzable dynamic import[0m
+  [0m[38;5;12m | [0m
+
+  [0m[38;5;12minfo[0m: after publishing this package, imports from the local import map / package.json do not work
+  [0m[38;5;12minfo[0m: dynamic imports that can not be analyzed at publish time will not be rewritten automatically
+  [0m[38;5;12minfo[0m: make sure the dynamic import is resolvable at runtime without an import map / package.json
+
+[0m[1m[33mwarning[unanalyzable-dynamic-import][0m: [0m[1munable to analyze dynamic import[0m
+   [0m[38;5;12m-->[0m [0m[36m/placeholder/lockness/packages/ui/doc_loader.ts[0m[0m[33m:245:17[0m
+   [0m[38;5;12m | [0m
+[0m[38;5;12m245 | [0m                examplesPath
+   [0m[38;5;12m | [0m                [0m[1m[33m^^^^^^^^^^^^[0m [0m[1m[33mthe unanalyzable dynamic import[0m
+   [0m[38;5;12m | [0m
+
+  [0m[38;5;12minfo[0m: after publishing this package, imports from the local import map / package.json do not work
+  [0m[38;5;12minfo[0m: dynamic imports that can not be analyzed at publish time will not be rewritten automatically
+  [0m[38;5;12minfo[0m: make sure the dynamic import is resolvable at runtime without an import map / package.json
+
+[0m[1m[33mwarning[unanalyzable-import-meta-resolve][0m: [0m[1munable to analyze import.meta.resolve[0m
+   [0m[38;5;12m-->[0m [0m[36m/placeholder/lockness/packages/vite/src/plugins/deno.ts[0m[0m[33m:158:40[0m
+   [0m[38;5;12m | [0m
+[0m[38;5;12m158 | [0m        resolved = import.meta.resolve(source)
+   [0m[38;5;12m | [0m                                       [0m[1m[33m^^^^^^[0m [0m[1m[33mthe unanalyzable import.meta.resolve call[0m
+   [0m[38;5;12m | [0m
+
+  [0m[38;5;12minfo[0m: after publishing this package, import.meta.resolve calls from the local import map / package.json do not work
+  [0m[38;5;12minfo[0m: import.meta.resolve calls that can not be analyzed at publish time will not be rewritten automatically
+  [0m[38;5;12minfo[0m: make sure the import.meta.resolve call is resolvable at runtime without an import map / package.json
+
+[0m[1m[32mSimulating publish[0m of [0m[38;5;245m@lockness/testing@0.4.0[0m with files:
+   file:///placeholder/lockness/packages/testing/AGENTS.md (3.83KB)
+   file:///placeholder/lockness/packages/testing/README.md (1.43KB)
+   ...
+[0m[32mSuccess[0m Dry run complete

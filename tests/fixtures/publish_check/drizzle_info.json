@@ -1,0 +1,1272 @@
+{
+    "version": 1,
+    "roots": [
+        "file:///placeholder/root/drizzle/.lockness-graph-root.ts"
+    ],
+    "modules": [
+        {
+            "kind": "esm",
+            "dependencies": [
+                {
+                    "specifier": "./mod.ts",
+                    "code": {
+                        "specifier": "file:///placeholder/root/drizzle/mod.ts",
+                        "span": {
+                            "start": {
+                                "line": 0,
+                                "character": 7
+                            },
+                            "end": {
+                                "line": 0,
+                                "character": 17
+                            }
+                        }
+                    }
+                },
+                {
+                    "specifier": "./cli_commands.ts",
+                    "code": {
+                        "specifier": "file:///placeholder/root/drizzle/cli_commands.ts",
+                        "span": {
+                            "start": {
+                                "line": 1,
+                                "character": 7
+                            },
+                            "end": {
+                                "line": 1,
+                                "character": 26
+                            }
+                        }
+                    }
+                },
+                {
+                    "specifier": "./install.ts",
+                    "code": {
+                        "specifier": "file:///placeholder/root/drizzle/install.ts",
+                        "span": {
+                            "start": {
+                                "line": 2,
+                                "character": 7
+                            },
+                            "end": {
+                                "line": 2,
+                                "character": 21
+                            }
+                        }
+                    }
+                }
+            ],
+            "local": "/placeholder/root/drizzle/.lockness-graph-root.ts",
+            "size": 67,
+            "mediaType": "TypeScript",
+            "specifier": "file:///placeholder/root/drizzle/.lockness-graph-root.ts"
+        },
+        {
+            "kind": "esm",
+            "dependencies": [
+                {
+                    "specifier": "@std/path",
+                    "code": {
+                        "specifier": "jsr:@std/path@^1.0.0",
+                        "span": {
+                            "start": {
+                                "line": 17,
+                                "character": 43
+                            },
+                            "end": {
+                                "line": 17,
+                                "character": 54
+                            }
+                        }
+                    }
+                },
+                {
+                    "specifier": "@lockness/cli/command-failure",
+                    "code": {
+                        "specifier": "file:///placeholder/pkgs/cli/command_failure.ts",
+                        "span": {
+                            "start": {
+                                "line": 21,
+                                "character": 35
+                            },
+                            "end": {
+                                "line": 21,
+                                "character": 66
+                            }
+                        }
+                    }
+                },
+                {
+                    "specifier": "@lockness/container",
+                    "code": {
+                        "specifier": "file:///placeholder/pkgs/container/mod.ts",
+                        "span": {
+                            "start": {
+                                "line": 22,
+                                "character": 26
+                            },
+                            "end": {
+                                "line": 22,
+                                "character": 47
+                            }
+                        }
+                    }
+                },
+                {
+                    "specifier": "./mod.ts",
+                    "code": {
+                        "specifier": "file:///placeholder/root/drizzle/mod.ts",
+                        "span": {
+                            "start": {
+                                "line": 23,
+                                "character": 25
+                            },
+                            "end": {
+                                "line": 23,
+                                "character": 35
+                            }
+                        }
+                    }
+                },
+                {
+                    "specifier": "./generators/factory_generator.ts",
+                    "code": {
+                        "specifier": "file:///placeholder/root/drizzle/generators/factory_generator.ts",
+                        "span": {
+                            "start": {
+                                "line": 24,
+                                "character": 34
+                            },
+                            "end": {
+                                "line": 24,
+                                "character": 69
+                            }
+                        }
+                    }
+                },
+                {
+                    "specifier": "./generators/model_generator.ts",
+                    "code": {
+                        "specifier": "file:///placeholder/root/drizzle/generators/model_generator.ts",
+                        "span": {
+                            "start": {
+                                "line": 25,
+                                "character": 32
+                            },
+                            "end": {
+                                "line": 25,
+                                "character": 65
+                            }
+                        }
+                    }
+                },
+                {
+                    "specifier": "./generators/seeder_generator.ts",
+                    "code": {
+                        "specifier": "file:///placeholder/root/drizzle/generators/seeder_generator.ts",
+                        "span": {
+                            "start": {
+                                "line": 26,
+                                "character": 33
+                            },
+                            "end": {
+                                "line": 26,
+                                "character": 67
+                            }
+                        }
+                    }
+                },
+                {
+                    "specifier": "./production_guard.ts",
+                    "code": {
+                        "specifier": "file:///placeholder/root/drizzle/production_guard.ts",
+                        "span": {
+                            "start": {
+                                "line": 30,
+                                "character": 7
+                            },
+                            "end": {
+                                "line": 30,
+                                "character": 30
+                            }
+                        }
+                    }
+                },
+                {
+                    "specifier": "./drivers.ts",
+                    "type": {
+                        "specifier": "file:///placeholder/root/drizzle/drivers.ts",
+                        "resolutionMode": "import",
+                        "span": {
+                            "start": {
+                                "line": 31,
+                                "character": 39
+                            },
+                            "end": {
+                                "line": 31,
+                                "character": 53
+                            }
+                        }
+                    }
+                },
+                {
+                    "specifier": "./generators/dialect_schema.ts",
+                    "code": {
+                        "specifier": "file:///placeholder/root/drizzle/generators/dialect_schema.ts",
+                        "span": {
+                            "start": {
+                                "line": 32,
+                                "character": 38
+                            },
+                            "end": {
+                                "line": 32,
+                                "character": 70
+                            }
+                        }
+                    }
+                },
+                {
+                    "specifier": "./migration_settings.ts",
+                    "code": {
+                        "specifier": "file:///placeholder/root/drizzle/migration_settings.ts",
+                        "span": {
+                            "start": {
+                                "line": 38,
+                                "character": 7
+                            },
+                            "end": {
+                                "line": 38,
+                                "character": 32
+                            }
+                        }
+                    }
+                },
+                {
+                    "specifier": "./reset.ts",
+                    "code": {
+                        "specifier": "file:///placeholder/root/drizzle/reset.ts",
+                        "span": {
+                            "start": {
+                                "line": 43,
+                                "character": 7
+                            },
+                            "end": {
+                                "line": 43,
+                                "character": 19
+                            }
+                        }
+                    }
+                }
+            ],
+            "local": "/placeholder/root/drizzle/cli_commands.ts",
+            "size": 26480,
+            "mediaType": "TypeScript",
+            "specifier": "file:///placeholder/root/drizzle/cli_commands.ts"
+        },
+        {
+            "kind": "esm",
+            "dependencies": [
+                {
+                    "specifier": "drizzle-orm/postgres-js",
+                    "code": {
+                        "specifier": "npm:/drizzle-orm@^0.36.3/postgres-js",
+                        "span": {
+                            "start": {
+                                "line": 367,
+                                "character": 39
+                            },
+                            "end": {
+                                "line": 367,
+                                "character": 64
+                            }
+                        }
+                    },
+                    "type": {
+                        "specifier": "npm:/drizzle-orm@^0.36.3/postgres-js",
+                        "resolutionMode": "import",
+                        "span": {
+                            "start": {
+                                "line": 18,
+                                "character": 40
+                            },
+                            "end": {
+                                "line": 18,
+                                "character": 65
+                            }
+                        }
+                    },
+                    "isDynamic": true
+                },
+                {
+                    "specifier": "drizzle-orm/mysql2",
+                    "code": {
+                        "specifier": "npm:/drizzle-orm@^0.36.3/mysql2",
+                        "span": {
+                            "start": {
+                                "line": 402,
+                                "character": 35
+                            },
+                            "end": {
+                                "line": 402,
+                                "character": 55
+                            }
+                        }
+                    },
+                    "type": {
+                        "specifier": "npm:/drizzle-orm@^0.36.3/mysql2",
+                        "resolutionMode": "import",
+                        "span": {
+                            "start": {
+                                "line": 19,
+                                "character": 36
+                            },
+                            "end": {
+                                "line": 19,
+                                "character": 56
+                            }
+                        }
+                    },
+                    "isDynamic": true
+                },
+                {
+                    "specifier": "drizzle-orm/libsql",
+                    "code": {
+                        "specifier": "npm:/drizzle-orm@^0.36.3/libsql",
+                        "span": {
+                            "start": {
+                                "line": 444,
+                                "character": 39
+                            },
+                            "end": {
+                                "line": 444,
+                                "character": 59
+                            }
+                        }
+                    },
+                    "type": {
+                        "specifier": "npm:/drizzle-orm@^0.36.3/libsql",
+                        "resolutionMode": "import",
+                        "span": {
+                            "start": {
+                                "line": 20,
+                                "character": 36
+                            },
+                            "end": {
+                                "line": 20,
+                                "character": 56
+                            }
+                        }
+                    },
+                    "isDynamic": true
+                },
+                {
+                    "specifier": "postgres",
+                    "code": {
+                        "specifier": "npm:postgres@^3.4.4",
+                        "span": {
+                            "start": {
+                                "line": 368,
+                                "character": 40
+                            },
+                            "end": {
+                                "line": 368,
+                                "character": 50
+                            }
+                        }
+                    },
+                    "isDynamic": true
+                },
+                {
+                    "specifier": "drizzle-orm/postgres-js/migrator",
+                    "code": {
+                        "specifier": "npm:/drizzle-orm@^0.36.3/postgres-js/migrator",
+                        "span": {
+                            "start": {
+                                "line": 389,
+                                "character": 37
+                            },
+                            "end": {
+                                "line": 389,
+                                "character": 71
+                            }
+                        }
+                    },
+                    "isDynamic": true
+                },
+                {
+                    "specifier": "mysql2/promise",
+                    "code": {
+                        "specifier": "npm:mysql2@^3.24.3/promise",
+                        "span": {
+                            "start": {
+                                "line": 403,
+                                "character": 33
+                            },
+                            "end": {
+                                "line": 403,
+                                "character": 49
+                            }
+                        }
+                    },
+                    "isDynamic": true
+                },
+                {
+                    "specifier": "drizzle-orm/mysql2/migrator",
+                    "code": {
+                        "specifier": "npm:/drizzle-orm@^0.36.3/mysql2/migrator",
+                        "span": {
+                            "start": {
+                                "line": 430,
+                                "character": 37
+                            },
+                            "end": {
+                                "line": 430,
+                                "character": 66
+                            }
+                        }
+                    },
+                    "isDynamic": true
+                },
+                {
+                    "specifier": "@libsql/client",
+                    "code": {
+                        "specifier": "npm:@libsql/client@^0.18.0",
+                        "span": {
+                            "start": {
+                                "line": 445,
+                                "character": 44
+                            },
+                            "end": {
+                                "line": 445,
+                                "character": 60
+                            }
+                        }
+                    },
+                    "isDynamic": true
+                },
+                {
+                    "specifier": "drizzle-orm/libsql/migrator",
+                    "code": {
+                        "specifier": "npm:/drizzle-orm@^0.36.3/libsql/migrator",
+                        "span": {
+                            "start": {
+                                "line": 476,
+                                "character": 37
+                            },
+                            "end": {
+                                "line": 476,
+                                "character": 66
+                            }
+                        }
+                    },
+                    "isDynamic": true
+                }
+            ],
+            "local": "/placeholder/root/drizzle/drivers.ts",
+            "size": 17728,
+            "mediaType": "TypeScript",
+            "specifier": "file:///placeholder/root/drizzle/drivers.ts"
+        },
+        {
+            "kind": "esm",
+            "local": "/placeholder/root/drizzle/dsn.ts",
+            "size": 9257,
+            "mediaType": "TypeScript",
+            "specifier": "file:///placeholder/root/drizzle/dsn.ts"
+        },
+        {
+            "kind": "esm",
+            "local": "/placeholder/root/drizzle/error_name.ts",
+            "size": 2596,
+            "mediaType": "TypeScript",
+            "specifier": "file:///placeholder/root/drizzle/error_name.ts"
+        },
+        {
+            "kind": "esm",
+            "dependencies": [
+                {
+                    "specifier": "@lockness/container",
+                    "code": {
+                        "specifier": "file:///placeholder/pkgs/container/mod.ts",
+                        "span": {
+                            "start": {
+                                "line": 26,
+                                "character": 26
+                            },
+                            "end": {
+                                "line": 26,
+                                "character": 47
+                            }
+                        }
+                    }
+                },
+                {
+                    "specifier": "./mod.ts",
+                    "code": {
+                        "specifier": "file:///placeholder/root/drizzle/mod.ts",
+                        "span": {
+                            "start": {
+                                "line": 27,
+                                "character": 25
+                            },
+                            "end": {
+                                "line": 27,
+                                "character": 35
+                            }
+                        }
+                    }
+                },
+                {
+                    "specifier": "./production_guard.ts",
+                    "code": {
+                        "specifier": "file:///placeholder/root/drizzle/production_guard.ts",
+                        "span": {
+                            "start": {
+                                "line": 28,
+                                "character": 36
+                            },
+                            "end": {
+                                "line": 28,
+                                "character": 59
+                            }
+                        }
+                    }
+                }
+            ],
+            "local": "/placeholder/root/drizzle/factory.ts",
+            "size": 5018,
+            "mediaType": "TypeScript",
+            "specifier": "file:///placeholder/root/drizzle/factory.ts"
+        },
+        {
+            "kind": "esm",
+            "dependencies": [
+                {
+                    "specifier": "../drivers.ts",
+                    "code": {
+                        "specifier": "file:///placeholder/root/drizzle/drivers.ts",
+                        "span": {
+                            "start": {
+                                "line": 16,
+                                "character": 45
+                            },
+                            "end": {
+                                "line": 16,
+                                "character": 60
+                            }
+                        }
+                    }
+                }
+            ],
+            "local": "/placeholder/root/drizzle/generators/dialect_schema.ts",
+            "size": 6694,
+            "mediaType": "TypeScript",
+            "specifier": "file:///placeholder/root/drizzle/generators/dialect_schema.ts"
+        },
+        {
+            "kind": "esm",
+            "dependencies": [
+                {
+                    "specifier": "../cli_commands.ts",
+                    "code": {
+                        "specifier": "file:///placeholder/root/drizzle/cli_commands.ts",
+                        "span": {
+                            "start": {
+                                "line": 12,
+                                "character": 40
+                            },
+                            "end": {
+                                "line": 12,
+                                "character": 60
+                            }
+                        }
+                    }
+                }
+            ],
+            "local": "/placeholder/root/drizzle/generators/factory_generator.ts",
+            "size": 1423,
+            "mediaType": "TypeScript",
+            "specifier": "file:///placeholder/root/drizzle/generators/factory_generator.ts"
+        },
+        {
+            "kind": "esm",
+            "dependencies": [
+                {
+                    "specifier": "../cli_commands.ts",
+                    "code": {
+                        "specifier": "file:///placeholder/root/drizzle/cli_commands.ts",
+                        "span": {
+                            "start": {
+                                "line": 15,
+                                "character": 57
+                            },
+                            "end": {
+                                "line": 15,
+                                "character": 77
+                            }
+                        }
+                    }
+                },
+                {
+                    "specifier": "./dialect_schema.ts",
+                    "code": {
+                        "specifier": "file:///placeholder/root/drizzle/generators/dialect_schema.ts",
+                        "span": {
+                            "start": {
+                                "line": 16,
+                                "character": 56
+                            },
+                            "end": {
+                                "line": 16,
+                                "character": 77
+                            }
+                        }
+                    }
+                },
+                {
+                    "specifier": "../drivers.ts",
+                    "type": {
+                        "specifier": "file:///placeholder/root/drizzle/drivers.ts",
+                        "resolutionMode": "import",
+                        "span": {
+                            "start": {
+                                "line": 17,
+                                "character": 29
+                            },
+                            "end": {
+                                "line": 17,
+                                "character": 44
+                            }
+                        }
+                    }
+                }
+            ],
+            "local": "/placeholder/root/drizzle/generators/model_generator.ts",
+            "size": 9664,
+            "mediaType": "TypeScript",
+            "specifier": "file:///placeholder/root/drizzle/generators/model_generator.ts"
+        },
+        {
+            "kind": "esm",
+            "dependencies": [
+                {
+                    "specifier": "../cli_commands.ts",
+                    "code": {
+                        "specifier": "file:///placeholder/root/drizzle/cli_commands.ts",
+                        "span": {
+                            "start": {
+                                "line": 18,
+                                "character": 7
+                            },
+                            "end": {
+                                "line": 18,
+                                "character": 27
+                            }
+                        }
+                    }
+                }
+            ],
+            "local": "/placeholder/root/drizzle/generators/seeder_generator.ts",
+            "size": 1858,
+            "mediaType": "TypeScript",
+            "specifier": "file:///placeholder/root/drizzle/generators/seeder_generator.ts"
+        },
+        {
+            "kind": "esm",
+            "dependencies": [
+                {
+                    "specifier": "@lockness/cli",
+                    "code": {
+                        "specifier": "file:///placeholder/pkgs/cli/mod.ts",
+                        "span": {
+                            "start": {
+                                "line": 20,
+                                "character": 33
+                            },
+                            "end": {
+                                "line": 20,
+                                "character": 48
+                            }
+                        }
+                    }
+                },
+                {
+                    "specifier": "@std/path",
+                    "code": {
+                        "specifier": "jsr:@std/path@^1.0.0",
+                        "span": {
+                            "start": {
+                                "line": 21,
+                                "character": 43
+                            },
+                            "end": {
+                                "line": 21,
+                                "character": 54
+                            }
+                        }
+                    }
+                },
+                {
+                    "specifier": "postgres",
+                    "code": {
+                        "specifier": "npm:postgres@^3.4.4",
+                        "span": {
+                            "start": {
+                                "line": 22,
+                                "character": 21
+                            },
+                            "end": {
+                                "line": 22,
+                                "character": 31
+                            }
+                        }
+                    }
+                },
+                {
+                    "specifier": "./drivers.ts",
+                    "code": {
+                        "specifier": "file:///placeholder/root/drizzle/drivers.ts",
+                        "span": {
+                            "start": {
+                                "line": 23,
+                                "character": 31
+                            },
+                            "end": {
+                                "line": 23,
+                                "character": 45
+                            }
+                        }
+                    }
+                },
+                {
+                    "specifier": "./generators/dialect_schema.ts",
+                    "code": {
+                        "specifier": "file:///placeholder/root/drizzle/generators/dialect_schema.ts",
+                        "span": {
+                            "start": {
+                                "line": 27,
+                                "character": 7
+                            },
+                            "end": {
+                                "line": 27,
+                                "character": 39
+                            }
+                        }
+                    }
+                }
+            ],
+            "local": "/placeholder/root/drizzle/install.ts",
+            "size": 12618,
+            "mediaType": "TypeScript",
+            "specifier": "file:///placeholder/root/drizzle/install.ts"
+        },
+        {
+            "kind": "esm",
+            "dependencies": [
+                {
+                    "specifier": "@std/path",
+                    "code": {
+                        "specifier": "jsr:@std/path@^1.0.0",
+                        "span": {
+                            "start": {
+                                "line": 25,
+                                "character": 32
+                            },
+                            "end": {
+                                "line": 25,
+                                "character": 43
+                            }
+                        }
+                    }
+                },
+                {
+                    "specifier": "drizzle-orm/migrator",
+                    "code": {
+                        "specifier": "npm:/drizzle-orm@^0.36.3/migrator",
+                        "span": {
+                            "start": {
+                                "line": 108,
+                                "character": 48
+                            },
+                            "end": {
+                                "line": 108,
+                                "character": 70
+                            }
+                        }
+                    },
+                    "type": {
+                        "specifier": "npm:/drizzle-orm@^0.36.3/migrator",
+                        "resolutionMode": "import",
+                        "span": {
+                            "start": {
+                                "line": 26,
+                                "character": 35
+                            },
+                            "end": {
+                                "line": 26,
+                                "character": 57
+                            }
+                        }
+                    },
+                    "isDynamic": true
+                },
+                {
+                    "specifier": "./drivers.ts",
+                    "type": {
+                        "specifier": "file:///placeholder/root/drizzle/drivers.ts",
+                        "resolutionMode": "import",
+                        "span": {
+                            "start": {
+                                "line": 27,
+                                "character": 29
+                            },
+                            "end": {
+                                "line": 27,
+                                "character": 43
+                            }
+                        }
+                    }
+                },
+                {
+                    "specifier": "./generators/dialect_schema.ts",
+                    "code": {
+                        "specifier": "file:///placeholder/root/drizzle/generators/dialect_schema.ts",
+                        "span": {
+                            "start": {
+                                "line": 31,
+                                "character": 7
+                            },
+                            "end": {
+                                "line": 31,
+                                "character": 39
+                            }
+                        }
+                    }
+                },
+                {
+                    "specifier": "./error_name.ts",
+                    "code": {
+                        "specifier": "file:///placeholder/root/drizzle/error_name.ts",
+                        "span": {
+                            "start": {
+                                "line": 32,
+                                "character": 32
+                            },
+                            "end": {
+                                "line": 32,
+                                "character": 49
+                            }
+                        }
+                    }
+                },
+                {
+                    "specifier": "./reset.ts",
+                    "code": {
+                        "specifier": "file:///placeholder/root/drizzle/reset.ts",
+                        "span": {
+                            "start": {
+                                "line": 33,
+                                "character": 34
+                            },
+                            "end": {
+                                "line": 33,
+                                "character": 46
+                            }
+                        }
+                    }
+                }
+            ],
+            "local": "/placeholder/root/drizzle/migration_settings.ts",
+            "size": 17226,
+            "mediaType": "TypeScript",
+            "specifier": "file:///placeholder/root/drizzle/migration_settings.ts"
+        },
+        {
+            "kind": "esm",
+            "dependencies": [
+                {
+                    "specifier": "@lockness/container",
+                    "code": {
+                        "specifier": "file:///placeholder/pkgs/container/mod.ts",
+                        "span": {
+                            "start": {
+                                "line": 25,
+                                "character": 24
+                            },
+                            "end": {
+                                "line": 25,
+                                "character": 45
+                            }
+                        }
+                    }
+                },
+                {
+                    "specifier": "@lockness/contract",
+                    "code": {
+                        "specifier": "file:///placeholder/pkgs/contract/mod.ts",
+                        "span": {
+                            "start": {
+                                "line": 26,
+                                "character": 28
+                            },
+                            "end": {
+                                "line": 26,
+                                "character": 48
+                            }
+                        }
+                    }
+                },
+                {
+                    "specifier": "./drivers.ts",
+                    "code": {
+                        "specifier": "file:///placeholder/root/drizzle/drivers.ts",
+                        "span": {
+                            "start": {
+                                "line": 35,
+                                "character": 7
+                            },
+                            "end": {
+                                "line": 35,
+                                "character": 21
+                            }
+                        }
+                    },
+                    "type": {
+                        "specifier": "file:///placeholder/root/drizzle/drivers.ts",
+                        "resolutionMode": "import",
+                        "span": {
+                            "start": {
+                                "line": 80,
+                                "character": 7
+                            },
+                            "end": {
+                                "line": 80,
+                                "character": 21
+                            }
+                        }
+                    }
+                },
+                {
+                    "specifier": "./dsn.ts",
+                    "code": {
+                        "specifier": "file:///placeholder/root/drizzle/dsn.ts",
+                        "span": {
+                            "start": {
+                                "line": 36,
+                                "character": 48
+                            },
+                            "end": {
+                                "line": 36,
+                                "character": 58
+                            }
+                        }
+                    }
+                },
+                {
+                    "specifier": "./error_name.ts",
+                    "code": {
+                        "specifier": "file:///placeholder/root/drizzle/error_name.ts",
+                        "span": {
+                            "start": {
+                                "line": 37,
+                                "character": 58
+                            },
+                            "end": {
+                                "line": 37,
+                                "character": 75
+                            }
+                        }
+                    }
+                },
+                {
+                    "specifier": "./cli_commands.ts",
+                    "code": {
+                        "specifier": "file:///placeholder/root/drizzle/cli_commands.ts",
+                        "span": {
+                            "start": {
+                                "line": 39,
+                                "character": 40
+                            },
+                            "end": {
+                                "line": 39,
+                                "character": 59
+                            }
+                        }
+                    },
+                    "type": {
+                        "specifier": "file:///placeholder/root/drizzle/cli_commands.ts",
+                        "resolutionMode": "import",
+                        "span": {
+                            "start": {
+                                "line": 48,
+                                "character": 7
+                            },
+                            "end": {
+                                "line": 48,
+                                "character": 26
+                            }
+                        }
+                    }
+                },
+                {
+                    "specifier": "./migration_settings.ts",
+                    "type": {
+                        "specifier": "file:///placeholder/root/drizzle/migration_settings.ts",
+                        "resolutionMode": "import",
+                        "span": {
+                            "start": {
+                                "line": 52,
+                                "character": 7
+                            },
+                            "end": {
+                                "line": 52,
+                                "character": 32
+                            }
+                        }
+                    }
+                },
+                {
+                    "specifier": "./generators/dialect_schema.ts",
+                    "type": {
+                        "specifier": "file:///placeholder/root/drizzle/generators/dialect_schema.ts",
+                        "resolutionMode": "import",
+                        "span": {
+                            "start": {
+                                "line": 53,
+                                "character": 32
+                            },
+                            "end": {
+                                "line": 53,
+                                "character": 64
+                            }
+                        }
+                    }
+                },
+                {
+                    "specifier": "./factory.ts",
+                    "code": {
+                        "specifier": "file:///placeholder/root/drizzle/factory.ts",
+                        "span": {
+                            "start": {
+                                "line": 54,
+                                "character": 24
+                            },
+                            "end": {
+                                "line": 54,
+                                "character": 38
+                            }
+                        }
+                    },
+                    "type": {
+                        "specifier": "file:///placeholder/root/drizzle/factory.ts",
+                        "resolutionMode": "import",
+                        "span": {
+                            "start": {
+                                "line": 55,
+                                "character": 42
+                            },
+                            "end": {
+                                "line": 55,
+                                "character": 56
+                            }
+                        }
+                    }
+                },
+                {
+                    "specifier": "./production_guard.ts",
+                    "code": {
+                        "specifier": "file:///placeholder/root/drizzle/production_guard.ts",
+                        "span": {
+                            "start": {
+                                "line": 59,
+                                "character": 7
+                            },
+                            "end": {
+                                "line": 59,
+                                "character": 30
+                            }
+                        }
+                    }
+                },
+                {
+                    "specifier": "./paginate.ts",
+                    "code": {
+                        "specifier": "file:///placeholder/root/drizzle/paginate.ts",
+                        "span": {
+                            "start": {
+                                "line": 65,
+                                "character": 7
+                            },
+                            "end": {
+                                "line": 65,
+                                "character": 22
+                            }
+                        }
+                    },
+                    "type": {
+                        "specifier": "file:///placeholder/root/drizzle/paginate.ts",
+                        "resolutionMode": "import",
+                        "span": {
+                            "start": {
+                                "line": 70,
+                                "character": 7
+                            },
+                            "end": {
+                                "line": 70,
+                                "character": 22
+                            }
+                        }
+                    }
+                }
+            ],
+            "local": "/placeholder/root/drizzle/mod.ts",
+            "size": 23015,
+            "mediaType": "TypeScript",
+            "specifier": "file:///placeholder/root/drizzle/mod.ts"
+        },
+        {
+            "kind": "esm",
+            "dependencies": [
+                {
+                    "specifier": "drizzle-orm",
+                    "code": {
+                        "specifier": "npm:drizzle-orm@^0.36.3",
+                        "span": {
+                            "start": {
+                                "line": 22,
+                                "character": 46
+                            },
+                            "end": {
+                                "line": 22,
+                                "character": 59
+                            }
+                        }
+                    }
+                },
+                {
+                    "specifier": "drizzle-orm/pg-core",
+                    "type": {
+                        "specifier": "npm:/drizzle-orm@^0.36.3/pg-core",
+                        "resolutionMode": "import",
+                        "span": {
+                            "start": {
+                                "line": 23,
+                                "character": 39
+                            },
+                            "end": {
+                                "line": 23,
+                                "character": 60
+                            }
+                        }
+                    }
+                },
+                {
+                    "specifier": "@lockness/contract",
+                    "code": {
+                        "specifier": "file:///placeholder/pkgs/contract/mod.ts",
+                        "span": {
+                            "start": {
+                                "line": 31,
+                                "character": 7
+                            },
+                            "end": {
+                                "line": 31,
+                                "character": 27
+                            }
+                        }
+                    }
+                },
+                {
+                    "specifier": "./mod.ts",
+                    "type": {
+                        "specifier": "file:///placeholder/root/drizzle/mod.ts",
+                        "resolutionMode": "import",
+                        "span": {
+                            "start": {
+                                "line": 32,
+                                "character": 36
+                            },
+                            "end": {
+                                "line": 32,
+                                "character": 46
+                            }
+                        }
+                    }
+                },
+                {
+                    "specifier": "drizzle-orm/postgres-js",
+                    "type": {
+                        "specifier": "npm:/drizzle-orm@^0.36.3/postgres-js",
+                        "resolutionMode": "import",
+                        "span": {
+                            "start": {
+                                "line": 33,
+                                "character": 40
+                            },
+                            "end": {
+                                "line": 33,
+                                "character": 65
+                            }
+                        }
+                    }
+                }
+            ],
+            "local": "/placeholder/root/drizzle/paginate.ts",
+            "size": 16131,
+            "mediaType": "TypeScript",
+            "specifier": "file:///placeholder/root/drizzle/paginate.ts"
+        },
+        {
+            "kind": "esm",
+            "dependencies": [
+                {
+                    "specifier": "@lockness/contract",
+                    "code": {
+                        "specifier": "file:///placeholder/pkgs/contract/mod.ts",
+                        "span": {
+                            "start": {
+                                "line": 17,
+                                "character": 29
+                            },
+                            "end": {
+                                "line": 17,
+                                "character": 49
+                            }
+                        }
+                    }
+                }
+            ],
+            "local": "/placeholder/root/drizzle/production_guard.ts",
+            "size": 2802,
+            "mediaType": "TypeScript",
+            "specifier": "file:///placeholder/root/drizzle/production_guard.ts"
+        },
+        {
+            "kind": "esm",
+            "dependencies": [
+                {
+                    "specifier": "./drivers.ts",
+                    "type": {
+                        "specifier": "file:///placeholder/root/drizzle/drivers.ts",
+                        "resolutionMode": "import",
+                        "span": {
+                            "start": {
+                                "line": 27,
+                                "character": 48
+                            },
+                            "end": {
+                                "line": 27,
+                                "character": 62
+                            }
+                        }
+                    }
+                }
+            ],
+            "local": "/placeholder/root/drizzle/reset.ts",
+            "size": 30767,
+            "mediaType": "TypeScript",
+            "specifier": "file:///placeholder/root/drizzle/reset.ts"
+        }
+    ],
+    "redirects": {}
+}

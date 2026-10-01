@@ -1,0 +1,187 @@
+{
+    "version": 1,
+    "roots": [
+        "file:///placeholder/root/b/.lockness-graph-root.ts"
+    ],
+    "modules": [
+        {
+            "kind": "esm",
+            "local": "/placeholder/pkgs/a/local_only.ts",
+            "size": 34,
+            "mediaType": "TypeScript",
+            "specifier": "file:///placeholder/pkgs/a/local_only.ts"
+        },
+        {
+            "kind": "esm",
+            "local": "/placeholder/pkgs/a/mod.ts",
+            "size": 27,
+            "mediaType": "TypeScript",
+            "specifier": "file:///placeholder/pkgs/a/mod.ts"
+        },
+        {
+            "kind": "esm",
+            "dependencies": [
+                {
+                    "specifier": "./mod.ts",
+                    "code": {
+                        "specifier": "file:///placeholder/root/b/mod.ts",
+                        "span": {
+                            "start": {
+                                "line": 0,
+                                "character": 7
+                            },
+                            "end": {
+                                "line": 0,
+                                "character": 17
+                            }
+                        }
+                    }
+                }
+            ],
+            "local": "/placeholder/root/b/.lockness-graph-root.ts",
+            "size": 18,
+            "mediaType": "TypeScript",
+            "specifier": "file:///placeholder/root/b/.lockness-graph-root.ts"
+        },
+        {
+            "specifier": "file:///placeholder/root/b/.lockness-undeclared/@x-lockness-fixture/c",
+            "error": "Module not found \"file:///placeholder/root/b/.lockness-undeclared/@x-lockness-fixture/c\"."
+        },
+        {
+            "kind": "esm",
+            "dependencies": [
+                {
+                    "specifier": "@x-lockness-fixture/a",
+                    "code": {
+                        "specifier": "file:///placeholder/pkgs/a/mod.ts",
+                        "span": {
+                            "start": {
+                                "line": 0,
+                                "character": 18
+                            },
+                            "end": {
+                                "line": 0,
+                                "character": 41
+                            }
+                        }
+                    }
+                },
+                {
+                    "specifier": "./static_missing.ts",
+                    "code": {
+                        "specifier": "file:///placeholder/root/b/static_missing.ts",
+                        "span": {
+                            "start": {
+                                "line": 1,
+                                "character": 24
+                            },
+                            "end": {
+                                "line": 1,
+                                "character": 45
+                            }
+                        }
+                    }
+                },
+                {
+                    "specifier": "@x-lockness-fixture/c",
+                    "code": {
+                        "specifier": "file:///placeholder/root/b/.lockness-undeclared/@x-lockness-fixture/c",
+                        "span": {
+                            "start": {
+                                "line": 6,
+                                "character": 21
+                            },
+                            "end": {
+                                "line": 6,
+                                "character": 44
+                            }
+                        }
+                    },
+                    "isDynamic": true
+                },
+                {
+                    "specifier": "x-lockness-undeclared",
+                    "code": {
+                        "error": "Import \"x-lockness-undeclared\" not a dependency and not in import map from \"file:///placeholder/root/b/mod.ts\"",
+                        "span": {
+                            "start": {
+                                "line": 7,
+                                "character": 21
+                            },
+                            "end": {
+                                "line": 7,
+                                "character": 44
+                            }
+                        }
+                    },
+                    "isDynamic": true
+                },
+                {
+                    "specifier": "@x-lockness-fixture/a/nope",
+                    "code": {
+                        "error": "Unknown export './nope' for '@x-lockness-fixture/a'.\n  Package exports:\n * .\n * ./local-only",
+                        "span": {
+                            "start": {
+                                "line": 8,
+                                "character": 21
+                            },
+                            "end": {
+                                "line": 8,
+                                "character": 49
+                            }
+                        }
+                    },
+                    "isDynamic": true
+                },
+                {
+                    "specifier": "./unstaged.ts",
+                    "code": {
+                        "specifier": "file:///placeholder/root/b/unstaged.ts",
+                        "span": {
+                            "start": {
+                                "line": 9,
+                                "character": 21
+                            },
+                            "end": {
+                                "line": 9,
+                                "character": 36
+                            }
+                        }
+                    },
+                    "isDynamic": true
+                },
+                {
+                    "specifier": "@x-lockness-fixture/a/local-only",
+                    "code": {
+                        "specifier": "file:///placeholder/pkgs/a/local_only.ts",
+                        "span": {
+                            "start": {
+                                "line": 10,
+                                "character": 21
+                            },
+                            "end": {
+                                "line": 10,
+                                "character": 55
+                            }
+                        }
+                    },
+                    "isDynamic": true
+                }
+            ],
+            "local": "/placeholder/root/b/mod.ts",
+            "size": 471,
+            "mediaType": "TypeScript",
+            "specifier": "file:///placeholder/root/b/mod.ts"
+        },
+        {
+            "specifier": "file:///placeholder/root/b/static_missing.ts",
+            "error": "Module not found \"file:///placeholder/root/b/static_missing.ts\"."
+        },
+        {
+            "specifier": "file:///placeholder/root/b/unstaged.ts",
+            "error": "Module not found \"file:///placeholder/root/b/unstaged.ts\"."
+        }
+    ],
+    "redirects": {},
+    "npmPackages": {}
+}

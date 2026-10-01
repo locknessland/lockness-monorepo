@@ -10,9 +10,12 @@
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import {
     classifyCheck,
+    dynamicImportFaults,
     publishabilityFault,
     registryVerdict,
     resolutionVerdict,
+    runtimeImportFaults,
+    runtimeImportSites,
     selectPublishedFiles,
     withWorkspaceLinks,
     workspaceRangeFaults,
@@ -162,7 +165,11 @@ Deno.test('publish:check EXITS NON-ZERO on an unpublishable member', async () =>
         // A name and exports, no version -- @lockness/testing's exact shape.
         await Deno.writeTextFile(
             `${dir}/packages/broken/deno.json`,
-            JSON.stringify({ name: '@scope/broken', exports: './mod.ts' }),
+            JSON.stringify({
+                name: '@scope/broken',
+                license: 'MIT',
+                exports: './mod.ts',
+            }),
         )
         const command = new Deno.Command(Deno.execPath(), {
             args: [
@@ -295,6 +302,7 @@ Deno.test({
                 JSON.stringify({
                     name: '@scope/bad',
                     version: '0.0.1',
+                    license: 'MIT',
                     exports: './mod.ts',
                 }),
             )
@@ -575,10 +583,13 @@ interface FixturePackage {
  * published copy: green here can only come from the linked sibling.
  *
  * @param packages - The workspace members.
+ * @param policy - A `deps.policy.jsonc` to write at the fixture root; none is
+ *   written when omitted, which is an empty runtime-import inventory.
  * @returns The exit code and the combined output.
  */
 async function runWorkspace(
     packages: FixturePackage[],
+    policy?: Record<string, unknown>,
 ): Promise<{ code: number; out: string }> {
     const dir = await Deno.makeTempDir({ prefix: 'publish-check-links-' })
     try {
@@ -588,6 +599,12 @@ async function runWorkspace(
                 workspace: packages.map((p) => `./packages/${p.short}`),
             }),
         )
+        if (policy !== undefined) {
+            await Deno.writeTextFile(
+                `${dir}/deps.policy.jsonc`,
+                JSON.stringify(policy),
+            )
+        }
         for (const pkg of packages) {
             const root = `${dir}/packages/${pkg.short}`
             await Deno.mkdir(root, { recursive: true })
@@ -629,6 +646,7 @@ const PKG_A: FixturePackage = {
     manifest: {
         name: '@x-lockness-fixture/a',
         version: '0.1.0',
+        license: 'MIT',
         exports: { '.': './mod.ts', './local-only': './local_only.ts' },
     },
     files: {
@@ -643,6 +661,7 @@ const PKG_C: FixturePackage = {
     manifest: {
         name: '@x-lockness-fixture/c',
         version: '0.1.0',
+        license: 'MIT',
         exports: './mod.ts',
     },
     files: { 'mod.ts': 'export const c: number = 3\n' },
@@ -664,6 +683,7 @@ function pkgB(
         manifest: {
             name: '@x-lockness-fixture/b',
             version: '0.1.0',
+            license: 'MIT',
             exports: './mod.ts',
             imports,
         },
@@ -734,6 +754,436 @@ Deno.test('links: a subpath the sibling does not export is red', async () => {
     // consulted and knows nothing of the fake scope.
     assertStringIncludes(out, "Unknown export './missing'")
     assert(!out.includes('JSR package not found'), out)
+})
+
+// ---- Dynamic imports (#463) -----------------------------------------------
+//
+// Rule A: Deno's own resolution of every dynamic edge, from `deno info --json`
+// over the staged package. Rule B: the workspace dry-run's unanalysable sites
+// against the `runtimeImports` inventory. Both fixtures are real captures
+// (Deno 2.9.6) with the absolute temp root normalised to `/placeholder`.
+
+/** Read a captured fixture from `tests/fixtures/publish_check/`. */
+function fixture(name: string): Promise<string> {
+    return Deno.readTextFile(
+        new URL(`../tests/fixtures/publish_check/${name}`, import.meta.url),
+    )
+}
+
+/**
+ * `deno info --json` over a staged `b` whose `mod.ts` holds, each only inside
+ * `import()`: an undeclared sibling (sentinel), an undeclared third-party
+ * package, a non-exported subpath of a declared sibling, a relative file that
+ * was not staged, a declared workspace-only subpath, and `import(spec)`; plus a
+ * static import of a missing file.
+ */
+const FAULTS_INFO: unknown = JSON.parse(
+    await fixture('dynamic_faults_info.json'),
+)
+const FAULTS_ROOT = '/placeholder/root/b'
+
+/** The faults in {@link FAULTS_INFO}, keyed by specifier. */
+function faultsBySpecifier(info: unknown, root: string) {
+    return new Map(
+        dynamicImportFaults(info, root).map((f) => [f.specifier, f]),
+    )
+}
+
+Deno.test('dynamicImportFaults: an undeclared third-party edge is a fault', () => {
+    const fault = faultsBySpecifier(FAULTS_INFO, FAULTS_ROOT).get(
+        'x-lockness-undeclared',
+    )
+    assert(fault, 'the undeclared third-party edge was not reported')
+    assertEquals(fault.file, 'mod.ts')
+    assertEquals(fault.line, 8)
+    assertEquals(fault.reason, 'undeclared dynamic import')
+})
+
+Deno.test('dynamicImportFaults: a sibling routed to the sentinel is named', () => {
+    const fault = faultsBySpecifier(FAULTS_INFO, FAULTS_ROOT).get(
+        '@x-lockness-fixture/c',
+    )
+    assert(fault, 'the sentinel edge was not reported')
+    assertEquals(fault.line, 7)
+    assertEquals(
+        fault.reason,
+        'undeclared dynamic import: @x-lockness-fixture/c',
+    )
+})
+
+Deno.test('dynamicImportFaults: an unstaged relative file is missing from publish.include', () => {
+    const fault = faultsBySpecifier(FAULTS_INFO, FAULTS_ROOT).get(
+        './unstaged.ts',
+    )
+    assert(fault, 'the unstaged relative edge was not reported')
+    assertEquals(fault.line, 10)
+    assertEquals(fault.reason, 'missing from publish.include: unstaged.ts')
+})
+
+Deno.test('dynamicImportFaults: a non-exported subpath is an Unknown export', () => {
+    const fault = faultsBySpecifier(FAULTS_INFO, FAULTS_ROOT).get(
+        '@x-lockness-fixture/a/nope',
+    )
+    assert(fault, 'the Unknown export edge was not reported')
+    assertEquals(fault.line, 9)
+    assertStringIncludes(fault.reason, "Unknown export './nope'")
+})
+
+Deno.test('dynamicImportFaults: exactly the four faulty dynamic edges, static ones ignored', () => {
+    // `./static_missing.ts` is a static import of a missing file: its target
+    // carries an error, but static edges are deno check's, not this pass's.
+    // `@x-lockness-fixture/a/local-only` resolves through `links`.
+    assertEquals(
+        [...faultsBySpecifier(FAULTS_INFO, FAULTS_ROOT).keys()].sort(),
+        [
+            './unstaged.ts',
+            '@x-lockness-fixture/a/nope',
+            '@x-lockness-fixture/c',
+            'x-lockness-undeclared',
+        ],
+    )
+})
+
+Deno.test("dynamicImportFaults: a remote module's dynamic edge is ignored", () => {
+    // The captured faulty module, moved to a remote URL: its edges are a
+    // third party's, not the staged package's.
+    const info = structuredClone(FAULTS_INFO) as {
+        modules: Array<{ specifier: string }>
+    }
+    for (const module of info.modules) {
+        if (module.specifier.startsWith('file:///placeholder/root/b/')) {
+            module.specifier = module.specifier.replace(
+                'file:///placeholder/root/b/',
+                'https://jsr.io/@x/remote/0.1.0/',
+            )
+        }
+    }
+    assertEquals(dynamicImportFaults(info, FAULTS_ROOT), [])
+})
+
+Deno.test('dynamicImportFaults: a graph with no modules is a failure, never clean', () => {
+    for (const bad of [null, {}, { modules: 'x' }, 'not json']) {
+        let threw = false
+        try {
+            dynamicImportFaults(bad, FAULTS_ROOT)
+        } catch (error) {
+            threw = true
+            assertStringIncludes(
+                (error as Error).message,
+                'unrecognised graph failure',
+            )
+        }
+        assert(threw, `accepted ${JSON.stringify(bad)}`)
+    }
+})
+
+Deno.test('dynamicImportFaults: staged drizzle has no false positive', async () => {
+    // Captured from publish:check's own staging of @lockness/drizzle: every
+    // dynamic edge Deno reports for it resolves, seven of them only through
+    // npm-derived subpaths (`drizzle-orm/postgres-js/migrator`) that no
+    // import-map key spells out.
+    const info: unknown = JSON.parse(await fixture('drizzle_info.json'))
+    const dynamic = (info as {
+        modules: Array<{
+            specifier: string
+            dependencies?: Array<{ isDynamic?: boolean }>
+        }>
+    }).modules
+        .filter((m) => m.specifier.startsWith('file:///placeholder/root/'))
+        .flatMap((m) => m.dependencies ?? [])
+        .filter((d) => d.isDynamic === true)
+    assert(dynamic.length >= 10, `only ${dynamic.length} dynamic edges`)
+    assertEquals(dynamicImportFaults(info, '/placeholder/root/drizzle'), [])
+})
+
+/** The captured workspace dry-run, ANSI included, root normalised. */
+const DRY_RUN_OUTPUT = await fixture('dry_run_output.txt')
+const DRY_RUN_ROOT = '/placeholder/lockness'
+
+Deno.test('runtimeImportSites: reads the 19 captured sites per package and file', () => {
+    assertStringIncludes(DRY_RUN_OUTPUT, '\x1b[', 'fixture lost its colour')
+    const { sites, other } = runtimeImportSites(DRY_RUN_OUTPUT, DRY_RUN_ROOT)
+    assertEquals(other, [])
+    const total = Object.values(sites).flatMap((files) => Object.values(files))
+        .reduce((sum, n) => sum + n, 0)
+    assertEquals(total, 19)
+    assertEquals(sites.cli['commands/tinker_command.ts'], 2)
+    assertEquals(sites.vite['src/plugins/deno.ts'], 1)
+    assertEquals(Object.keys(sites).sort(), [
+        'cli',
+        'core',
+        'drizzle',
+        'mail',
+        'notification',
+        'realtime',
+        'ui',
+        'vite',
+    ])
+})
+
+Deno.test('runtimeImportSites: any other diagnostic code is collected', () => {
+    const output = DRY_RUN_OUTPUT +
+        '\x1b[0m\x1b[1m\x1b[31merror[missing-license]\x1b[0m: missing license field\n' +
+        '  --> /placeholder/lockness/packages/x/deno.json\n' +
+        'warning[some-new-code]: something Deno added later\n'
+    const { other } = runtimeImportSites(output, DRY_RUN_ROOT)
+    assertEquals(other, [
+        'error[missing-license] at packages/x/deno.json',
+        'warning[some-new-code] at (no location)',
+    ])
+})
+
+/** A policy that inventories exactly what the captured dry-run reports. */
+function inventoryOf(
+    sites: Record<string, Record<string, number>>,
+): Record<string, unknown> {
+    const packages: Record<string, unknown> = {}
+    for (const [pkg, files] of Object.entries(sites)) {
+        const runtimeImports: Record<string, unknown> = {}
+        for (const [file, count] of Object.entries(files)) {
+            runtimeImports[file] = { sites: count, reason: 'test reason' }
+        }
+        packages[pkg] = { tier: 'implementation', allow: [], runtimeImports }
+    }
+    return { packages }
+}
+
+Deno.test('runtimeImportFaults: an exact inventory is clean', () => {
+    const diagnostics = runtimeImportSites(DRY_RUN_OUTPUT, DRY_RUN_ROOT)
+    assertEquals(
+        runtimeImportFaults(diagnostics, inventoryOf(diagnostics.sites)),
+        [],
+    )
+})
+
+Deno.test('runtimeImportFaults: an unlisted file is red', () => {
+    const faults = runtimeImportFaults(
+        { sites: { cli: { 'mod.ts': 1 } }, other: [] },
+        undefined,
+    )
+    assertEquals(faults.length, 1)
+    assertStringIncludes(faults[0], 'cli/mod.ts')
+    assertStringIncludes(faults[0], 'not inventoried')
+})
+
+Deno.test('runtimeImportFaults: a count that went up is red', () => {
+    const faults = runtimeImportFaults(
+        { sites: { cli: { 'mod.ts': 2 } }, other: [] },
+        inventoryOf({ cli: { 'mod.ts': 1 } }),
+    )
+    assertEquals(faults, [
+        'cli/mod.ts: 2 unanalysable import site(s), inventory says 1',
+    ])
+})
+
+Deno.test('runtimeImportFaults: a count that went down, or a stale entry, is red', () => {
+    assertEquals(
+        runtimeImportFaults(
+            { sites: { cli: { 'mod.ts': 1 } }, other: [] },
+            inventoryOf({ cli: { 'mod.ts': 2 } }),
+        ),
+        ['cli/mod.ts: 1 unanalysable import site(s), inventory says 2'],
+    )
+    const stale = runtimeImportFaults(
+        { sites: {}, other: [] },
+        inventoryOf({ cli: { 'gone.ts': 1 } }),
+    )
+    assertEquals(stale.length, 1)
+    assertStringIncludes(stale[0], 'cli/gone.ts')
+    assertStringIncludes(stale[0], 'finds none')
+})
+
+Deno.test('runtimeImportFaults: an empty reason is red', () => {
+    const faults = runtimeImportFaults(
+        { sites: { cli: { 'mod.ts': 1 } }, other: [] },
+        {
+            packages: {
+                cli: {
+                    runtimeImports: { 'mod.ts': { sites: 1, reason: '  ' } },
+                },
+            },
+        },
+    )
+    assertEquals(faults, ['cli/mod.ts: inventory entry has no reason'])
+})
+
+Deno.test('runtimeImportFaults: an unknown warning code is red', () => {
+    const faults = runtimeImportFaults(
+        {
+            sites: {},
+            other: ['warning[some-new-code] at packages/x/mod.ts:1:1'],
+        },
+        undefined,
+    )
+    assertEquals(faults, [
+        'dry-run diagnostic: warning[some-new-code] at packages/x/mod.ts:1:1',
+    ])
+})
+
+Deno.test('resolutionVerdict: a runtime-import fault alone is red', () => {
+    const verdict = resolutionVerdict(
+        [{ name: 'core', ok: true, detail: 'resolves' }],
+        ['cli/mod.ts: 1 unanalysable import site(s), not inventoried'],
+    )
+    assertEquals(verdict.code, 1)
+    assert(!verdict.lines.some((line) => line.includes('✅')))
+    assertStringIncludes(verdict.lines.join('\n'), 'cli/mod.ts')
+})
+
+/** `mod.ts` of `b` with `body` as the inside of an async `load()`. */
+function loader(body: string): string {
+    return 'export async function load(): Promise<unknown> {\n' +
+        `${body}\n}\n`
+}
+
+Deno.test('I1: an undeclared sibling only inside import() is red, named with file and line', async () => {
+    const { code, out } = await runWorkspace([
+        PKG_A,
+        pkgB(loader("    return await import('@x-lockness-fixture/c')"), {}),
+        PKG_C,
+    ])
+    assertEquals(code, 1, out)
+    assertStringIncludes(out, '❌ b')
+    assertStringIncludes(
+        out,
+        "mod.ts:2: undeclared dynamic import: @x-lockness-fixture/c — import('@x-lockness-fixture/c')",
+    )
+})
+
+Deno.test('I2: an undeclared third-party package only inside import() is red', async () => {
+    const { code, out } = await runWorkspace([
+        PKG_A,
+        pkgB(loader("    return await import('x-lockness-undeclared')"), {}),
+        PKG_C,
+    ])
+    assertEquals(code, 1, out)
+    assertStringIncludes(
+        out,
+        "mod.ts:2: undeclared dynamic import — import('x-lockness-undeclared')",
+    )
+})
+
+Deno.test('I3: a declared sibling with a workspace-only subpath in import() is green', async () => {
+    // The tripwire for `deno info` honouring `links`: JSR knows nothing of
+    // the fake scope, so green can only come from the linked sibling.
+    const { code, out } = await runWorkspace([
+        PKG_A,
+        pkgB(
+            loader(
+                "    return await import('@x-lockness-fixture/a/local-only')",
+            ),
+            DECLARES_A,
+        ),
+        PKG_C,
+    ])
+    assertEquals(code, 0, out)
+    assertStringIncludes(out, 'Every package resolves standalone')
+})
+
+Deno.test('I4: a non-exported subpath of a declared sibling in import() is red', async () => {
+    const { code, out } = await runWorkspace([
+        PKG_A,
+        pkgB(
+            loader("    return await import('@x-lockness-fixture/a/nope')"),
+            DECLARES_A,
+        ),
+        PKG_C,
+    ])
+    assertEquals(code, 1, out)
+    assertStringIncludes(out, '❌ b')
+    assertStringIncludes(
+        out,
+        "mod.ts:2: unresolved dynamic import: Unknown export './nope'",
+    )
+})
+
+Deno.test('I5: a relative import() of a file outside publish.include is red', async () => {
+    const b = pkgB(loader("    return await import('./x.ts')"), {})
+    const { code, out } = await runWorkspace([
+        PKG_A,
+        {
+            ...b,
+            manifest: {
+                ...b.manifest,
+                publish: { include: ['mod.ts', 'deno.json'] },
+            },
+            files: { ...b.files, 'x.ts': 'export const x: number = 1\n' },
+        },
+        PKG_C,
+    ])
+    assertEquals(code, 1, out)
+    assertStringIncludes(
+        out,
+        "mod.ts:2: missing from publish.include: x.ts — import('./x.ts')",
+    )
+})
+
+/** `b` loading a specifier computed at runtime: one unanalysable site. */
+const COMPUTED = pkgB(
+    'export async function load(spec: string): Promise<unknown> {\n' +
+        '    return await import(spec)\n}\n',
+    {},
+)
+
+Deno.test('I6: import(spec) is red when not inventoried', async () => {
+    const { code, out } = await runWorkspace([PKG_A, COMPUTED, PKG_C])
+    assertEquals(code, 1, out)
+    assertStringIncludes(
+        out,
+        'b/mod.ts: 1 unanalysable import site(s), not inventoried',
+    )
+    assert(!out.includes('Every package resolves standalone'), out)
+})
+
+Deno.test('I6: import(spec) is green when inventoried with a reason', async () => {
+    const { code, out } = await runWorkspace([PKG_A, COMPUTED, PKG_C], {
+        packages: {
+            b: {
+                runtimeImports: {
+                    'mod.ts': {
+                        sites: 1,
+                        reason: 'a caller-supplied module path',
+                    },
+                },
+            },
+        },
+    })
+    assertEquals(code, 0, out)
+    assertStringIncludes(out, 'Every package resolves standalone')
+})
+
+Deno.test('I7: a substitution-free template literal is checked like a string', async () => {
+    const { code, out } = await runWorkspace([
+        PKG_A,
+        pkgB(loader('    return await import(`x-lockness-undeclared`)'), {}),
+        PKG_C,
+    ])
+    assertEquals(code, 1, out)
+    assertStringIncludes(
+        out,
+        "mod.ts:2: undeclared dynamic import — import('x-lockness-undeclared')",
+    )
+})
+
+Deno.test('I8: a multi-line import( names the line the specifier is on', async () => {
+    const { code, out } = await runWorkspace([
+        PKG_A,
+        pkgB(
+            loader(
+                '    return await import(\n' +
+                    '        // a comment-led, multi-line call\n' +
+                    "        '@x-lockness-fixture/c'\n" +
+                    '    )',
+            ),
+            {},
+        ),
+        PKG_C,
+    ])
+    assertEquals(code, 1, out)
+    assertStringIncludes(
+        out,
+        'mod.ts:4: undeclared dynamic import: @x-lockness-fixture/c',
+    )
 })
 
 // ---- --registry (#397, finding 5) -----------------------------------------
