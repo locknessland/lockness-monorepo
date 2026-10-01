@@ -29,11 +29,13 @@
  */
 
 import { parseArgs } from '@std/cli'
-import { join } from '@std/path'
+import { fromFileUrl, join } from '@std/path'
 import { type KitName, KITS } from '@lockness/init'
 import { MIGRATIONS_DIR, readTree, shipsMigrations } from './kit_migrations.ts'
 
-const ROOT = Deno.cwd()
+// From this file, not the working directory: the live-postgres suite imports
+// `scaffoldKit`, and a test runner's cwd is not this script's to assume.
+const ROOT = fromFileUrl(new URL('..', import.meta.url))
 const PACKAGES = join(ROOT, 'packages')
 
 /** How long a kit's server gets to answer before the boot step fails. */
@@ -85,8 +87,13 @@ function tail(output: string, lines = 12): string {
  * @throws {Error} If a kit names a package this repository does not have —
  * a typo in a `deno.json.stub` that would otherwise surface as a confusing
  * resolution error much later.
+ *
+ * @example
+ * ```ts
+ * await useLocalWorkspace('/tmp/lockness-kits-x/web-app') // 8
+ * ```
  */
-async function useLocalWorkspace(dir: string): Promise<number> {
+export async function useLocalWorkspace(dir: string): Promise<number> {
     const path = join(dir, 'deno.json')
     const config = JSON.parse(await Deno.readTextFile(path)) as {
         imports?: Record<string, string>
@@ -209,6 +216,53 @@ async function generatesNothing(dir: string): Promise<StepResult> {
     return { ok: true, detail: 'no schema changes' }
 }
 
+/** What {@link scaffoldKit} produced. */
+export interface ScaffoldResult {
+    /** Whether `init` exited 0. */
+    readonly ok: boolean
+    /** What `init` printed, for a failure message. */
+    readonly output: string
+    /** The project directory. */
+    readonly dir: string
+    /** How many `@lockness/*` imports were repointed; 0 when `ok` is false. */
+    readonly rewritten: number
+}
+
+/**
+ * Scaffold a kit the way a user does — `init`'s own entry point, in a
+ * subprocess — and repoint it at this working tree.
+ *
+ * @param kit - The kit.
+ * @param workdir - The directory to scaffold into.
+ * @returns The outcome; the project is at `<workdir>/<kit>-app`.
+ * @throws {Error} When the kit imports a package this workspace lacks.
+ *
+ * @example
+ * ```ts
+ * const { ok, dir } = await scaffoldKit('api', await Deno.makeTempDir())
+ * ```
+ */
+export async function scaffoldKit(
+    kit: KitName,
+    workdir: string,
+): Promise<ScaffoldResult> {
+    const name = `${kit}-app`
+    const dir = join(workdir, name)
+    const scaffold = await run(Deno.execPath(), [
+        'run',
+        '-A',
+        join(PACKAGES, 'init', 'mod.ts'),
+        name,
+        '--kit',
+        kit,
+    ], workdir)
+    if (!scaffold.ok) {
+        return { ok: false, output: scaffold.output, dir, rewritten: 0 }
+    }
+    const rewritten = await useLocalWorkspace(dir)
+    return { ok: true, output: scaffold.output, dir, rewritten }
+}
+
 /**
  * Take one kit through scaffold → check → test → db:generate → boot.
  *
@@ -222,25 +276,14 @@ async function smoke(
     workdir: string,
     port: number,
 ): Promise<boolean> {
-    const name = `${kit}-app`
-    const dir = join(workdir, name)
     console.log(`\n🎒 ${kit} — ${KITS[kit].summary}`)
 
-    const scaffold = await run(Deno.execPath(), [
-        'run',
-        '-A',
-        join(PACKAGES, 'init', 'mod.ts'),
-        name,
-        '--kit',
-        kit,
-    ], workdir)
-    if (!scaffold.ok) {
-        console.log(`  ❌ scaffold\n${tail(scaffold.output)}`)
+    const { ok, output, dir, rewritten } = await scaffoldKit(kit, workdir)
+    if (!ok) {
+        console.log(`  ❌ scaffold\n${tail(output)}`)
         return false
     }
     console.log('  ✅ scaffold')
-
-    const rewritten = await useLocalWorkspace(dir)
     console.log(
         `  ✅ repointed ${rewritten} @lockness/* import(s) at ./packages`,
     )

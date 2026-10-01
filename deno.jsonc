@@ -58,10 +58,11 @@
         // this is the ONE sanctioned second occurrence of the gate literal —
         // it SETS the variable, `packages/redis/tests/live_broker.ts` reads it.
         "test:redis": "LOCKNESS_REDIS_INTEGRATION=1 deno test -A packages/realtime/tests/ packages/redis/tests/",
-        // The live-postgres suite (#435). Skipped by the default `test` task;
-        // this SETS the gate, `fresh_postgres_live.test.ts` reads it. It also
-        // needs LOCKNESS_POSTGRES_URL, a loopback superuser connection.
-        "test:postgres": "LOCKNESS_POSTGRES_INTEGRATION=1 deno test -A packages/drizzle/tests/fresh_postgres_live.test.ts",
+        // The live-postgres suites (#435, #444). Skipped by the default `test`
+        // task; this SETS the gate, `packages/drizzle/tests/live_postgres.ts`
+        // reads it. They also need LOCKNESS_POSTGRES_URL, a loopback superuser
+        // connection: the kit suite creates and drops `lockness_kit_*` databases.
+        "test:postgres": "LOCKNESS_POSTGRES_INTEGRATION=1 deno test -A packages/drizzle/tests/fresh_postgres_live.test.ts scripts/kit_migrations_live_test.ts",
         "test:coverage": "rm -rf coverage && deno test -A --coverage=coverage packages/ app/ && deno coverage coverage --lcov > coverage/lcov.info && deno coverage coverage",
         "coverage:floor": "deno run -A scripts/coverage_floor.ts --check",
         "coverage:floor:update": "deno run -A scripts/coverage_floor.ts --update",
