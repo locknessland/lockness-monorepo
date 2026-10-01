@@ -27,3 +27,13 @@ Deno.test('reexport contract - @lockness/core surface matches the baseline', () 
             'if not, a public export was dropped/renamed/retyped.',
     )
 })
+
+Deno.test('reexport contract - importAppFile is not on the @lockness/core surface', () => {
+    assertEquals(
+        'importAppFile' in live,
+        false,
+        'importAppFile imports any readable module with the process permissions; ' +
+            'it is for Lockness packages, through @lockness/contract/app-file/internal, ' +
+            'and must not reach apps through core re-exporting the contract root (#477).',
+    )
+})
