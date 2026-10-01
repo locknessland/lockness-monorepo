@@ -660,10 +660,19 @@ async function withMigrations(
 type FreshStep = 'query' | 'execute' | 'migrate'
 
 /**
- * The `db:fresh` seams around a fake sqlite session that records every call.
- * `runCommand` throws: `db:fresh` must spawn nothing.
+ * The `db:fresh` seams around a fake session that records every call — a
+ * sqlite one unless `config` overrides `drizzle.config.ts`, and `rows`
+ * answers every catalogue query. `runCommand` throws: `db:fresh` must spawn
+ * nothing.
  */
-function freshDeps(folder: string, failAt?: FreshStep) {
+function freshDeps(
+    folder: string,
+    failAt?: FreshStep,
+    overrides: {
+        readonly config?: Record<string, unknown>
+        readonly rows?: Record<string, unknown>[]
+    } = {},
+) {
     const calls: string[] = []
     const opened: MigrationSettings[] = []
     const step = <T>(name: FreshStep, value: T): Promise<T> => {
@@ -673,10 +682,15 @@ function freshDeps(folder: string, failAt?: FreshStep) {
             : Promise.resolve(value)
     }
     const session: MaintenanceSession = {
-        query: () => step('query', [{ type: 'table', name: 'users' }]),
+        query: () =>
+            step('query', overrides.rows ?? [{ type: 'table', name: 'users' }]),
         execute: () => step('execute', undefined),
         migrate: (options) => {
-            calls.push(`migrate:${options.folder}:${options.table}`)
+            calls.push(
+                `migrate:${options.folder}:${options.table}:${
+                    options.schema ?? '-'
+                }`,
+            )
             return step('migrate', undefined)
         },
         close: () => {
@@ -690,11 +704,13 @@ function freshDeps(folder: string, failAt?: FreshStep) {
     const deps = {
         runCommand,
         loadMigrationConfig: () =>
-            Promise.resolve({
-                dialect: 'sqlite',
-                out: folder,
-                dbCredentials: { url: 'file:./fresh-test.db' },
-            }),
+            Promise.resolve(
+                overrides.config ?? {
+                    dialect: 'sqlite',
+                    out: folder,
+                    dbCredentials: { url: 'file:./fresh-test.db' },
+                },
+            ),
         openMaintenance: (settings: MigrationSettings) => {
             calls.push('open')
             opened.push(settings)
@@ -764,7 +780,7 @@ Deno.test('db:fresh - resets then migrates on one session, spawning nothing and 
             'open',
             'query',
             'execute',
-            `migrate:${folder}:__drizzle_migrations`,
+            `migrate:${folder}:__drizzle_migrations:-`,
             'migrate',
             'close',
         ])
@@ -775,6 +791,32 @@ Deno.test('db:fresh - resets then migrates on one session, spawning nothing and 
             out.includes('fresh-test.db'),
             false,
             'the DSN was printed',
+        )
+    })
+})
+
+Deno.test('db:fresh - hands migrations.table and migrations.schema to the postgres migrator', async () => {
+    await withMigrations(async (folder) => {
+        const { calls, deps } = freshDeps(folder, undefined, {
+            config: {
+                dialect: 'postgresql',
+                out: folder,
+                dbCredentials: { url: 'postgres://app@localhost/app' },
+                migrations: { table: 'history', schema: 'meta' },
+            },
+            rows: [],
+        })
+        const cli = new FakeCli()
+        registerDrizzleCommands(cli, deps)
+
+        const { error } = await capture(() =>
+            withAppEnv(undefined, () => cli.run('db:fresh'))
+        )
+
+        assertEquals(error, undefined)
+        assertEquals(
+            calls.filter((c) => c.startsWith('migrate:')),
+            [`migrate:${folder}:history:meta`],
         )
     })
 })
