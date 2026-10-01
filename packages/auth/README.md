@@ -391,14 +391,19 @@ CREATE TABLE access_tokens (
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     token_hash VARCHAR(255) NOT NULL UNIQUE,
-    expires_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT NOW(),
+    expires_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     last_used_at TIMESTAMP
 );
 
-CREATE INDEX idx_access_tokens_hash ON access_tokens(token_hash);
+-- The UNIQUE constraint already indexes token_hash.
 CREATE INDEX idx_access_tokens_user ON access_tokens(user_id);
 ```
+
+Every access token expires: a row whose `expires_at` is `NULL` does not verify.
+`DrizzleTokenProvider` takes this table as a Drizzle table object in
+`tokensTable`, with the hash under the property `hash` — see
+[`@lockness/auth-provider`](../auth-provider/docs/DOCS.md#access-tokens-table).
 
 ## Multi-Guard Authentication
 
