@@ -117,7 +117,10 @@
         "@david/jsonc-morph": "jsr:@david/jsonc-morph@^0.3.0",
         "postgres": "npm:postgres@^3.4.4",
         "drizzle-orm": "npm:drizzle-orm@^0.36.3",
-        "drizzle-kit": "npm:drizzle-kit@beta",
+        // Hard-rule-2 exception: drizzle-kit is not on JSR. Pinned exactly to
+        // the version the db:* commands run (#437); see DRIZZLE_KIT_SPECIFIER
+        // in packages/drizzle/generators/dialect_schema.ts.
+        "drizzle-kit": "npm:drizzle-kit@0.31.10",
         "@lockness/core": "jsr:@lockness/core@^0.4.0",
         "@lockness/contract": "jsr:@lockness/contract@^0.4.0",
         "@lockness/drizzle": "jsr:@lockness/drizzle@^0.4.0",

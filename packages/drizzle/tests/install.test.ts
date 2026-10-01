@@ -19,11 +19,13 @@ import {
     createDatabaseSeeder,
     createDirectories,
     createDrizzleConfig,
+    mapDrizzleKit,
     ProjectStructureError,
     type SqlConnector,
     testDatabaseConnection,
     updateSingleEnvFile,
 } from '../install.ts'
+import { DRIZZLE_KIT_SPECIFIER } from '../generators/dialect_schema.ts'
 
 /** Silence the installer's console chatter for the duration of a test. */
 function muteConsole(): () => void {
@@ -74,6 +76,75 @@ async function withTempCwd(fn: (dir: string) => Promise<void>): Promise<void> {
         await Deno.remove(dir, { recursive: true })
     }
 }
+
+Deno.test('#437 mapDrizzleKit - maps drizzle-kit to the pinned specifier in deno.json', async () => {
+    await withTempCwd(async () => {
+        await Deno.writeTextFile(
+            './deno.json',
+            JSON.stringify({
+                imports: { 'drizzle-orm': 'npm:drizzle-orm@^0.36.3' },
+            }),
+        )
+
+        assertEquals(await mapDrizzleKit(), true)
+
+        const config = JSON.parse(await Deno.readTextFile('./deno.json'))
+        assertEquals(config.imports, {
+            'drizzle-orm': 'npm:drizzle-orm@^0.36.3',
+            'drizzle-kit': DRIZZLE_KIT_SPECIFIER,
+        })
+    })
+})
+
+Deno.test('#437 mapDrizzleKit - leaves an existing drizzle-kit mapping alone', async () => {
+    await withTempCwd(async () => {
+        await Deno.writeTextFile(
+            './deno.json',
+            JSON.stringify({
+                imports: { 'drizzle-kit': 'npm:drizzle-kit@0.30.0' },
+            }),
+        )
+
+        assertEquals(await mapDrizzleKit(), false)
+
+        const config = JSON.parse(await Deno.readTextFile('./deno.json'))
+        assertEquals(config.imports['drizzle-kit'], 'npm:drizzle-kit@0.30.0')
+    })
+})
+
+Deno.test('#437 mapDrizzleKit - creates the imports map when there is none', async () => {
+    await withTempCwd(async () => {
+        await Deno.writeTextFile('./deno.json', JSON.stringify({ tasks: {} }))
+
+        assertEquals(await mapDrizzleKit(), true)
+
+        const config = JSON.parse(await Deno.readTextFile('./deno.json'))
+        assertEquals(config.tasks, {})
+        assertEquals(config.imports, { 'drizzle-kit': DRIZZLE_KIT_SPECIFIER })
+    })
+})
+
+Deno.test('#437 the specifier is exactly pinned, and the init kits and the repo map the same one', async () => {
+    assert(
+        /^npm:drizzle-kit@\d+\.\d+\.\d+$/.test(DRIZZLE_KIT_SPECIFIER),
+        DRIZZLE_KIT_SPECIFIER,
+    )
+    const root = new URL('../../../', import.meta.url)
+    for (
+        const path of [
+            'packages/init/stubs/kits/web/deno.json.stub',
+            'packages/init/stubs/kits/api/deno.json.stub',
+            'deno.jsonc',
+        ]
+    ) {
+        const text = await Deno.readTextFile(new URL(path, root))
+        assertStringIncludes(
+            text,
+            `"drizzle-kit": "${DRIZZLE_KIT_SPECIFIER}"`,
+            path,
+        )
+    }
+})
 
 Deno.test('createDirectories - creates the required project directories', async () => {
     await withTempCwd(async () => {

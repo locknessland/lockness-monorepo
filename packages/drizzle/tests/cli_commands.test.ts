@@ -32,6 +32,7 @@ import {
     type SeederLoader,
 } from '../cli_commands.ts'
 import type { MigrationSettings } from '../migration_settings.ts'
+import { DRIZZLE_KIT_SPECIFIER } from '../generators/dialect_schema.ts'
 
 // -----------------------------------------------------------------------------
 // Test doubles
@@ -228,13 +229,37 @@ for (const [command, subcommand] of shellCommands) {
             assertEquals(calls.length, 1)
             assertEquals(calls[0], {
                 cmd: 'deno',
-                args: ['run', '-A', 'npm:drizzle-kit', subcommand],
+                args: ['run', '-A', 'npm:drizzle-kit@0.31.10', subcommand],
             })
         } finally {
             restore()
         }
     })
 }
+
+Deno.test('#437 every shell-out runs an exactly pinned drizzle-kit', async () => {
+    const restore = muteConsole()
+    try {
+        for (const [command] of shellCommands) {
+            const cli = new FakeCli()
+            const { calls, run } = fakeRunner()
+            registerDrizzleCommands(cli, { runCommand: run })
+            await cli.run(command)
+
+            const specifier = calls[0].args.find((a) =>
+                a.startsWith('npm:drizzle-kit')
+            )
+            assert(
+                specifier !== undefined &&
+                    /^npm:drizzle-kit@\d+\.\d+\.\d+$/.test(specifier),
+                `${command} runs an unpinned drizzle-kit: ${specifier}`,
+            )
+            assertEquals(specifier, DRIZZLE_KIT_SPECIFIER)
+        }
+    } finally {
+        restore()
+    }
+})
 
 // -----------------------------------------------------------------------------
 // db:check — connection port only, always closes

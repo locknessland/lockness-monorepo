@@ -38,7 +38,7 @@
     "npm:@tailwindcss/cli@^4.1.18": "4.1.18",
     "npm:clsx@2.1.1": "2.1.1",
     "npm:drizzle-kit@*": "0.31.10",
-    "npm:drizzle-kit@beta": "1.0.0-beta.11-05230d9",
+    "npm:drizzle-kit@0.31.10": "0.31.10",
     "npm:drizzle-orm@~0.36.3": "0.36.4_@libsql+client@0.18.0_@opentelemetry+api@1.9.1_mysql2@3.24.3_postgres@3.4.8",
     "npm:hastscript@^9.0.1": "9.0.1",
     "npm:highlight.js@11.11.1": "11.11.1",
@@ -799,9 +799,6 @@
     "@drizzle-team/brocli@0.10.2": {
       "integrity": "sha512-z33Il7l5dKjUgGULTqBsQBQwckHh5AbIuxhdsIxDDiZAzBOrZO6q9ogcWC65kU382AfynTfgNumVcNIjuIua6w=="
     },
-    "@drizzle-team/brocli@0.11.0": {
-      "integrity": "sha512-hD3pekGiPg0WPCCGAZmusBBJsDqGUR66Y452YgQsZOnkdQ7ViEPKuyP4huUGEZQefp8g34RRodXYmJ2TbCH+tg=="
-    },
     "@emnapi/core@1.11.1": {
       "integrity": "sha512-RSvbQmHzdKzNsLYa/wHrbc3KN4sYLKAdPZxqiM2HATqv/SBk2/ENSHpvXGaLOMcsAyz0poEGqkmmKYG3OWiJEQ==",
       "dependencies": [
@@ -1253,12 +1250,6 @@
       "dependencies": [
         "@jridgewell/resolve-uri",
         "@jridgewell/sourcemap-codec"
-      ]
-    },
-    "@js-temporal/polyfill@0.5.1": {
-      "integrity": "sha512-hloP58zRVCRSpgDxmqCWJNlizAlUgJFqG2ypq79DCvyv9tHjRYMDOcPFjzfl/A1/YxDvRCZz8wvZvmapQnKwFQ==",
-      "dependencies": [
-        "jsbi"
       ]
     },
     "@libsql/client@0.18.0": {
@@ -2701,22 +2692,11 @@
     "drizzle-kit@0.31.10": {
       "integrity": "sha512-7OZcmQUrdGI+DUNNsKBn1aW8qSoKuTH7d0mYgSP8bAzdFzKoovxEFnoGQp2dVs82EOJeYycqRtciopszwUf8bw==",
       "dependencies": [
-        "@drizzle-team/brocli@0.10.2",
+        "@drizzle-team/brocli",
         "@esbuild-kit/esm-loader",
         "esbuild@0.25.12",
         "tsx"
       ],
-      "bin": true
-    },
-    "drizzle-kit@1.0.0-beta.11-05230d9": {
-      "integrity": "sha512-dIv1Ql5SOJsGE/6mzfUk2k8iQFQtP6Buq7JlRew/Mx1uOOkIgyPT6xAUsSbyXqjqiDQl9k2S7iXtKaOs3Cs4aw==",
-      "dependencies": [
-        "@drizzle-team/brocli@0.11.0",
-        "@js-temporal/polyfill",
-        "esbuild@0.25.12",
-        "tsx"
-      ],
-      "deprecated": true,
       "bin": true
     },
     "drizzle-orm@0.36.4_@libsql+client@0.18.0_@opentelemetry+api@1.9.1_mysql2@3.24.3_postgres@3.4.8": {
@@ -3135,9 +3115,6 @@
     },
     "js-base64@3.9.3": {
       "integrity": "sha512-uwYQp+VJ38FVvtim6qNbit6e9uT6dwWQ4Y1+H9TxhW5hcHjpHwoxlR0nMpqUmIFOmu4VqMxwdJA88gIVuZJQ/g=="
-    },
-    "jsbi@4.3.2": {
-      "integrity": "sha512-9fqMSQbhJykSeii05nxKl4m6Eqn2P6rOlYiS+C5Dr/HPIU/7yZxu5qzbs40tgaFORiw2Amd0mirjxatXYMkIew=="
     },
     "katex@0.16.27": {
       "integrity": "sha512-aeQoDkuRWSqQN6nSvVCEFvfXdqo1OQiCmmW1kc9xSdjutPv7BGO7pqY9sQRJpMOGrEdfDgF2TfRXe5eUAD2Waw==",
@@ -4559,7 +4536,7 @@
       "jsr:@std/testing@1",
       "npm:@tailwindcss/cli@^4.1.18",
       "npm:clsx@2.1.1",
-      "npm:drizzle-kit@beta",
+      "npm:drizzle-kit@0.31.10",
       "npm:drizzle-orm@~0.36.3",
       "npm:postgres@^3.4.4",
       "npm:tailwind-merge@2.6.0",

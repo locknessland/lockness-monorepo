@@ -30,6 +30,7 @@ import {
     assertNotProduction,
 } from './production_guard.ts'
 import type { SchemaMaintenance } from './drivers.ts'
+import { DRIZZLE_KIT_SPECIFIER } from './generators/dialect_schema.ts'
 import {
     defaultLoadMigrationConfig,
     loadMigrationSettings,
@@ -165,8 +166,11 @@ type SeederConstructor = new () => { run(): Promise<void> }
 // Constants
 // =============================================================================
 
-/** Drizzle Kit CLI command base */
-const DRIZZLE_KIT_ARGS = ['run', '-A', 'npm:drizzle-kit'] as const
+/**
+ * Drizzle Kit CLI command base. The `npm:` specifier is a hard-rule-2
+ * exception, pinned exactly — see {@link DRIZZLE_KIT_SPECIFIER} (#437).
+ */
+const DRIZZLE_KIT_ARGS = ['run', '-A', DRIZZLE_KIT_SPECIFIER] as const
 
 /** Directory for database seeders. Shared with the seeder generator. */
 export const SEEDERS_DIR = './database/seeders' as const

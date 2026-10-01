@@ -26,6 +26,21 @@ export const DRIZZLE_KIT_DIALECT: Record<Dialect, string> = {
     sqlite: 'sqlite',
 }
 
+/**
+ * The one `drizzle-kit` every Lockness surface runs and maps (#437): the
+ * `db:*` shell-outs, the import map `install.ts` writes, the init kit stubs
+ * and the repository's own `deno.jsonc`. A test checks that they agree.
+ *
+ * Hard-rule-2 exception: drizzle-kit publishes no JSR build, so `npm:` is
+ * the only registry that ships it. It is pinned **exactly**, not to a range:
+ * the `db:*` exit contract (#428) maps drizzle-kit's exit codes straight to
+ * the command's status, and `db:status`'s wording rests on what
+ * `drizzle-kit check` does in this version — a release that changes either
+ * must not reach an app silently. The 1.0 betas are out of scope until 1.0 is
+ * stable.
+ */
+export const DRIZZLE_KIT_SPECIFIER = 'npm:drizzle-kit@0.31.10' as const
+
 /** A `drizzle.config.ts` dialect `db:fresh` can reset (#435). */
 export type KitDialect = 'postgresql' | 'mysql' | 'sqlite' | 'turso'
 

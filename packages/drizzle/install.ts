@@ -22,7 +22,10 @@ import { addPackage, Stub } from '@lockness/cli'
 import { dirname, fromFileUrl, join } from '@std/path'
 import postgres from 'postgres'
 import { resolveDialect } from './drivers.ts'
-import { DRIZZLE_KIT_DIALECT } from './generators/dialect_schema.ts'
+import {
+    DRIZZLE_KIT_DIALECT,
+    DRIZZLE_KIT_SPECIFIER,
+} from './generators/dialect_schema.ts'
 
 // =============================================================================
 // Types
@@ -116,6 +119,37 @@ export async function createDrizzleConfig(): Promise<boolean> {
         console.log('✓ Created drizzle.config.ts')
         return true
     }
+}
+
+/**
+ * Map `drizzle-kit` in the project's `deno.json` import map (#437).
+ *
+ * The generated `drizzle.config.ts` imports `defineConfig` from
+ * `drizzle-kit`, and `db:fresh` imports that file — so without the mapping
+ * the config cannot be loaded. The specifier is the exactly pinned one the
+ * `db:*` commands run; the `npm:` registry is a hard-rule-2 exception,
+ * justified at {@link DRIZZLE_KIT_SPECIFIER}. An existing mapping is the
+ * project's choice and is left alone.
+ *
+ * @param path - The project's `deno.json`.
+ * @returns True if the mapping was added, false if one already existed.
+ * @throws When the file cannot be read, parsed or written.
+ */
+export async function mapDrizzleKit(
+    path: string = './deno.json',
+): Promise<boolean> {
+    const config = JSON.parse(await Deno.readTextFile(path))
+    const imports: Record<string, string> = config.imports ?? {}
+    if (imports['drizzle-kit'] !== undefined) {
+        console.log(
+            'ℹ️  drizzle-kit is already mapped in deno.json, skipping...',
+        )
+        return false
+    }
+    config.imports = { ...imports, 'drizzle-kit': DRIZZLE_KIT_SPECIFIER }
+    await Deno.writeTextFile(path, JSON.stringify(config, null, 2) + '\n')
+    console.log(`✓ Mapped drizzle-kit to ${DRIZZLE_KIT_SPECIFIER} in deno.json`)
+    return true
 }
 
 /**
@@ -334,7 +368,7 @@ function showNextSteps(): void {
  * Orchestrates the complete installation process:
  * 1. Verify project structure
  * 2. Create directories
- * 3. Create configuration files
+ * 3. Create configuration files, and map `drizzle-kit` in `deno.json`
  * 4. Update environment files
  * 5. Register package
  * 6. Test database connection
@@ -351,6 +385,7 @@ async function install(): Promise<void> {
     }
     await createDirectories()
     await createDrizzleConfig()
+    await mapDrizzleKit()
     await createDatabaseSeeder()
     await updateEnvFile()
 
