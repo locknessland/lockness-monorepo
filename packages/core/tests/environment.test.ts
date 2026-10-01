@@ -13,7 +13,7 @@ import { Hono } from 'hono'
 import { isDevelopment, isProduction, resolveEnvName } from '../environment.ts'
 import { App } from '../app.ts'
 import { formatErrorForConsole } from '../exceptions/formatter.ts'
-import { defaultErrorHandler } from '../exceptions/default_view.tsx'
+import { defaultErrorHandler } from '../exceptions/default_view.ts'
 
 /** Snapshot both env names, run `fn` under a chosen combo, then restore. */
 function withEnv(

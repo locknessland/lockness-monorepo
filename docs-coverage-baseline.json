@@ -6,7 +6,6 @@
     "packages/contract/routing/mod.ts",
     "packages/contract/routing/throttle.ts",
     "packages/contract/types.ts",
-    "packages/core/exceptions/default_view.tsx",
     "packages/core/exceptions/handler.ts",
     "packages/core/exceptions/registrator.ts",
     "packages/core/http/cache_middleware.ts",

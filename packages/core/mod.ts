@@ -41,7 +41,7 @@ export * from './routing/generator.ts'
 export * from './routing/mount_pattern.ts'
 export * from './logging/sanitize.ts'
 export * from './exceptions/formatter.ts'
-export * from './exceptions/default_view.tsx'
+export * from './exceptions/default_view.ts'
 export * from './helpers.ts'
 
 // API Resource layer — opt-in model→wire projection + paginated collection.

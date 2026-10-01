@@ -1,4 +1,5 @@
 import type { ErrorHandler } from '../types.ts'
+import { defaultErrorHandler } from './default_view.ts'
 
 /**
  * Manages error handler auto-discovery and registration.
@@ -36,7 +37,7 @@ export class ErrorHandlerRegistry {
         }
 
         // Fall back to default error handler
-        return await this.loadDefaultHandler()
+        return defaultErrorHandler
     }
 
     /**
@@ -65,16 +66,6 @@ export class ErrorHandlerRegistry {
         }
 
         return null
-    }
-
-    /**
-     * Load the default error handler
-     */
-    private async loadDefaultHandler(): Promise<ErrorHandler> {
-        const { defaultErrorHandler } = await import(
-            './default_view.tsx'
-        )
-        return defaultErrorHandler
     }
 
     /**
