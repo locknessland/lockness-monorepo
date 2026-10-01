@@ -23,7 +23,7 @@
  * @since 0.4.1
  */
 
-import { join, toFileUrl } from '@std/path'
+import { importAppFile } from '@lockness/contract'
 import type { MigrationMeta } from 'drizzle-orm/migrator'
 import type { Dialect } from './drivers.ts'
 import {
@@ -86,15 +86,21 @@ const DEFAULT_SCHEMA = 'drizzle'
 const DEFAULT_SCHEMA_FILTER: readonly string[] = ['public']
 
 /**
- * The production loader: imports `drizzle.config.ts` from the working
- * directory, the file `drizzle-kit` reads.
+ * The production loader: imports `drizzle.config.ts` from the app root, the
+ * file `drizzle-kit` reads.
  *
+ * @param root - The app root. Defaults to the working directory.
  * @returns The config's default export.
  * @throws Whatever the import throws.
+ *
+ * @example
+ * ```ts
+ * const config = await defaultLoadMigrationConfig()
+ * ```
  */
-export const defaultLoadMigrationConfig: MigrationConfigLoader = async () =>
-    (await import(toFileUrl(join(Deno.cwd(), 'drizzle.config.ts')).href))
-        .default
+export const defaultLoadMigrationConfig = async (
+    root: string = Deno.cwd(),
+): Promise<unknown> => (await importAppFile('drizzle.config.ts', root)).default
 
 /**
  * The production reader: drizzle-orm's own `readMigrationFiles`, the function

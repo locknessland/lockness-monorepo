@@ -21,6 +21,7 @@ import { dirname, fromFileUrl, join } from '@std/path'
 // configured, and the barrel would pull every built-in command in with it.
 import { CommandFailedError } from '@lockness/cli/command-failure'
 import { container } from '@lockness/container'
+import { importAppFile } from '@lockness/contract'
 import { Database } from './mod.ts'
 import { handleMakeFactory } from './generators/factory_generator.ts'
 import { handleMakeModel } from './generators/model_generator.ts'
@@ -233,14 +234,25 @@ const defaultRunCommand: CommandRunner = async (spec) => {
 }
 
 /**
- * Production seeder-loader: dynamically imports a seeder module from the
- * project's working directory.
+ * Production seeder-loader: imports a seeder module from the project's
+ * working directory.
+ *
+ * Through `importAppFile`, never a `file://` template literal: `deno publish`
+ * rewrites one into a relative path, which from JSR resolves against the
+ * registry (#477).
  *
  * @param relativePath - Path to the seeder file, relative to the project root.
  * @returns The imported module namespace.
+ * @throws Whatever the import throws; `db:seed` reports it.
+ * @internal Exported for tests.
+ *
+ * @example
+ * ```ts
+ * await defaultLoadSeeder('database/seeders/database_seeder.ts')
+ * ```
  */
-const defaultLoadSeeder: SeederLoader = (relativePath) =>
-    import(`file://${Deno.cwd()}/${relativePath}`)
+export const defaultLoadSeeder: SeederLoader = (relativePath) =>
+    importAppFile(relativePath)
 
 /**
  * Production opener: configures the container's `Database` from the
