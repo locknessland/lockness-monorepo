@@ -7,9 +7,10 @@
  * `dbCredentials.url`, `dialect`, `migrations.table`, `migrations.schema`
  * and `schemaFilter` — and nothing else:
  *
- * - **R2** — the file cannot be imported; `out` is absent; `dbCredentials`
- *   holds anything besides `url`; a `driver` is named; or the dialect is not
- *   postgresql, mysql, sqlite or turso.
+ * - **R2** — the file cannot be imported (its error is withheld, since it may
+ *   quote the DSN; only an identifier-shaped error name is shown); `out` is
+ *   absent; `dbCredentials` holds anything besides `url`; a `driver` is
+ *   named; or the dialect is not postgresql, mysql, sqlite or turso.
  * - **R3** — the journal, or a file it lists, is missing. The migrations are
  *   read up front with drizzle-orm's own `readMigrationFiles`: a database is
  *   never wiped that could not then be migrated.
@@ -24,6 +25,7 @@ import {
     DIALECT_FROM_KIT,
     type KitDialect,
 } from './generators/dialect_schema.ts'
+import { vettedErrorName } from './error_name.ts'
 import { FreshRefusedError } from './reset.ts'
 
 /**
@@ -128,10 +130,7 @@ export async function loadMigrationSettings(
     try {
         config = await loadConfig()
     } catch (error) {
-        throw new FreshRefusedError(
-            `drizzle.config.ts could not be imported: ${messageOf(error)}`,
-            { cause: error },
-        )
+        throw importRefused(error)
     }
     const parsed = parseConfig(config)
 
@@ -151,6 +150,27 @@ export async function loadMigrationSettings(
         migrations: migrations.length,
         statements: migrations.flat(),
     }
+}
+
+/**
+ * The R2 refusal for a `drizzle.config.ts` that cannot be imported.
+ *
+ * The import error is withheld whole, the way #425 withholds a driver
+ * failure: the file builds `dbCredentials.url`, so its error may quote the
+ * DSN, and no password is known yet to check it for. Only the error's name
+ * is shown, when it is identifier-shaped. The raw error is not attached as
+ * the cause either, so nothing downstream can print it.
+ *
+ * @param error - Whatever the import threw.
+ * @returns The refusal to throw.
+ */
+function importRefused(error: unknown): FreshRefusedError {
+    const name = vettedErrorName(error, [])
+    return new FreshRefusedError(
+        `drizzle.config.ts could not be imported${
+            name === undefined ? '' : ` (${name})`
+        }; its error is withheld because it may contain the DSN`,
+    )
 }
 
 /**
