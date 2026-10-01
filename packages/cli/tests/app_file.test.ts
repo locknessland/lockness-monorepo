@@ -132,6 +132,25 @@ Deno.test('loadRouteControllers - reports a controller file that fails to load',
     })
 })
 
+Deno.test('loadRouteControllers - warns about a controller it cannot instantiate, and still lists it', async () => {
+    await withAwkwardDir({
+        'needy_controller.ts': `
+export class NeedyController {
+    static _basePath = '/needy'
+    constructor() { throw new Error('needs an injected service') }
+}
+`,
+    }, async ({ abs }) => {
+        let names: string[] = []
+        const output = await captured(async () => {
+            names = (await loadRouteControllers(abs)).map((c) => c.name)
+        })
+        assertEquals(names, ['NeedyController'])
+        assertStringIncludes(output, 'needy_controller.ts')
+        assertStringIncludes(output, 'needs an injected service')
+    })
+})
+
 // ============================================================================
 // queue:work
 // ============================================================================

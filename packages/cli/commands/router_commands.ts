@@ -86,8 +86,16 @@ export async function loadRouteControllers(
             if (!Controller._routes || Controller._routes.length === 0) {
                 try {
                     new Controller()
-                } catch (_e) {
-                    // Ignore errors during temporary instantiation
+                } catch (error) {
+                    // Still listed: its routes may be missing, and saying
+                    // why beats an empty row with no reason (#477).
+                    console.warn(
+                        `⚠️  Could not instantiate ${Controller.name} from ${
+                            safeForLog(entry.name)
+                        } to read its routes, so they may be missing: ${
+                            renderError(error)
+                        }`,
+                    )
                 }
             }
             controllers.push(Controller)
