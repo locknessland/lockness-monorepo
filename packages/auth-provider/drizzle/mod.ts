@@ -17,6 +17,11 @@ export type { DrizzleSessionProviderOptions } from './drizzle_session_provider.t
 export { DrizzleSessionProvider } from './drizzle_session_provider.ts'
 
 export type { DrizzleTokenProviderOptions } from './drizzle_token_provider.ts'
+export type {
+    AccessTokenColumn,
+    DrizzleAccessTokensTable,
+} from './access_tokens_table.ts'
+export { assertAccessTokensTable } from './access_tokens_table.ts'
 export { DrizzleTokenProvider } from './drizzle_token_provider.ts'
 
 export type { DrizzleBasicAuthProviderOptions } from './drizzle_basic_auth_provider.ts'
