@@ -37,12 +37,11 @@ import {
     type SchemaMaintenance,
 } from '../drivers.ts'
 import { FreshRefusedError, resetDatabase, type ResetScope } from '../reset.ts'
-
-/**
- * Whether the live suite runs at all. The root `deno.jsonc` task
- * `test:postgres` and the `live-postgres` CI job set it; nothing else reads it.
- */
-const LIVE = Deno.env.get('LOCKNESS_POSTGRES_INTEGRATION') === '1'
+import {
+    assertLoopback,
+    LIVE_POSTGRES as LIVE,
+    liveUrl,
+} from './live_postgres.ts'
 
 /** The schema the reset empties. */
 const SCOPE = 'lockness_fresh_scope'
@@ -60,56 +59,6 @@ const SETTINGS: ResetScope = {
     schema: BOOKKEEPING,
     schemaFilter: [SCOPE],
     statements: [],
-}
-
-/**
- * Hosts a destructive suite may run against. postgres.js parses a bracketed
- * IPv6 host (`[::1]`) to `[`, so only the forms it can connect to are listed.
- */
-const LOOPBACK: ReadonlySet<string> = new Set([
-    '127.0.0.1',
-    'localhost',
-    '::1',
-])
-
-/**
- * Refuse `url` unless EVERY host postgres.js would try is a loopback host.
- *
- * The url text is not enough: postgres.js takes a host list —
- * `u@evil.example,x@127.0.0.1` is two hosts, the first one remote — and an
- * empty host falls back to `PGHOST`. So the hosts are read from postgres.js's
- * own parse, the one the suite connects with. The client is built to be
- * parsed only and never connects. No error quotes the url, which may hold a
- * password; the parser's own error does, so it is replaced, not chained.
- *
- * @param url - The candidate server url.
- * @returns The url.
- * @throws {Error} When it is empty, unparsable or names a non-loopback host.
- */
-async function assertLoopback(url: string): Promise<string> {
-    if (url === '') throw new Error('LOCKNESS_POSTGRES_URL is unset')
-    let hosts: readonly string[]
-    try {
-        const parsed = postgres(url, { max: 1 })
-        hosts = parsed.options.host
-        await parsed.end()
-    } catch {
-        throw new Error('LOCKNESS_POSTGRES_URL is not a url')
-    }
-    if (hosts.length === 0 || !hosts.every((host) => LOOPBACK.has(host))) {
-        throw new Error('LOCKNESS_POSTGRES_URL must name loopback hosts only')
-    }
-    return url
-}
-
-/**
- * The server url, refused unless every host it names is loopback.
- *
- * @returns The url.
- * @throws {Error} When it is unset, unparsable or not loopback.
- */
-function liveUrl(): Promise<string> {
-    return assertLoopback(Deno.env.get('LOCKNESS_POSTGRES_URL') ?? '')
 }
 
 // -----------------------------------------------------------------------------
