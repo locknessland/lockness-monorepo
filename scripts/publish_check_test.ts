@@ -444,6 +444,19 @@ Deno.test('workspaceRangeFaults: a stale range is a fault', () => {
     ])
 })
 
+Deno.test('workspaceRangeFaults: an unparseable range is named invalid, with its cause', () => {
+    const faults = workspaceRangeFaults(
+        { imports: { '@lockness/cli': 'jsr:@lockness/cli@^not.a.range' } },
+        SIBLINGS,
+    )
+    assertEquals(faults.length, 1)
+    assertStringIncludes(
+        faults[0],
+        'invalid range: @lockness/cli declares ^not.a.range: ',
+    )
+    assert(!faults[0].startsWith('stale range'))
+})
+
 Deno.test('workspaceRangeFaults: a subpath specifier is parsed', () => {
     assertEquals(
         workspaceRangeFaults(

@@ -41,9 +41,11 @@
  * Third-party *types* are not this check's to prove: Deno's npm peer
  * resolution is order-dependent in a staged subgraph and can silently type a
  * module as `any`, and the workspace `deno check` owns typing under the
- * lockfile. Every fault this check owns is a graph error, which does not depend
- * on third-party types. The workspace lockfile is deliberately NOT copied in: a
- * peer variant computed for the whole workspace does not exist for a subgraph.
+ * lockfile. The check still fails on any type error, so a third-party typing
+ * artefact in the staged subgraph can redden it (drizzle's TS7006 did); the fix
+ * there is an explicit annotation, not a tolerance. The workspace lockfile is
+ * deliberately NOT copied in: a peer variant computed for the whole workspace
+ * does not exist for a subgraph.
  *
  * It also asks JSR whether each package **exists in the registry**. A package
  * must be created there before anything can be published to it, and
@@ -344,8 +346,14 @@ export function workspaceRangeFaults(
         let ok: boolean
         try {
             ok = satisfies(parse(version), parseRange(range))
-        } catch {
-            ok = false
+        } catch (error) {
+            // Not stale — unparseable. Surface the parser's reason as the fault.
+            faults.push(
+                `invalid range: ${key} declares ${range}: ${
+                    error instanceof Error ? error.message : String(error)
+                }`,
+            )
+            continue
         }
         if (!ok) {
             faults.push(
