@@ -99,8 +99,8 @@ Anything not listed is internal and free to change.
 - `packages/core/ssg/tests/enumerate.test.ts`
 - `packages/core/ssg/tests/locales.test.ts`
 - `packages/core/ssg/tests/paths.test.ts`
+- `packages/core/tests/app_file.test.ts`
 - `packages/core/tests/app_file_load_failures.test.ts`
-- `packages/core/tests/app_file_url.test.ts`
 - `packages/core/tests/app_fluent_api.test.ts`
 - `packages/core/tests/app_refactoring_integration.test.ts`
 - `packages/core/tests/auth.test.ts`
