@@ -37,13 +37,13 @@ application installs it, or the feature stays off.
 
 <!-- generated:surface -->
 
-| Kind      | Exports                                                                                                                                                                                                 |
-| :-------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| class     | `Database`, `Factory`, `MalformedCursorError`                                                                                                                                                           |
-| function  | `assertNotProduction`, `decodeCursor`, `encodeCursor`, `paginate`, `registerDrizzleCommands`, `resolveDialect`                                                                                          |
-| interface | `CommandSpec`, `ConnectionOptions`, `ConnectionResult`, `CursorPaginateOptions`, `DbConnection`, `DecodedCursor`, `DriverHandle`, `DrizzleCommandDeps`, `FactoryCreateOptions`, `OffsetPaginateOptions` |
-| typeAlias | `CommandRunner`, `DatabaseSchema`, `Dialect`, `DialectDatabase`, `DriverFactory`, `SeederLoader`                                                                                                        |
-| variable  | `ALLOW_PRODUCTION_FLAG`, `CLIENT_PACKAGE`                                                                                                                                                               |
+| Kind      | Exports                                                                                                                                                                                                                                                             |
+| :-------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| class     | `Database`, `Factory`, `MalformedCursorError`                                                                                                                                                                                                                       |
+| function  | `assertNotProduction`, `decodeCursor`, `encodeCursor`, `paginate`, `registerDrizzleCommands`, `resolveDialect`                                                                                                                                                      |
+| interface | `CommandSpec`, `ConnectionOptions`, `ConnectionResult`, `CursorPaginateOptions`, `DbConnection`, `DecodedCursor`, `DriverHandle`, `DrizzleCommandDeps`, `FactoryCreateOptions`, `MigrateOptions`, `MigrationSettings`, `OffsetPaginateOptions`, `SchemaMaintenance` |
+| typeAlias | `CommandRunner`, `DatabaseSchema`, `Dialect`, `DialectDatabase`, `DriverFactory`, `KitDialect`, `MaintenanceOpener`, `MaintenanceSession`, `MigrationConfigLoader`, `SeederLoader`                                                                                  |
+| variable  | `ALLOW_PRODUCTION_FLAG`, `CLIENT_PACKAGE`                                                                                                                                                                                                                           |
 
 Anything not listed is internal and free to change.
 
@@ -51,26 +51,35 @@ Anything not listed is internal and free to change.
 
 ## Where to work
 
-| Concern                                                  | Path              |
-| -------------------------------------------------------- | ----------------- |
-| Service and public API                                   | `mod.ts`          |
-| DSN check run before any driver factory (#425)           | `dsn.ts`          |
-| Dialects, default driver factories, `loadClient`         | `drivers.ts`      |
-| `db:migrate` / `db:rollback` / `db:seed`                 | `cli_commands.ts` |
-| `make:model` / `make:seeder` / `make:factory` generators | `generators/`     |
-| Project bootstrap                                        | `install.ts`      |
-| Generated file templates                                 | `stubs/`          |
+| Concern                                                   | Path                    |
+| --------------------------------------------------------- | ----------------------- |
+| Service and public API                                    | `mod.ts`                |
+| DSN check run before any driver factory (#425)            | `dsn.ts`                |
+| Dialects, default driver factories, `loadClient`          | `drivers.ts`            |
+| `db:*` command wiring, seams and the production guard     | `cli_commands.ts`       |
+| `db:fresh` reset policy: scope, planners, refusals (#435) | `reset.ts`              |
+| `db:fresh` settings read from `drizzle.config.ts`         | `migration_settings.ts` |
+| `make:model` / `make:seeder` / `make:factory` generators  | `generators/`           |
+| Project bootstrap                                         | `install.ts`            |
+| Generated file templates                                  | `stubs/`                |
 
 ## Pitfalls
 
-- The `db:*` commands are tested hermetically through the three seams of
-  `registerDrizzleCommands` (command runner, connection, seeder loader) — no
-  real database or `drizzle-kit` process. A new command gets a seam, not a
-  spawned process, in its test.
+- The `db:*` commands are tested hermetically through the seams of
+  `registerDrizzleCommands` (command runner, connection, seeder loader, and for
+  `db:fresh` the config loader and maintenance opener) — no real database or
+  `drizzle-kit` process. A new command gets a seam, not a spawned process, in
+  its test.
 - A `db:*` failure is a thrown `CommandFailedError`, never a printed `❌` and a
   return — that exits 0 and CI reads it as success (#428). Import the class from
   `@lockness/cli/command-failure`, not the barrel: `mod.ts` re-exports these
   commands and core loads this package at boot.
+- `db:fresh` never shells out to `drizzle-kit`: it resets through
+  `DriverHandle.maintenance` and runs drizzle-orm's migrator in-process (#435).
+  `drizzle-kit drop` deletes a migration file — never call it. The `drizzle-kit`
+  the other commands run is pinned exactly at `DRIZZLE_KIT_SPECIFIER` (#437);
+  the init kits and the root `deno.jsonc` must map the same one, and a test
+  checks it.
 - `drizzle-kit check` (behind `db:status`) validates the migrations folder only;
   it never reads the schema or the database. Do not word `db:status` as a drift
   or pending-migrations check.
@@ -83,18 +92,22 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-10 test files for 12 source files:
+14 test files for 14 source files:
 
 - `packages/drizzle/tests/cli_commands.test.ts`
 - `packages/drizzle/tests/database.test.ts`
 - `packages/drizzle/tests/dsn.test.ts`
 - `packages/drizzle/tests/factory.test.ts`
+- `packages/drizzle/tests/fresh_libsql.test.ts`
 - `packages/drizzle/tests/install.test.ts`
+- `packages/drizzle/tests/maintenance.test.ts`
 - `packages/drizzle/tests/make_factory.test.ts`
 - `packages/drizzle/tests/make_model_dialect.test.ts`
+- `packages/drizzle/tests/migration_settings.test.ts`
 - `packages/drizzle/tests/multi_db.test.ts`
 - `packages/drizzle/tests/paginate.test.ts`
 - `packages/drizzle/tests/production_guard.test.ts`
+- `packages/drizzle/tests/reset.test.ts`
 
 <!-- /generated:tests -->
 
@@ -109,7 +122,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 10 test files directly —
+Then, specific to this package: run its 14 test files directly —
 
 ```bash
 deno test -A packages/drizzle/
