@@ -228,7 +228,10 @@ DATABASE_URL=postgres://user:password@localhost:5432/mydb
 After initializing:
 
 1. **Configure Database**: Update `DATABASE_URL` in `.env`
-2. **Install Packages**: `./nessy package:install drizzle`
+2. **Set Up the Database Layer**: the web and api kits already register
+   `drizzle` and ship a `drizzle.config.ts`, so apply their migrations with
+   `deno task db:migrate`. The slim kit ships no database; add it with
+   `./nessy package:install drizzle`
 3. **Generate Code**: `./nessy make:controller User`
 4. **Start Development**: `deno task dev`
 
