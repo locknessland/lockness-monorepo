@@ -103,6 +103,51 @@ jobs:
               # and each test opens four sockets.
               run: deno task test:redis -- --trace-leaks
 
+    live-postgres:
+        name: Live Postgres integration
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+
+        # The db:fresh R7 census (#435) classifies objects through pg_depend
+        # and pg_identify_object; only a real server proves that. Without this
+        # job nothing sets LOCKNESS_POSTGRES_INTEGRATION and the suite skips
+        # forever, the same trap the live-redis job above exists to close.
+        services:
+            postgres:
+                # 16: the census relies on pg_identify_object over every
+                # pg_depend row, and the suite needs a superuser for its event
+                # trigger case — the image's default role is one.
+                image: postgres:16
+                env:
+                    # Throwaway CI container, reachable from the runner only:
+                    # trust auth, so no credential is written anywhere.
+                    POSTGRES_HOST_AUTH_METHOD: trust
+                ports:
+                    - 5432:5432
+                options: >-
+                    --health-cmd "pg_isready -U postgres"
+                    --health-interval 5s
+                    --health-timeout 3s
+                    --health-retries 10
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+            - name: Setup Deno
+              uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2
+              with:
+                  deno-version: v2.x
+
+            - name: Run the live-postgres suite
+              # Set HERE, in the workflow file, never from anything a fork's
+              # pull request can influence. The suite refuses a non-loopback
+              # host: it drops schemas.
+              env:
+                  LOCKNESS_POSTGRES_URL: postgres://postgres@127.0.0.1:5432/postgres
+              run: deno task test:postgres -- --trace-leaks
+
     mutations:
         name: Mutation batteries
         runs-on: ubuntu-latest
