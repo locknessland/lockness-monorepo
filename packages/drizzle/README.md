@@ -136,9 +136,9 @@ deno task cli db:fresh
 
 `db:fresh` reads `drizzle.config.ts` (`dialect`, `out`, `dbCredentials.url`,
 `migrations.table`, `migrations.schema`, `schemaFilter`), then empties a managed
-scope and runs drizzle-orm's own migrator, in one process on one connection. It
-spawns nothing, never prompts, and never writes to the migrations folder. It
-drops:
+scope and runs drizzle-orm's own migrator, in one process and from one
+configuration. It spawns nothing, never prompts, and never writes to the
+migrations folder. It drops:
 
 | Dialect         | What is dropped                                                                                                                                                  |
 | :-------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------- |

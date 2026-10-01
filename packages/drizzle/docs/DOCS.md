@@ -458,12 +458,16 @@ deno task cli db:push
 
 ### `db:fresh`
 
-`db:fresh` resets and migrates in one process, over one connection. It reads
+`db:fresh` resets and migrates in one process, from one configuration. It reads
 `drizzle.config.ts` — `dialect`, `out`, `dbCredentials.url`, `migrations.table`,
 `migrations.schema` and `schemaFilter` — empties a managed scope, then runs
-drizzle-orm's own migrator on the same connection. It spawns no process and
-calls no prompt API, so it behaves the same with or without a TTY. The
-migrations folder is only read. There is no countdown.
+drizzle-orm's own migrator against the same database. The steps do not yet share
+one connection: on postgres the catalogue is read before the reset transaction
+opens, and on MySQL the reads and the migrate use the pool while the reset runs
+on its own connection, so a pooled connection switched to another database would
+migrate there (tracked in #447). It spawns no process and calls no prompt API,
+so it behaves the same with or without a TTY. The migrations folder is only
+read. There is no countdown.
 
 "Fresh" empties a **managed scope**, not "what the migrations created":
 
