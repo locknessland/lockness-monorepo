@@ -6,12 +6,13 @@
  * suite pins the URL it builds and that it loads from a module served over
  * HTTP (`packages/contract/tests/app_file.test.ts`). These tests pin that each
  * site really goes through it: a hand-built `` `file://${path}` `` makes the
- * `#` a fragment and silently loads a different, truncated path. The source
- * scan at the end guards the two shapes `deno publish` rewrites.
+ * `#` a fragment and silently loads a different, truncated path. The shapes
+ * `deno publish` rewrites are guarded across every package by the
+ * `lockness/app-file-specifier` lint rule (`scripts/lint/`).
  */
 
 import { assert, assertEquals, assertNotStrictEquals } from '@std/assert'
-import { fromFileUrl, join } from '@std/path'
+import { join } from '@std/path'
 import { ErrorHandlerRegistry } from '../exceptions/handler.ts'
 import { defaultErrorHandler } from '../exceptions/default_view.ts'
 import { discoverMiddlewares } from '../http/resolver.ts'
@@ -168,54 +169,4 @@ export class AppKernel { static [KERNEL_CONFIG] = { staticDir: 'public' } }
         const kernel = await loadKernel(abs)
         assertEquals(kernel?.config.staticDir, 'public')
     })
-})
-
-// ============================================================================
-// The source shapes `deno publish` rewrites, or `#` truncates
-// ============================================================================
-
-Deno.test('core source - builds no app file specifier by hand', async () => {
-    // A guard on the text, because the failure it prevents cannot be seen at
-    // runtime here: `deno publish` rewrites an `import()` whose argument is a
-    // template literal with a path-like prefix, and only a consumer loading
-    // the published module meets the result. `file://` concatenation is the
-    // `#`/`?` truncation. Comment lines are skipped: they describe the hazard.
-    const coreRoot = fromFileUrl(new URL('..', import.meta.url))
-    const forbidden: ReadonlyArray<readonly [RegExp, string]> = [
-        [/import\(\s*`/, 'import() with a template literal'],
-        [/file:\/\/\$\{/, '`file://${…}` string building'],
-        [/['"`]file:\/\/['"`]\s*\+/, "'file://' + … string building"],
-    ]
-    const offences: string[] = []
-
-    async function scan(dir: string): Promise<void> {
-        for await (const entry of Deno.readDir(dir)) {
-            const path = join(dir, entry.name)
-            if (entry.isDirectory) {
-                if (entry.name !== 'tests' && entry.name !== 'docs') {
-                    await scan(path)
-                }
-                continue
-            }
-            if (!/\.(ts|tsx|js)$/.test(entry.name)) continue
-            if (entry.name.endsWith('.test.ts')) continue
-            const lines = (await Deno.readTextFile(path)).split('\n')
-            lines.forEach((line, index) => {
-                const code = line.trim()
-                if (code.startsWith('//') || code.startsWith('*')) return
-                for (const [pattern, label] of forbidden) {
-                    if (pattern.test(code)) {
-                        offences.push(
-                            `${path.slice(coreRoot.length)}:${
-                                index + 1
-                            }: ${label}`,
-                        )
-                    }
-                }
-            })
-        }
-    }
-
-    await scan(coreRoot)
-    assertEquals(offences, [], 'use importAppFile() from @lockness/contract')
 })
