@@ -142,7 +142,7 @@ export abstract class TokenProviderBase<User extends Authenticatable>
      * @returns The bytes, lowercase hex.
      */
     // deno-lint-ignore require-await
-    protected async generateTokenValue(
+    async #generateTokenValue(
         lengthInBytes: number = DEFAULT_TOKEN_LENGTH,
     ): Promise<string> {
         const bytes = new Uint8Array(lengthInBytes)
@@ -161,7 +161,7 @@ export abstract class TokenProviderBase<User extends Authenticatable>
      * @param token - The plaintext.
      * @returns The digest, lowercase hex (64 characters).
      */
-    protected async hashTokenValue(token: string): Promise<string> {
+    async #hashTokenValue(token: string): Promise<string> {
         const encoder = new TextEncoder()
         const data = encoder.encode(token)
         const hashBuffer = await crypto.subtle.digest('SHA-256', data)
@@ -271,11 +271,11 @@ export abstract class TokenProviderBase<User extends Authenticatable>
             )
         }
 
-        const value = await this.generateTokenValue(this.#tokenLength)
+        const value = await this.#generateTokenValue(this.#tokenLength)
         const stored = await this.insertTokenRecord({
             userId: user.id,
             name,
-            hash: await this.hashTokenValue(value),
+            hash: await this.#hashTokenValue(value),
             expiresAt,
             lastUsedAt: null,
             createdAt: now,
@@ -293,6 +293,8 @@ export abstract class TokenProviderBase<User extends Authenticatable>
      * @param tokenValue - The plaintext from `Authorization: Bearer`.
      * @returns The user and the token (`value` is `''`: the plaintext is not
      * recoverable), or `null` when the token does not verify.
+     * @throws Whatever `findTokenRecordByHash` or `findById` throws — a
+     * storage failure is propagated, never turned into an allow or a `null`.
      */
     async verifyToken(
         tokenValue: string,
@@ -301,7 +303,7 @@ export abstract class TokenProviderBase<User extends Authenticatable>
         // One clock read per call: expiry and last use agree on "now".
         const now = new Date()
 
-        const hash = await this.hashTokenValue(tokenValue)
+        const hash = await this.#hashTokenValue(tokenValue)
         const row = await this.findTokenRecordByHash(hash)
         if (!row) return null
         // Defence in depth against a binding that returns the wrong row.
