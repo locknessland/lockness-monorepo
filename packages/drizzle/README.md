@@ -164,16 +164,16 @@ On MySQL, `DATABASE()` and the table list are read in one statement, and every
 It is refused in production unless you pass `--allow-production`, the same guard
 as `db:seed`. It is also refused, before anything is dropped, when the config
 cannot be loaded, has no `out` or names a `driver`; when `dbCredentials` is
-missing, holds keys besides `url`, or its `url` is missing, not a string, empty
-or only whitespace (as `Deno.env.get('DATABASE_URL') ?? ''` is with the variable
-unset); when the migrations journal or a file it lists is missing; when the
-driver has no schema-maintenance support; when MySQL has no database selected,
-or selects a system database (`mysql`, `sys`, `performance_schema`,
-`information_schema`); and, on postgres, when `schemaFilter` or
-`migrations.schema` names a system schema (`information_schema` or any `pg_*`),
-or a migration creates a schema outside `schemaFilter`. A config that cannot be
-imported is refused without its error text, which may quote the DSN. There is no
-countdown any more.
+missing or not an object, holds keys besides `url`, or its `url` is missing, not
+a string, empty or only whitespace (as `Deno.env.get('DATABASE_URL') ?? ''` is
+with the variable unset); when the migrations journal or a file it lists is
+missing; when the driver has no schema-maintenance support; when MySQL has no
+database selected, or selects a system database (`mysql`, `sys`,
+`performance_schema`, `information_schema`); and, on postgres, when
+`schemaFilter` or `migrations.schema` names a system schema
+(`information_schema` or any `pg_*`), or a migration creates a schema outside
+`schemaFilter`. A config that cannot be imported is refused without its error
+text, which may quote the DSN. There is no countdown any more.
 
 **Push schema (no migrations):**
 

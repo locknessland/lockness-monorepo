@@ -536,10 +536,10 @@ before it reads the config or connects.
   the file directly to see the error.
 - `dbCredentials` does not name one database. Each fault has its own message,
   and none quotes the URL: `dbCredentials` is not set or is not an object;
-  `dbCredentials.url` is not set or is not a string; it holds keys besides
-  `url`; or `dbCredentials.url` is **empty or only whitespace**. A driver given
-  no URL falls back to its own default target, so an empty URL would reset a
-  database the config never named. It is what
+  `dbCredentials.url` is not set or is not a string; `dbCredentials` holds keys
+  besides `url`; or `dbCredentials.url` is **empty or only whitespace**. A
+  driver given no URL falls back to its own default target, so an empty URL
+  would reset a database the config never named. It is what
   `url: Deno.env.get('DATABASE_URL') ?? ''` yields with the variable unset,
   which is why its message points at the variable.
 - The migrations journal (`meta/_journal.json`), or a file it lists, is missing:
