@@ -31,7 +31,10 @@
  * boots it with `JSR_URL` set and a fresh `DENO_DIR`. Then it asks for an
  * unknown path and expects core's HTML 404, and fails the kit if the registry
  * was asked for any of the kit's own files — the sign that core resolved an
- * app-local import against its own URL (#474). Only `HEAD` is tested, never
+ * app-local import against its own URL (#474). Then it runs the kit's
+ * `router:list`, which must list a route the kit defines, under the same rule:
+ * the first step where the cli package, loaded from the registry, imports an
+ * app file (#477). Only `HEAD` is tested, never
  * uncommitted edits. It does not type-check or test the kits: the default mode
  * does that.
  *
@@ -709,6 +712,84 @@ export function appPathRequests(
     )
 }
 
+/**
+ * A route each kit's own controller stubs define, by name, that `router:list`
+ * must print once the kit runs from the registry (#477).
+ *
+ * Booting proves core loads app files from a published package; `router:list`
+ * is the first step where the cli package itself, loaded from the registry,
+ * imports one.
+ */
+export const ROUTER_LIST_ROUTE: Readonly<Record<KitName, string>> = {
+    web: 'auth.login',
+    api: 'health',
+    slim: 'hello',
+}
+
+/**
+ * Judge a kit's `router:list` run: it must exit 0 and list `route`.
+ *
+ * The name column is padded with spaces, so ` <route> ` matches that name
+ * and not a longer one it prefixes (`auth.login` vs `auth.login.submit`).
+ *
+ * @param ok - Whether the command exited 0.
+ * @param output - Everything it printed.
+ * @param route - The route name the kit's stubs define.
+ * @returns The verdict, with the output's tail on failure.
+ *
+ * @example
+ * ```ts
+ * judgeRouterList(true, '┃ GET ┃ /hello ┃ hello ┃ …', 'hello').ok // true
+ * judgeRouterList(true, '⚠️  No controllers found', 'hello').ok   // false
+ * ```
+ */
+export function judgeRouterList(
+    ok: boolean,
+    output: string,
+    route: string,
+): StepResult {
+    if (!ok) {
+        return {
+            ok: false,
+            detail: `router:list exited non-zero\n${tail(output)}`,
+        }
+    }
+    if (!output.includes(` ${route} `)) {
+        return {
+            ok: false,
+            detail: `router:list did not list the route "${route}"\n${
+                tail(output)
+            }`,
+        }
+    }
+    return { ok: true, detail: `router:list lists "${route}"` }
+}
+
+/**
+ * Print whether a step's share of the registry log requested an app file.
+ *
+ * @param lines - The registry log lines logged during the step.
+ * @param appDirs - The kit's directory, in every spelling (see
+ * {@link appPathRequests}).
+ * @returns `true` when no app file was requested.
+ */
+function reportLeaks(
+    lines: readonly string[],
+    appDirs: readonly string[],
+): boolean {
+    const leaked = appPathRequests(lines, appDirs)
+    if (leaked.length === 0) {
+        console.log('  ✅ no app file requested from the registry')
+        return true
+    }
+    console.log(
+        `  ❌ app files requested from the registry\n${
+            leaked.map((line) => `     ${line}`).join('\n')
+        }`,
+    )
+    return false
+}
+
 /** Ask a running kit for {@link MISSING_PATH}. */
 async function notFoundIsHtml(origin: string): Promise<StepResult> {
     const response = await fetch(`${origin}${MISSING_PATH}`)
@@ -938,23 +1019,31 @@ async function smokeAgainstRegistry(
                 probe: notFoundIsHtml,
             })
             console.log(`  ${booted.ok ? '✅' : '❌'} boots — ${booted.detail}`)
-            if (!booted.ok) failed.push(kit)
+            let kitOk = booted.ok
+            const appDirs = [scaffold.dir, await Deno.realPath(scaffold.dir)]
             // Booting is not enough: a kit whose app file was resolved
             // against the registry still boots, without that file (#474).
-            const leaked = appPathRequests(registryLog.slice(logStart), [
+            kitOk = reportLeaks(registryLog.slice(logStart), appDirs) && kitOk
+
+            // The cli, loaded from the registry, importing the kit's
+            // controllers (#477).
+            const listStart = registryLog.length
+            const listed = await run(
+                'deno',
+                ['task', 'cli', 'router:list'],
                 scaffold.dir,
-                await Deno.realPath(scaffold.dir),
-            ])
-            if (leaked.length > 0) {
-                console.log(
-                    `  ❌ app files requested from the registry\n${
-                        leaked.map((line) => `     ${line}`).join('\n')
-                    }`,
-                )
-                if (booted.ok) failed.push(kit)
-            } else {
-                console.log('  ✅ no app file requested from the registry')
-            }
+                env,
+            )
+            const listing = judgeRouterList(
+                listed.ok,
+                listed.output,
+                ROUTER_LIST_ROUTE[kit],
+            )
+            console.log(`  ${listing.ok ? '✅' : '❌'} ${listing.detail}`)
+            kitOk = listing.ok && kitOk
+            kitOk = reportLeaks(registryLog.slice(listStart), appDirs) && kitOk
+
+            if (!kitOk) failed.push(kit)
         }
 
         console.log(

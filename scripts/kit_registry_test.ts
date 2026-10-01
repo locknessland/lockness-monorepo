@@ -9,14 +9,42 @@
 
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import { fromFileUrl } from '@std/path'
+import { type KitName, KITS } from '@lockness/init'
 import {
     appPathRequests,
     judgeNotFound,
+    judgeRouterList,
     missingFromRegistry,
     publishableMembers,
     publishToRegistry,
+    ROUTER_LIST_ROUTE,
 } from './kit_smoke.ts'
 import { LocalJsrStore } from './local_jsr.ts'
+
+Deno.test('judgeRouterList passes only a zero exit that lists the route', () => {
+    const table =
+        '┃ GET    ┃ /auth/login ┃ auth.login        ┃ AuthController ┃'
+    assert(judgeRouterList(true, table, 'auth.login').ok)
+    assert(!judgeRouterList(false, table, 'auth.login').ok)
+    assert(!judgeRouterList(true, '⚠️  No controllers found', 'hello').ok)
+    // A longer name the route prefixes is not the route.
+    assert(!judgeRouterList(true, '┃ auth.login.submit ┃', 'auth.login').ok)
+})
+
+Deno.test('ROUTER_LIST_ROUTE names a route each kit stub defines', async () => {
+    const stubs = new URL('../packages/init/stubs/kits/', import.meta.url)
+    for (const [kit, route] of Object.entries(ROUTER_LIST_ROUTE)) {
+        let found = false
+        for (const stub of KITS[kit as KitName].overlay) {
+            if (!stub.startsWith('app/controller/')) continue
+            const source = await Deno.readTextFile(
+                new URL(`${kit}/${stub}`, stubs),
+            )
+            if (source.includes(`name: '${route}'`)) found = true
+        }
+        assert(found, `${kit} defines no route named ${route}`)
+    }
+})
 
 const ROOT = fromFileUrl(new URL('..', import.meta.url))
 
