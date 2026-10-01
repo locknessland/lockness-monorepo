@@ -1,6 +1,6 @@
 {
     "name": "@lockness/testing",
-    "version": "0.4.0",
+    "version": "0.4.1",
     "license": "MIT",
     "exports": "./mod.ts",
     "tasks": {
@@ -14,9 +14,9 @@
     },
     "imports": {
         "@std/assert": "jsr:@std/assert@1",
-        "@lockness/hono": "jsr:@lockness/hono@^0.4.0",
-        "hono": "jsr:@lockness/hono@^0.4.0",
-        "@lockness/auth": "jsr:@lockness/auth@^0.4.0"
+        "@lockness/hono": "jsr:@lockness/hono@^0.4.1",
+        "hono": "jsr:@lockness/hono@^0.4.1",
+        "@lockness/auth": "jsr:@lockness/auth@^0.4.1"
     },
     "description": "Test-support harness for Lockness applications \u2014 HTTP test client, actingAs, fakes and DB assertions. Import it from your tests only; nothing here is meant to run in production."
 }
