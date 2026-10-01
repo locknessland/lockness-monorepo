@@ -21,6 +21,14 @@
 //   count and the reason it must stay computed. `deno task publish:check`
 //   compares it with the workspace dry-run and fails on any drift (#463).
 //
+// `jsx` — the reason a package may PUBLISH a `.tsx` at all. Under
+//   `"jsx": "precompile"`, Deno transpiles a JSR `.tsx` with the CONSUMING
+//   app's `jsxImportSource`, ignoring the pragma `deno publish` wrote into it,
+//   so a `.tsx` reached by an app without JSX of its own fails that app at
+//   load (#470). `deno task publish:check` fails on a published `.tsx` with no
+//   entry, and on an entry whose package publishes no `.tsx` any more. Never
+//   put a double slash in a reason: `deps_analyzer.ts` strips it as a comment.
+//
 // Widening this file is a `chore(deps)` commit of its own — never bundled with
 // the change that needed the widening.
 {
@@ -87,7 +95,8 @@
         "deprecation-contracts": { "tier": "implementation", "allow": [] },
         "devtools": {
             "tier": "implementation",
-            "allow": ["hono", "contract", "events", "session"]
+            "allow": ["hono", "contract", "events", "session"],
+            "jsx": "KNOWN DEFECT, not a justification: an app without JSX that enables devtools (the slim kit with devtools: true) fails to load these .tsx the same way core did. Tracked as the #470 follow-up (devtools .tsx in no-JSX apps): convert devtools to .ts, or withdraw the no-JSX devtools claim."
         },
         "drizzle": {
             "tier": "implementation",
@@ -128,7 +137,11 @@
                 }
             }
         },
-        "markdown": { "tier": "implementation", "allow": ["hono"] },
+        "markdown": {
+            "tier": "implementation",
+            "allow": ["hono"],
+            "jsx": "renders markdown to JSX components, so its consumers are JSX apps by definition. Accepted residue: an entry file whose own graph has no .tsx still fails to load it."
+        },
         // `notification` is a pure sink: nothing imports it, so it cannot close
         // a cycle. Its channel backing packages are declared `soft` — each is
         // loaded on demand through one variable-specifier `tryImport`, so a
@@ -200,6 +213,7 @@
         "ui": {
             "tier": "implementation",
             "allow": ["hono", "markdown"],
+            "jsx": "a JSX component library, so its consumers are JSX apps by definition. Accepted residue: an entry file whose own graph has no .tsx still fails to load it.",
             "runtimeImports": {
                 "doc_loader.ts": {
                     "sites": 1,
