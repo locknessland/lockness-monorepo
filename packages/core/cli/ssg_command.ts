@@ -14,6 +14,7 @@
 
 import { join, resolve } from '@std/path'
 import { KERNEL_CONFIG } from '../kernel/kernel_decorators.ts'
+import { appFileUrl } from '../app_file_url.ts'
 import { createApp } from '../kernel/loader.ts'
 import type { KernelConfig } from '../kernel/kernel_decorators.ts'
 import type { RouteInfo } from '../app.ts'
@@ -110,7 +111,7 @@ export async function loadKernel(
     for (const candidate of KERNEL_CANDIDATES) {
         const path = join(baseDir, candidate)
         if (!(await fileExists(path))) continue
-        const module = await import(`file://${path}`)
+        const module = await import(appFileUrl(path))
         const found = findKernel(module)
         if (found) return found
     }

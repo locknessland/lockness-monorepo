@@ -16,6 +16,8 @@ import type {
 } from '../types.ts'
 import { declaredMiddlewares } from '../routing/decorators.ts'
 import { renderError, safeForLog } from '../logging/sanitize.ts'
+import { appFileUrl } from '../app_file_url.ts'
+import { resolve } from '@std/path'
 
 /**
  * Discovers middlewares decorated with @DeclareMiddleware from a directory.
@@ -35,10 +37,8 @@ export async function discoverMiddlewares(
 ): Promise<number> {
     const startCount = declaredMiddlewares.size
 
-    // Resolve directory to absolute path
-    const absoluteDir = directory.startsWith('/')
-        ? directory
-        : `${Deno.cwd()}/${directory.replace(/^\.\//, '')}`
+    // Anchored at the app root (#474)
+    const absoluteDir = resolve(Deno.cwd(), directory)
 
     // Find all .ts and .tsx files in the directory
     const names: string[] = []
@@ -71,7 +71,7 @@ export async function discoverMiddlewares(
     // route running without its middleware.
     for (const name of names) {
         try {
-            await import(`file://${absoluteDir}/${name}`)
+            await import(appFileUrl(name, absoluteDir))
         } catch (error) {
             console.error(
                 `❌ Middleware file ${

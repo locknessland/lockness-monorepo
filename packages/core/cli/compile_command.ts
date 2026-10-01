@@ -13,6 +13,7 @@
 import { dirname, join, relative } from '@std/path'
 import { copy, ensureDir, exists, walk } from '@std/fs'
 import { KERNEL_CONFIG } from '../kernel/kernel_decorators.ts'
+import { appFileUrl } from '../app_file_url.ts'
 import { generateRoutesFile } from '../routing/generator.ts'
 
 /**
@@ -47,7 +48,7 @@ export class CompileCommand implements CommandContract {
         }
 
         try {
-            const module = await import(`file://${kernelPath}`)
+            const module = await import(appFileUrl(kernelPath))
             const KernelClass = Object.values(module).find(
                 (m: any) => m && m[KERNEL_CONFIG],
             ) as any
