@@ -75,6 +75,15 @@ export const LOCAL_JSR_SCOPE = 'lockness'
 /** Where every scope other than {@link LOCAL_JSR_SCOPE} is read from. */
 export const JSR_UPSTREAM = 'https://jsr.io'
 
+/**
+ * Scope, package-name and version shapes JSR accepts. Nothing else is stored,
+ * served or passed upstream. Lowercase only: `@Lockness` is not `@lockness`
+ * to JSR, and must not reach jsr.io as a way around the local 404.
+ */
+const SCOPE = /^[a-z0-9][a-z0-9-]*$/
+const NAME = /^[a-z0-9][a-z0-9-]*$/
+const VERSION = /^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$/
+
 /** Bytes backed by a plain `ArrayBuffer`, as Web Crypto and `Response` want them. */
 export type Bytes = Uint8Array<ArrayBuffer>
 
@@ -238,7 +247,10 @@ export type Route =
         version: string
         path: string
     }
-    | { kind: 'other' }
+    /** Another scope's path JSR serves, sent to the upstream as-is. */
+    | { kind: 'upstream' }
+    /** Anything else: answered 404 here, never sent upstream. */
+    | { kind: 'notServed' }
     | { kind: 'malformed' }
 
 /**
@@ -289,8 +301,21 @@ export function parseRoute(method: string, pathname: string): Route {
     }
 
     const [first, name, second, ...rest] = parts
-    if (!first?.startsWith('@') || !name || !second) return { kind: 'other' }
-    const scope = first.slice(1)
+    const scope = first?.startsWith('@') ? first.slice(1) : undefined
+    // Only `/@<scope>/<name>/…` with a JSR-shaped scope and name is ever
+    // answered, here or upstream. `//host/x` (an empty first segment) would
+    // otherwise become `https://host/x` once joined to the upstream URL.
+    if (
+        scope === undefined || !SCOPE.test(scope) || !name || !NAME.test(name)
+    ) {
+        // `@Lockness`, `@LOCKNESS`: never sent upstream under another case.
+        return { kind: 'notServed' }
+    }
+    if (second === undefined || second === '') {
+        return scope === LOCAL_JSR_SCOPE || rest.length > 0
+            ? { kind: 'notServed' }
+            : { kind: 'upstream' }
+    }
     if (second === 'meta.json' && rest.length === 0) {
         return { kind: 'packageMeta', scope, name }
     }
@@ -307,7 +332,11 @@ export function parseRoute(method: string, pathname: string): Route {
             path: `/${rest.join('/')}`,
         }
     }
-    return { kind: 'other' }
+    // Any other shape under our own scope (a trailing slash, a bare
+    // version) is ours to refuse, never jsr.io's to answer.
+    return scope === LOCAL_JSR_SCOPE
+        ? { kind: 'notServed' }
+        : { kind: 'upstream' }
 }
 
 /**
@@ -457,10 +486,6 @@ function apiError(status: number, code: string, message: string): Response {
     return Response.json({ code, message }, { status })
 }
 
-/** Package names and versions JSR would accept; nothing else is stored. */
-const NAME = /^[a-z0-9][a-z0-9-]*$/
-const VERSION = /^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$/
-
 /** Options for {@link createLocalJsrHandler}. */
 export interface LocalJsrHandlerOptions {
     /** Where uploads go and reads come from. */
@@ -523,6 +548,12 @@ export function createLocalJsrHandler(
             return apiError(405, 'methodNotAllowed', 'read-only passthrough')
         }
         const target = new URL(url.pathname + url.search, upstream)
+        // Belt and braces behind parseRoute: whatever the path, the request
+        // goes to the upstream's origin or nowhere.
+        if (target.origin !== upstream.origin) {
+            log(`400 ${url.pathname}: would leave ${upstream.origin}`)
+            return apiError(400, 'offOrigin', 'passthrough stays on jsr.io')
+        }
         try {
             const response = await fetchUpstream(target, {
                 method: request.method,
@@ -642,8 +673,11 @@ export function createLocalJsrHandler(
             case 'unknownApi':
                 log(`404 ${request.method} ${url.pathname} (unmodelled API)`)
                 return apiError(404, 'notFound', 'not modelled')
-            case 'other':
+            case 'upstream':
                 return await passthrough(request, url)
+            case 'notServed':
+                log(`404 ${request.method} ${url.pathname} (not served)`)
+                return apiError(404, 'notFound', 'not served here')
         }
 
         if (route.scope !== LOCAL_JSR_SCOPE) {

@@ -179,7 +179,20 @@ Deno.test('parseRoute classifies every request the gate makes', () => {
             version: '0.4.0',
             path: '/exceptions/handler.ts',
         }],
-        ['GET', '/', { kind: 'other' }],
+        ['GET', '/@std/path/1.1.4/mod.ts', {
+            kind: 'file',
+            scope: 'std',
+            name: 'path',
+            version: '1.1.4',
+            path: '/mod.ts',
+        }],
+        ['GET', '/@std/path', { kind: 'upstream' }],
+        ['GET', '/', { kind: 'notServed' }],
+        ['GET', '//evil.example/x', { kind: 'notServed' }],
+        ['GET', '/@STD/path/meta.json', { kind: 'notServed' }],
+        ['GET', '/@lockness/core', { kind: 'notServed' }],
+        ['GET', '/@lockness/core/0.4.0/', { kind: 'notServed' }],
+        ['GET', '/@Lockness/core/meta.json', { kind: 'notServed' }],
         ['GET', '/%E0%A4%A', { kind: 'malformed' }],
     ]
     for (const [method, path, expected] of cases) {
@@ -318,6 +331,62 @@ Deno.test('every other scope is read from jsr.io, read-only', async () => {
     await post.body?.cancel()
     assertEquals(post.status, 405)
     assertEquals(upstream.length, 1)
+})
+
+Deno.test('the passthrough reaches jsr.io only, and only for /@<scope>/ paths', async () => {
+    const { at, upstream } = harness()
+    await publishCore(at)
+    for (
+        const path of [
+            '//evil.example/x',
+            '/\\evil.example/x',
+            '//evil.example',
+            '/',
+            '/robots.txt',
+            '/@STD/path/meta.json',
+            '/@lockness/core',
+            '/@lockness/core/',
+            '/@lockness/core/0.4.0/',
+            '/@lockness/core/meta.json/',
+            '/@lockness/core/0.4.0_meta.json/',
+            '/@lockness/',
+            '/@Lockness/core/meta.json',
+            '/@LOCKNESS/core/0.4.0/mod.ts',
+            '/%40Lockness/core/meta.json',
+        ]
+    ) {
+        const response = await at(path)
+        await response.body?.cancel()
+        assert(
+            response.status === 404 || response.status === 400,
+            `${path}: ${response.status}`,
+        )
+    }
+    assertEquals(upstream, [], 'none of these may leave the machine')
+
+    const allowed = await at('/@std/path/1.1.4/mod.ts')
+    await allowed.body?.cancel()
+    assertEquals(upstream, ['https://jsr.io/@std/path/1.1.4/mod.ts'])
+})
+
+Deno.test('a passthrough target off the upstream origin is refused', async () => {
+    const reached: string[] = []
+    const handler = createLocalJsrHandler({
+        store: new LocalJsrStore(),
+        publishToken: TOKEN,
+        // An upstream with a path: a relative join could still escape it.
+        upstream: 'https://jsr.io/',
+        fetchUpstream: (url) => {
+            reached.push(url.href)
+            return Promise.resolve(new Response('ok'))
+        },
+    })
+    const response = await handler(
+        new Request('http://127.0.0.1:4507/@std/path/meta.json'),
+    )
+    await response.body?.cancel()
+    assertEquals(response.status, 200)
+    assert(reached.every((href) => href.startsWith('https://jsr.io/')))
 })
 
 Deno.test('uploads are refused outside the scope, twice, or without exports', async () => {
