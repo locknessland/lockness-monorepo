@@ -123,6 +123,9 @@
         "@std/jsonc": "jsr:@std/jsonc@1",
         "@std/testing": "jsr:@std/testing@1",
         "@std/semver": "jsr:@std/semver@1",
+        // scripts/local_jsr.ts only: untars the bundles `deno publish` uploads
+        // to the localhost registry the kit boot gate runs against (#470).
+        "@std/tar": "jsr:@std/tar@^0.1.10",
         "@david/jsonc-morph": "jsr:@david/jsonc-morph@^0.3.0",
         "postgres": "npm:postgres@^3.4.4",
         "drizzle-orm": "npm:drizzle-orm@^0.36.3",

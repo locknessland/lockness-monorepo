@@ -25,6 +25,8 @@
     "jsr:@std/path@^1.1.4": "1.1.4",
     "jsr:@std/semver@*": "1.0.8",
     "jsr:@std/semver@1": "1.0.8",
+    "jsr:@std/streams@^1.0.17": "1.2.0",
+    "jsr:@std/tar@~0.1.10": "0.1.10",
     "jsr:@std/testing@1": "1.0.17",
     "jsr:@std/text@^1.0.16": "1.0.17",
     "jsr:@std/yaml@^1.0.10": "1.0.11",
@@ -169,6 +171,15 @@
     },
     "@std/semver@1.0.8": {
       "integrity": "dc830e8b8b6a380c895d53fbfd1258dc253704ca57bbe1629ac65fd7830179b7"
+    },
+    "@std/streams@1.2.0": {
+      "integrity": "256b934254778f2bf45f5713b934209ff29e9b4b7fd4ec095219966813758c5f"
+    },
+    "@std/tar@0.1.10": {
+      "integrity": "6bf907f3a4bc8bfef42973ba132d946756a6161ef6b914a9e1c06debe664db17",
+      "dependencies": [
+        "jsr:@std/streams"
+      ]
     },
     "@std/testing@1.0.17": {
       "integrity": "87bdc2700fa98249d48a17cd72413352d3d3680dcfbdb64947fd0982d6bbf681",
@@ -4533,6 +4544,7 @@
       "jsr:@std/jsonc@1",
       "jsr:@std/path@1",
       "jsr:@std/semver@1",
+      "jsr:@std/tar@~0.1.10",
       "jsr:@std/testing@1",
       "npm:@tailwindcss/cli@^4.1.18",
       "npm:clsx@2.1.1",
