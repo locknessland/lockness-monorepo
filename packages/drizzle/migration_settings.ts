@@ -11,8 +11,10 @@
  *   quote the DSN; only an identifier-shaped error name is shown); `out` is
  *   absent; `dbCredentials` is missing or not an object, holds anything
  *   besides `url`, or its `url` is missing, not a string, empty or blank
- *   (#449); a `driver` is named; or the dialect is not postgresql, mysql,
- *   sqlite or turso.
+ *   (#449), or names no database (#456): a postgresql or mysql url with
+ *   nothing in its path, or a sqlite or turso `file:` url with no path; a
+ *   `driver` is named; or the dialect is not postgresql, mysql, sqlite or
+ *   turso.
  * - **R3** — the journal, or a file it lists, is missing. The migrations are
  *   read up front with drizzle-orm's own `readMigrationFiles`: a database is
  *   never wiped that could not then be migrated.

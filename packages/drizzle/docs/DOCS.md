@@ -542,6 +542,26 @@ before it reads the config or connects.
   would reset a database the config never named. It is what
   `url: Deno.env.get('DATABASE_URL') ?? ''` yields with the variable unset,
   which is why its message points at the variable.
+- `dbCredentials.url` is not empty but **names no database**. A driver falls
+  back to a default target here too: postgres.js connects to `PGDATABASE`, or to
+  a database named after the OS user, and libsql opens a throwaway temporary
+  database. It is what
+  `` url: `postgres://localhost:5432/${Deno.env.get('DB_NAME') ?? ''}` `` yields
+  with the variable unset, so the message points at the variable the name is
+  built from, and quotes nothing from the URL.
+  - postgresql and mysql: the path after the host must name the database —
+    `postgres://`, `postgres:///`, `postgres://localhost:5432/`,
+    `postgres://localhost/` and `postgres://host?sslmode=require` are refused,
+    in either scheme spelling, as is a path that is only a dot segment (`/.`,
+    `/%2e`). The path is read the way the drivers read it, with the URL API. A
+    database named only in the query string (`?database=app`) is not read, and
+    neither is a URL with no `scheme://` part: name the database in the path.
+  - MySQL is checked here as well, not left to the `DATABASE()` check below, so
+    it is refused before a connection is opened. The `DATABASE()` check stays,
+    for a driver that selects no database by other means.
+  - sqlite and turso: a `file:` URL with no path (`file:`, `file://`) is
+    refused. A remote URL (`libsql://`, `https://`) names its database by host,
+    and `:memory:` is accepted.
 - The migrations journal (`meta/_journal.json`), or a file it lists, is missing:
   a database is never wiped that could not then be migrated.
 - The driver offers no schema maintenance (a custom `DriverFactory` need not).
