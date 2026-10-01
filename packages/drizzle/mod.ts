@@ -42,8 +42,15 @@ export type {
     CommandSpec,
     DbConnection,
     DrizzleCommandDeps,
+    MaintenanceOpener,
+    MaintenanceSession,
     SeederLoader,
 } from './cli_commands.ts'
+export type {
+    MigrationConfigLoader,
+    MigrationSettings,
+} from './migration_settings.ts'
+export type { KitDialect } from './generators/dialect_schema.ts'
 export { Factory } from './factory.ts'
 export type { FactoryCreateOptions } from './factory.ts'
 export {

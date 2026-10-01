@@ -29,6 +29,18 @@ import {
     ALLOW_PRODUCTION_FLAG,
     assertNotProduction,
 } from './production_guard.ts'
+import type { SchemaMaintenance } from './drivers.ts'
+import {
+    defaultLoadMigrationConfig,
+    loadMigrationSettings,
+    type MigrationConfigLoader,
+    type MigrationSettings,
+} from './migration_settings.ts'
+import {
+    describeResetScope,
+    FreshRefusedError,
+    resetDatabase,
+} from './reset.ts'
 
 /**
  * CLI command handler type.
@@ -101,7 +113,29 @@ export type SeederLoader = (
 ) => Promise<Record<string, unknown>>
 
 /**
- * The three injectable I/O seams of the Drizzle CLI commands.
+ * One open connection's schema-maintenance capability, plus the way to close
+ * it — what `db:fresh` resets and migrates through (#435).
+ */
+export type MaintenanceSession = SchemaMaintenance & {
+    /** Close the connection. Called on every path that opened it. */
+    close(): Promise<void>
+}
+
+/**
+ * Opens the connection `db:fresh` works on, from the settings read out of
+ * `drizzle.config.ts` — the same url and dialect `drizzle-kit` would use.
+ *
+ * @param settings - The validated `db:fresh` settings.
+ * @returns The open session.
+ * @throws When the client cannot be configured, or has no maintenance
+ *   capability (a refusal: nothing is dropped).
+ */
+export type MaintenanceOpener = (
+    settings: MigrationSettings,
+) => Promise<MaintenanceSession>
+
+/**
+ * The injectable I/O seams of the Drizzle CLI commands.
  *
  * Each field defaults to real I/O in {@link registerDrizzleCommands}; a test
  * overrides any subset to stay hermetic (no real database, process, or import).
@@ -116,6 +150,10 @@ export interface DrizzleCommandDeps {
     readonly runCommand: CommandRunner
     /** Seeder-loader port replacing `db:seed`'s dynamic import. */
     readonly loadSeeder: SeederLoader
+    /** `db:fresh`: loads the `drizzle.config.ts` default export. */
+    readonly loadMigrationConfig: MigrationConfigLoader
+    /** `db:fresh`: opens the connection it resets and migrates through. */
+    readonly openMaintenance: MaintenanceOpener
 }
 
 /**
@@ -201,6 +239,40 @@ const defaultLoadSeeder: SeederLoader = (relativePath) =>
     import(`file://${Deno.cwd()}/${relativePath}`)
 
 /**
+ * Production opener: configures the container's `Database` from the
+ * `drizzle.config.ts` url and dialect, and hands out its redacting
+ * maintenance capability.
+ *
+ * @param settings - The validated `db:fresh` settings.
+ * @returns The session; closing it closes the `Database`.
+ * @throws {Error} When the client cannot be configured (the redacted
+ *   `ConnectionResult.error`).
+ * @throws {FreshRefusedError} R4: the driver offers no maintenance
+ *   capability — a custom driver factory need not.
+ */
+const defaultOpenMaintenance: MaintenanceOpener = async (settings) => {
+    const db = container.get<Database>(Database)
+    const result = await db.connect(settings.url, {
+        driver: settings.dialect,
+        silent: true,
+    })
+    if (!result.success) {
+        throw new Error(
+            `Database not configured: ${result.error ?? 'unknown error'}`,
+        )
+    }
+    const maintenance = db.maintenance
+    if (!maintenance) {
+        await db.close()
+        throw new FreshRefusedError(
+            `the '${settings.dialect}' driver offers no schema maintenance ` +
+                '(a custom driver factory?)',
+        )
+    }
+    return { ...maintenance, close: () => db.close() }
+}
+
+/**
  * Extract error message from an unknown error.
  *
  * @param error - The error to extract message from
@@ -251,6 +323,101 @@ export async function createFile(
 // =============================================================================
 
 /**
+ * The production guard every destructive `db:*` command runs first, before it
+ * reads a config or opens a connection — one helper, so `db:seed` and
+ * `db:fresh` refuse with the same message shape.
+ *
+ * `assertNotProduction` stays a plain `Error` — `factory.ts` calls it at
+ * runtime, outside any CLI — so the command translates it here.
+ *
+ * @param command - The command name, embedded in the refusal.
+ * @param args - The command arguments; `--allow-production` overrides.
+ * @throws {CommandFailedError} When the environment is production and
+ *   `--allow-production` was not passed.
+ */
+function refuseInProduction(command: string, args: readonly string[]): void {
+    try {
+        assertNotProduction(command, args.includes(ALLOW_PRODUCTION_FLAG))
+    } catch (error) {
+        throw new CommandFailedError(getErrorMessage(error), { cause: error })
+    }
+}
+
+/**
+ * Handle `db:fresh` — empty the managed scope, then apply every migration,
+ * in one process over one connection (#435).
+ *
+ * Order: the production guard, the settings from `drizzle.config.ts` (R2,
+ * R3), the connection (R4), the reset (R5–R7), the migrate; the connection is
+ * closed on every path that opened it. Nothing is spawned and no prompt API
+ * is called, so the command behaves the same with or without a TTY. The
+ * migrations folder is only read.
+ *
+ * @param args - Command arguments (optional `--allow-production`).
+ * @param deps - The I/O seams.
+ * @throws {CommandFailedError} On any failure; a refusal says that nothing
+ *   was dropped, and a failed reset that the migrations were not run.
+ */
+async function handleFresh(
+    args: string[],
+    deps: DrizzleCommandDeps,
+): Promise<void> {
+    refuseInProduction('db:fresh', args)
+
+    let settings: MigrationSettings
+    try {
+        settings = await loadMigrationSettings(deps.loadMigrationConfig)
+    } catch (error) {
+        throw new CommandFailedError(getErrorMessage(error), { cause: error })
+    }
+
+    let session: MaintenanceSession
+    try {
+        session = await deps.openMaintenance(settings)
+    } catch (error) {
+        throw new CommandFailedError(
+            error instanceof FreshRefusedError
+                ? error.message
+                : `Could not open the database: ${getErrorMessage(error)}`,
+            { cause: error },
+        )
+    }
+
+    try {
+        console.log(`🗑️  Resetting ${describeResetScope(settings)}`)
+        try {
+            await resetDatabase(session, settings)
+        } catch (error) {
+            throw new CommandFailedError(
+                error instanceof FreshRefusedError
+                    ? error.message
+                    : 'Failed to empty the database; migrations were not run: ' +
+                        getErrorMessage(error),
+                { cause: error },
+            )
+        }
+
+        console.log(`🔄 Applying ${settings.migrations} migration(s)...`)
+        try {
+            await session.migrate({
+                folder: settings.folder,
+                table: settings.table,
+                schema: settings.schema,
+            })
+        } catch (error) {
+            throw new CommandFailedError(
+                'The database was emptied, but the migrations failed: ' +
+                    getErrorMessage(error),
+                { cause: error },
+            )
+        }
+        console.log('✅ Database refreshed successfully')
+    } finally {
+        await session.close()
+    }
+}
+
+/**
  * Handle db:seed command - run database seeders.
  *
  * Refuses to run against a production environment unless the
@@ -274,15 +441,7 @@ async function handleSeed(
     args: string[],
     deps: DrizzleCommandDeps,
 ): Promise<void> {
-    const allowProduction = args.includes(ALLOW_PRODUCTION_FLAG)
-    // Guard BEFORE opening a connection: refuse a production write outright.
-    // `assertNotProduction` stays a plain Error — `factory.ts` calls it at
-    // runtime, outside any CLI — so the command translates it here.
-    try {
-        assertNotProduction('db:seed', allowProduction)
-    } catch (error) {
-        throw new CommandFailedError(getErrorMessage(error), { cause: error })
-    }
+    refuseInProduction('db:seed', args)
 
     console.log('🌱 Running seeders...')
 
@@ -402,7 +561,7 @@ async function loadDatabaseSeeder(
  * - `db:studio` - Open Drizzle Studio GUI
  * - `db:status` - Check the migration history for consistency
  * - `db:check` - Test database connection
- * - `db:fresh` - Drop all tables and re-migrate
+ * - `db:fresh` - Empty the managed scope and apply every migration
  * - `db:seed` - Seed the database with test data
  * - `make:seeder` - Create a new database seeder
  * - `make:model` - Create a new Drizzle model
@@ -415,7 +574,8 @@ async function loadDatabaseSeeder(
  * @param cli - The CLI instance to register commands on
  * @param overrides - Optional I/O-seam overrides for testing; each unset field
  *   defaults to real I/O (the container-resolved connection, `Deno.Command`,
- *   and a dynamic seeder import).
+ *   a dynamic seeder import, the `drizzle.config.ts` import, and the
+ *   container's `Database` opened from it).
  *
  * @example
  * ```ts
@@ -436,6 +596,8 @@ export function registerDrizzleCommands(
         connect: initDatabase,
         runCommand: defaultRunCommand,
         loadSeeder: defaultLoadSeeder,
+        loadMigrationConfig: defaultLoadMigrationConfig,
+        openMaintenance: defaultOpenMaintenance,
         ...overrides,
     }
 
@@ -553,24 +715,8 @@ export function registerDrizzleCommands(
 
     cli.register(
         'db:fresh',
-        async () => {
-            console.log('🚨 WARNING: This will drop ALL tables and re-migrate')
-            console.log('⏳ Starting in 3 seconds... (Ctrl+C to cancel)')
-            await new Promise((resolve) => setTimeout(resolve, 3000))
-
-            console.log('🗑️  Dropping database...')
-            // A failed drop stops here: migrating on top of whatever is left
-            // would report a refresh that never happened.
-            await runKitOrFail(
-                'drop',
-                'Failed to drop the database; migrations were not run',
-            )
-
-            console.log('🔄 Running migrations...')
-            await runKitOrFail('migrate', 'Failed to refresh database')
-            console.log('✅ Database refreshed successfully')
-        },
-        'Drop all tables and run migrations from scratch',
+        (args) => handleFresh(args, deps),
+        'Empty the database and apply every migration from scratch',
     )
 
     // -------------------------------------------------------------------------

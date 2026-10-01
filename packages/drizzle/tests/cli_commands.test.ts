@@ -1,11 +1,14 @@
 /**
  * @fileoverview Hermetic tests for the Drizzle CLI commands (#180).
  *
- * The `db:*` commands are exercised through the three injectable seams of
- * {@link registerDrizzleCommands} — a command-runner, a connection port, and a
- * seeder-loader — so no test opens a real database, spawns a real process, or
- * hits the network. The six shell-out commands are validated by asserting the
- * **constructed `drizzle-kit` argv**, never by executing it.
+ * The `db:*` commands are exercised through the injectable seams of
+ * {@link registerDrizzleCommands} — a command-runner, a connection port, a
+ * seeder-loader, and for `db:fresh` a config loader and a maintenance opener —
+ * so no test opens a real database, spawns a real process, or hits the
+ * network. The five shell-out commands are validated by asserting the
+ * **constructed `drizzle-kit` argv**, never by executing it. `db:fresh`
+ * (#435) spawns nothing: its tests run with a runner and prompt APIs that
+ * throw if called.
  *
  * @module @lockness/drizzle/tests/cli_commands
  */
@@ -16,7 +19,6 @@ import {
     assertRejects,
     assertStringIncludes,
 } from '@std/assert'
-import { FakeTime } from '@std/testing/time'
 import { Cli } from '@lockness/cli'
 import { CommandFailedError } from '@lockness/cli/command-failure'
 import { container } from '@lockness/container'
@@ -25,9 +27,11 @@ import {
     type CommandRunner,
     type CommandSpec,
     type DbConnection,
+    type MaintenanceSession,
     registerDrizzleCommands,
     type SeederLoader,
 } from '../cli_commands.ts'
+import type { MigrationSettings } from '../migration_settings.ts'
 
 // -----------------------------------------------------------------------------
 // Test doubles
@@ -190,68 +194,6 @@ Deno.test('db:status - only claims migration-history consistency, never drift', 
     assert(!/up to date|schema changes/i.test(lines.join('\n')))
 })
 
-/**
- * Run `db:fresh` with the runner returning `codes`, skipping the 3 s safety
- * countdown, and settle it. The rejection assertion is attached before the
- * clock moves so the failure is never an unhandled rejection.
- */
-async function runFresh(codes: number[]): Promise<{
-    readonly calls: CommandSpec[]
-    readonly error: CommandFailedError | undefined
-}> {
-    using time = new FakeTime()
-    const cli = new FakeCli()
-    const { calls, run } = fakeRunner(codes)
-    registerDrizzleCommands(cli, { runCommand: run })
-
-    const settled = cli.run('db:fresh').then(
-        () => undefined,
-        (e: unknown) => e,
-    )
-    await time.tickAsync(3000)
-    const outcome = await settled
-    if (outcome !== undefined && !(outcome instanceof CommandFailedError)) {
-        throw outcome
-    }
-    return { calls, error: outcome }
-}
-
-Deno.test('db:fresh - a failed drop rejects and never runs migrate', async () => {
-    const restore = muteConsole()
-    try {
-        const { calls, error } = await runFresh([1])
-        assert(error instanceof CommandFailedError, 'db:fresh resolved')
-        assertStringIncludes(error.message, '(drizzle-kit drop exited 1)')
-        assertStringIncludes(error.message, 'migrations were not run')
-        assertEquals(calls.map((c) => c.args.at(-1)), ['drop'])
-    } finally {
-        restore()
-    }
-})
-
-Deno.test('db:fresh - a failed migrate after a good drop rejects', async () => {
-    const restore = muteConsole()
-    try {
-        const { calls, error } = await runFresh([0, 1])
-        assert(error instanceof CommandFailedError, 'db:fresh resolved')
-        assertStringIncludes(error.message, '(drizzle-kit migrate exited 1)')
-        assertEquals(calls.map((c) => c.args.at(-1)), ['drop', 'migrate'])
-    } finally {
-        restore()
-    }
-})
-
-Deno.test('db:fresh - resolves when drop and migrate both exit 0', async () => {
-    const restore = muteConsole()
-    try {
-        const { calls, error } = await runFresh([0, 0])
-        assertEquals(error, undefined)
-        assertEquals(calls.length, 2)
-    } finally {
-        restore()
-    }
-})
-
 Deno.test('wiring - a real Cli exits 1 on a failed db:migrate, printing one error line', async () => {
     const errors: unknown[][] = []
     const { log, error } = console
@@ -293,25 +235,6 @@ for (const [command, subcommand] of shellCommands) {
         }
     })
 }
-
-Deno.test('db:fresh - drops then migrates, in order, via the runner', async () => {
-    const restore = muteConsole()
-    using time = new FakeTime()
-    try {
-        const cli = new FakeCli()
-        const { calls, run } = fakeRunner()
-        registerDrizzleCommands(cli, { runCommand: run })
-
-        const pending = cli.run('db:fresh')
-        await time.tickAsync(3000) // skip the safety countdown
-        await pending
-
-        assertEquals(calls.map((c) => c.args.at(-1)), ['drop', 'migrate'])
-        assertEquals(calls[0].args, ['run', '-A', 'npm:drizzle-kit', 'drop'])
-    } finally {
-        restore()
-    }
-})
 
 // -----------------------------------------------------------------------------
 // db:check — connection port only, always closes
@@ -679,4 +602,368 @@ Deno.test('db:seed - stops before loading any seeder when connect() fails', asyn
         else Deno.env.set('DATABASE_URL', prevUrl)
         restore()
     }
+})
+
+// -----------------------------------------------------------------------------
+// db:fresh (#435) — guard, settings, open, reset, migrate, close
+// -----------------------------------------------------------------------------
+
+/** A migrations folder with a one-entry journal, removed after `fn`. */
+async function withMigrations(
+    fn: (folder: string) => Promise<void>,
+): Promise<void> {
+    const folder = await Deno.makeTempDir()
+    try {
+        await Deno.mkdir(`${folder}/meta`)
+        await Deno.writeTextFile(
+            `${folder}/meta/_journal.json`,
+            JSON.stringify({
+                entries: [{ tag: '0000_init', when: 1, breakpoints: true }],
+            }),
+        )
+        await Deno.writeTextFile(
+            `${folder}/0000_init.sql`,
+            'CREATE TABLE "users" ("id" integer);',
+        )
+        await fn(folder)
+    } finally {
+        await Deno.remove(folder, { recursive: true })
+    }
+}
+
+/** Which step of a fake maintenance session fails. */
+type FreshStep = 'query' | 'execute' | 'migrate'
+
+/**
+ * The `db:fresh` seams around a fake sqlite session that records every call.
+ * `runCommand` throws: `db:fresh` must spawn nothing.
+ */
+function freshDeps(folder: string, failAt?: FreshStep) {
+    const calls: string[] = []
+    const opened: MigrationSettings[] = []
+    const step = <T>(name: FreshStep, value: T): Promise<T> => {
+        calls.push(name)
+        return name === failAt
+            ? Promise.reject(new Error(`${name} failed`))
+            : Promise.resolve(value)
+    }
+    const session: MaintenanceSession = {
+        query: () => step('query', [{ type: 'table', name: 'users' }]),
+        execute: () => step('execute', undefined),
+        migrate: (options) => {
+            calls.push(`migrate:${options.folder}:${options.table}`)
+            return step('migrate', undefined)
+        },
+        close: () => {
+            calls.push('close')
+            return Promise.resolve()
+        },
+    }
+    const runCommand: CommandRunner = () => {
+        throw new Error('db:fresh spawned a process')
+    }
+    const deps = {
+        runCommand,
+        loadMigrationConfig: () =>
+            Promise.resolve({
+                dialect: 'sqlite',
+                out: folder,
+                dbCredentials: { url: 'file:./fresh-test.db' },
+            }),
+        openMaintenance: (settings: MigrationSettings) => {
+            calls.push('open')
+            opened.push(settings)
+            return Promise.resolve(session)
+        },
+    }
+    return { calls, deps, opened }
+}
+
+/**
+ * Run `fn` with `prompt`, `confirm` and `alert` replaced by throwing fakes:
+ * `db:fresh` must never wait on a prompt, with or without a TTY.
+ */
+async function withoutPrompts(fn: () => Promise<void>): Promise<void> {
+    const saved = {
+        prompt: globalThis.prompt,
+        confirm: globalThis.confirm,
+        alert: globalThis.alert,
+    }
+    const refuse = () => {
+        throw new Error('db:fresh called a prompt API')
+    }
+    globalThis.prompt = refuse
+    globalThis.confirm = refuse
+    globalThis.alert = refuse
+    try {
+        await fn()
+    } finally {
+        Object.assign(globalThis, saved)
+    }
+}
+
+/** Capture every console line of `fn`, and what it rejected with. */
+async function capture(fn: () => Promise<void>): Promise<{
+    readonly lines: string[]
+    readonly error: unknown
+}> {
+    const lines: string[] = []
+    const { log, error: err } = console
+    console.log = (...args: unknown[]) => void lines.push(args.join(' '))
+    console.error = (...args: unknown[]) => void lines.push(args.join(' '))
+    try {
+        await fn()
+        return { lines, error: undefined }
+    } catch (error) {
+        return { lines, error }
+    } finally {
+        console.log = log
+        console.error = err
+    }
+}
+
+Deno.test('db:fresh - resets then migrates on one session, spawning nothing and prompting nothing', async () => {
+    await withMigrations(async (folder) => {
+        const { calls, deps } = freshDeps(folder)
+        const cli = new FakeCli()
+        registerDrizzleCommands(cli, deps)
+
+        const { lines, error } = await capture(() =>
+            withoutPrompts(() =>
+                withAppEnv(undefined, () => cli.run('db:fresh'))
+            )
+        )
+
+        assertEquals(error, undefined)
+        assertEquals(calls, [
+            'open',
+            'query',
+            'execute',
+            `migrate:${folder}:__drizzle_migrations`,
+            'migrate',
+            'close',
+        ])
+        const out = lines.join('\n')
+        assertStringIncludes(out, 'sqlite: every table and view')
+        assertStringIncludes(out, 'Database refreshed successfully')
+        assertEquals(
+            out.includes('fresh-test.db'),
+            false,
+            'the DSN was printed',
+        )
+    })
+})
+
+Deno.test('db:fresh - opens the connection with the dialect and url of drizzle.config.ts', async () => {
+    await withMigrations(async (folder) => {
+        const { deps, opened } = freshDeps(folder)
+        const cli = new FakeCli()
+        registerDrizzleCommands(cli, deps)
+
+        await capture(() => withAppEnv(undefined, () => cli.run('db:fresh')))
+
+        assertEquals(opened.length, 1)
+        assertEquals(opened[0].dialect, 'sqlite')
+        assertEquals(opened[0].url, 'file:./fresh-test.db')
+        assertEquals(opened[0].migrations, 1)
+    })
+})
+
+for (const failAt of ['query', 'execute', 'migrate'] as const) {
+    Deno.test(`db:fresh - a failed ${failAt} is a CommandFailedError, prints no "refreshed" line, and closes`, async () => {
+        await withMigrations(async (folder) => {
+            const { calls, deps } = freshDeps(folder, failAt)
+            const cli = new FakeCli()
+            registerDrizzleCommands(cli, deps)
+
+            const { lines, error } = await capture(() =>
+                withAppEnv(undefined, () => cli.run('db:fresh'))
+            )
+
+            assert(error instanceof CommandFailedError, String(error))
+            assertStringIncludes(error.message, `${failAt} failed`)
+            assertEquals(lines.join('\n').includes('refreshed'), false)
+            assertEquals(calls.at(-1), 'close', 'the session was not closed')
+        })
+    })
+}
+
+Deno.test('db:fresh - a failed reset never runs migrate', async () => {
+    await withMigrations(async (folder) => {
+        const { calls, deps } = freshDeps(folder, 'execute')
+        const cli = new FakeCli()
+        registerDrizzleCommands(cli, deps)
+
+        const { error } = await capture(() =>
+            withAppEnv(undefined, () => cli.run('db:fresh'))
+        )
+
+        assert(error instanceof CommandFailedError)
+        assertStringIncludes(error.message, 'migrations were not run')
+        assertEquals(calls.some((c) => c.startsWith('migrate')), false)
+    })
+})
+
+Deno.test('db:fresh - a connection that cannot be opened is a CommandFailedError', async () => {
+    await withMigrations(async (folder) => {
+        const { deps } = freshDeps(folder)
+        const cli = new FakeCli()
+        registerDrizzleCommands(cli, {
+            ...deps,
+            openMaintenance: () =>
+                Promise.reject(new Error('Database not configured')),
+        })
+
+        const { lines, error } = await capture(() =>
+            withAppEnv(undefined, () => cli.run('db:fresh'))
+        )
+
+        assert(error instanceof CommandFailedError, String(error))
+        assertStringIncludes(error.message, 'Database not configured')
+        assertEquals(lines.join('\n').includes('refreshed'), false)
+    })
+})
+
+Deno.test('db:fresh - R2 and R3 refuse before the connection is opened', async () => {
+    await withMigrations(async (folder) => {
+        const cases: Array<[string, () => Promise<unknown>]> = [
+            ['R2 import', () => Promise.reject(new Error('no such file'))],
+            ['R2 dbCredentials', () =>
+                Promise.resolve({
+                    dialect: 'sqlite',
+                    out: folder,
+                    dbCredentials: { url: 'file:x', authToken: 't' },
+                })],
+            ['R3 journal', () =>
+                Promise.resolve({
+                    dialect: 'sqlite',
+                    out: `${folder}/absent`,
+                    dbCredentials: { url: 'file:x' },
+                })],
+        ]
+        for (const [label, loadMigrationConfig] of cases) {
+            const { calls, deps } = freshDeps(folder)
+            const cli = new FakeCli()
+            registerDrizzleCommands(cli, { ...deps, loadMigrationConfig })
+
+            const { lines, error } = await capture(() =>
+                withAppEnv(undefined, () => cli.run('db:fresh'))
+            )
+
+            assert(error instanceof CommandFailedError, label)
+            assertStringIncludes(error.message, 'Nothing was dropped', label)
+            assertEquals(calls, [], `${label}: the connection was opened`)
+            assertEquals(lines.join('\n').includes('refreshed'), false, label)
+        }
+    })
+})
+
+Deno.test('db:fresh - a catalogue refusal happens before any drop, and closes', async () => {
+    await withMigrations(async (folder) => {
+        const { calls, deps } = freshDeps(folder)
+        const cli = new FakeCli()
+        registerDrizzleCommands(cli, {
+            ...deps,
+            openMaintenance: async (settings) => {
+                const session = await deps.openMaintenance(settings)
+                return {
+                    ...session,
+                    query: () => Promise.resolve([{ type: 'table', name: 1 }]),
+                }
+            },
+        })
+
+        const { error } = await capture(() =>
+            withAppEnv(undefined, () => cli.run('db:fresh'))
+        )
+
+        assert(error instanceof CommandFailedError, String(error))
+        assertStringIncludes(error.message, 'Nothing was dropped')
+        assertEquals(calls, ['open', 'close'])
+    })
+})
+
+Deno.test('db:fresh - R4 refuses a driver without the maintenance capability', async () => {
+    await withMigrations(async (folder) => {
+        container.delete(Database)
+        try {
+            container.get(Database).setDriverFactory(
+                'sqlite',
+                () =>
+                    Promise.resolve({
+                        db: {},
+                        close: () => Promise.resolve(),
+                        probe: () => Promise.resolve(),
+                    }),
+            )
+            const { deps } = freshDeps(folder)
+            const cli = new FakeCli()
+            registerDrizzleCommands(cli, {
+                runCommand: deps.runCommand,
+                loadMigrationConfig: deps.loadMigrationConfig,
+            })
+
+            const { error } = await capture(() =>
+                withAppEnv(undefined, () => cli.run('db:fresh'))
+            )
+
+            assert(error instanceof CommandFailedError, String(error))
+            assertStringIncludes(error.message, 'schema maintenance')
+            assertStringIncludes(error.message, 'Nothing was dropped')
+            assertEquals(container.get(Database).isConnected(), false)
+        } finally {
+            container.delete(Database)
+        }
+    })
+})
+
+Deno.test('db:fresh and db:seed share one production guard, with the same message shape', async () => {
+    await withMigrations(async (folder) => {
+        const { calls, deps } = freshDeps(folder)
+        const { events, connect } = fakeConnection()
+        let loaded = false
+        const cli = new FakeCli()
+        registerDrizzleCommands(cli, {
+            ...deps,
+            loadMigrationConfig: () => {
+                loaded = true
+                return deps.loadMigrationConfig()
+            },
+            connect,
+        })
+
+        const messages: string[] = []
+        await withAppEnv('production', async () => {
+            for (const command of ['db:seed', 'db:fresh']) {
+                const { error } = await capture(() => cli.run(command))
+                assert(error instanceof CommandFailedError, command)
+                messages.push(error.message.replaceAll(command, '<command>'))
+            }
+        })
+
+        assertEquals(messages[0], messages[1])
+        assertStringIncludes(messages[1], '--allow-production')
+        assertEquals(loaded, false, 'db:fresh read its config in production')
+        assertEquals(calls, [], 'db:fresh opened a connection in production')
+        assertEquals(events, [])
+    })
+})
+
+Deno.test('db:fresh --allow-production - runs under production with the override flag', async () => {
+    await withMigrations(async (folder) => {
+        const { calls, deps } = freshDeps(folder)
+        const cli = new FakeCli()
+        registerDrizzleCommands(cli, deps)
+
+        const { error } = await capture(() =>
+            withAppEnv(
+                'production',
+                () => cli.run('db:fresh', '--allow-production'),
+            )
+        )
+
+        assertEquals(error, undefined)
+        assertEquals(calls.at(-1), 'close')
+        assertEquals(calls.includes('migrate'), true)
+    })
 })
