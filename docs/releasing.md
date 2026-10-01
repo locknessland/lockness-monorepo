@@ -371,6 +371,9 @@ What it does, in order:
    code.
 4. Asks each kit for an unknown path and requires an HTML 404, which renders
    core's error view at runtime.
+5. Fails a kit whose boot asked the registry for any path inside the kit's own
+   directory: an app file imported through a specifier that resolved against the
+   registry instead of the disk (#474).
 
 **The registry never falls back to jsr.io for `@lockness/*`.** A package it did
 not receive is a 404. Every other scope (`@std/*`, …) is read from jsr.io
