@@ -20,6 +20,8 @@
 //   No graph sees them, so they cannot be declared. Per file, the site
 //   count and the reason it must stay computed. `deno task publish:check`
 //   compares it with the workspace dry-run and fails on any drift (#463).
+//   An app file is never inventoried here except `contract/app_file.ts`:
+//   every app-file import goes through `importAppFile` (#477).
 //
 // `jsx` — the reason a package may PUBLISH a `.tsx` at all. Under
 //   `"jsx": "precompile"`, Deno transpiles a JSR `.tsx` with the CONSUMING
@@ -47,7 +49,16 @@
         // through the `hono` alias. Every such import is `import type`, so the
         // edge erases at runtime, but it is a real edge and is declared.
         "hono": { "tier": "foundation", "allow": [] },
-        "contract": { "tier": "foundation", "allow": ["hono"] },
+        "contract": {
+            "tier": "foundation",
+            "allow": ["hono"],
+            "runtimeImports": {
+                "app_file.ts": {
+                    "sites": 1,
+                    "reason": "importAppFile loads a file of the user's app from a file: URL built at the app root; the one app-file import of the framework"
+                }
+            }
+        },
         "container": { "tier": "foundation", "allow": ["contract"] },
         "redis": { "tier": "foundation", "allow": ["contract"] },
         "crypto": { "tier": "foundation", "allow": ["contract"] },
@@ -66,25 +77,9 @@
             "tier": "implementation",
             "allow": ["contract", "queue", "events"],
             "runtimeImports": {
-                "commands/queue_commands.ts": {
-                    "sites": 1,
-                    "reason": "queue:work loads each job file found in the user app's app/job at runtime"
-                },
-                "commands/router_commands.ts": {
-                    "sites": 1,
-                    "reason": "router:list loads each controller file found in the user app's app/controller"
-                },
-                "commands/tinker_command.ts": {
-                    "sites": 2,
-                    "reason": "tinker loads the user app's model, service and repository files, then its app/kernel.ts, into the REPL"
-                },
                 "core_commands.ts": {
                     "sites": 1,
                     "reason": "package:install loads <package>/install for a package name the user types"
-                },
-                "mod.ts": {
-                    "sites": 1,
-                    "reason": "Cli.discoverCommands loads each *_command file of a directory the caller names"
                 },
                 "package_loader.ts": {
                     "sites": 1,
@@ -100,13 +95,7 @@
         },
         "drizzle": {
             "tier": "implementation",
-            "allow": ["cli", "container", "contract"],
-            "runtimeImports": {
-                "migration_settings.ts": {
-                    "sites": 1,
-                    "reason": "loads the user app's drizzle.config.ts from the working directory, the file drizzle-kit reads"
-                }
-            }
+            "allow": ["cli", "container", "contract"]
         },
         "events": { "tier": "implementation", "allow": ["contract", "hono"] },
         // `features` and `search` are pure-logic sinks: flag resolution /
@@ -269,41 +258,9 @@
                 "telemetry"
             ],
             "runtimeImports": {
-                "cli/compile_command.ts": {
-                    "sites": 1,
-                    "reason": "compile loads the user app's app/kernel.tsx to read its compile config; was a template literal deno publish rewrote (#474)"
-                },
-                "cli/ssg_command.ts": {
-                    "sites": 1,
-                    "reason": "ssg:build loads the user app's app/kernel.ts(x); was a template literal deno publish rewrote (#474)"
-                },
-                "events/listener_discovery.ts": {
-                    "sites": 1,
-                    "reason": "discoverListeners loads each listener file found under the user app's directory"
-                },
-                "exceptions/handler.ts": {
-                    "sites": 1,
-                    "reason": "loads the user app's custom error handler file when it exists"
-                },
-                "http/resolver.ts": {
-                    "sites": 1,
-                    "reason": "middleware discovery loads each file in the user app's middlewaresDir; was a template literal deno publish rewrote (#474)"
-                },
                 "kernel/bootstrap/helpers.ts": {
                     "sites": 1,
                     "reason": "tryImportOptionalPackage loads the soft-edge packages listed under soft; the name is an argument"
-                },
-                "routing/discovery.ts": {
-                    "sites": 1,
-                    "reason": "controller discovery loads each controller file found in the user app"
-                },
-                "scheduler/schedule_discovery.ts": {
-                    "sites": 1,
-                    "reason": "schedule discovery loads each task file found in the user app"
-                },
-                "ssg/enumerate.ts": {
-                    "sites": 1,
-                    "reason": "static generation loads each controller file to find the @Static ones"
                 }
             }
         }
