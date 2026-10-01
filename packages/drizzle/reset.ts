@@ -15,7 +15,10 @@
  * The mechanism — sessions, transactions, the migrator — lives in
  * `drivers.ts`; this module only decides. Each planner reads the catalogue
  * first and refuses before returning a single statement, so every refusal
- * happens before the first `DROP`.
+ * happens before the first `DROP`. A system target is never in scope: a
+ * MySQL url selecting `mysql`, `sys`, `performance_schema` or
+ * `information_schema`, and a postgres `schemaFilter` or `migrations.schema`
+ * naming `information_schema` or any `pg_*` schema, are refused.
  *
  * @module @lockness/drizzle/reset
  * @since 0.4.1
@@ -127,6 +130,17 @@ export function planSqliteReset(rows: readonly Row[]): string[] {
 
 /** The database the connection uses — `NULL` when none is selected. */
 const MYSQL_DATABASE = 'SELECT DATABASE() AS name'
+
+/**
+ * The databases MySQL itself owns, lower-cased. A url that selects one is
+ * refused: emptying it would break the server, not reset an application.
+ */
+const MYSQL_SYSTEM_DATABASES: ReadonlySet<string> = new Set([
+    'mysql',
+    'sys',
+    'performance_schema',
+    'information_schema',
+])
 
 /** The tables and views of the connection's database. */
 const MYSQL_CATALOGUE = 'SELECT TABLE_NAME AS name, TABLE_TYPE AS type ' +
@@ -400,7 +414,8 @@ export function postgresCensusSql(schemas: readonly string[]): string {
  * @param catalogue - The catalogue in scope, read before any DDL.
  * @param scope - The reset scope.
  * @returns The statements for one transaction.
- * @throws {FreshRefusedError} R6: a migration creates a schema outside the
+ * @throws {FreshRefusedError} When `schemaFilter` or `migrations.schema`
+ *   names a system schema; R6: a migration creates a schema outside the
  *   scope, or a schema that would be dropped holds extension members.
  *
  * @example
@@ -412,6 +427,7 @@ export function planPostgresReset(
     catalogue: PostgresCatalogue,
     scope: ResetScope,
 ): string[] {
+    refuseSystemSchemas(scope)
     const inScope = new Set(scope.schemaFilter)
     const created = schemasCreatedBy(scope.statements)
     const outside = created.filter((schema) => !inScope.has(schema))
@@ -457,6 +473,41 @@ export function planPostgresReset(
         ...byKind(kept(catalogue.types), TYPE_DROP),
         censusCheck(census),
     ]
+}
+
+/**
+ * Whether a postgres schema belongs to the server: `information_schema`, or
+ * any `pg_*` — `pg_catalog`, `pg_toast`, `pg_temp_N` and every name postgres
+ * reserves. Compared case-insensitively: a quoted `"PG_Catalog"` is a
+ * different schema to postgres, but no reset is worth the doubt.
+ *
+ * @param schema - A schema name, unquoted.
+ * @returns True for a system schema.
+ */
+function isSystemSchema(schema: string): boolean {
+    const name = schema.toLowerCase()
+    return name === 'information_schema' || name.startsWith('pg_')
+}
+
+/**
+ * Refuse a scope or a bookkeeping schema that names a system schema, before
+ * anything is read or dropped.
+ *
+ * @param scope - The reset scope.
+ * @throws {FreshRefusedError} When `schemaFilter` or `migrations.schema`
+ *   names a system schema.
+ */
+function refuseSystemSchemas(scope: ResetScope): void {
+    const named = [...scope.schemaFilter, scope.schema ?? 'public']
+        .filter(isSystemSchema)
+    if (named.length > 0) {
+        throw new FreshRefusedError(
+            `${
+                [...new Set(named)].map(quote).join(', ')
+            } is a system schema; schemaFilter and migrations.schema ` +
+                'must name application schemas',
+        )
+    }
 }
 
 /**
@@ -559,6 +610,14 @@ const RESET_POLICIES: Record<Dialect, ResetPolicy> = {
                         'name one in the url',
                 )
             }
+            const database = text(current, 'name')
+            if (MYSQL_SYSTEM_DATABASES.has(database.toLowerCase())) {
+                throw new FreshRefusedError(
+                    `the connection selects the system database ${
+                        backtick(database)
+                    }; name an application database in the url`,
+                )
+            }
             return planMysqlReset(await maintenance.query(MYSQL_CATALOGUE))
         },
     },
@@ -570,6 +629,8 @@ const RESET_POLICIES: Record<Dialect, ResetPolicy> = {
                 quote(scope.table)
             }`,
         plan: async (maintenance, scope) => {
+            // Refused before the catalogue is read, as well as in the planner.
+            refuseSystemSchemas(scope)
             const queries = postgresCatalogueQueries(scope.schemaFilter)
             const [relations, types, routines, extensions] = [
                 await maintenance.query(queries.relations),
@@ -623,7 +684,8 @@ export function describeResetScope(scope: ResetScope): string {
  * @param maintenance - The connection's maintenance capability.
  * @param scope - The reset scope.
  * @returns Resolves once the scope is empty.
- * @throws {FreshRefusedError} R5 or R6, before any statement ran.
+ * @throws {FreshRefusedError} R5, R6, or a system target (a MySQL system
+ *   database, a postgres system schema), before any statement ran.
  * @throws Whatever the plan's execution throws — on postgres the census
  *   check (R7) among them, after which nothing was kept.
  *
