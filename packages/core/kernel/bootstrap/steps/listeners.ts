@@ -7,6 +7,7 @@
  * @since 0.2.0
  */
 
+import { renderError } from '@lockness/contract'
 import type { BootstrapStep } from '../types.ts'
 
 /**
@@ -58,8 +59,13 @@ export const listenersStep: BootstrapStep = {
             ) {
                 // Expected conditions - no action needed
             } else {
-                // Log unexpected errors but continue bootstrap
-                console.error('⚠️  Error discovering listeners:', error)
+                // Log unexpected errors but continue bootstrap. Rendered, not
+                // the object: a listener that fails to load rejects discovery
+                // here, and the object prints its message, stack and cause —
+                // a source excerpt or a credential among them (#478).
+                console.error(
+                    `⚠️  Error discovering listeners: ${renderError(error)}`,
+                )
             }
         }
     },

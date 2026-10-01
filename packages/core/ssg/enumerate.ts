@@ -16,7 +16,11 @@
  */
 
 import { join } from '@std/path'
-import type { ControllerWithMetadata } from '@lockness/contract'
+import {
+    type ControllerWithMetadata,
+    renderError,
+    safeForLog,
+} from '@lockness/contract'
 import type { RouteInfo } from '../app.ts'
 import { outputPathFor } from './paths.ts'
 import { importAppFile } from '@lockness/contract/app-file/internal'
@@ -199,9 +203,14 @@ export async function loadControllers(
         } catch (error) {
             // Fatal, not warn-and-skip: a missing @Static controller would ship a
             // dist/ with holes and still report success (FR-012).
+            //
+            // Rendered, never embedded raw (#478): the CLI dispatcher prints
+            // this message and its cause as they are. The cause is safe to
+            // keep only because `importAppFile` already turned a compile
+            // failure into an `AppFileCompileError` with no excerpt.
             throw new Error(
-                `SSG could not import controller "${entry.name}": ${
-                    error instanceof Error ? error.message : String(error)
+                `SSG could not import controller "${safeForLog(entry.name)}": ${
+                    renderError(error)
                 }`,
                 { cause: error },
             )

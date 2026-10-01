@@ -16,6 +16,7 @@ import {
     KERNEL_CONFIG,
     type KernelConfig,
 } from '../kernel/kernel_decorators.ts'
+import { renderError } from '@lockness/contract'
 import { importAppFile } from '@lockness/contract/app-file/internal'
 import { generateRoutesFile } from '../routing/generator.ts'
 import { kernelFileNotFoundMessage, resolveKernelFile } from './kernel_file.ts'
@@ -112,7 +113,7 @@ export class CompileCommand implements CommandContract {
                 )
             } catch (err) {
                 console.warn(
-                    `  ⚠️ Failed to generate routes: ${(err as Error).message}`,
+                    `  ⚠️ Failed to generate routes: ${renderError(err)}`,
                 )
             }
 
@@ -219,7 +220,11 @@ export class CompileCommand implements CommandContract {
                 console.error(new TextDecoder().decode(stderr))
             }
         } catch (error) {
-            console.error('❌ Failed to orchestrate compilation:', error)
+            // Rendered, not the object: a kernel that fails to load lands
+            // here, and the object would print its stack and cause (#478).
+            console.error(
+                `❌ Failed to orchestrate compilation: ${renderError(error)}`,
+            )
         }
     }
 }

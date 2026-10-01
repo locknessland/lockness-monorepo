@@ -21,6 +21,7 @@ import { dirname, fromFileUrl, join } from '@std/path'
 // configured, and the barrel would pull every built-in command in with it.
 import { CommandFailedError } from '@lockness/cli/command-failure'
 import { container } from '@lockness/container'
+import { renderError } from '@lockness/contract'
 import { importAppFile } from '@lockness/contract/app-file/internal'
 import { Database } from './mod.ts'
 import { handleMakeFactory } from './generators/factory_generator.ts'
@@ -496,10 +497,12 @@ async function loadSeederModule(
     try {
         return await loadSeeder(path)
     } catch (error) {
-        const message = getErrorMessage(error)
+        // The raw text decides only whether the file is missing; what is
+        // SHOWN is rendered (#478), so a credential or a source excerpt in
+        // the load failure never reaches the terminal.
         if (
             path.endsWith('/database_seeder.ts') &&
-            message.includes('Module not found')
+            getErrorMessage(error).includes('Module not found')
         ) {
             throw new CommandFailedError(
                 'No database_seeder.ts found. Run `deno task cli make:seeder Database` first.',
@@ -507,7 +510,7 @@ async function loadSeederModule(
             )
         }
         throw new CommandFailedError(
-            `Failed to load seeder ${path}: ${message}`,
+            `Failed to load seeder ${path}: ${renderError(error)}`,
             { cause: error },
         )
     }
