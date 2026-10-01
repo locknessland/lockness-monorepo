@@ -91,7 +91,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-51 test files for 72 source files:
+52 test files for 72 source files:
 
 - `packages/core/cli/tests/kernel_file.test.ts`
 - `packages/core/cli/tests/ssg_command.test.ts`
@@ -121,6 +121,7 @@ Anything not listed is internal and free to change.
 - `packages/core/tests/hono_reexports.test.ts`
 - `packages/core/tests/kernel.test.ts`
 - `packages/core/tests/kernel_ssg_config.test.ts`
+- `packages/core/tests/load_failure_redaction.test.ts`
 - `packages/core/tests/middleware_resolver_declared.test.ts`
 - `packages/core/tests/mount_pattern.test.ts`
 - `packages/core/tests/mount_points.test.ts`
@@ -158,7 +159,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 51 test files directly —
+Then, specific to this package: run its 52 test files directly —
 
 ```bash
 deno test -A packages/core/

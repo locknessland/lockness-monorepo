@@ -164,11 +164,11 @@ timeout.
 
 ### What `connect()`, `probe()` and `isConnected()` mean
 
-| Method          | Round trips | Meaning                                                                                                                                                                                                                                                |
-| :-------------- | :---------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `connect()`     | 0           | Checks the DSN, loads the driver and builds the client. `success: false` means the DSN was refused, the client package is missing, or the client rejected the URL.                                                                                     |
-| `probe()`       | 1           | Runs `SELECT 1`. Throws `Database is not connected` before `connect()` or after `close()`. Otherwise it re-throws a driver failure: the exact DSN is replaced with `<dsn redacted>`, and a message holding the password is withheld whole (see below). |
-| `isConnected()` | 0           | `true` once a client is configured and until `close()`. It does **not** mean that the database is reachable. Call `probe()` to find out.                                                                                                               |
+| Method          | Round trips | Meaning                                                                                                                                                                                                                                                                                                                |
+| :-------------- | :---------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `connect()`     | 0           | Checks the DSN, loads the driver and builds the client. `success: false` means the DSN was refused, the client package is missing, or the client rejected the URL.                                                                                                                                                     |
+| `probe()`       | 1           | Runs `SELECT 1`. Throws `Database is not connected` before `connect()` or after `close()`. Otherwise it re-throws a driver failure: the exact DSN is replaced with `<dsn redacted>`, and a message holding a credential (the password, or a credential query value such as `authToken`) is withheld whole (see below). |
+| `isConnected()` | 0           | `true` once a client is configured and until `close()`. It does **not** mean that the database is reachable. Call `probe()` to find out.                                                                                                                                                                               |
 
 A custom driver registered with `Database.setDriverFactory()` must follow the
 same contract: the factory constructs its client and makes no round trip.
@@ -178,8 +178,8 @@ same contract: the factory constructs its client and makes no round trip.
 | Failure                                           | At boot                                                                                                                                                                                          | After boot                                                                                                                            |
 | :------------------------------------------------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------ |
 | DSN refused (see [DSN format](#dsn-format))       | `connect()` returns `success: false` with a fixed message that quotes no part of the DSN. Boot continues.                                                                                        | `/ready` returns `503` with `database: down`. `db:seed` and `db:check` print the error and exit 1.                                    |
-| Client package missing, or URL the client rejects | `connect()` returns `success: false` and logs a `❌` line: the package and import error (withheld if it holds the password), or the client's message withheld (error name only). Boot continues. | `/ready` returns `503` with `database: down`. `db:seed` and `db:check` print the error and exit 1.                                    |
-| Host unreachable, bad credentials, database down  | Nothing is sent, so nothing is reported.                                                                                                                                                         | `/ready` returns `503` within 3 s. The first query gets the driver's error. `db:check` reports it, withheld if it holds the password. |
+| Client package missing, or URL the client rejects | `connect()` returns `success: false` and logs a `❌` line: the package and import error (withheld if it holds a credential), or the client's message withheld (error name only). Boot continues. | `/ready` returns `503` with `database: down`. `db:seed` and `db:check` print the error and exit 1.                                    |
+| Host unreachable, bad credentials, database down  | Nothing is sent, so nothing is reported.                                                                                                                                                         | `/ready` returns `503` within 3 s. The first query gets the driver's error. `db:check` reports it, withheld if it holds a credential. |
 
 ### Monitoring: `/health` for liveness, `/ready` for readiness
 
@@ -997,8 +997,8 @@ export class PostController {
 
 ## Upgrading to v0.5.0
 
-One item. **Migration step:** percent-encode the password in your `DATABASE_URL`
-if `connect()` now refuses it.
+Two items. **Migration step:** percent-encode the password in your
+`DATABASE_URL` if `connect()` now refuses it.
 
 ### 1. `connect()` refuses a DSN a driver could misparse
 
@@ -1031,13 +1031,35 @@ before any driver sees it; see [DSN format](#dsn-format). What that changes:
   reader where the password is. So when any form of the password appears in the
   message (as written, decoded, or as `new URL()` encodes it), `probe()` throws
   `The database probe failed (<Name>); its message is withheld because it
-  contains the database password`
+  contains a database credential`
   instead. A dev setup such as `postgres:postgres` therefore loses its probe
   diagnostics. Use a password that does not also appear as a user, database or
   host name.
 - **Still accepted unchanged:** multi-host DSNs with or without ports
   (`h1:5432,h2:5433`), IPv6 hosts, percent-encoded host names, and SQLite
   `file:` paths.
+
+### 2. A credential in the DSN's query string is withheld too
+
+A libsql `authToken`, a `?password=` or an `sslpassword` in the query string was
+hidden only when a driver echoed the exact DSN. Echoed on its own, or inside a
+URL the driver rebuilt, it reached the thrown error, `/ready` and `db:check`
+(#438). `probe()` now holds the value of every query parameter whose name marks
+a credential, in each form a driver may echo (as written, percent-decoded, with
+`+` read as a space, and as `new URL()` serialises it), and withholds a message
+holding one, exactly as it does for the password.
+
+- **Which names:** a name that, lowercased and with `.`, `_`, `~` and `-`
+  removed, ends in `token`, `key`, `secret`, `password`, `passwd`, `pwd`,
+  `pass`, `sig`, `signature`, `credential`, `auth` or `jwt`, or is exactly
+  `code`. `key_id` and `token_type` are not credentials; `sslkey` is (its value
+  is a path, which then withholds a message quoting it).
+- **The sentence changed:** every withheld message now ends in
+  `contains a database credential` rather than
+  `contains the database
+  password`. Match on the start of the sentence if you
+  match it at all.
+- **An empty value holds nothing:** `?authToken=` cannot withhold every message.
 
 ## Upgrading to v0.4.0
 

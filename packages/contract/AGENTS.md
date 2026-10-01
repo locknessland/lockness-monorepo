@@ -81,8 +81,23 @@ Anything not listed is internal and free to change.
   `@lockness/contract/app-file/internal` (`app_file.ts`). Its one `import()` is
   the only app-file site `deps.policy.jsonc` inventories, and the
   `lockness/app-file-specifier` lint rule (`scripts/lint/`) rejects a hand-built
-  specifier anywhere else. It catches nothing on purpose: whether a missing file
-  is normal and how a broken one is reported belong to each caller.
+  specifier anywhere else. It swallows nothing: whether a missing file is normal
+  and how a broken one is reported belong to each caller. It translates exactly
+  one failure — a file that does not compile or link becomes an
+  `AppFileCompileError` (file relative to the root, line, column, **no
+  `cause`**), because the runtime's message quotes the failing source line
+  (#478). Everything else, "Module not found" included, is rethrown untouched.
+- **Which `name=value` pairs carry a credential is decided once, in
+  `logging/credential_params.ts`** (on `@lockness/contract/logging/internal`).
+  `renderError` replaces such a value by shape; drizzle's `probe()` holds the
+  DSN's values and withholds a message that echoes one (#438). Add a stem there,
+  never a second list beside a caller — two lists drift on the first vendor name
+  somebody adds to only one.
+- **A compile failure is recognised by its message shape, never by class or
+  `code`** (`logging/compile_diagnostic.ts`). Deno reports a parse failure as a
+  `TypeError` with `ERR_MODULE_NOT_FOUND`, the same pair "Module not found"
+  carries. If Deno's format changes, the real-file tests in
+  `tests/compile_diagnostic.test.ts` are what notice.
 - It has tests (`tests/`) but no `docs/` — JSDoc is the documentation, so it is
   not optional on any exported symbol.
 - Renaming an exported type here is a breaking change for eight packages at
@@ -92,19 +107,21 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-9 test files for 28 source files:
+11 test files for 30 source files:
 
 - `packages/contract/tests/app_file.test.ts`
+- `packages/contract/tests/compile_diagnostic.test.ts`
 - `packages/contract/tests/crypto_key.test.ts`
 - `packages/contract/tests/disposables.test.ts`
 - `packages/contract/tests/environment.test.ts`
 - `packages/contract/tests/health.test.ts`
 - `packages/contract/tests/log_sanitize.test.ts`
 - `packages/contract/tests/pagination.test.ts`
+- `packages/contract/tests/query_credentials.test.ts`
 - `packages/contract/tests/resource_derive.test.ts`
 - `packages/contract/tests/static_decorator.test.ts`
 
-2 mutation batteries — **`deno test` does not run these.** Each is an executable
+3 mutation batteries — **`deno test` does not run these.** Each is an executable
 that mutates a source file and re-runs the suites that should notice. Run them
 with `deno task mutate` (all of them, one at a time) or
 `deno task mutate <name>` (one); nightly CI runs the full sweep. See
@@ -112,6 +129,7 @@ with `deno task mutate` (all of them, one at a time) or
 
 - `packages/contract/tests/mutations/bidi_292.ts`
 - `packages/contract/tests/mutations/dsn_redaction_301_303.ts`
+- `packages/contract/tests/mutations/query_credentials_478.ts`
 
 <!-- /generated:tests -->
 
@@ -126,7 +144,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 9 test files directly —
+Then, specific to this package: run its 11 test files directly —
 
 ```bash
 deno test -A packages/contract/
