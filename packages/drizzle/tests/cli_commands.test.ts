@@ -901,6 +901,22 @@ Deno.test('db:fresh - R2 and R3 refuse before the connection is opened', async (
                     out: folder,
                     dbCredentials: { url: 'file:x', authToken: 't' },
                 })],
+            // #449 — every dbCredentials fault refuses before any connection.
+            ...([
+                ['R2 dbCredentials missing', undefined],
+                ['R2 dbCredentials not an object', 'file:x'],
+                ['R2 url missing', {}],
+                ['R2 url not a string', { url: 42 }],
+                ['R2 url empty', { url: '' }],
+                ['R2 url blank', { url: ' \t' }],
+            ] as const).map(([label, dbCredentials]) =>
+                [label, () =>
+                    Promise.resolve({
+                        dialect: 'postgresql',
+                        out: folder,
+                        dbCredentials,
+                    })] as [string, () => Promise<unknown>]
+            ),
             ['R3 journal', () =>
                 Promise.resolve({
                     dialect: 'sqlite',
@@ -921,6 +937,56 @@ Deno.test('db:fresh - R2 and R3 refuse before the connection is opened', async (
             assertStringIncludes(error.message, 'Nothing was dropped', label)
             assertEquals(calls, [], `${label}: the connection was opened`)
             assertEquals(lines.join('\n').includes('refreshed'), false, label)
+        }
+    })
+})
+
+Deno.test('db:fresh - an empty dbCredentials.url never reaches a driver (#449)', async () => {
+    await withMigrations(async (folder) => {
+        container.delete(Database)
+        try {
+            const factoryCalls: string[] = []
+            for (const dialect of ['postgres', 'mysql', 'sqlite'] as const) {
+                container.get(Database).setDriverFactory(dialect, () => {
+                    factoryCalls.push(dialect)
+                    return Promise.reject(new Error('a driver was created'))
+                })
+            }
+            for (
+                const [kitDialect, url] of [
+                    ['postgresql', ''],
+                    ['mysql', '  '],
+                    ['sqlite', '\n'],
+                ]
+            ) {
+                const { deps } = freshDeps(folder)
+                const cli = new FakeCli()
+                registerDrizzleCommands(cli, {
+                    runCommand: deps.runCommand,
+                    loadMigrationConfig: () =>
+                        Promise.resolve({
+                            dialect: kitDialect,
+                            out: folder,
+                            dbCredentials: { url },
+                        }),
+                })
+
+                const { lines, error } = await capture(() =>
+                    withAppEnv(undefined, () => cli.run('db:fresh'))
+                )
+
+                assert(error instanceof CommandFailedError, String(error))
+                assertStringIncludes(
+                    error.message,
+                    '`dbCredentials.url` is empty',
+                )
+                assertStringIncludes(error.message, 'Nothing was dropped.')
+                assertEquals(lines.join('\n').includes('refreshed'), false)
+            }
+            assertEquals(factoryCalls, [], 'a driver connection was attempted')
+            assertEquals(container.get(Database).isConnected(), false)
+        } finally {
+            container.delete(Database)
         }
     })
 })

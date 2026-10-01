@@ -217,21 +217,81 @@ Deno.test('#435 R2 refuses a config without out', async () => {
     )
 })
 
-Deno.test('#435 R2 refuses dbCredentials other than a url', async () => {
-    for (
-        const dbCredentials of [
-            undefined,
-            {},
-            { url: 42 },
-            { url: 'libsql://x', authToken: 't' },
-            { host: 'h', port: 5432, database: 'app' },
-        ]
-    ) {
-        await assertRefused(
-            () => Promise.resolve({ ...base, dbCredentials }),
-            '`dbCredentials`',
-        )
-    }
+// #449 — each `dbCredentials` fault gets its own message, and none of them
+// quotes the URL. A host the URL carries, assembled at runtime so no scanner
+// reads a credential into the source.
+const URL_HOST = ['secret-host', 'db.example'].join('.')
+
+/** The R2 messages for each `dbCredentials` fault, one per fault (#449). */
+const CREDENTIAL_FAULTS = {
+    missing: '`dbCredentials` is not set, so no database is named; a config ' +
+        'that builds it from an environment variable leaves it out when ' +
+        'that variable is unset',
+    notObject: '`dbCredentials` must be an object holding a `url`',
+    noUrl: '`dbCredentials.url` is not set or is not a string; db:fresh ' +
+        'connects through `url` only',
+    emptyUrl: '`dbCredentials.url` is empty, so no database is named; ' +
+        'the environment variable it is built from is probably unset',
+    extraKeys: '`dbCredentials` holds keys besides `url`; db:fresh connects ' +
+        'through `url` only',
+} as const
+
+for (
+    const [fault, cases] of [
+        ['missing', [undefined]],
+        ['notObject', [null, 'postgres://app', ['url']]],
+        ['noUrl', [{}, { url: 42 }, { url: null }, {
+            host: 'h',
+            port: 5432,
+            database: 'app',
+        }]],
+        ['emptyUrl', [{ url: '' }, { url: ' ' }, { url: '\t\n ' }, {
+            url: '  ',
+        }]],
+        ['extraKeys', [
+            { url: `libsql://${URL_HOST}`, authToken: 't' },
+            { url: `postgres://app@${URL_HOST}/app`, ssl: true },
+        ]],
+    ] as const
+) {
+    Deno.test(`#449 R2 names the dbCredentials fault: ${fault}`, async () => {
+        for (const dbCredentials of cases) {
+            const { folders, read } = reader()
+            const error = await assertRejects(
+                () =>
+                    loadMigrationSettings(
+                        () => Promise.resolve({ ...base, dbCredentials }),
+                        read,
+                    ),
+                FreshRefusedError,
+            )
+            const label = JSON.stringify(dbCredentials) ?? 'undefined'
+            assertEquals(
+                error.message,
+                `db:fresh refused: drizzle.config.ts: ${
+                    CREDENTIAL_FAULTS[fault]
+                }. Nothing was dropped.`,
+                label,
+            )
+            assertEquals(error.message.includes('secret-host'), false, label)
+            assertEquals(error.message.includes('postgres://'), false, label)
+            assertEquals(folders, [], `${label}: the migrations were read`)
+        }
+    })
+}
+
+Deno.test('#449 R2 gives each dbCredentials fault a distinct message', () => {
+    const messages = Object.values(CREDENTIAL_FAULTS)
+    assertEquals(new Set(messages).size, messages.length)
+})
+
+Deno.test('#449 R2 keeps a url with surrounding blanks as written', async () => {
+    const url = ' postgres://u:p@h:5432/app '
+    const settings = await loadMigrationSettings(
+        () => Promise.resolve({ ...base, dbCredentials: { url } }),
+        reader().read,
+    )
+    assertEquals(settings.url, url)
 })
 
 Deno.test('#435 R2 refuses a config that names a driver', async () => {

@@ -203,13 +203,7 @@ function parseConfig(
     if (typeof config.out !== 'string' || config.out === '') {
         throw refused('`out` (the migrations folder) is not set')
     }
-    const credentials = config.dbCredentials
-    if (
-        !isRecord(credentials) || typeof credentials.url !== 'string' ||
-        Object.keys(credentials).some((key) => key !== 'url')
-    ) {
-        throw refused('`dbCredentials` must hold a `url` and nothing else')
-    }
+    const url = credentialsUrl(config.dbCredentials)
     const migrations = config.migrations === undefined ? {} : config.migrations
     if (!isRecord(migrations)) {
         throw refused('`migrations` is not an object')
@@ -222,7 +216,7 @@ function parseConfig(
     return {
         dialect: DIALECT_FROM_KIT[kitDialect as KitDialect],
         kitDialect: kitDialect as KitDialect,
-        url: credentials.url,
+        url,
         folder: config.out,
         table,
         schema: postgres ? schema : undefined,
@@ -230,6 +224,57 @@ function parseConfig(
             ? schemaFilterOf(config.schemaFilter)
             : DEFAULT_SCHEMA_FILTER,
     }
+}
+
+/**
+ * Read `dbCredentials.url`, the one database a destructive command may reach
+ * (#449).
+ *
+ * An empty or blank URL is refused, not passed on: a driver given no URL
+ * falls back to its own default target, so a reset would start against a
+ * database the config never named. That URL is what
+ * `Deno.env.get('DATABASE_URL') ?? ''` yields with the variable unset.
+ *
+ * Each fault gets its own message, so the user fixes the field that is wrong.
+ * No message quotes the URL or any part of it: it carries the password.
+ *
+ * @param credentials - The raw `dbCredentials`.
+ * @returns The URL, as written.
+ * @throws {FreshRefusedError} When `dbCredentials` is missing or not an
+ *   object, when `url` is missing, not a string, empty or blank, or when any
+ *   key besides `url` is present.
+ */
+function credentialsUrl(credentials: unknown): string {
+    if (credentials === undefined) {
+        throw refused(
+            '`dbCredentials` is not set, so no database is named; a config ' +
+                'that builds it from an environment variable leaves it out ' +
+                'when that variable is unset',
+        )
+    }
+    if (!isRecord(credentials)) {
+        throw refused('`dbCredentials` must be an object holding a `url`')
+    }
+    const url = credentials.url
+    if (typeof url !== 'string') {
+        throw refused(
+            '`dbCredentials.url` is not set or is not a string; db:fresh ' +
+                'connects through `url` only',
+        )
+    }
+    if (url.trim() === '') {
+        throw refused(
+            '`dbCredentials.url` is empty, so no database is named; the ' +
+                'environment variable it is built from is probably unset',
+        )
+    }
+    if (Object.keys(credentials).some((key) => key !== 'url')) {
+        throw refused(
+            '`dbCredentials` holds keys besides `url`; db:fresh connects ' +
+                'through `url` only',
+        )
+    }
+    return url
 }
 
 /**
