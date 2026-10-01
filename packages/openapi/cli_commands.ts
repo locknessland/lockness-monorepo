@@ -1,9 +1,87 @@
+/**
+ * @fileoverview The `docs:generate` command: scan the app's controllers and
+ * write an OpenAPI document from their route metadata.
+ *
+ * @module @lockness/openapi/cli_commands
+ */
+
 import type { Cli } from '@lockness/cli'
 import { generateOpenAPISpec } from './generator.ts'
-import type { ControllerClass } from '@lockness/contract'
+import {
+    type ControllerClass,
+    importAppFile,
+    renderError,
+    safeForLog,
+} from '@lockness/contract'
 import { join } from '@std/path'
 
-export function registerOpenAPICommands(cli: Cli) {
+/**
+ * Import every `*_controller.ts(x)` file of a directory and collect the
+ * exports whose name ends in `Controller`, for `docs:generate`.
+ *
+ * Any failure stops the scan: a document missing a controller would look
+ * complete. A file that fails to load is named in the error.
+ *
+ * @param dir - The directory, absolute or relative to the working directory.
+ * @returns The controller classes, in directory order.
+ * @throws When the directory cannot be read, or a controller file fails to
+ *   load.
+ * @internal Exported for tests.
+ *
+ * @example
+ * ```ts
+ * const controllers = await loadDocumentedControllers()
+ * ```
+ */
+export async function loadDocumentedControllers(
+    dir: string = join('app', 'controller'),
+): Promise<ControllerClass[]> {
+    const controllers: ControllerClass[] = []
+    for await (const entry of Deno.readDir(dir)) {
+        if (
+            !entry.isFile ||
+            !(entry.name.endsWith('_controller.ts') ||
+                entry.name.endsWith('_controller.tsx'))
+        ) continue
+
+        let module: Record<string, unknown>
+        try {
+            // Through the app root, never a `file://` template literal:
+            // `deno publish` rewrites one into a path that resolves against
+            // the registry (#477).
+            module = await importAppFile(join(dir, entry.name))
+        } catch (error) {
+            throw new Error(
+                `${safeForLog(entry.name)} failed to load: ${
+                    renderError(error)
+                }`,
+                { cause: error },
+            )
+        }
+
+        for (const [key, exported] of Object.entries(module)) {
+            if (typeof exported === 'function' && key.endsWith('Controller')) {
+                controllers.push(exported as ControllerClass)
+            }
+        }
+    }
+    return controllers
+}
+
+/**
+ * Register the OpenAPI commands.
+ *
+ * Commands registered:
+ * - docs:generate - Write an OpenAPI document from the app's controllers
+ *
+ * @param cli - The CLI instance to register commands on.
+ *
+ * @example
+ * ```ts
+ * registerOpenAPICommands(cli)
+ * ```
+ */
+export function registerOpenAPICommands(cli: Cli): void {
     cli.register(
         'docs:generate',
         async (args: string[]) => {
@@ -13,36 +91,13 @@ export function registerOpenAPICommands(cli: Cli) {
             const options = parseOptions(args)
 
             // Get all controllers
-            const controllers: ControllerClass[] = []
-
-            // Scan app/controller directory
-            const controllersDir = './app/controller'
+            let controllers: ControllerClass[]
             try {
-                for await (const entry of Deno.readDir(controllersDir)) {
-                    if (
-                        entry.isFile &&
-                        (entry.name.endsWith('_controller.ts') ||
-                            entry.name.endsWith('_controller.tsx'))
-                    ) {
-                        const modulePath = join(controllersDir, entry.name)
-                        const module = await import(
-                            `file://${Deno.cwd()}/${modulePath}`
-                        )
-
-                        // Get all exported controllers
-                        for (const key of Object.keys(module)) {
-                            const exported = module[key]
-                            if (
-                                typeof exported === 'function' &&
-                                key.endsWith('Controller')
-                            ) {
-                                controllers.push(exported as ControllerClass)
-                            }
-                        }
-                    }
-                }
+                controllers = await loadDocumentedControllers()
             } catch (error) {
-                console.error('❌ Error scanning controllers:', error)
+                console.error(
+                    `❌ Error scanning controllers: ${renderError(error)}`,
+                )
                 return
             }
 
