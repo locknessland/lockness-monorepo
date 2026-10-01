@@ -334,82 +334,112 @@ export function postgresCatalogueQueries(schemas: readonly string[]): {
 }
 
 /**
- * The census: one count of the catalogue entries **outside** the scope.
+ * The deptypes by which an object without a schema of its own belongs to
+ * another: auto, internal, partition-primary and partition-secondary. A
+ * trigger, a policy, a rule or a column default is in scope when the object
+ * owning it through one of these is.
+ */
+const OWNER_DEPTYPES = "('a', 'i', 'P', 'S')"
+
+/**
+ * Whether a schema is left out of the census: the scope itself, the system
+ * schemas, and `pg_toast*` / `pg_temp*` — dropping a table removes its toast
+ * relation, and the baseline itself lives in `pg_temp`.
  *
- * It is taken inside the reset transaction before the first `CASCADE` and
- * again after the last; any difference means a `CASCADE` escaped the scope,
- * and the whole transaction is rolled back. `pg_catalog`,
- * `information_schema`, `pg_toast*` and `pg_temp*` are left out: dropping a
- * table removes its toast relation, and the baseline itself lives in
- * `pg_temp`. Internal triggers are left out too — a foreign key from a table
- * in scope keeps two on the table it references, and they go with the key.
+ * @param column - The schema column to test.
+ * @param scope - The scope schemas, as a list of literals.
+ * @returns A parenthesised boolean expression.
+ */
+function excludedSchema(column: string, scope: string): string {
+    return `(${column} IN (${scope}) ` +
+        `OR ${column} IN ('pg_catalog', 'information_schema') ` +
+        `OR ${column} LIKE 'pg\\_toast%' ` +
+        `OR ${column} LIKE 'pg\\_temp%')`
+}
+
+/**
+ * The R7 baseline: the identity `(classid, objid, objsubid)` of every user
+ * object outside the scope that `pg_depend` records as a dependent, with its
+ * `pg_identify_object` type and identity for the error message.
  *
- * Besides the entries the disposition names (`pg_class`, `pg_type`,
- * `pg_proc`, `pg_constraint`, `pg_trigger`, `pg_policy`), it counts columns
- * and column defaults: a `CASCADE` from a dropped type or routine removes a
- * column or a default of an outside table without touching the others.
+ * It is a set drawn from `pg_depend`, not a list of catalogues: a `CASCADE`
+ * walks only `pg_depend`, so every object it can reach outside the scope is
+ * in the baseline — whatever catalogue it lives in. An object with a schema
+ * is outside when that schema is; one without (a trigger, a policy, a rule, a
+ * column default, an event trigger) is outside unless an owner it depends on
+ * through {@link OWNER_DEPTYPES} sits in an excluded schema.
+ *
+ * Taken inside the reset transaction, after the bookkeeping drop and before
+ * the first `CASCADE`; it lives in a temporary table dropped on commit.
  *
  * @param schemas - The scope schemas.
- * @returns A `SELECT … AS n` returning one `bigint`.
- *
- * @example
- * ```ts
- * postgresCensusSql(['public']) // "SELECT (SELECT count(*) FROM …) + … AS n"
- * ```
+ * @returns The `CREATE TEMPORARY TABLE … AS SELECT …` statement.
  */
-export function postgresCensusSql(schemas: readonly string[]): string {
+function censusBaseline(schemas: readonly string[]): string {
     const scope = schemas.map(literal).join(', ')
-    const outside = (ns: string) =>
-        `${ns}.nspname NOT IN (${scope}) ` +
-        `AND ${ns}.nspname NOT IN ('pg_catalog', 'information_schema') ` +
-        `AND ${ns}.nspname NOT LIKE 'pg\\_toast%' ` +
-        `AND ${ns}.nspname NOT LIKE 'pg\\_temp%'`
-    const ns = (alias: string, column: string) =>
-        `JOIN pg_catalog.pg_namespace n ON n.oid = ${alias}.${column}`
-    const onRelation = (alias: string, column: string) =>
-        `JOIN pg_catalog.pg_class c ON c.oid = ${alias}.${column} ${
-            ns('c', 'relnamespace')
-        }`
-    const counts = [
-        `FROM pg_catalog.pg_class c ${ns('c', 'relnamespace')} WHERE ${
-            outside('n')
-        }`,
-        `FROM pg_catalog.pg_attribute a ${
-            onRelation('a', 'attrelid')
-        } WHERE a.attnum > 0 AND NOT a.attisdropped AND ${outside('n')}`,
-        `FROM pg_catalog.pg_attrdef f ${onRelation('f', 'adrelid')} WHERE ${
-            outside('n')
-        }`,
-        `FROM pg_catalog.pg_type t ${ns('t', 'typnamespace')} WHERE ${
-            outside('n')
-        }`,
-        `FROM pg_catalog.pg_proc p ${ns('p', 'pronamespace')} WHERE ${
-            outside('n')
-        }`,
-        `FROM pg_catalog.pg_constraint k ${ns('k', 'connamespace')} WHERE ${
-            outside('n')
-        }`,
-        `FROM pg_catalog.pg_trigger g ${
-            onRelation('g', 'tgrelid')
-        } WHERE NOT g.tgisinternal AND ${outside('n')}`,
-        `FROM pg_catalog.pg_policy y ${onRelation('y', 'polrelid')} WHERE ${
-            outside('n')
-        }`,
-    ]
-    return `SELECT ${
-        counts.map((from) => `(SELECT count(*) ${from})`).join(' + ')
-    } AS n`
+    return [
+        `CREATE TEMPORARY TABLE ${CENSUS_TABLE} ON COMMIT DROP AS`,
+        'SELECT DISTINCT d.classid, d.objid, d.objsubid, o.type, o.identity',
+        'FROM pg_catalog.pg_depend d',
+        'CROSS JOIN LATERAL pg_catalog.pg_identify_object(d.classid, d.objid, d.objsubid) o',
+        'WHERE d.classid <> 0 AND d.objid >= 16384',
+        'AND NOT CASE',
+        `WHEN o.schema IS NOT NULL THEN ${excludedSchema('o.schema', scope)}`,
+        'ELSE EXISTS (SELECT 1 FROM pg_catalog.pg_depend w',
+        'CROSS JOIN LATERAL pg_catalog.pg_identify_object(w.refclassid, w.refobjid, w.refobjsubid) r',
+        'WHERE (w.classid, w.objid, w.objsubid) = (d.classid, d.objid, d.objsubid)',
+        `AND w.deptype IN ${OWNER_DEPTYPES} AND ${
+            excludedSchema('r.schema', scope)
+        })`,
+        'END',
+    ].join('\n')
 }
+
+/** A baseline row whose object `pg_depend` no longer records — it was dropped. */
+const ESCAPED = `FROM pg_temp.${CENSUS_TABLE} c\n` +
+    'WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_depend d ' +
+    'WHERE d.classid = c.classid AND d.objid = c.objid ' +
+    'AND d.objsubid = c.objsubid)'
+
+/**
+ * The `DO` block that ends the postgres transaction: any baseline object with
+ * no `pg_depend` row left was dropped by a `CASCADE` that escaped the scope,
+ * and the block raises — rolling the whole reset back — with their count and
+ * the first ten of them by type and identity.
+ *
+ * It probes `pg_depend` by index and never re-runs the census, so objects
+ * created by another session during the reset are never compared.
+ */
+const CENSUS_CHECK = [
+    'DO $lockness_fresh$',
+    'DECLARE',
+    '    escaped bigint;',
+    '    labels text;',
+    'BEGIN',
+    `    SELECT count(*) INTO escaped ${ESCAPED};`,
+    '    IF escaped > 0 THEN',
+    "        SELECT string_agg(e.label, ', ' ORDER BY e.label) INTO labels",
+    "        FROM (SELECT concat_ws(' ', c.type, c.identity) AS label " +
+    `${ESCAPED}`,
+    '        ORDER BY 1 LIMIT 10) AS e;',
+    "        RAISE EXCEPTION 'db:fresh: a CASCADE reached outside the managed " +
+    'scope and dropped % object(s) outside it (%); the reset was rolled ' +
+    "back', escaped, labels;",
+    '    END IF;',
+    'END',
+    '$lockness_fresh$',
+].join('\n')
 
 /**
  * Plan the postgres reset, for one transaction:
  *
  * 1. drop the bookkeeping table (no `CASCADE`: nothing may depend on it);
- * 2. keep a census of the catalogue outside the scope;
+ * 2. keep the census: every object outside the scope `pg_depend` records;
  * 3. drop each object in scope with `CASCADE`, keeping its schema — unless a
  *    migration creates that schema with a plain `CREATE SCHEMA`, in which case
  *    the schema is dropped instead, because the migration would fail on it;
- * 4. compare the census, and raise — rolling everything back — on any change.
+ * 4. raise — rolling everything back — when any object of the census is
+ *    gone, naming the first ten of them (R7).
  *
  * @param catalogue - The catalogue in scope, read before any DDL.
  * @param scope - The reset scope.
@@ -456,11 +486,9 @@ export function planPostgresReset(
     const relations = kept(catalogue.relations).filter((r) =>
         !(r.schema === (scope.schema ?? 'public') && r.name === scope.table)
     )
-    const census = postgresCensusSql(scope.schemaFilter)
-
     return [
         `DROP TABLE IF EXISTS ${bookkeeping}`,
-        `CREATE TEMPORARY TABLE ${CENSUS_TABLE} ON COMMIT DROP AS ${census}`,
+        censusBaseline(scope.schemaFilter),
         ...scope.schemaFilter.filter((s) => dropped.has(s)).map((s) =>
             `DROP SCHEMA IF EXISTS ${quote(s)} CASCADE`
         ),
@@ -471,7 +499,7 @@ export function planPostgresReset(
             }(${r.args}) CASCADE`
         ),
         ...byKind(kept(catalogue.types), TYPE_DROP),
-        censusCheck(census),
+        CENSUS_CHECK,
     ]
 }
 
@@ -508,29 +536,6 @@ function refuseSystemSchemas(scope: ResetScope): void {
                 'must name application schemas',
         )
     }
-}
-
-/**
- * The `DO` block that ends the postgres transaction.
- *
- * @param census - The census query.
- * @returns The block; it raises when the census changed.
- */
-function censusCheck(census: string): string {
-    return 'DO $lockness_fresh$\n' +
-        'DECLARE\n' +
-        '    baseline bigint;\n' +
-        '    remaining bigint;\n' +
-        'BEGIN\n' +
-        `    SELECT n INTO baseline FROM pg_temp.${CENSUS_TABLE};\n` +
-        `    SELECT census.n INTO remaining FROM (${census}) AS census;\n` +
-        '    IF remaining <> baseline THEN\n' +
-        "        RAISE EXCEPTION 'db:fresh: a CASCADE reached outside the " +
-        'managed scope (% catalogue entries outside it before, % after); ' +
-        "the reset was rolled back', baseline, remaining;\n" +
-        '    END IF;\n' +
-        'END\n' +
-        '$lockness_fresh$'
 }
 
 /**

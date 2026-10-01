@@ -26,7 +26,6 @@ import {
     planSqliteReset,
     type PostgresCatalogue,
     postgresCatalogueQueries,
-    postgresCensusSql,
     resetDatabase,
     type ResetScope,
 } from '../reset.ts'
@@ -222,7 +221,10 @@ Deno.test('#435 postgres plan: bookkeeping, census baseline, CASCADE per object,
     assertEquals(plan.slice(0, 1), [
         'DROP TABLE IF EXISTS "drizzle"."__drizzle_migrations"',
     ])
-    assertEquals(plan[1], censusBaseline(['public']))
+    assertStringIncludes(
+        plan[1],
+        'CREATE TEMPORARY TABLE lockness_fresh_census',
+    )
     assertEquals(plan.slice(2, -1), [
         'DROP VIEW IF EXISTS "public"."recent" CASCADE',
         'DROP MATERIALIZED VIEW IF EXISTS "public"."stats" CASCADE',
@@ -237,40 +239,16 @@ Deno.test('#435 postgres plan: bookkeeping, census baseline, CASCADE per object,
         'DROP TYPE IF EXISTS "public"."span" CASCADE',
         'DROP TYPE IF EXISTS "public"."mood_multirange" CASCADE',
     ])
-    assertEquals(plan.at(-1), censusCheck(['public']))
+    assertStringIncludes(plan.at(-1) ?? '', 'DO $lockness_fresh$')
     assertEquals(plan.some((s) => /DROP SCHEMA/.test(s)), false)
 })
 
-/**
- * The R7 `DO` block, spelled out: the baseline is read back from the
- * temporary table, the census is taken again, and any difference raises —
- * which rolls the whole reset back.
- */
-function censusCheck(schemas: readonly string[]): string {
-    return [
-        'DO $lockness_fresh$',
-        'DECLARE',
-        '    baseline bigint;',
-        '    remaining bigint;',
-        'BEGIN',
-        '    SELECT n INTO baseline FROM pg_temp.lockness_fresh_census;',
-        `    SELECT census.n INTO remaining FROM (${
-            postgresCensusSql(schemas)
-        }) AS census;`,
-        '    IF remaining <> baseline THEN',
-        "        RAISE EXCEPTION 'db:fresh: a CASCADE reached outside the " +
-        'managed scope (% catalogue entries outside it before, % after); ' +
-        "the reset was rolled back', baseline, remaining;",
-        '    END IF;',
-        'END',
-        '$lockness_fresh$',
-    ].join('\n')
-}
-
-/** The R7 baseline: the census, kept for this transaction only. */
-function censusBaseline(schemas: readonly string[]): string {
-    return 'CREATE TEMPORARY TABLE lockness_fresh_census ON COMMIT DROP AS ' +
-        postgresCensusSql(schemas)
+/** The R7 baseline and check of a plan over `schemaFilter`, nothing dropped. */
+function census(
+    schemaFilter: readonly string[] = ['public'],
+): { readonly baseline: string; readonly check: string } {
+    const plan = planPostgresReset(EMPTY, scope('postgres', { schemaFilter }))
+    return { baseline: plan[1], check: plan.at(-1) ?? '' }
 }
 
 for (
@@ -286,15 +264,118 @@ for (
                 relations: [{ schema: 'public', name: 'users', kind: 'r' }],
             }, scope('postgres', { schemaFilter }))
 
-            assertEquals(plan, [
+            assertEquals(plan.length, 4)
+            assertEquals(
+                plan[0],
                 'DROP TABLE IF EXISTS "drizzle"."__drizzle_migrations"',
-                censusBaseline(schemaFilter),
+            )
+            assert(
+                plan[1].startsWith(
+                    'CREATE TEMPORARY TABLE lockness_fresh_census ON COMMIT DROP AS\n',
+                ),
+                plan[1],
+            )
+            assertEquals(
+                plan[2],
                 'DROP TABLE IF EXISTS "public"."users" CASCADE',
-                censusCheck(schemaFilter),
-            ])
+            )
+            assert(plan[3].startsWith('DO $lockness_fresh$\n'), plan[3])
         },
     )
 }
+
+Deno.test('#435 R7 the baseline is every user object pg_depend records as a dependent', () => {
+    const { baseline } = census()
+
+    assertStringIncludes(
+        baseline,
+        'SELECT DISTINCT d.classid, d.objid, d.objsubid, o.type, o.identity\n' +
+            'FROM pg_catalog.pg_depend d\n',
+    )
+    assertStringIncludes(
+        baseline,
+        'WHERE d.classid <> 0 AND d.objid >= 16384\n',
+    )
+})
+
+Deno.test('#435 R7 the baseline names objects through pg_identify_object, the object and its owner', () => {
+    const { baseline } = census()
+
+    assertStringIncludes(
+        baseline,
+        'CROSS JOIN LATERAL pg_catalog.pg_identify_object(d.classid, d.objid, d.objsubid) o\n',
+    )
+    assertStringIncludes(
+        baseline,
+        'CROSS JOIN LATERAL pg_catalog.pg_identify_object(w.refclassid, w.refobjid, w.refobjsubid) r\n',
+    )
+    assertStringIncludes(
+        baseline,
+        'WHERE (w.classid, w.objid, w.objsubid) = (d.classid, d.objid, d.objsubid)\n',
+    )
+})
+
+Deno.test("#435 R7 an object without a schema is classified by its owner, through deptypes exactly ('a', 'i', 'P', 'S')", () => {
+    const { baseline } = census()
+
+    assertEquals(baseline.match(/deptype IN \([^)]*\)/g), [
+        "deptype IN ('a', 'i', 'P', 'S')",
+    ])
+    assertStringIncludes(baseline, "AND w.deptype IN ('a', 'i', 'P', 'S') AND ")
+    assertStringIncludes(baseline, 'WHEN o.schema IS NOT NULL THEN ')
+})
+
+Deno.test("#435 R7 the four exclusions apply to the object's own schema and to its owner's", () => {
+    const { baseline } = census(['public', "o'brien"])
+
+    for (const column of ['o.schema', 'r.schema']) {
+        assertStringIncludes(
+            baseline,
+            `(${column} IN ('public', 'o''brien') ` +
+                `OR ${column} IN ('pg_catalog', 'information_schema') ` +
+                `OR ${column} LIKE 'pg\\_toast%' ` +
+                `OR ${column} LIKE 'pg\\_temp%')`,
+        )
+    }
+    assertStringIncludes(baseline, 'AND NOT CASE\n')
+})
+
+Deno.test('#435 R7 the check probes pg_depend as it is now, never the census query again', () => {
+    const { check } = census()
+
+    assertStringIncludes(check, 'FROM pg_temp.lockness_fresh_census c\n')
+    assertStringIncludes(
+        check,
+        'WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_depend d ' +
+            'WHERE d.classid = c.classid AND d.objid = c.objid ' +
+            'AND d.objsubid = c.objsubid)',
+    )
+    assertEquals(check.includes('pg_identify_object'), false)
+    assertEquals(check.includes('pg_catalog.pg_class'), false)
+})
+
+Deno.test('#435 R7 no count comparison remains', () => {
+    const { baseline, check } = census()
+
+    assertEquals(baseline.includes('count('), false)
+    assertEquals(/\b(baseline|remaining)\b/.test(check), false)
+    assertEquals(/<>\s*\w+;/.test(check), false)
+    assertEquals(baseline.includes('tgisinternal'), false)
+})
+
+Deno.test('#435 R7 the RAISE names the count, the first ten escaped objects and the rollback', () => {
+    const { check } = census()
+
+    assertStringIncludes(check, "concat_ws(' ', c.type, c.identity)")
+    assertStringIncludes(check, 'LIMIT 10')
+    assertStringIncludes(check, 'IF escaped > 0 THEN')
+    assert(
+        /RAISE EXCEPTION '[^']*%[^']*%[^']*rolled back', escaped, labels;/.test(
+            check,
+        ),
+        check,
+    )
+})
 
 Deno.test('#435 postgres plan keeps the schema and never drops public', () => {
     const plan = planPostgresReset(EMPTY, scope('postgres'))
@@ -438,30 +519,6 @@ Deno.test('#435 postgres accepts a schema that merely contains pg_ or informatio
         plan[0],
         'DROP TABLE IF EXISTS "meta_pg"."__drizzle_migrations"',
     )
-})
-
-Deno.test('#435 the census excludes the scope, pg_catalog, information_schema, pg_toast* and pg_temp*', () => {
-    const census = postgresCensusSql(['public', "o'brien"])
-
-    for (
-        const catalogue of [
-            'pg_class',
-            'pg_attribute',
-            'pg_attrdef',
-            'pg_type',
-            'pg_proc',
-            'pg_constraint',
-            'pg_trigger',
-            'pg_policy',
-        ]
-    ) {
-        assertStringIncludes(census, `pg_catalog.${catalogue} `)
-    }
-    assertStringIncludes(census, "NOT IN ('public', 'o''brien')")
-    assertStringIncludes(census, "NOT IN ('pg_catalog', 'information_schema')")
-    assertStringIncludes(census, "NOT LIKE 'pg\\_toast%'")
-    assertStringIncludes(census, "NOT LIKE 'pg\\_temp%'")
-    assertStringIncludes(census, 'NOT g.tgisinternal')
 })
 
 Deno.test('#435 the catalogue reads exclude extension members and owned sequences', () => {
