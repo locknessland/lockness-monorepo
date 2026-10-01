@@ -1,7 +1,9 @@
 /**
  * @fileoverview #435 — the postgres reset against a LIVE server: the R7
  * census rolls back a `CASCADE` that escapes the scope, lets every in-scope
- * dependency go, and ignores objects another session creates meanwhile.
+ * dependency go, and ignores objects another session creates meanwhile; R6
+ * refuses a schema holding an extension before any drop; and the migrate
+ * keeps its bookkeeping where `migrations.schema` / `migrations.table` say.
  *
  * The pure tests in `reset.test.ts` pin the SQL; only a real server proves
  * that `pg_depend` and `pg_identify_object` classify objects the way the
@@ -11,14 +13,22 @@
  * **Skipped unless `LOCKNESS_POSTGRES_INTEGRATION=1`.** The `live-postgres`
  * CI job sets it next to a `postgres:16` service; locally,
  * `deno task test:postgres` sets it. `LOCKNESS_POSTGRES_URL` names the
- * server and must point at a loopback host. The suite creates and drops only
- * schemas named `lockness_fresh_*` and one event trigger,
- * `lockness_fresh_ddl`, and it needs a superuser for the event trigger.
+ * server, and every host it names must be loopback — a guard the gate
+ * tests without a server. The suite creates and drops only schemas named
+ * `lockness_fresh_*` (and the `citext` extension inside one of them) and one
+ * event trigger, `lockness_fresh_ddl`, and it needs a superuser for the
+ * event trigger.
  *
  * @module @lockness/drizzle/tests/fresh_postgres_live
  */
 
-import { assert, assertEquals, assertStringIncludes } from '@std/assert'
+import {
+    assert,
+    assertEquals,
+    assertRejects,
+    assertStringIncludes,
+} from '@std/assert'
+import { join } from '@std/path'
 import postgres from 'postgres'
 import {
     defaultDriverFactories,
@@ -26,7 +36,7 @@ import {
     type PostgresTransactor,
     type SchemaMaintenance,
 } from '../drivers.ts'
-import { resetDatabase, type ResetScope } from '../reset.ts'
+import { FreshRefusedError, resetDatabase, type ResetScope } from '../reset.ts'
 
 /**
  * Whether the live suite runs at all. The root `deno.jsonc` task
@@ -52,28 +62,95 @@ const SETTINGS: ResetScope = {
     statements: [],
 }
 
-/** Hosts a destructive suite may run against. */
-const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]', '::1'])
+/**
+ * Hosts a destructive suite may run against. postgres.js parses a bracketed
+ * IPv6 host (`[::1]`) to `[`, so only the forms it can connect to are listed.
+ */
+const LOOPBACK: ReadonlySet<string> = new Set([
+    '127.0.0.1',
+    'localhost',
+    '::1',
+])
 
 /**
- * The server url, refused unless it points at a loopback host. The error
- * never quotes the url, which may hold a password.
+ * Refuse `url` unless EVERY host postgres.js would try is a loopback host.
+ *
+ * The url text is not enough: postgres.js takes a host list —
+ * `u@evil.example,x@127.0.0.1` is two hosts, the first one remote — and an
+ * empty host falls back to `PGHOST`. So the hosts are read from postgres.js's
+ * own parse, the one the suite connects with. The client is built to be
+ * parsed only and never connects. No error quotes the url, which may hold a
+ * password; the parser's own error does, so it is replaced, not chained.
+ *
+ * @param url - The candidate server url.
+ * @returns The url.
+ * @throws {Error} When it is empty, unparsable or names a non-loopback host.
+ */
+async function assertLoopback(url: string): Promise<string> {
+    if (url === '') throw new Error('LOCKNESS_POSTGRES_URL is unset')
+    let hosts: readonly string[]
+    try {
+        const parsed = postgres(url, { max: 1 })
+        hosts = parsed.options.host
+        await parsed.end()
+    } catch {
+        throw new Error('LOCKNESS_POSTGRES_URL is not a url')
+    }
+    if (hosts.length === 0 || !hosts.every((host) => LOOPBACK.has(host))) {
+        throw new Error('LOCKNESS_POSTGRES_URL must name loopback hosts only')
+    }
+    return url
+}
+
+/**
+ * The server url, refused unless every host it names is loopback.
  *
  * @returns The url.
  * @throws {Error} When it is unset, unparsable or not loopback.
  */
-function liveUrl(): string {
-    const url = Deno.env.get('LOCKNESS_POSTGRES_URL') ?? ''
-    let host: string
-    try {
-        host = new URL(url).hostname
-    } catch {
-        throw new Error('LOCKNESS_POSTGRES_URL is unset or not a url')
-    }
-    if (!LOOPBACK.has(host)) {
-        throw new Error('LOCKNESS_POSTGRES_URL must point at a loopback host')
-    }
-    return url
+function liveUrl(): Promise<string> {
+    return assertLoopback(Deno.env.get('LOCKNESS_POSTGRES_URL') ?? '')
+}
+
+// -----------------------------------------------------------------------------
+// The loopback guard — runs in the gate, no server needed
+// -----------------------------------------------------------------------------
+
+const ACCEPTED: readonly string[] = [
+    'postgres://postgres@127.0.0.1:5432/postgres',
+    'postgres://postgres@localhost/postgres',
+    'postgres://u@127.0.0.1,localhost/db',
+]
+
+for (const url of ACCEPTED) {
+    Deno.test(`#435 live guard: accepts ${url}`, async () => {
+        assertEquals(await assertLoopback(url), url)
+    })
+}
+
+/** Each case: what it is, and the url. No url holds a real credential. */
+const REFUSED: ReadonlyArray<readonly [string, string]> = [
+    ['a remote host', 'postgres://u@db.example/db'],
+    [
+        'a host list whose first host is remote',
+        'postgres://u@evil.example,x@127.0.0.1/db',
+    ],
+    [
+        'a host list whose last host is remote',
+        'postgres://u@127.0.0.1,evil.example/db',
+    ],
+    ['an unset url', ''],
+    ['an unparsable url', 'postgres://u:pw-sample@[unclosed/db'],
+]
+
+for (const [label, url] of REFUSED) {
+    Deno.test(
+        `#435 live guard: refuses ${label}, without quoting it`,
+        async () => {
+            const error = await assertRejects(() => assertLoopback(url), Error)
+            if (url !== '') assertEquals(error.message.includes(url), false)
+        },
+    )
 }
 
 /** A postgres.js client, as the suite uses it. */
@@ -140,7 +217,7 @@ async function live(
         url: string,
     ) => Promise<void>,
 ): Promise<void> {
-    const url = liveUrl()
+    const url = await liveUrl()
     const admin = postgres(url, { max: 1, onnotice: () => {} })
     const handle = await defaultDriverFactories.postgres(url)
     try {
@@ -411,5 +488,116 @@ Deno.test({
             assertStringIncludes(error.message, `${OTHER}.v`)
             await assertUntouched(admin)
             assert(await exists(admin, `${OTHER}.x`), 'the concurrent table')
+        }),
+})
+
+// -----------------------------------------------------------------------------
+// The bookkeeping location reaches drizzle-orm's migrator
+// -----------------------------------------------------------------------------
+
+/** The bookkeeping table the migrate is pointed at, instead of the default. */
+const HISTORY = 'history'
+
+/** The journal `when` of the one migration, which becomes `created_at`. */
+const WHEN = 1_700_000_000_000
+
+/** Write a one-migration folder, as drizzle-kit lays it out. */
+async function writeMigration(folder: string): Promise<void> {
+    await Deno.mkdir(join(folder, 'meta'), { recursive: true })
+    await Deno.writeTextFile(
+        join(folder, 'meta', '_journal.json'),
+        JSON.stringify({
+            version: '7',
+            dialect: 'postgresql',
+            entries: [{
+                idx: 0,
+                version: '7',
+                when: WHEN,
+                tag: '0000_migrated',
+                breakpoints: true,
+            }],
+        }),
+    )
+    await Deno.writeTextFile(
+        join(folder, '0000_migrated.sql'),
+        `CREATE TABLE "${SCOPE}"."migrated" ("id" integer);`,
+    )
+}
+
+Deno.test({
+    name:
+        '#435 live: migrate keeps its bookkeeping in migrations.schema and migrations.table',
+    ignore: !LIVE,
+    fn: () =>
+        live(async (admin, maintenance) => {
+            const folder = await Deno.makeTempDir({ prefix: 'lockness_fresh_' })
+            try {
+                await writeMigration(folder)
+
+                await maintenance.migrate({
+                    folder,
+                    table: HISTORY,
+                    schema: BOOKKEEPING,
+                })
+
+                // Read back from that exact table: a dropped `schema` sends
+                // the rows to `drizzle`, a dropped `table` to the default one.
+                const rows = await admin.unsafe(
+                    `SELECT created_at FROM ${BOOKKEEPING}.${HISTORY}`,
+                )
+                assertEquals(rows.map((row) => Number(row.created_at)), [WHEN])
+                const [defaults] = await admin.unsafe(
+                    'SELECT count(*) AS n ' +
+                        `FROM ${BOOKKEEPING}.__drizzle_migrations`,
+                )
+                assertEquals(
+                    Number(defaults.n),
+                    0,
+                    'the default bookkeeping table was written',
+                )
+                assert(
+                    await exists(admin, `${SCOPE}.migrated`),
+                    'the migration did not run',
+                )
+            } finally {
+                await Deno.remove(folder, { recursive: true })
+            }
+        }),
+})
+
+// -----------------------------------------------------------------------------
+// R6: a schema the reset would drop holds an extension
+// -----------------------------------------------------------------------------
+
+Deno.test({
+    name:
+        '#435 R6 live: a scope schema holding an extension, which a migration re-creates, is refused before any drop',
+    ignore: !LIVE,
+    fn: () =>
+        live(async (admin, maintenance) => {
+            // citext ships with postgres:16 and is a trusted extension. It
+            // lives in the scope schema, so the teardown's DROP SCHEMA takes
+            // it along; nothing outside `lockness_fresh_*` is touched.
+            await run(admin, [`CREATE EXTENSION citext SCHEMA ${SCOPE}`])
+
+            const error = await rejected(() =>
+                resetDatabase(maintenance, {
+                    ...SETTINGS,
+                    statements: [`CREATE SCHEMA "${SCOPE}";`],
+                })
+            )
+
+            // R6, not R7: without the refusal the CASCADE would drop the
+            // extension and the census would roll it back — a different
+            // error, raised after the drops had run.
+            assert(error instanceof FreshRefusedError, String(error))
+            assertStringIncludes(error.message, 'extension')
+            await assertUntouched(admin)
+            const [row] = await admin.unsafe(
+                'SELECT count(*) AS n FROM pg_catalog.pg_extension e ' +
+                    'JOIN pg_catalog.pg_namespace n ON n.oid = e.extnamespace ' +
+                    `WHERE e.extname = 'citext' AND n.nspname = '${SCOPE}'`,
+            )
+            assertEquals(Number(row.n), 1, 'the extension is gone')
         }),
 })

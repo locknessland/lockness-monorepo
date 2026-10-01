@@ -639,6 +639,31 @@ Deno.test('#435 the catalogue reads exclude extension members and owned sequence
     assertStringIncludes(queries.routines, "deptype IN ('e', 'i')")
 })
 
+Deno.test('#435 R6 reads every extension and extension member in scope, and nothing else', () => {
+    // Written out by hand, not derived: the R6 refusal is only as good as
+    // this read. Each branch is scoped to the schemas (one quoted), and a
+    // member is a `pg_depend` row of deptype 'e' — not 'a', 'i' or 'n'.
+    const scoped = "WHERE n.nspname IN ('public', 'o''brien')"
+    const member = (catalogue: string, alias: string, namespace: string) =>
+        `SELECT n.nspname AS schema FROM pg_catalog.${catalogue} ${alias} ` +
+        `JOIN pg_catalog.pg_namespace n ON n.oid = ${alias}.${namespace} ` +
+        'JOIN pg_catalog.pg_depend d ' +
+        `ON d.classid = 'pg_catalog.${catalogue}'::regclass ` +
+        `AND d.objid = ${alias}.oid AND d.deptype = 'e' ${scoped}`
+
+    assertEquals(
+        postgresCatalogueQueries(['public', "o'brien"]).extensions,
+        [
+            'SELECT n.nspname AS schema FROM pg_catalog.pg_extension e ' +
+            'JOIN pg_catalog.pg_namespace n ON n.oid = e.extnamespace ' +
+            scoped,
+            member('pg_class', 'c', 'relnamespace'),
+            member('pg_type', 't', 'typnamespace'),
+            member('pg_proc', 'p', 'pronamespace'),
+        ].join(' UNION '),
+    )
+})
+
 Deno.test('#435 postgres reset reads the whole catalogue before executing', async () => {
     const { calls, executed, maintenance } = fakeMaintenance({
         'pg_catalog.pg_extension': [],

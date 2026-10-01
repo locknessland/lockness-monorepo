@@ -129,7 +129,10 @@ function maintainedFactory(
             return [{ n: 1 }]
         },
         execute: (statements) => fail(`execute:${statements.join(';')}`),
-        migrate: (options) => fail(`migrate:${options.folder}`),
+        migrate: (options) =>
+            fail(
+                `migrate:${options.folder}:${options.table}:${options.schema}`,
+            ),
     }
     const factory: DriverFactory = () =>
         Promise.resolve({
@@ -151,9 +154,13 @@ Deno.test('#435 maintenance passes each call through to the handle', async () =>
     if (!maintenance) throw new Error('maintenance missing')
     assertEquals(await maintenance.query('SELECT 1'), [{ n: 1 }])
     await maintenance.execute(['A', 'B'])
-    await maintenance.migrate({ folder: 'out', table: 't' })
+    await maintenance.migrate({ folder: 'out', table: 't', schema: 's' })
 
-    assertEquals(calls, ['query:SELECT 1', 'execute:A;B', 'migrate:out'])
+    assertEquals(calls, [
+        'query:SELECT 1',
+        'execute:A;B',
+        'migrate:out:t:s',
+    ])
 })
 
 Deno.test('#435 maintenance is undefined when the handle has none (a custom factory)', async () => {
