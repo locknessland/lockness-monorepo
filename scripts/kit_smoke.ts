@@ -71,22 +71,67 @@ export interface StepResult {
 }
 
 /**
- * Every child process this script has started and not yet reaped, so a
- * signal handler can kill them all. A server left running after the script
- * exits holds its port and its temp directory, and has bitten this repo.
+ * Every child process a run has started and not yet reaped, so a signal
+ * handler can kill them all. A server left running after the script exits
+ * holds its port and its temp directory, and has bitten this repo.
+ *
+ * Once {@link ChildTracker.abort} is called it also refuses to spawn: a
+ * signal arrives while the kit loop is still going, and a child spawned
+ * after the kill sweep would otherwise outlive the script.
+ *
+ * @example
+ * ```ts
+ * const tracker = new ChildTracker()
+ * const child = tracker.spawn(new Deno.Command('sleep', { args: ['60'] }))
+ * tracker.abort() // kills it; any later spawn returns undefined
+ * ```
  */
-const live = new Set<Deno.ChildProcess>()
+export class ChildTracker {
+    readonly #live = new Set<Deno.ChildProcess>()
+    #aborted = false
 
-/** SIGKILL every child still running. Safe to call more than once. */
-function killLiveChildren(): void {
-    for (const child of live) {
-        try {
-            child.kill('SIGKILL')
-        } catch {
-            // Already exited between the check and the kill: nothing to stop.
+    /** Whether {@link abort} was called. */
+    get aborted(): boolean {
+        return this.#aborted
+    }
+
+    /**
+     * Spawn and track a child, unless aborted.
+     *
+     * @param command - The command to spawn.
+     * @returns The child, or `undefined` once aborted.
+     */
+    spawn(command: Deno.Command): Deno.ChildProcess | undefined {
+        if (this.#aborted) return undefined
+        const child = command.spawn()
+        this.#live.add(child)
+        child.status.then(
+            () => this.#live.delete(child),
+            () => this.#live.delete(child),
+        )
+        return child
+    }
+
+    /** SIGKILL every child still running. Safe to call more than once. */
+    killAll(): void {
+        for (const child of this.#live) {
+            try {
+                child.kill('SIGKILL')
+            } catch {
+                // Exited between the check and the kill: nothing to stop.
+            }
         }
     }
+
+    /** Refuse every later spawn, then kill every live child. */
+    abort(): void {
+        this.#aborted = true
+        this.killAll()
+    }
 }
+
+/** The tracker this script's own runs use. */
+const children = new ChildTracker()
 
 /**
  * Run a command inside a directory and capture everything it said.
@@ -95,7 +140,8 @@ function killLiveChildren(): void {
  * @param args - Arguments.
  * @param cwd - Working directory.
  * @param env - Variables added to (and overriding) the inherited environment.
- * @returns Success, and the combined output for a failure message.
+ * @returns Success, and the combined output for a failure message; a
+ * failure without spawning once the run is aborted.
  */
 async function run(
     cmd: string,
@@ -103,23 +149,23 @@ async function run(
     cwd: string,
     env?: Record<string, string>,
 ): Promise<{ ok: boolean; output: string }> {
-    const child = new Deno.Command(cmd, {
-        args,
-        cwd,
-        env,
-        stdout: 'piped',
-        stderr: 'piped',
-    }).spawn()
-    live.add(child)
-    try {
-        const { success, stdout, stderr } = await child.output()
-        const decode = new TextDecoder()
-        return {
-            ok: success,
-            output: decode.decode(stdout) + decode.decode(stderr),
-        }
-    } finally {
-        live.delete(child)
+    const child = children.spawn(
+        new Deno.Command(cmd, {
+            args,
+            cwd,
+            env,
+            stdout: 'piped',
+            stderr: 'piped',
+        }),
+    )
+    if (child === undefined) {
+        return { ok: false, output: `aborted: ${cmd} not started` }
+    }
+    const { success, stdout, stderr } = await child.output()
+    const decode = new TextDecoder()
+    return {
+        ok: success,
+        output: decode.decode(stdout) + decode.decode(stderr),
     }
 }
 
@@ -185,6 +231,8 @@ export interface BootOptions {
      * Receives the origin (`http://localhost:<port>`).
      */
     readonly probe?: (origin: string) => Promise<StepResult>
+    /** Which tracker spawns the server; this script's own by default. */
+    readonly tracker?: ChildTracker
 }
 
 /**
@@ -212,14 +260,18 @@ export async function boots(
     options: BootOptions = {},
 ): Promise<StepResult> {
     const timeoutMs = options.timeoutMs ?? BOOT_TIMEOUT_MS
-    const child = new Deno.Command(Deno.execPath(), {
-        args: ['run', '-A', 'main.ts'],
-        cwd: dir,
-        env: { ...options.env, PORT: String(port) },
-        stdout: 'piped',
-        stderr: 'piped',
-    }).spawn()
-    live.add(child)
+    const child = (options.tracker ?? children).spawn(
+        new Deno.Command(Deno.execPath(), {
+            args: ['run', '-A', 'main.ts'],
+            cwd: dir,
+            env: { ...options.env, PORT: String(port) },
+            stdout: 'piped',
+            stderr: 'piped',
+        }),
+    )
+    if (child === undefined) {
+        return { ok: false, detail: 'aborted: the server was not started' }
+    }
 
     // Drained as it arrives: an unread pipe fills up and stalls a chatty
     // server, and the text is the failure message when the server dies.
@@ -288,7 +340,6 @@ export async function boots(
         // Awaited so the pipes close and the sanitizer stays quiet.
         await status
         await drained
-        live.delete(child)
     }
 }
 
@@ -709,7 +760,9 @@ async function smokeAgainstRegistry(
     // hold open. Reached from `finally` and from a signal, whichever is first.
     const cleanup = () =>
         cleaning ??= (async () => {
-            killLiveChildren()
+            // abort, not just kill: the kit loop may still be running, and
+            // must not spawn the next child after this sweep.
+            children.abort()
             await jsr?.shutdown()
             if (keep) {
                 console.log(`\n📂 Kept: ${workdir}`)
@@ -723,7 +776,13 @@ async function smokeAgainstRegistry(
     const handlers = signals.map((signal) => {
         const handler = () => {
             console.error(`\n${signal}: stopping servers, removing ${workdir}`)
-            cleanup().finally(() => Deno.exit(signal === 'SIGINT' ? 130 : 143))
+            children.abort()
+            cleanup().finally(() => {
+                // Again, just before exit: anything that slipped in between
+                // the first sweep and now dies with the script.
+                children.killAll()
+                Deno.exit(signal === 'SIGINT' ? 130 : 143)
+            })
         }
         Deno.addSignalListener(signal, handler)
         return [signal, handler] as const
@@ -792,6 +851,10 @@ async function smokeAgainstRegistry(
 
         const failed: KitName[] = []
         for (const kit of selected) {
+            if (children.aborted) {
+                failed.push(kit)
+                continue
+            }
             console.log(`\n🎒 ${kit} — ${KITS[kit].summary}`)
             const scaffold = await scaffoldKit(kit, workdir, {
                 entry: `jsr:@lockness/init@${init.version}`,
