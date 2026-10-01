@@ -193,10 +193,7 @@ Deno.test('#435 postgres plan: bookkeeping, census baseline, CASCADE per object,
     assertEquals(plan.slice(0, 1), [
         'DROP TABLE IF EXISTS "drizzle"."__drizzle_migrations"',
     ])
-    assertStringIncludes(
-        plan[1],
-        'CREATE TEMPORARY TABLE lockness_fresh_census ON COMMIT DROP AS ',
-    )
+    assertEquals(plan[1], censusBaseline(['public']))
     assertEquals(plan.slice(2, -1), [
         'DROP VIEW IF EXISTS "public"."recent" CASCADE',
         'DROP MATERIALIZED VIEW IF EXISTS "public"."stats" CASCADE',
@@ -211,13 +208,64 @@ Deno.test('#435 postgres plan: bookkeeping, census baseline, CASCADE per object,
         'DROP TYPE IF EXISTS "public"."span" CASCADE',
         'DROP TYPE IF EXISTS "public"."mood_multirange" CASCADE',
     ])
-    const check = plan.at(-1)!
-    assert(check.startsWith('DO $lockness_fresh$'), check)
-    assertStringIncludes(check, 'FROM pg_temp.lockness_fresh_census')
-    assertStringIncludes(check, 'RAISE EXCEPTION')
-    assertStringIncludes(check, postgresCensusSql(['public']))
+    assertEquals(plan.at(-1), censusCheck(['public']))
     assertEquals(plan.some((s) => /DROP SCHEMA/.test(s)), false)
 })
+
+/**
+ * The R7 `DO` block, spelled out: the baseline is read back from the
+ * temporary table, the census is taken again, and any difference raises —
+ * which rolls the whole reset back.
+ */
+function censusCheck(schemas: readonly string[]): string {
+    return [
+        'DO $lockness_fresh$',
+        'DECLARE',
+        '    baseline bigint;',
+        '    remaining bigint;',
+        'BEGIN',
+        '    SELECT n INTO baseline FROM pg_temp.lockness_fresh_census;',
+        `    SELECT census.n INTO remaining FROM (${
+            postgresCensusSql(schemas)
+        }) AS census;`,
+        '    IF remaining <> baseline THEN',
+        "        RAISE EXCEPTION 'db:fresh: a CASCADE reached outside the " +
+        'managed scope (% catalogue entries outside it before, % after); ' +
+        "the reset was rolled back', baseline, remaining;",
+        '    END IF;',
+        'END',
+        '$lockness_fresh$',
+    ].join('\n')
+}
+
+/** The R7 baseline: the census, kept for this transaction only. */
+function censusBaseline(schemas: readonly string[]): string {
+    return 'CREATE TEMPORARY TABLE lockness_fresh_census ON COMMIT DROP AS ' +
+        postgresCensusSql(schemas)
+}
+
+for (
+    const schemaFilter of [['public'], ['public', 'auth']] as const
+) {
+    Deno.test(
+        `#435 R7 postgres plan: the census baseline is taken before the first CASCADE and checked last, over ${
+            schemaFilter.join(', ')
+        }`,
+        () => {
+            const plan = planPostgresReset({
+                ...EMPTY,
+                relations: [{ schema: 'public', name: 'users', kind: 'r' }],
+            }, scope('postgres', { schemaFilter }))
+
+            assertEquals(plan, [
+                'DROP TABLE IF EXISTS "drizzle"."__drizzle_migrations"',
+                censusBaseline(schemaFilter),
+                'DROP TABLE IF EXISTS "public"."users" CASCADE',
+                censusCheck(schemaFilter),
+            ])
+        },
+    )
+}
 
 Deno.test('#435 postgres plan keeps the schema and never drops public', () => {
     const plan = planPostgresReset(EMPTY, scope('postgres'))
