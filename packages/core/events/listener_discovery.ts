@@ -8,7 +8,7 @@
  */
 
 import { join } from '@std/path'
-import { appFileUrl } from '../app_file_url.ts'
+import { importAppFile } from '@lockness/contract'
 import { container } from '@lockness/container'
 import {
     dispatcher,
@@ -108,7 +108,7 @@ export async function discoverListeners(listenersDir: string): Promise<void> {
 
         // Import all listener files
         const modules = await Promise.all(
-            files.map((file) => import(appFileUrl(file))),
+            files.map((file) => importAppFile(file)),
         )
 
         // Extract listener classes and register them

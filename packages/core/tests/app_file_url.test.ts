@@ -1,36 +1,17 @@
 /**
- * App-local files are imported through a `file:` URL built by `toFileUrl`,
- * whatever URL core itself was loaded from (#474).
+ * Every core site that imports an app file loads it from a path holding `#`
+ * and a space (#474).
  *
- * Three ways of naming an app file broke for a published consumer, and none of
- * them can fail inside this monorepo, where core is loaded from disk:
- *
- * - **A bare absolute path** (`import('/app/x.ts')`) resolves against the
- *   *referrer*. From JSR the referrer is an `https:` module, so the import
- *   becomes a request to the registry for the app's path — the custom error
- *   handler never loaded from a published core.
- * - **`` import(`file://${path}`) ``** is rewritten by `deno publish`. It
- *   treats the template's static prefix as a local path and unfurls it into
- *   `` import(`../../../../../../../../../../../${path}`) ``, which from the
- *   registry resolves to `<registry>//<abs path>`. That is the request the
- *   #470 kit boot gate saw for the slim kit's middleware.
- * - **`` `file://${path}` `` as a string** survives publishing, but a `#` in
- *   the path starts a fragment and a `?` a query, so the file is silently
- *   truncated to a different one.
- *
- * The tests below pin each one: the helper against a module served over HTTP,
- * every discovery site against a path containing `#` and a space, and the
- * source tree against the two shapes `deno publish` rewrites.
+ * The sites import through `importAppFile` from `@lockness/contract`, whose own
+ * suite pins the URL it builds and that it loads from a module served over
+ * HTTP (`packages/contract/tests/app_file.test.ts`). These tests pin that each
+ * site really goes through it: a hand-built `` `file://${path}` `` makes the
+ * `#` a fragment and silently loads a different, truncated path. The source
+ * scan at the end guards the two shapes `deno publish` rewrites.
  */
 
-import {
-    assert,
-    assertEquals,
-    assertNotStrictEquals,
-    assertStringIncludes,
-} from '@std/assert'
-import { fromFileUrl, join, resolve, toFileUrl } from '@std/path'
-import { appFileUrl } from '../app_file_url.ts'
+import { assert, assertEquals, assertNotStrictEquals } from '@std/assert'
+import { fromFileUrl, join } from '@std/path'
 import { ErrorHandlerRegistry } from '../exceptions/handler.ts'
 import { defaultErrorHandler } from '../exceptions/default_view.ts'
 import { discoverMiddlewares } from '../http/resolver.ts'
@@ -92,118 +73,6 @@ async function quietly<T>(body: () => Promise<T>): Promise<T> {
         Object.assign(console, original)
     }
 }
-
-// ============================================================================
-// appFileUrl
-// ============================================================================
-
-Deno.test('appFileUrl - builds a file: URL anchored at the app root', () => {
-    const root = resolve('/srv/my-app')
-    const url = new URL(appFileUrl('app/middleware/auth.ts', root))
-    assertEquals(url.protocol, 'file:')
-    assertEquals(
-        fromFileUrl(url),
-        join(root, 'app', 'middleware', 'auth.ts'),
-    )
-})
-
-Deno.test('appFileUrl - keeps an absolute path, and normalises ./', () => {
-    const root = resolve('/srv/my-app')
-    const elsewhere = resolve('/opt/shared/x.ts')
-    assertEquals(fromFileUrl(appFileUrl(elsewhere, root)), elsewhere)
-    assertEquals(
-        fromFileUrl(appFileUrl('./app/x.ts', root)),
-        join(root, 'app', 'x.ts'),
-    )
-})
-
-Deno.test("appFileUrl - escapes '#', '?' and a space instead of truncating", () => {
-    const root = resolve('/srv/my app#1')
-    const url = new URL(appFileUrl('app/odd?name.ts', root))
-    assertEquals(url.hash, '')
-    assertEquals(url.search, '')
-    assertEquals(fromFileUrl(url), join(root, 'app', 'odd?name.ts'))
-})
-
-Deno.test('appFileUrl - defaults the root to the working directory', () => {
-    assertEquals(
-        appFileUrl('app/kernel.ts'),
-        toFileUrl(join(Deno.cwd(), 'app', 'kernel.ts')).href,
-    )
-})
-
-// ============================================================================
-// From a referrer that is not a file: URL
-// ============================================================================
-
-Deno.test('appFileUrl - loads an app file from a module served over HTTP, where a bare path reaches the server', async () => {
-    // The referrer is what decides how a specifier resolves. Core is a file:
-    // module in this repository and an https: one for every consumer, so the
-    // only honest test serves the importing module over HTTP. The child gets a
-    // fresh DENO_DIR and no config: nothing it resolves comes from this repo.
-    const requests: string[] = []
-    const server = Deno.serve(
-        { hostname: '127.0.0.1', port: 0, onListen() {} },
-        (request) => {
-            const path = decodeURIComponent(new URL(request.url).pathname)
-            requests.push(path)
-            if (path !== '/loader.ts') {
-                return new Response('not served', { status: 404 })
-            }
-            return new Response(
-                'export function load(specifier: string) { return import(specifier) }\n',
-                { headers: { 'content-type': 'application/typescript' } },
-            )
-        },
-    )
-    const denoDir = await Deno.makeTempDir()
-    try {
-        await withAwkwardDir({
-            'good.ts': 'export const loaded = "good"\n',
-            'plain/bare.ts': 'export const loaded = "bare"\n',
-        }, async ({ abs }) => {
-            const loader = `http://127.0.0.1:${server.addr.port}/loader.ts`
-            const good = appFileUrl(join(abs, 'good.ts'))
-            // No '#' or space here, so the contrast is about the specifier
-            // form alone.
-            const plainDir = await Deno.makeTempDir()
-            const bare = join(plainDir, 'bare.ts')
-            await Deno.copyFile(join(abs, 'plain', 'bare.ts'), bare)
-            try {
-                const code = `
-const { load } = await import(${JSON.stringify(loader)})
-const out = {}
-for (const [name, spec] of Object.entries(${JSON.stringify({ good, bare })})) {
-    try { out[name] = (await load(spec)).loaded }
-    catch (e) { out[name] = 'FAILED: ' + String(e).split('\\n')[0] }
-}
-console.log(JSON.stringify(out))
-`
-                const result = await new Deno.Command(Deno.execPath(), {
-                    args: ['eval', '--no-config', code],
-                    env: { DENO_DIR: denoDir, NO_COLOR: '1' },
-                    stdout: 'piped',
-                    stderr: 'piped',
-                }).output()
-                const stdout = new TextDecoder().decode(result.stdout).trim()
-                const stderr = new TextDecoder().decode(result.stderr)
-                assert(result.success, stderr)
-                const out = JSON.parse(stdout) as Record<string, string>
-
-                assertEquals(out.good, 'good')
-                assertStringIncludes(out.bare, 'FAILED')
-                // The file: URL never touched the server; the bare path did,
-                // asking it for the app's own absolute path.
-                assertEquals(requests, ['/loader.ts', bare])
-            } finally {
-                await Deno.remove(plainDir, { recursive: true })
-            }
-        })
-    } finally {
-        await server.shutdown()
-        await Deno.remove(denoDir, { recursive: true })
-    }
-})
 
 // ============================================================================
 // Every site that imports an app file, from a path with '#' and a space
@@ -348,5 +217,5 @@ Deno.test('core source - builds no app file specifier by hand', async () => {
     }
 
     await scan(coreRoot)
-    assertEquals(offences, [], 'use appFileUrl() from app_file_url.ts')
+    assertEquals(offences, [], 'use importAppFile() from @lockness/contract')
 })

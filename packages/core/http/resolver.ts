@@ -16,7 +16,7 @@ import type {
 } from '../types.ts'
 import { declaredMiddlewares } from '../routing/decorators.ts'
 import { renderError, safeForLog } from '../logging/sanitize.ts'
-import { appFileUrl } from '../app_file_url.ts'
+import { importAppFile } from '@lockness/contract'
 import { resolve } from '@std/path'
 
 /**
@@ -71,7 +71,7 @@ export async function discoverMiddlewares(
     // route running without its middleware.
     for (const name of names) {
         try {
-            await import(appFileUrl(name, absoluteDir))
+            await importAppFile(name, absoluteDir)
         } catch (error) {
             console.error(
                 `❌ Middleware file ${

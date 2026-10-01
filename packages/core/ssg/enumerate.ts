@@ -19,7 +19,7 @@ import { join } from '@std/path'
 import type { ControllerWithMetadata } from '@lockness/contract'
 import type { RouteInfo } from '../app.ts'
 import { outputPathFor } from './paths.ts'
-import { appFileUrl } from '../app_file_url.ts'
+import { importAppFile } from '@lockness/contract'
 
 /** A discovered controller class as the enumerator reads it: metadata + name. */
 export type StaticControllerRef = ControllerWithMetadata & {
@@ -193,10 +193,9 @@ export async function loadControllers(
             !entry.name.endsWith('.js')
         ) continue
 
-        const fileUrl = appFileUrl(join(dir, entry.name))
         let module: Record<string, unknown>
         try {
-            module = await import(fileUrl)
+            module = await importAppFile(join(dir, entry.name))
         } catch (error) {
             // Fatal, not warn-and-skip: a missing @Static controller would ship a
             // dist/ with holes and still report success (FR-012).

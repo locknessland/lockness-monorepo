@@ -10,8 +10,9 @@
  * a defect in the original:
  *
  * 1. The resolved directory is asserted to be inside `Deno.cwd()`.
- * 2. Module URLs are built with `toFileUrl()` rather than `` `file://${path}` ``,
+ * 2. Module URLs were built with `toFileUrl()` rather than `` `file://${path}` ``,
  *    which mis-parses a path containing `#` or `?` and silently skips the file.
+ *    Both modules now import through `importAppFile`, which does that (#477).
  * 3. There is **no bare `catch { continue }`**. `listener_discovery.ts:153` has
  *    one, and it would swallow the duplicate-name error that exists precisely
  *    to stop one task silently replacing another.
@@ -19,7 +20,8 @@
  * @module @lockness/core/scheduler/schedule_discovery
  */
 
-import { join, resolve, SEPARATOR, toFileUrl } from '@std/path'
+import { join, resolve, SEPARATOR } from '@std/path'
+import { importAppFile } from '@lockness/contract'
 import { container } from '@lockness/container'
 import {
     DEFAULT_SCHEDULES_DIR,
@@ -202,9 +204,9 @@ export async function discoverSchedules(
     const claimedBy = new Map<string, string>()
 
     for (const file of files) {
-        // toFileUrl escapes correctly; `file://${path}` mis-parses '#' and '?'
-        // and would silently skip a file its author believes is scheduled.
-        const module = await import(toFileUrl(file).href)
+        // importAppFile escapes the path; `file://${path}` mis-parses '#' and
+        // '?' and would silently skip a file its author believes is scheduled.
+        const module = await importAppFile(file)
 
         for (const [exportName, exported] of Object.entries(module)) {
             // `typeof === 'function'` is not enough. `container.get` calls

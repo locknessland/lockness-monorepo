@@ -17,9 +17,9 @@
  * ```
  */
 
-import { join } from 'node:path'
+import { join } from '@std/path'
 import type { ControllerClass } from '../types.ts'
-import { appFileUrl } from '../app_file_url.ts'
+import { importAppFile } from '@lockness/contract'
 
 /** Supported file extensions for controller files */
 const CONTROLLER_EXTENSIONS = ['.ts', '.js', '.tsx'] as const
@@ -63,7 +63,7 @@ export class ControllerDiscovery {
      * @remarks
      * - Files must export classes decorated with `@Controller`
      * - Supports `.ts`, `.js`, and `.tsx` file extensions
-     * - Silently skips files that fail to load
+     * - Logs and skips a file that fails to load
      * - Returns empty array if directory doesn't exist
      */
     async discover(dirPath: string): Promise<ControllerClass[]> {
@@ -77,11 +77,8 @@ export class ControllerDiscovery {
         try {
             for await (const entry of Deno.readDir(absolutePath)) {
                 if (this.isControllerFile(entry)) {
-                    const filePath = appFileUrl(
-                        join(absolutePath, entry.name),
-                    )
                     const fileControllers = await this.loadControllersFromFile(
-                        filePath,
+                        join(absolutePath, entry.name),
                     )
                     controllers.push(...fileControllers)
                 }
@@ -155,7 +152,7 @@ export class ControllerDiscovery {
      * Dynamically imports the file and scans all exports for classes
      * that have been decorated with `@Controller` (identified by `_basePath`).
      *
-     * @param filePath - File URL (must start with `file://`)
+     * @param filePath - Absolute path of the controller file
      * @returns Promise resolving to an array of controller classes from the file
      *
      * @internal
@@ -166,9 +163,7 @@ export class ControllerDiscovery {
         const controllers: ControllerClass[] = []
 
         try {
-            const module: Record<string, unknown> = await import(
-                /* @vite-ignore */ filePath
-            )
+            const module = await importAppFile(filePath)
 
             for (const exportKey in module) {
                 const exported = module[exportKey]

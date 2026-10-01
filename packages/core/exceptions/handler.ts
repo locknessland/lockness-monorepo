@@ -1,7 +1,8 @@
 import type { ErrorHandler } from '../types.ts'
 import { defaultErrorHandler } from './default_view.ts'
 import { renderError, safeForLog } from '../logging/sanitize.ts'
-import { appFileUrl } from '../app_file_url.ts'
+import { importAppFile } from '@lockness/contract'
+import { resolve } from '@std/path'
 
 /**
  * Manages error handler auto-discovery and registration.
@@ -57,12 +58,8 @@ export class ErrorHandlerRegistry {
         // The path as the app knows it, never the absolute one, and encoded:
         // it is what the developer needs, and no more of the machine than that.
         const shown = safeForLog(this.customHandlerPath)
-        // Anchored at the app root, never at core: from JSR, a bare path
-        // resolves against the registry URL and the handler never loads (#474).
-        const url = appFileUrl(this.customHandlerPath)
-
         try {
-            await Deno.stat(new URL(url))
+            await Deno.stat(resolve(this.customHandlerPath))
         } catch (error) {
             if (error instanceof Deno.errors.NotFound) return null
             console.warn(
@@ -75,7 +72,10 @@ export class ErrorHandlerRegistry {
 
         let module: Record<string, unknown>
         try {
-            module = await import(url)
+            // Anchored at the app root, never at core: from JSR, a bare path
+            // resolves against the registry URL and the handler never loads
+            // (#474).
+            module = await importAppFile(this.customHandlerPath)
         } catch (error) {
             console.error(
                 `❌ Custom error handler ${shown} failed to import, so the default error pages are used: ${
