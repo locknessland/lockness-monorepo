@@ -16,7 +16,7 @@ import { resolve } from '@std/path'
 import { KERNEL_CONFIG } from '../kernel/kernel_decorators.ts'
 import { importAppFile } from '@lockness/contract/app-file/internal'
 import { createApp } from '../kernel/loader.ts'
-import { KERNEL_CANDIDATES, resolveKernelFile } from './kernel_file.ts'
+import { kernelFileNotFoundMessage, resolveKernelFile } from './kernel_file.ts'
 import type { KernelConfig } from '../kernel/kernel_decorators.ts'
 import type { RouteInfo } from '../app.ts'
 import {
@@ -94,15 +94,22 @@ export function findKernel(
  * wins.
  *
  * @param baseDir - The directory holding the app's kernel file (defaults to cwd).
- * @returns The resolved kernel, or `undefined` when no kernel file exists or
- * the one found declares no decorated class.
+ * @returns The resolved kernel, or `undefined` when no kernel file exists.
+ * @throws {Error} When the kernel file found declares no `@Kernel` class; the
+ * message names that file, the only one read.
  */
 export async function loadKernel(
     baseDir: string = Deno.cwd(),
 ): Promise<ResolvedKernel | undefined> {
     const kernel = await resolveKernelFile(baseDir)
     if (kernel === undefined) return undefined
-    return findKernel(await importAppFile(kernel.path))
+    const found = findKernel(await importAppFile(kernel.path))
+    if (found === undefined) {
+        throw new Error(
+            `No @Kernel-decorated class found in ${kernel.candidate}; cannot build.`,
+        )
+    }
+    return found
 }
 
 /** The outcome of a static build: the render result and whether it was empty. */
@@ -174,11 +181,7 @@ export class SsgCommand implements CommandContract {
 
         const loaded = await loadKernel()
         if (!loaded) {
-            throw new Error(
-                `No @Kernel-decorated class found in ${
-                    KERNEL_CANDIDATES.join(' or ')
-                }; cannot build.`,
-            )
+            throw new Error(`${kernelFileNotFoundMessage()}; cannot build.`)
         }
         const { KernelClass, config } = loaded
 
