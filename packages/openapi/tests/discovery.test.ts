@@ -9,12 +9,12 @@
  * tests pin the other half: the scan imports from a directory whose path holds
  * a `#` and a space, and a controller that fails to load is named.
  *
- * @module @lockness/openapi/tests/app_file
+ * @module @lockness/openapi/tests/discovery
  */
 
 import { assertEquals, assertRejects, assertStringIncludes } from '@std/assert'
 import { join } from '@std/path'
-import { loadDocumentedControllers } from '../cli_commands.ts'
+import { loadDocumentedControllers } from '../discovery.ts'
 
 /** A directory name holding both characters `file://${…}` mis-parses. */
 const AWKWARD = 'app#dir with space'
