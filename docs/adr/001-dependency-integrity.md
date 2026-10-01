@@ -142,7 +142,10 @@ the result would duplicate `deno task publish:check`, which resolves each
 package alone outside the workspace and sees every dependency. So check B was
 deleted, not repaired. **`publish:check` is the one owner of declaration
 integrity**, and it fails closed: only a `@lockness/*` version not yet on JSR is
-tolerated. `deps:analyze` keeps checks A and C; the letters are kept so older
+tolerated. (Superseded: that tolerance was blind — a not-found version is a
+graph error, so the type check never ran — and was deleted when workspace
+siblings began resolving through `links`; `publish:check` now tolerates no
+failure.) `deps:analyze` keeps checks A and C; the letters are kept so older
 logs still line up. D2's reasoning — an undeclared dependency is an error — now
 holds through `publish:check`.
 
