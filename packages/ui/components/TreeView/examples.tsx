@@ -241,7 +241,7 @@ const data = [
                                                 },
                                             ],
                                         },
-                                        { id: 'kernel', label: 'kernel.tsx' },
+                                        { id: 'kernel', label: 'kernel.ts' },
                                         { id: 'routes', label: 'routes.ts' },
                                     ],
                                 },
