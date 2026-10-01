@@ -128,9 +128,6 @@ export function planSqliteReset(rows: readonly Row[]): string[] {
 // mysql
 // =============================================================================
 
-/** The database the connection uses — `NULL` when none is selected. */
-const MYSQL_DATABASE = 'SELECT DATABASE() AS name'
-
 /**
  * The databases MySQL itself owns, lower-cased. A url that selects one is
  * refused: emptying it would break the server, not reset an application.
@@ -142,43 +139,98 @@ const MYSQL_SYSTEM_DATABASES: ReadonlySet<string> = new Set([
     'information_schema',
 ])
 
-/** The tables and views of the connection's database. */
-const MYSQL_CATALOGUE = 'SELECT TABLE_NAME AS name, TABLE_TYPE AS type ' +
-    'FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() ' +
-    'ORDER BY TABLE_NAME'
+/**
+ * The database the connection uses and its tables and views, in **one**
+ * statement — two reads from a pool may come from two connections. The
+ * anchor row keeps `DATABASE()` in the answer when the database is empty,
+ * and when none is selected (then `db` is `NULL`).
+ */
+const MYSQL_CATALOGUE = [
+    'SELECT DATABASE() AS db, t.TABLE_NAME AS name, t.TABLE_TYPE AS type',
+    'FROM (SELECT 1 AS anchor) AS a',
+    'LEFT JOIN information_schema.TABLES AS t ON t.TABLE_SCHEMA = DATABASE()',
+    'ORDER BY t.TABLE_NAME',
+].join('\n')
 
 /**
- * Plan the MySQL reset: every table and view of `DATABASE()`, the
- * bookkeeping table included.
+ * Plan the MySQL reset: every table and view of the database the catalogue
+ * read names, the bookkeeping table included.
+ *
+ * Every `DROP` is qualified with that database, so the plan empties the
+ * database that was read even if the dedicated session it runs on selects
+ * another. The bookkeeping table is dropped first and always, whether the
+ * catalogue listed it or not.
  *
  * FK checks are turned off for the session so the order does not matter; the
  * session is destroyed afterwards (see `drivers.ts`), never pooled. MySQL DDL
  * auto-commits, so a failure part-way leaves a partial reset — reported, not
  * rolled back.
  *
- * @param rows - `information_schema.TABLES` rows: `name` and `type`.
+ * @param rows - The rows of the one catalogue read: `db`, and `name` and
+ *   `type` (both `NULL` on the anchor row of an empty database).
+ * @param table - The bookkeeping table (`migrations.table`).
  * @returns The statements for one dedicated session.
- * @throws {FreshRefusedError} When a row is not of the expected shape.
+ * @throws {FreshRefusedError} R5: no database is selected; the rows name more
+ *   than one database or none; the database is a system database; or a row
+ *   is not of the expected shape.
  *
  * @example
  * ```ts
- * planMysqlReset([{ name: 'users', type: 'BASE TABLE' }])
- * // ['SET FOREIGN_KEY_CHECKS = 0', 'DROP TABLE IF EXISTS `users`',
+ * planMysqlReset([{ db: 'app', name: 'users', type: 'BASE TABLE' }], '__drizzle_migrations')
+ * // ['SET FOREIGN_KEY_CHECKS = 0',
+ * //  'DROP TABLE IF EXISTS `app`.`__drizzle_migrations`',
+ * //  'DROP TABLE IF EXISTS `app`.`users`',
  * //  'SET FOREIGN_KEY_CHECKS = 1']
  * ```
  */
-export function planMysqlReset(rows: readonly Row[]): string[] {
-    const objects = rows.map((row) => ({
-        name: text(row, 'name'),
-        view: text(row, 'type') === 'VIEW',
-    }))
+export function planMysqlReset(
+    rows: readonly Row[],
+    table: string,
+): string[] {
+    if (rows.length === 0) {
+        throw new FreshRefusedError(
+            'the catalogue returned no row, not even the database name',
+        )
+    }
+    if (rows.some((row) => row.db == null)) {
+        throw new FreshRefusedError(
+            'the connection has no database selected (DATABASE() is NULL); ' +
+                'name one in the url',
+        )
+    }
+    const databases = new Set(rows.map((row) => text(row, 'db')))
+    if (databases.size > 1) {
+        throw new FreshRefusedError(
+            'the catalogue named more than one database ' +
+                `(${[...databases].map(backtick).join(', ')})`,
+        )
+    }
+    const [database] = databases
+    if (MYSQL_SYSTEM_DATABASES.has(database.toLowerCase())) {
+        throw new FreshRefusedError(
+            `the connection selects the system database ${
+                backtick(database)
+            }; name an application database in the url`,
+        )
+    }
+
+    const qualified = (name: string) =>
+        `${backtick(database)}.${backtick(name)}`
+    const objects = rows
+        .filter((row) => row.name != null)
+        .map((row) => ({
+            name: text(row, 'name'),
+            view: text(row, 'type') === 'VIEW',
+        }))
+        .filter((o) => o.name !== table)
     return [
         'SET FOREIGN_KEY_CHECKS = 0',
+        `DROP TABLE IF EXISTS ${qualified(table)}`,
         ...objects.filter((o) => o.view).map((o) =>
-            `DROP VIEW IF EXISTS ${backtick(o.name)}`
+            `DROP VIEW IF EXISTS ${qualified(o.name)}`
         ),
         ...objects.filter((o) => !o.view).map((o) =>
-            `DROP TABLE IF EXISTS ${backtick(o.name)}`
+            `DROP TABLE IF EXISTS ${qualified(o.name)}`
         ),
         'SET FOREIGN_KEY_CHECKS = 1',
     ]
@@ -607,24 +659,11 @@ const RESET_POLICIES: Record<Dialect, ResetPolicy> = {
         describe: () =>
             "mysql: every table and view of the connection's database, " +
             'the bookkeeping table included',
-        plan: async (maintenance) => {
-            const [current] = await maintenance.query(MYSQL_DATABASE)
-            if (current === undefined || current.name == null) {
-                throw new FreshRefusedError(
-                    'the connection has no database selected (DATABASE() is NULL); ' +
-                        'name one in the url',
-                )
-            }
-            const database = text(current, 'name')
-            if (MYSQL_SYSTEM_DATABASES.has(database.toLowerCase())) {
-                throw new FreshRefusedError(
-                    `the connection selects the system database ${
-                        backtick(database)
-                    }; name an application database in the url`,
-                )
-            }
-            return planMysqlReset(await maintenance.query(MYSQL_CATALOGUE))
-        },
+        plan: async (maintenance, scope) =>
+            planMysqlReset(
+                await maintenance.query(MYSQL_CATALOGUE),
+                scope.table,
+            ),
     },
     postgres: {
         describe: (scope) =>

@@ -111,30 +111,115 @@ Deno.test('#435 sqlite reset reads the catalogue, then executes one plan', async
 })
 
 // -----------------------------------------------------------------------------
-// mysql — DATABASE(), a dedicated session, checks off then on
+// mysql — one read, a dedicated session, every DROP names the database
 // -----------------------------------------------------------------------------
 
-Deno.test('#435 mysql plan turns FK checks off, drops views then tables, turns them on', () => {
-    const plan = planMysqlReset([
-        { name: 'users', type: 'BASE TABLE' },
-        { name: 'recent', type: 'VIEW' },
-        { name: '__drizzle_migrations', type: 'BASE TABLE' },
-        { name: 'we`ird', type: 'BASE TABLE' },
-    ])
+/** The rows the one MySQL catalogue read returns for `database`. */
+function mysqlRows(
+    database: string | null,
+    objects: ReadonlyArray<readonly [string, string]>,
+): Record<string, unknown>[] {
+    return objects.length === 0
+        ? [{ db: database, name: null, type: null }]
+        : objects.map(([name, type]) => ({ db: database, name, type }))
+}
+
+/** A qualified MySQL DROP: `` DROP TABLE|VIEW IF EXISTS `db`.` ``… */
+const QUALIFIED_DROP = /^DROP (TABLE|VIEW) IF EXISTS `(?:[^`]|``)+`\.`/
+
+Deno.test('#435 mysql plan drops the bookkeeping table first, then views, then tables, each qualified by the database', () => {
+    const plan = planMysqlReset(
+        mysqlRows('we`ird', [
+            ['__drizzle_migrations', 'BASE TABLE'],
+            ['recent', 'VIEW'],
+            ['users', 'BASE TABLE'],
+            ['odd`name', 'BASE TABLE'],
+        ]),
+        '__drizzle_migrations',
+    )
 
     assertEquals(plan, [
         'SET FOREIGN_KEY_CHECKS = 0',
-        'DROP VIEW IF EXISTS `recent`',
-        'DROP TABLE IF EXISTS `users`',
-        'DROP TABLE IF EXISTS `__drizzle_migrations`',
-        'DROP TABLE IF EXISTS `we``ird`',
+        'DROP TABLE IF EXISTS `we``ird`.`__drizzle_migrations`',
+        'DROP VIEW IF EXISTS `we``ird`.`recent`',
+        'DROP TABLE IF EXISTS `we``ird`.`users`',
+        'DROP TABLE IF EXISTS `we``ird`.`odd``name`',
         'SET FOREIGN_KEY_CHECKS = 1',
     ])
 })
 
+Deno.test('#435 mysql plan honours migrations.table', () => {
+    const plan = planMysqlReset(
+        mysqlRows('app', [['history', 'BASE TABLE'], ['t', 'BASE TABLE']]),
+        'history',
+    )
+
+    assertEquals(plan, [
+        'SET FOREIGN_KEY_CHECKS = 0',
+        'DROP TABLE IF EXISTS `app`.`history`',
+        'DROP TABLE IF EXISTS `app`.`t`',
+        'SET FOREIGN_KEY_CHECKS = 1',
+    ])
+})
+
+Deno.test('#435 mysql plan of an empty database: only the SETs and the bookkeeping drop', () => {
+    assertEquals(
+        planMysqlReset(mysqlRows('app', []), '__drizzle_migrations'),
+        [
+            'SET FOREIGN_KEY_CHECKS = 0',
+            'DROP TABLE IF EXISTS `app`.`__drizzle_migrations`',
+            'SET FOREIGN_KEY_CHECKS = 1',
+        ],
+    )
+})
+
+Deno.test('#435 every mysql DROP names the database', () => {
+    for (
+        const rows of [
+            mysqlRows('app', [['v', 'VIEW'], ['t', 'BASE TABLE']]),
+            mysqlRows('we`ird', [['v`1', 'VIEW'], ['t`1', 'BASE TABLE']]),
+            mysqlRows('app', []),
+        ]
+    ) {
+        const drops = planMysqlReset(rows, '__drizzle_migrations')
+            .filter((s) => s.startsWith('DROP'))
+        assert(drops.length > 0)
+        for (const drop of drops) {
+            assert(QUALIFIED_DROP.test(drop), drop)
+        }
+    }
+})
+
+Deno.test('#435 R5 mysql plan refuses a NULL DATABASE()', () => {
+    assertThrows(
+        () => planMysqlReset(mysqlRows(null, []), '__drizzle_migrations'),
+        FreshRefusedError,
+        'no database selected',
+    )
+})
+
+Deno.test('#435 mysql plan refuses rows naming more than one database', () => {
+    assertThrows(
+        () =>
+            planMysqlReset([
+                { db: 'app', name: 'a', type: 'BASE TABLE' },
+                { db: 'other', name: 'b', type: 'BASE TABLE' },
+            ], '__drizzle_migrations'),
+        FreshRefusedError,
+        'more than one database',
+    )
+})
+
+Deno.test('#435 mysql plan refuses a catalogue that returned no row', () => {
+    assertThrows(
+        () => planMysqlReset([], '__drizzle_migrations'),
+        FreshRefusedError,
+    )
+})
+
 Deno.test('#435 R5 mysql refuses when DATABASE() is NULL, before any drop', async () => {
     const { calls, maintenance } = fakeMaintenance({
-        'DATABASE()': [{ name: null }],
+        'information_schema.TABLES': mysqlRows(null, []),
     })
 
     const error = await assertRejects(
@@ -143,7 +228,7 @@ Deno.test('#435 R5 mysql refuses when DATABASE() is NULL, before any drop', asyn
     )
 
     assertStringIncludes(error.message, 'no database selected')
-    assertEquals(calls.includes('execute'), false)
+    assertEquals(calls, ['query'])
 })
 
 for (
@@ -160,8 +245,9 @@ for (
 ) {
     Deno.test(`#435 mysql refuses the system database ${database}, before any drop`, async () => {
         const { calls, maintenance } = fakeMaintenance({
-            'information_schema.TABLES': [{ name: 'user', type: 'BASE TABLE' }],
-            'DATABASE() AS name': [{ name: database }],
+            'information_schema.TABLES': mysqlRows(database, [
+                ['user', 'BASE TABLE'],
+            ]),
         })
 
         const error = await assertRejects(
@@ -170,20 +256,35 @@ for (
         )
 
         assertStringIncludes(error.message, 'system database')
-        assertEquals(calls, ['query'], 'it read the catalogue or dropped')
+        assertEquals(calls, ['query'], 'it dropped')
     })
 }
 
-Deno.test('#435 mysql reset lists only the current database', async () => {
-    const { executed, maintenance } = fakeMaintenance({
-        'information_schema.TABLES': [{ name: 't', type: 'BASE TABLE' }],
-        'DATABASE() AS name': [{ name: 'app' }],
+Deno.test('#435 mysql reset reads the database and its catalogue in exactly one query', async () => {
+    const sqls: string[] = []
+    const { calls, executed, maintenance } = fakeMaintenance({
+        'information_schema.TABLES': mysqlRows('app', [['t', 'BASE TABLE']]),
     })
+    const recording: SchemaMaintenance = {
+        ...maintenance,
+        query: (sql) => {
+            sqls.push(sql)
+            return maintenance.query(sql)
+        },
+    }
 
-    await resetDatabase(maintenance, scope('mysql'))
+    await resetDatabase(recording, scope('mysql'))
 
-    assertEquals(executed.length, 1)
-    assertEquals(executed[0].at(1), 'DROP TABLE IF EXISTS `t`')
+    assertEquals(calls, ['query', 'execute'])
+    assertEquals(sqls.length, 1)
+    assertStringIncludes(sqls[0], 'SELECT DATABASE() AS db')
+    assertStringIncludes(sqls[0], 'LEFT JOIN information_schema.TABLES')
+    assertEquals(executed, [[
+        'SET FOREIGN_KEY_CHECKS = 0',
+        'DROP TABLE IF EXISTS `app`.`__drizzle_migrations`',
+        'DROP TABLE IF EXISTS `app`.`t`',
+        'SET FOREIGN_KEY_CHECKS = 1',
+    ]])
 })
 
 // -----------------------------------------------------------------------------
