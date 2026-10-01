@@ -14,9 +14,26 @@ User-facing documentation: [README.md](README.md) ·
   fails `deno task deps:analyze`, and the failure is a design question, not a
   lint to silence.
 
-_Add the domain invariants — what must stay true inside this package, and what
-breaks when it does not. A statement that could have been guessed from the file
-names does not belong here._
+- **A stored access-token hash verifies exactly while it is unexpired and not
+  revoked.** `TokenProviderBase` owns that decision as a Template Method; a
+  binding supplies only the five storage steps and must never override
+  `createToken` / `verifyToken` / `deleteToken` / `deleteAllTokens`. If
+  verification and revocation disagree, a revoked credential stays live. Expiry
+  is compared in JS against one clock read, and a `null` or Invalid Date expiry
+  denies.
+- **A token's plaintext is never persisted.** Only its SHA-256 hash is stored;
+  the plaintext exists in `createToken`'s returned `value` and nowhere else — a
+  verified token carries `value: ''`, and no log line may include it. Break this
+  and a database leak is a set of working credentials.
+- **Verification fails closed on any error.** A storage step that throws makes
+  `verifyToken` reject (the guard then denies with a 500), never resolve to a
+  user; swallowing it into `null` hides an outage behind 401s. The one
+  deliberate exception is the `lastUsedAt` write: it runs after the decision,
+  and its failure is logged without denying.
+- **Revocation is scoped by owner.** `deleteTokenRecord` deletes by token id
+  _and_ user id; a binding that drops the user id lets any user revoke anyone's
+  token. Only the live api-kit suite (`scripts/kit_token_flow_live_test.ts`)
+  executes the Drizzle query that enforces it.
 
 ## Dependency contract
 
@@ -62,17 +79,26 @@ Anything not listed is internal and free to change.
   `deno.json`'s export map, not just a file.
 - The `kysely/` directory exists while `@lockness/kysely` itself does not yet
   (see issue #26) — it targets the library directly.
-- This package has **no tests**. Anything added here needs its own coverage.
+- `DrizzleTokenProvider` reads the application's table through its property
+  names (`id`, `userId`, `name`, `hash`, `expiresAt`, `lastUsedAt`,
+  `createdAt`); `assertAccessTokensTable` refuses anything else at construction.
+  The `db` handle is viewed through one `unknown` cast to the builder subset pg,
+  mysql and sqlite share — mysql and sqlite are type-checked, never executed
+  live.
+- The token lifecycle is unit-tested through the in-memory binding in
+  `tests/memory_token_provider.ts`; the Drizzle queries only run in the live
+  suite (`deno task test:postgres`), which the local gate does not run.
 
 ## Tests
 
 <!-- generated:tests -->
 
-3 test files for 12 source files:
+4 test files for 14 source files:
 
 - `packages/auth-provider/tests/deny_paths.test.ts`
 - `packages/auth-provider/tests/drizzle_multidialect.test.ts`
 - `packages/auth-provider/tests/remember_preservation.test.ts`
+- `packages/auth-provider/tests/token_provider_base.test.ts`
 
 <!-- /generated:tests -->
 
@@ -87,7 +113,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 3 test files directly —
+Then, specific to this package: run its 4 test files directly —
 
 ```bash
 deno test -A packages/auth-provider/

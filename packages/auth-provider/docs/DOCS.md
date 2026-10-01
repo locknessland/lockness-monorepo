@@ -58,21 +58,37 @@ Abstract base for session-based authentication with remember tokens.
 
 ### TokenProviderBase
 
-Abstract base for token-based (API) authentication.
+Abstract base for token-based (API) authentication. It owns the whole token
+lifecycle — a Template Method over five storage steps — so every binding gets
+the same security decisions.
 
-**Provides:**
+**Provides (do not override):**
 
-- Token generation (cryptographically secure)
-- Token hashing (SHA-256)
+- `createToken(user, name, expiresIn)` — 40 random bytes (`tokenLength`, minimum
+  16), stored as their SHA-256 hash; the plaintext is returned once. `expiresIn`
+  is in **milliseconds** (default one year); an expiry is always written.
+- `verifyToken(token)` — allows only a token whose hash matches, that is
+  unexpired (`null` or invalid expiry denies), and whose user still exists. A
+  storage error **rejects** rather than resolving to `null`, so the guard
+  denies. The returned token's `value` is `''`.
+- `deleteToken(user, tokenId)` — scoped by owner: another user's id is a no-op.
+- `deleteAllTokens(user)` — revokes every token of that user.
+- `lastUsedAt` is written at most once a minute; a failed write is logged and
+  does not deny.
 
 **Must implement:**
 
 - `findById(id)` - Find user by ID
 - `findByCredentials(email, password)` - Find and verify user
-- `createToken(user, name, expiresIn)` - Create API tokens
-- `verifyToken(token)` - Verify API tokens
-- `deleteToken(user, tokenId)` - Delete specific token
-- `deleteAllTokens(user)` - Delete all user tokens
+- `insertTokenRecord(record)` - Store a row, return it with its id
+- `findTokenRecordByHash(hash)` - The row with exactly that hash, or `null`
+- `deleteTokenRecord(userId, tokenId)` - Delete one row, only if `userId` owns
+  it
+- `deleteTokenRecordsForUser(userId)` - Delete every row of one user
+- `touchTokenRecord(tokenId, at)` - Set `lastUsedAt`
+
+Storage steps must let errors propagate: swallowing one into `null` turns an
+outage into a storm of 401s.
 
 ### BasicAuthProviderBase
 
@@ -127,9 +143,12 @@ const sessionGuard = new SessionGuard(sessionProvider, sessionManager)
 ```typescript
 import { DrizzleTokenProvider } from '@lockness/auth-provider/drizzle'
 import { TokenGuard } from '@lockness/auth'
+import { accessTokens } from './schema.ts'
 
 const tokenProvider = new DrizzleTokenProvider({
     db,
+    // The Drizzle table OBJECT (see "Access Tokens Table"), not its name.
+    tokensTable: accessTokens,
     findUserById: async (db, id) => {
         return await db.query.users.findFirst({
             where: (u, { eq }) => eq(u.id, id),
@@ -229,7 +248,10 @@ CREATE INDEX idx_remember_tokens_expires_at ON remember_me_tokens(expires_at);
 
 ### Access Tokens Table
 
-Required for token-based API authentication:
+Required for token-based API authentication. `DrizzleTokenProvider` reads and
+writes it through the Drizzle table object passed as `tokensTable`; the contract
+is on that object's **property names** (`id`, `userId`, `name`, `hash`,
+`expiresAt`, `lastUsedAt`, `createdAt`), so the SQL column names are yours:
 
 ```sql
 CREATE TABLE access_tokens (
@@ -272,7 +294,8 @@ export const accessTokens = pgTable('access_tokens', {
     userId: integer('user_id').notNull().references(() => users.id, {
         onDelete: 'cascade',
     }),
-    tokenHash: varchar('token_hash', { length: 255 }).notNull().unique(),
+    // The provider needs the property `hash`; the column may be named freely.
+    hash: varchar('token_hash', { length: 255 }).notNull().unique(),
     name: varchar('name', { length: 255 }).notNull(),
     expiresAt: timestamp('expires_at').notNull(),
     lastUsedAt: timestamp('last_used_at'),
@@ -427,6 +450,7 @@ import {
 } from '@lockness/auth-provider/drizzle'
 import { sessionMiddleware } from '@lockness/session'
 import { db } from './database.ts'
+import { accessTokens } from './schema.ts'
 import * as bcrypt from 'bcrypt'
 
 const app = createApp()
@@ -455,6 +479,8 @@ const sessionProvider = new DrizzleSessionProvider({
 // Token provider for API routes
 const tokenProvider = new DrizzleTokenProvider({
     db,
+    // The Drizzle table OBJECT (see "Access Tokens Table"), not its name.
+    tokensTable: accessTokens,
     findUserById: async (db, id) => {
         return await db.query.users.findFirst({
             where: (u, { eq }) => eq(u.id, id),

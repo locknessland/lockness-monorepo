@@ -69,9 +69,12 @@ const sessionGuard = new SessionGuard(sessionProvider, sessionManager)
 ```typescript
 import { DrizzleTokenProvider } from '@lockness/auth-provider/drizzle'
 import { TokenGuard } from '@lockness/auth'
+import { accessTokens } from './schema.ts'
 
 const tokenProvider = new DrizzleTokenProvider({
     db,
+    // The Drizzle table OBJECT (see "Access Tokens Table"), not its name.
+    tokensTable: accessTokens,
     findUserById: async (db, id) => {
         return await db.query.users.findFirst({
             where: (u, { eq }) => eq(u.id, id),
@@ -90,6 +93,14 @@ const tokenProvider = new DrizzleTokenProvider({
 
 const tokenGuard = new TokenGuard(tokenProvider)
 ```
+
+The provider stores and verifies tokens in `accessTokens`, which must carry the
+properties `id`, `userId`, `name`, `hash`, `expiresAt`, `lastUsedAt` and
+`createdAt` — a table missing one, or a table name string, is refused at
+construction. Only the SHA-256 hash of a token is stored; the plaintext is in
+the `value` that `createToken` returns, once. Every token expires (`expiresIn`
+is in **milliseconds**, one year by default), and `deleteToken` only deletes a
+token that belongs to the user it is given.
 
 ### Kysely (Session Auth)
 
