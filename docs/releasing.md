@@ -94,9 +94,14 @@ One check holds the line, and it must be green before a release:
 `deno task publish:check`. It copies each package out of the workspace and
 type-checks it alone, so an undeclared import of any kind — `@lockness/*`,
 `@std/*` or third-party — fails there; it is what caught `@lockness/cli`
-importing an undeclared `@std/jsonc`. It fails closed: the only failure it
-tolerates is a `@lockness/*` version that is not on JSR yet, and anything it
-does not recognise is red. It resolves against JSR, so it needs the network.
+importing an undeclared `@std/jsonc`. It tolerates no failure; workspace
+packages resolve against their staged siblings, never JSR. Each package is
+checked with a Deno `links` entry per sibling, so a declared `@lockness/*` range
+resolves to the local code, unpublished subpaths included. Any sibling the
+package does not declare is mapped to a sentinel that fails as `undeclared`, and
+a declared range the workspace version misses fails as `stale range` before
+`deno check` runs. Third-party dependencies still resolve against JSR/npm, so it
+needs the network.
 
 `deno task deps:analyze` does **not** check declarations. It had a "check B"
 that claimed to, and it was removed (#388): it read an import-map alias's

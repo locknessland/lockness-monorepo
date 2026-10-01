@@ -18,7 +18,8 @@
  * Any other argument is refused rather than ignored: a typo must not silently
  * run a different gate from the one that was asked for.
  *
- * `publish:check` resolves every package against JSR, so the gate needs
+ * `publish:check` resolves `@lockness/*` imports against the staged workspace
+ * siblings, but third-party dependencies against JSR/npm, so the gate needs
  * network access.
  *
  * @example
