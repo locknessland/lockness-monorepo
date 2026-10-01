@@ -1,5 +1,6 @@
 import type { ErrorHandler } from '../types.ts'
 import { defaultErrorHandler } from './default_view.ts'
+import { renderError, safeForLog } from '../logging/sanitize.ts'
 
 /**
  * Manages error handler auto-discovery and registration.
@@ -41,31 +42,54 @@ export class ErrorHandlerRegistry {
     }
 
     /**
-     * Attempt to load custom error handler from the app directory
+     * Attempt to load the custom error handler from the app directory.
+     *
+     * An absent file is the normal case and stays quiet. A file that exists
+     * but cannot be used is a fault in the app, and is reported (#473): left
+     * silent, a syntax error or a bad import makes the app lose its error
+     * pages with nothing pointing at the file. Every failure still falls back
+     * to the default pages — a broken handler never blocks boot.
+     *
+     * @returns The handler, or `null` when the default one should be used.
      */
     private async loadCustomHandler(): Promise<ErrorHandler | null> {
-        try {
-            // Use absolute path from CWD for compiled binaries compatibility
-            const cwd = Deno.cwd()
-            const customErrorHandlerPath = `${cwd}/${this.customHandlerPath}`
+        // The path as the app knows it, never the absolute one, and encoded:
+        // it is what the developer needs, and no more of the machine than that.
+        const shown = safeForLog(this.customHandlerPath)
+        // Absolute from CWD for compiled binaries compatibility
+        const customErrorHandlerPath = `${Deno.cwd()}/${this.customHandlerPath}`
 
-            // Check if file exists before trying to import
-            try {
-                await Deno.stat(customErrorHandlerPath)
-                const customHandler = await import(customErrorHandlerPath)
-                if (customHandler.errorHandler) {
-                    return customHandler.errorHandler
-                }
-            } catch {
-                // File doesn't exist or can't be imported
-                return null
-            }
-        } catch {
-            // Any other error in the process
+        try {
+            await Deno.stat(customErrorHandlerPath)
+        } catch (error) {
+            if (error instanceof Deno.errors.NotFound) return null
+            console.warn(
+                `⚠️  Custom error handler ${shown} could not be read, so the default error pages are used: ${
+                    renderError(error)
+                }`,
+            )
             return null
         }
 
-        return null
+        let module: Record<string, unknown>
+        try {
+            module = await import(customErrorHandlerPath)
+        } catch (error) {
+            console.error(
+                `❌ Custom error handler ${shown} failed to import, so the default error pages are used: ${
+                    renderError(error)
+                }`,
+            )
+            return null
+        }
+
+        if (typeof module.errorHandler !== 'function') {
+            console.warn(
+                `⚠️  Custom error handler ${shown} has no \`errorHandler\` function export, so the default error pages are used`,
+            )
+            return null
+        }
+        return module.errorHandler as ErrorHandler
     }
 
     /**

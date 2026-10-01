@@ -15,6 +15,7 @@ import type {
     MiddlewareRegistry,
 } from '../types.ts'
 import { declaredMiddlewares } from '../routing/decorators.ts'
+import { renderError, safeForLog } from '../logging/sanitize.ts'
 
 /**
  * Discovers middlewares decorated with @DeclareMiddleware from a directory.
@@ -34,34 +35,52 @@ export async function discoverMiddlewares(
 ): Promise<number> {
     const startCount = declaredMiddlewares.size
 
-    try {
-        // Resolve directory to absolute path
-        const absoluteDir = directory.startsWith('/')
-            ? directory
-            : `${Deno.cwd()}/${directory.replace(/^\.\//, '')}`
+    // Resolve directory to absolute path
+    const absoluteDir = directory.startsWith('/')
+        ? directory
+        : `${Deno.cwd()}/${directory.replace(/^\.\//, '')}`
 
-        // Find all .ts and .tsx files recursively
-        const files: string[] = []
+    // Find all .ts and .tsx files in the directory
+    const names: string[] = []
+    try {
         for await (const entry of Deno.readDir(absoluteDir)) {
             if (
                 entry.isFile &&
                 (entry.name.endsWith('.ts') || entry.name.endsWith('.tsx'))
             ) {
-                files.push(`${absoluteDir}/${entry.name}`)
+                names.push(entry.name)
             }
         }
+    } catch (error) {
+        // An absent directory is a valid configuration; anything else is not.
+        if (!(error instanceof Deno.errors.NotFound)) {
+            console.warn(
+                `⚠️  Middleware directory ${
+                    safeForLog(directory)
+                } could not be read, so no middleware was discovered: ${
+                    renderError(error)
+                }`,
+            )
+        }
+        return 0
+    }
 
-        // Import each file to trigger @DeclareMiddleware decorators
-        for (const file of files) {
-            try {
-                await import(`file://${file}`)
-            } catch (_error) {
-                // Ignore import errors for middleware discovery
-                // Middlewares are registered during class decoration, not instantiation
-            }
+    // Import each file to trigger @DeclareMiddleware decorators. A file that
+    // fails is reported and skipped, so the others still register (#473):
+    // left silent, the first sign was a later "unknown middleware" error, or a
+    // route running without its middleware.
+    for (const name of names) {
+        try {
+            await import(`file://${absoluteDir}/${name}`)
+        } catch (error) {
+            console.error(
+                `❌ Middleware file ${
+                    safeForLog(`${directory}/${name}`)
+                } failed to import, so the middlewares it declares are not registered: ${
+                    renderError(error)
+                }`,
+            )
         }
-    } catch (_error) {
-        // Directory doesn't exist or can't be read - that's okay
     }
 
     return declaredMiddlewares.size - startCount
