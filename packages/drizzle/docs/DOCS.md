@@ -477,9 +477,13 @@ On postgres, extension members (postgis, pgcrypto, vector…) and sequences owne
 by a column are not dropped directly. A schema is dropped only when a migration
 creates it with a plain `CREATE SCHEMA`. The bookkeeping table is
 `"<migrations.schema>"."<migrations.table>"`, `"drizzle"."__drizzle_migrations"`
-by default. Roles, extensions, collations, operators, text-search configs,
-publications and event triggers survive, and so do MySQL procedures, functions
-and events.
+by default. Roles, extensions, collations, text-search configs and publications
+survive, and so do MySQL procedures, functions and events.
+
+Operators and event triggers survive **only when their function is outside
+`schemaFilter`**. One built on a routine in scope is dropped with it by that
+routine's `CASCADE`, wherever the operator lives, and the closing check does not
+count operators or event triggers, so it does not roll that back.
 
 **Guard.** Like `db:seed`, `db:fresh` refuses a production environment
 (`DENO_ENV`/`APP_ENV` is `production`) unless `--allow-production` is passed,
@@ -490,11 +494,19 @@ before it reads the config or connects.
 
 - `drizzle.config.ts` cannot be imported; `out` is not set; `dbCredentials`
   holds anything besides `url`; a `driver` is set; or the dialect is not
-  `postgresql`, `mysql`, `sqlite` or `turso`.
+  `postgresql`, `mysql`, `sqlite` or `turso`. An import error is withheld, since
+  the file builds the DSN and its error may quote it: only the error's name is
+  shown, and only when it is a plain identifier. Import the file directly to see
+  the error.
 - The migrations journal (`meta/_journal.json`), or a file it lists, is missing:
   a database is never wiped that could not then be migrated.
 - The driver offers no schema maintenance (a custom `DriverFactory` need not).
-- MySQL: the connection has no database selected (`DATABASE()` is `NULL`).
+- MySQL: the connection has no database selected (`DATABASE()` is `NULL`), or it
+  selects a system database — `mysql`, `sys`, `performance_schema` or
+  `information_schema`, in any letter case.
+- postgres: `schemaFilter` or `migrations.schema` names a system schema —
+  `information_schema` or any `pg_*` schema (`pg_catalog`, `pg_toast`…), in any
+  letter case. This is checked before the catalogue is even read.
 - postgres: a migration creates a schema outside `schemaFilter`, or a schema to
   drop holds extension members.
 

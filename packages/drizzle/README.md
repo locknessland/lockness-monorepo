@@ -140,22 +140,32 @@ scope and runs drizzle-orm's own migrator, in one process on one connection. It
 spawns nothing, never prompts, and never writes to the migrations folder. It
 drops:
 
-| Dialect         | What is dropped                                                                                                                                   |
-| :-------------- | :------------------------------------------------------------------------------------------------------------------------------------------------ |
-| sqlite / libsql | every table and view of the main database (not `sqlite_%`, `libsql_%`), in one write batch                                                        |
-| mysql           | every table and view of `DATABASE()`, the bookkeeping table included. Not atomic: MySQL DDL auto-commits                                          |
-| postgres        | every table, view, sequence, type and routine in `schemaFilter` (default `public`), plus the bookkeeping table. One transaction; schemas are kept |
+| Dialect         | What is dropped                                                                                                                                                  |
+| :-------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| sqlite / libsql | every table and view of the main database (not `sqlite_%`, `libsql_%`), in one write batch                                                                       |
+| mysql           | every table and view of `DATABASE()`, the bookkeeping table included. Not atomic: MySQL DDL auto-commits                                                         |
+| postgres        | every table, view, sequence, type and routine in `schemaFilter` (default `public`), plus the bookkeeping table. One transaction; schemas are kept, but see below |
 
-On postgres, extension members are kept, and a closing check rolls everything
-back if a `CASCADE` reached anything outside the scope.
+On postgres, schemas are kept, with one exception: a schema that a migration
+creates with a plain `CREATE SCHEMA "<name>"`, as drizzle-kit generates it, is
+dropped, because that migration could not run again otherwise.
+`CREATE SCHEMA IF NOT EXISTS` re-runs cleanly, so such a schema is kept.
+Extension members are kept, and a closing check rolls everything back if a
+`CASCADE` reached a table, type, routine, constraint, trigger or policy outside
+the scope. Operators and event triggers are not counted by that check, so one
+built on a routine in scope is dropped with it.
 
 It is refused in production unless you pass `--allow-production`, the same guard
 as `db:seed`. It is also refused, before anything is dropped, when the config
 cannot be loaded, has no `out`, holds `dbCredentials` other than `url` or names
 a `driver`; when the migrations journal or a file it lists is missing; when the
-driver has no schema-maintenance support; when MySQL has no database selected;
-and, on postgres, when a migration creates a schema outside `schemaFilter`.
-There is no countdown any more.
+driver has no schema-maintenance support; when MySQL has no database selected,
+or selects a system database (`mysql`, `sys`, `performance_schema`,
+`information_schema`); and, on postgres, when `schemaFilter` or
+`migrations.schema` names a system schema (`information_schema` or any `pg_*`),
+or a migration creates a schema outside `schemaFilter`. A config that cannot be
+imported is refused without its error text, which may quote the DSN. There is no
+countdown any more.
 
 **Push schema (no migrations):**
 
