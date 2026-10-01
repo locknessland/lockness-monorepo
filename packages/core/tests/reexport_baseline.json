@@ -139,6 +139,7 @@
     "healthCheckCount": "function",
     "hourly": "string",
     "html": "function",
+    "importAppFile": "function",
     "ipRestriction": "function",
     "isDebugEnabled": "function",
     "isDevelopment": "function",
