@@ -14,11 +14,15 @@
  * @module @lockness/auth-provider/tests/deny_paths
  */
 
-import { assert, assertEquals } from '@std/assert'
+import { assert, assertEquals, assertThrows } from '@std/assert'
+import { FakeTime } from '@std/testing/time'
+import { integer, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core'
 import type { Authenticatable } from '@lockness/auth'
 import { fakeUser } from '@lockness/testing'
 import { DrizzleBasicAuthProvider } from '../drizzle/drizzle_basic_auth_provider.ts'
 import { DrizzleTokenProvider } from '../drizzle/drizzle_token_provider.ts'
+import type { DrizzleAccessTokensTable } from '../drizzle/access_tokens_table.ts'
+import { setup } from './memory_token_provider.ts'
 import { DrizzleSessionProvider } from '../drizzle/drizzle_session_provider.ts'
 import { KyselySessionProvider } from '../kysely/kysely_session_provider.ts'
 
@@ -87,38 +91,69 @@ Deno.test('basic-auth (drizzle) - a custom verifyPassword overrides the default'
 })
 
 // -----------------------------------------------------------------------------
-// Token kind (drizzle) — safe-by-default stub, never fails open
+// Token kind — the lifecycle lives in TokenProviderBase (#452), so its deny
+// paths are asserted through an in-memory binding; the Drizzle binding is
+// proven against a real Postgres by scripts/kit_token_flow_live_test.ts.
 // -----------------------------------------------------------------------------
 
-Deno.test('token (drizzle) - verifyToken is fail-closed for invalid/expired/revoked alike', async () => {
-    const provider = new DrizzleTokenProvider<Authenticatable>({
-        // deno-lint-ignore no-explicit-any
-        db: null as any,
-        ...denying,
-    })
-    // An unissued value never verifies.
+Deno.test('token - an unknown token does not verify', async () => {
+    const { provider, alice } = setup()
+    await provider.createToken(alice, 'ci')
     assertEquals(await provider.verifyToken('never-issued'), null)
+})
 
-    // Even a token this provider just minted does not verify: the base is a
-    // safe stub a subclass must implement — it denies rather than fails open.
-    const token = await provider.createToken(fakeUser({ id: 1 }), 'ci')
-    assert(token.hash.length > 0, 'the SHA-256 hashing path ran')
-    assert(
-        (token.expiresAt?.getTime() ?? 0) > Date.now(),
-        'a future expiry was set',
-    )
+Deno.test('token - an expired token does not verify', async () => {
+    using time = new FakeTime(new Date('2026-01-01T00:00:00Z'))
+    const { provider, alice } = setup()
+    const token = await provider.createToken(alice, 'ci', 60_000)
+    time.tick(60_000)
     assertEquals(await provider.verifyToken(token.value), null)
 })
 
-Deno.test('token (drizzle) - revocation methods resolve without throwing', async () => {
-    const provider = new DrizzleTokenProvider<Authenticatable>({
-        // deno-lint-ignore no-explicit-any
-        db: null as any,
-        ...denying,
+Deno.test('token - a revoked token does not verify, by deleteToken or deleteAllTokens', async () => {
+    const { provider, alice } = setup()
+    const one = await provider.createToken(alice, 'one')
+    const two = await provider.createToken(alice, 'two')
+
+    await provider.deleteToken(alice, one.identifier)
+    assertEquals(await provider.verifyToken(one.value), null)
+    assert(await provider.verifyToken(two.value), 'only the named token went')
+
+    await provider.deleteAllTokens(alice)
+    assertEquals(await provider.verifyToken(two.value), null)
+})
+
+Deno.test('token (drizzle) - a table name or an incomplete table is refused at construction', () => {
+    const construct = (tokensTable: unknown) =>
+        new DrizzleTokenProvider<Authenticatable>({
+            // deno-lint-ignore no-explicit-any -- construction never touches db
+            db: null as any,
+            ...denying,
+            tokensTable: tokensTable as DrizzleAccessTokensTable,
+        })
+
+    // The pre-#452 option was a table name, accepted and never read.
+    assertThrows(
+        () => construct('access_tokens'),
+        TypeError,
+        'Drizzle table object',
+    )
+    assertThrows(() => construct(undefined), TypeError, 'Drizzle table object')
+
+    // A table whose hash column is still called `token`, with no last-use.
+    const legacy = pgTable('access_tokens', {
+        id: serial('id').primaryKey(),
+        userId: integer('user_id').notNull(),
+        name: text('name').notNull(),
+        token: text('token').notNull().unique(),
+        expiresAt: timestamp('expires_at'),
+        createdAt: timestamp('created_at').defaultNow(),
     })
-    const user = fakeUser({ id: 1 })
-    await provider.deleteToken(user, 't1')
-    await provider.deleteAllTokens(user)
+    assertThrows(
+        () => construct(legacy),
+        TypeError,
+        'missing the column properties "hash", "lastUsedAt"',
+    )
 })
 
 // -----------------------------------------------------------------------------
