@@ -9,7 +9,7 @@
  * @module @lockness/drizzle/tests/migration_settings
  */
 
-import { assertEquals, assertRejects } from '@std/assert'
+import { assertEquals, assertRejects, assertStringIncludes } from '@std/assert'
 import { join } from '@std/path'
 import {
     loadMigrationSettings,
@@ -135,12 +135,74 @@ async function assertRefused(
     assertEquals(folders, [], 'the migrations were read after a refusal')
 }
 
-Deno.test('#435 R2 refuses a drizzle.config.ts that cannot be imported', async () => {
+Deno.test('#435 R2 refuses a drizzle.config.ts that cannot be imported, showing only the error name', async () => {
     await assertRefused(
-        () => Promise.reject(new Error('Module not found "drizzle-kit"')),
-        'drizzle.config.ts could not be imported: Module not found',
+        () => Promise.reject(new TypeError('Module not found "drizzle-kit"')),
+        'drizzle.config.ts could not be imported (TypeError); its error is ' +
+            'withheld because it may contain the DSN',
     )
 })
+
+/**
+ * A DSN the import error quotes — assembled at runtime so no scanner reads a
+ * credential into the source.
+ */
+const LEAKED_DSN = ['postgres://app', 'not-a-real-secret@db.example:5432/app']
+    .join(':')
+
+/** Every text a refusal exposes: message, name, and the whole cause chain. */
+function exposed(error: unknown): string {
+    const texts: string[] = []
+    for (let e = error, depth = 0; e !== undefined && depth < 8; depth++) {
+        if (!(e instanceof Error)) {
+            texts.push(String(e))
+            break
+        }
+        texts.push(e.name, e.message, e.stack ?? '')
+        e = e.cause
+    }
+    return texts.join('\n')
+}
+
+for (
+    const [label, thrown] of [
+        [
+            'an Error quoting the DSN',
+            () => new Error(`cannot reach ${LEAKED_DSN}`),
+        ],
+        ['a string quoting the DSN', () => `cannot reach ${LEAKED_DSN}`],
+        [
+            'an Error whose name is the DSN',
+            () => Object.assign(new Error('boom'), { name: LEAKED_DSN }),
+        ],
+        ['an Error whose name getter throws', () => {
+            const error = new Error(`cannot reach ${LEAKED_DSN}`)
+            Object.defineProperty(error, 'name', {
+                get: () => {
+                    throw new Error(LEAKED_DSN)
+                },
+            })
+            return error
+        }],
+    ] as const
+) {
+    Deno.test(`#435 R2 withholds an import failure that may carry the DSN: ${label}`, async () => {
+        const { folders, read } = reader()
+        const error = await assertRejects(
+            () => loadMigrationSettings(() => Promise.reject(thrown()), read),
+            FreshRefusedError,
+        )
+
+        assertStringIncludes(error.message, 'could not be imported')
+        assertStringIncludes(error.message, 'withheld')
+        const text = exposed(error)
+        assertEquals(text.includes(LEAKED_DSN), false, text)
+        assertEquals(text.includes('not-a-real-secret'), false, text)
+        assertEquals(text.includes('db.example'), false, text)
+        assertEquals(error.cause, undefined, 'the raw error rode along')
+        assertEquals(folders, [], 'the migrations were read after a refusal')
+    })
+}
 
 Deno.test('#435 R2 refuses a config that is not an object', async () => {
     await assertRefused(() => Promise.resolve(undefined), 'default export')

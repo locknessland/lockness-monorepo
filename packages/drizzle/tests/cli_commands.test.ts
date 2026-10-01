@@ -925,6 +925,37 @@ Deno.test('db:fresh - R2 and R3 refuse before the connection is opened', async (
     })
 })
 
+Deno.test('db:fresh - an import error quoting the DSN reaches neither the output nor the error chain', async () => {
+    // Assembled at runtime, so no scanner reads a credential into the source.
+    const dsn = ['postgres://app', 'not-a-real-secret@db.example/app'].join(':')
+    await withMigrations(async (folder) => {
+        const { calls, deps } = freshDeps(folder)
+        const cli = new FakeCli()
+        registerDrizzleCommands(cli, {
+            ...deps,
+            loadMigrationConfig: () =>
+                Promise.reject(new Error(`connect to ${dsn} refused`)),
+        })
+
+        const { lines, error } = await capture(() =>
+            withAppEnv(undefined, () => cli.run('db:fresh'))
+        )
+
+        assert(error instanceof CommandFailedError, String(error))
+        assertStringIncludes(error.message, 'withheld')
+        const chain: string[] = [...lines]
+        for (let e: unknown = error; e instanceof Error; e = e.cause) {
+            chain.push(e.message, e.stack ?? '')
+        }
+        assertEquals(
+            chain.some((text) => text.includes('not-a-real-secret')),
+            false,
+            'the DSN was exposed',
+        )
+        assertEquals(calls, [], 'the connection was opened')
+    })
+})
+
 Deno.test('db:fresh - a catalogue refusal happens before any drop, and closes', async () => {
     await withMigrations(async (folder) => {
         const { calls, deps } = freshDeps(folder)
