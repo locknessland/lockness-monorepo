@@ -105,9 +105,13 @@ export interface VersionMeta {
 
 /** What `deno run` reads as `meta.json`. */
 export interface PackageMeta {
+    /** The scope, without `@` (`lockness`). */
     readonly scope: string
+    /** The package name, without the scope (`core`). */
     readonly name: string
+    /** The highest SemVer received, or `null` when none was. */
     readonly latest: string | null
+    /** Every version received, each with an empty record (JSR's shape). */
     readonly versions: Record<string, Record<string, never>>
 }
 
@@ -143,6 +147,8 @@ export class LocalJsrStore {
     }
 
     /**
+     * Look up one received version.
+     *
      * @param name - Package name without the scope.
      * @param version - The version.
      * @returns The bundle, or `undefined` when it was never received.
@@ -152,6 +158,8 @@ export class LocalJsrStore {
     }
 
     /**
+     * List the versions received for one package.
+     *
      * @param name - Package name without the scope.
      * @returns Every version received for it, in upload order.
      */
@@ -159,7 +167,11 @@ export class LocalJsrStore {
         return [...(this.#packages.get(name)?.keys() ?? [])]
     }
 
-    /** @returns Every package name received, sorted. */
+    /**
+     * List the packages received.
+     *
+     * @returns Every package name received, sorted.
+     */
     names(): string[] {
         return [...this.#packages.keys()].sort()
     }
@@ -341,6 +353,10 @@ export function parseRoute(method: string, pathname: string): Route {
 
 /**
  * Turn a tar entry path into the absolute in-package path JSR serves it at.
+ *
+ * The result is only ever a key in an in-memory `Map`; nothing is written to
+ * disk. So an absolute entry (`/etc/passwd`) is harmless: it is rooted into
+ * the package as `/etc/passwd`, never resolved against the filesystem.
  *
  * @param path - The entry path (`./mod.ts`, `package/mod.ts`, `mod.ts`).
  * @returns The path with a single leading `/`.
