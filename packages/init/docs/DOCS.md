@@ -592,6 +592,252 @@ Verify `DATABASE_URL` in `.env` and ensure PostgreSQL is running:
 - **Write tests** - ensure code quality
 - **Use CLI generators** - maintain consistency
 
+## Upgrading to v0.5.0
+
+One item, for `web` and `api` apps scaffolded from v0.4.0; `slim` has no
+database and is not affected. **Migration step:** add the drizzle wiring to
+`deno.json` and `drizzle.config.ts`, then regenerate the migrations (database
+never migrated) or baseline them (database already populated). An `api` app
+first replaces its `access_tokens` schema.
+
+### 1. web and api apps from v0.4.0: wire up the `db:*` commands and adopt generated migrations
+
+In an app scaffolded from v0.4.0, `deno task db:migrate` prints the command list
+and exits 1: `db:migrate` is an unknown command there (#444). The v0.4.0 kits
+did not name `drizzle` in `lockness.packages`, shipped no `drizzle.config.ts`,
+and wrote `database/migrations/` by hand, with no `meta/` journal. The v0.5.0
+kits fix all three. An existing app needs the steps below, in this order:
+
+- **Step 1** (`deno.json`) and **step 2** (`drizzle.config.ts`): web and api.
+- **Step 3** (schema and user provider): api only, and before step 4.
+- **Step 4**: path A or path B, depending on your database.
+
+These steps assume your `@lockness/*` imports already point at v0.5.0;
+[`@lockness/upgrade`](../../upgrade/README.md) rewrites them. They were verified
+on apps whose `app/model/` is still the kit's. If you have added tables since,
+the regenerated migration covers them too; that case was not part of the
+verified run.
+
+#### Step 1: `deno.json`
+
+Add both entries. Both are required:
+
+```jsonc
+{
+    "imports": {
+        // ...existing entries...
+        "drizzle-kit": "npm:drizzle-kit@0.31.10"
+    },
+    "lockness": {
+        "packages": ["drizzle"]
+    }
+}
+```
+
+`lockness.packages` is what makes the `db:*` commands exist. The `drizzle-kit`
+import is what `drizzle.config.ts` loads: without it, `db:generate` fails with
+`Import "drizzle-kit" not a dependency and not in import map` and exits 1.
+
+#### Step 2: `drizzle.config.ts`
+
+Create it at the project root. It is identical to the v0.5.0 kits' file:
+
+```ts
+/**
+ * Drizzle Kit configuration — read by `db:generate`, `db:migrate` and
+ * `db:fresh`.
+ *
+ * @module drizzle.config
+ */
+
+import { defineConfig } from 'drizzle-kit'
+
+// No fallback, like config/database.ts: unset means `db:migrate` says so and
+// `db:fresh` refuses. A default URL would point a destructive command at a
+// database nobody chose.
+const url = Deno.env.get('DATABASE_URL')
+
+export default defineConfig({
+    schema: './app/model/*.ts',
+    out: './database/migrations',
+    dialect: 'postgresql',
+    ...(url ? { dbCredentials: { url } } : {}),
+})
+```
+
+`dbCredentials` is set only when `DATABASE_URL` is set. Do not add a `?? ''`
+fallback or a default URL.
+
+#### Step 3 (api only): the `access_tokens` schema and the user provider
+
+`DrizzleTokenProvider` now takes the tokens table as a Drizzle table object; see
+[`@lockness/auth-provider`'s v0.5.0 item](../../auth-provider/docs/DOCS.md#upgrading-to-v050).
+Both changes below are required, and both must land **before** step 4:
+migrations regenerated from the old schema keep the old `token` column. Until
+both are made, `deno check main.ts` fails with TS2322.
+
+In `app/model/user.ts`, change the import:
+
+```ts
+import {
+    index,
+    integer,
+    pgTable,
+    serial,
+    text,
+    timestamp,
+} from 'drizzle-orm/pg-core'
+```
+
+Then replace the `accessTokens` table:
+
+```ts
+export const accessTokens = pgTable('access_tokens', {
+    id: serial('id').primaryKey(),
+    userId: integer('user_id').notNull().references(() => users.id, {
+        onDelete: 'cascade',
+    }),
+    name: text('name').notNull(),
+    hash: text('hash').notNull().unique(),
+    expiresAt: timestamp('expires_at').notNull(),
+    lastUsedAt: timestamp('last_used_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (table) => [index('access_tokens_user_id_idx').on(table.userId)])
+```
+
+In `app/auth/user_provider.ts`, pass the table instead of its name:
+
+```diff
+-import { users } from '@model/user.ts'
++import { accessTokens, users } from '@model/user.ts'
+ ...
+-        tokensTable: 'access_tokens',
++        tokensTable: accessTokens,
+```
+
+**The foreign key.** A database built from v0.4.0's SQL already has a foreign
+key from `access_tokens.user_id` to `users.id` with `ON DELETE CASCADE`, named
+`access_tokens_user_id_fkey`. What v0.4.0 lacked was the key in the Drizzle
+schema, where `userId` was declared as `serial`. The `.references(...)` above
+adds it to the schema. On a populated database, path B re-creates the constraint
+under the name drizzle-kit gives it; that changes no row.
+
+#### Step 4, path A: a database that was never migrated
+
+For an empty database, or none yet. Move aside any SQL file of your own in
+`database/migrations/` first, then regenerate the folder from the app's schema:
+
+```bash
+rm -rf database/migrations
+deno task cli db:generate     # writes 0000_<random_name>.sql and meta/
+deno task db:migrate
+deno task cli db:generate     # prints "No schema changes, nothing to migrate"
+```
+
+- The generated SQL is byte-identical to the v0.5.0 kit's
+  `0000_create_users.sql`, for web and for api.
+- The file name is random (for example `0000_next_skaar.sql`), because the
+  `db:generate` wrapper does not forward `--name`. This is harmless.
+- Copying the v0.5.0 kit's folder instead gives the same result:
+  `0000_create_users.sql`, `meta/_journal.json` and `meta/0000_snapshot.json`
+  from `packages/init/stubs/kits/<kit>/database/migrations/`, with the `.stub`
+  suffix removed. For api, the schema must still match step 3.
+
+#### Step 4, path B: a database that already holds v0.4.0's tables
+
+v0.4.0's `db:migrate` never ran, so such a database was built by applying
+v0.4.0's `0000_create_users.sql` by hand, and drizzle has no record of it. Run
+`db:migrate` now and it fails on `CREATE TABLE` and exits 1. Record the new
+migration as applied instead, without running it. This is a baseline.
+
+Drizzle's migrator runs only the journal entries whose `when` is newer than the
+latest `created_at` in `drizzle.__drizzle_migrations`. A row whose `hash` is the
+SHA-256 of the `.sql` file and whose `created_at` is the journal's `when`
+therefore marks the migration as applied.
+
+1. Regenerate the folder exactly as in path A, after step 3 for api. **Do not
+   run `db:migrate`.**
+2. Read the two values from that folder:
+
+   ```bash
+   # <hash>: SHA-256 of the migration file
+   shasum -a 256 database/migrations/0000_*.sql | cut -d' ' -f1
+   # <when>: the journal entry's timestamp
+   deno eval "console.log(JSON.parse(Deno.readTextFileSync('database/migrations/meta/_journal.json')).entries[0].when)"
+   ```
+
+   They are not constants, so compute them from your own folder and never copy
+   them from another app: each regeneration writes a new `when`, and the hash
+   changes whenever the file does.
+3. Substitute `<hash>` and `<when>` into the script for your kit, below, and run
+   it once with `psql "<database-url>"`.
+4. Check: `deno task db:migrate` exits 0 and runs nothing, and
+   `deno task cli db:generate` prints `No schema changes, nothing to migrate`.
+
+**web.** Rename the unique constraint on `users.email` to the name drizzle-kit
+gives it, so that a later generated migration that drops it finds it, then
+record the baseline:
+
+```sql
+BEGIN;
+ALTER TABLE "users" RENAME CONSTRAINT "users_email_key" TO "users_email_unique";
+
+CREATE SCHEMA IF NOT EXISTS "drizzle";
+CREATE TABLE IF NOT EXISTS "drizzle"."__drizzle_migrations" (id SERIAL PRIMARY KEY, hash text NOT NULL, created_at bigint);
+INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at) VALUES ('<hash>', <when>);
+COMMIT;
+```
+
+Existing rows are untouched.
+
+**api.** Run it after steps 1 to 3, with the regenerated folder in place:
+
+```sql
+BEGIN;
+
+-- 1. Rows the new shape cannot hold. Tokens issued before the upgrade never
+--    authenticated, so nothing usable is lost.
+DELETE FROM "access_tokens" WHERE "expires_at" IS NULL;
+DELETE FROM "access_tokens" WHERE "user_id" NOT IN (SELECT "id" FROM "users");
+UPDATE "access_tokens" SET "created_at" = now() WHERE "created_at" IS NULL;
+
+-- 2. users: the unique constraint under the name drizzle-kit gives it.
+ALTER TABLE "users" RENAME CONSTRAINT "users_email_key" TO "users_email_unique";
+
+-- 3. access_tokens: token -> hash (unique), NOT NULLs, last_used_at.
+ALTER TABLE "access_tokens" RENAME COLUMN "token" TO "hash";
+ALTER TABLE "access_tokens" RENAME CONSTRAINT "access_tokens_token_key" TO "access_tokens_hash_unique";
+DROP INDEX IF EXISTS "access_tokens_token_idx";
+ALTER TABLE "access_tokens" ALTER COLUMN "expires_at" SET NOT NULL;
+ALTER TABLE "access_tokens" ALTER COLUMN "created_at" SET NOT NULL;
+ALTER TABLE "access_tokens" ADD COLUMN "last_used_at" timestamp;
+
+-- 4. Foreign key with cascade, under drizzle-kit's name. v0.4.0's SQL already
+--    created one as "access_tokens_user_id_fkey"; drop-and-add also covers a
+--    database where it is missing.
+ALTER TABLE "access_tokens" DROP CONSTRAINT IF EXISTS "access_tokens_user_id_fkey";
+ALTER TABLE "access_tokens" ADD CONSTRAINT "access_tokens_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+CREATE INDEX IF NOT EXISTS "access_tokens_user_id_idx" ON "access_tokens" USING btree ("user_id");
+
+-- 5. Baseline: record the migration as applied, without running it.
+CREATE SCHEMA IF NOT EXISTS "drizzle";
+CREATE TABLE IF NOT EXISTS "drizzle"."__drizzle_migrations" (id SERIAL PRIMARY KEY, hash text NOT NULL, created_at bigint);
+INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at) VALUES ('<hash>', <when>);
+
+COMMIT;
+```
+
+- Section 1 deletes the token rows with no expiry, and the rows whose user no
+  longer exists (the existing foreign key already forbids those, so this only
+  matters where it is missing). It backfills a missing `created_at`. Every other
+  row is kept.
+- `CREATE INDEX IF NOT EXISTS` prints
+  `NOTICE: relation "access_tokens_user_id_idx" already exists, skipping`. This
+  is harmless.
+- The resulting schema matches a database built fresh by v0.5.0's migration,
+  except that `last_used_at` comes after `created_at`. Column order is cosmetic.
+- Deleting a user still cascades to their tokens.
+
 ## See Also
 
 - [@lockness/cli](../cli/README.md) - CLI system
