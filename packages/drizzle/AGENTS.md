@@ -93,7 +93,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-15 test files for 15 source files:
+15 test files for 16 source files:
 
 - `packages/drizzle/tests/cli_commands.test.ts`
 - `packages/drizzle/tests/database.test.ts`
