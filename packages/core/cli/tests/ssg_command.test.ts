@@ -88,6 +88,25 @@ Deno.test('loadKernel - returns undefined when no kernel file exists', async () 
     }
 })
 
+Deno.test('loadKernel - app/kernel.ts wins over app/kernel.tsx, as for compile (#485)', async () => {
+    const root = await Deno.makeTempDir()
+    const decorators = import.meta.resolve('../../kernel/kernel_decorators.ts')
+    const source = (staticDir: string) =>
+        `import { KERNEL_CONFIG } from '${decorators}'\n` +
+        `export class AppKernel { static [KERNEL_CONFIG] = { staticDir: '${staticDir}' } }\n`
+    try {
+        await Deno.mkdir(join(root, 'app'))
+        await Deno.writeTextFile(join(root, 'app/kernel.ts'), source('from-ts'))
+        await Deno.writeTextFile(
+            join(root, 'app/kernel.tsx'),
+            source('from-tsx'),
+        )
+        assertEquals((await loadKernel(root))?.config.staticDir, 'from-ts')
+    } finally {
+        await Deno.remove(root, { recursive: true })
+    }
+})
+
 // --- buildStaticSite --------------------------------------------------------
 
 Deno.test('buildStaticSite - warns (FR-013), renders the @Static page, reports it', async () => {

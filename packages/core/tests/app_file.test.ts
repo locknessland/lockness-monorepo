@@ -245,6 +245,36 @@ export class AppKernel {
     })
 })
 
+/** A kernel module whose `@Kernel` config compiles to `output`. */
+function compileKernelSource(output: string): string {
+    const decorators = import.meta.resolve('../kernel/kernel_decorators.ts')
+    return `
+import { KERNEL_CONFIG } from '${decorators}'
+export class AppKernel {
+    static [KERNEL_CONFIG] = { compile: { output: '${output}' } }
+}
+`
+}
+
+Deno.test('loadCompileKernel (compile) - loads app/kernel.ts, the file every scaffold ships (#485)', async () => {
+    await withAwkwardDir({
+        'app/kernel.ts': compileKernelSource('_dist/from-ts'),
+    }, async ({ abs }) => {
+        const kernel = await loadCompileKernel(abs)
+        assertEquals(kernel?.compile?.output, '_dist/from-ts')
+    })
+})
+
+Deno.test('loadCompileKernel (compile) - app/kernel.ts wins over app/kernel.tsx (#485)', async () => {
+    await withAwkwardDir({
+        'app/kernel.ts': compileKernelSource('_dist/from-ts'),
+        'app/kernel.tsx': compileKernelSource('_dist/from-tsx'),
+    }, async ({ abs }) => {
+        const kernel = await loadCompileKernel(abs)
+        assertEquals(kernel?.compile?.output, '_dist/from-ts')
+    })
+})
+
 Deno.test('loadCompileKernel (compile) - an app with no kernel file loads nothing', async () => {
     await withAwkwardDir({}, async ({ abs }) => {
         assertEquals(await loadCompileKernel(abs), undefined)
