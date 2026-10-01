@@ -86,9 +86,9 @@ export class ControllerDiscovery {
             }
         } catch (error) {
             console.error(
-                `❌ Error during controller discovery: ${
-                    (error as Error).message
-                }`,
+                `❌ Error during controller discovery in ${
+                    safeForLog(dirPath)
+                }: ${renderError(error)}`,
             )
         }
 
@@ -179,9 +179,11 @@ export class ControllerDiscovery {
                 }
             }
         } catch (error) {
+            // The path as the app named it, encoded, and the error rendered
+            // the way every other app-file loader reports one.
             console.error(
-                `❌ Error loading controllers from ${filePath}: ${
-                    (error as Error).message
+                `❌ Error loading controllers from ${safeForLog(shown)}: ${
+                    renderError(error)
                 }`,
             )
         }

@@ -162,6 +162,20 @@ async function captured(body: () => Promise<unknown>): Promise<string> {
     return lines.join('\n')
 }
 
+Deno.test('ControllerDiscovery - names a broken controller file by the path the app gave, never the absolute one', async () => {
+    await withAwkwardDir({
+        'broken_controller.ts':
+            'throw new Error("broken at load")\nexport {}\n',
+    }, async ({ rel, abs }) => {
+        const output = await captured(() =>
+            new ControllerDiscovery().discover(rel)
+        )
+        assertStringIncludes(output, 'broken_controller.ts')
+        assertStringIncludes(output, 'broken at load')
+        assert(!output.includes(abs), output)
+    })
+})
+
 Deno.test('ControllerDiscovery - warns about a controller it cannot instantiate, and still returns it', async () => {
     await withAwkwardDir({
         'needy_controller.ts': `
