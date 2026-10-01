@@ -20,6 +20,7 @@ import { Cli } from '../mod.ts'
 import { loadRouteControllers } from '../commands/router_commands.ts'
 import { discoverJobs } from '../commands/queue_commands.ts'
 import { loadTinkerContext } from '../commands/tinker_command.ts'
+import { collectListeners } from '../commands/debug_commands.ts'
 
 /** A directory name holding both characters `file://${…}` mis-parses. */
 const AWKWARD = 'app#dir with space'
@@ -209,6 +210,28 @@ Deno.test('loadTinkerContext - reports a file and a kernel that fail to load', a
         assertStringIncludes(output, 'broken.ts')
         assertStringIncludes(output, 'broken at load')
         assertStringIncludes(output, 'kernel broke')
+    })
+})
+
+// ============================================================================
+// debug:listeners
+// ============================================================================
+
+Deno.test("collectListeners - lists a listener under a path with '#' and a space", async () => {
+    const fixtures = new URL('./fixtures/broken-import/', import.meta.url)
+    const read = (name: string) => Deno.readTextFile(new URL(name, fixtures))
+    await withAwkwardDir({
+        'events.ts': await read('events.ts'),
+        'ok_listener.ts': await read('ok_listener.ts'),
+    }, async ({ abs }) => {
+        let rows: Awaited<ReturnType<typeof collectListeners>> = []
+        const output = await captured(async () => {
+            rows = await collectListeners(abs)
+        })
+        assert(
+            rows.some((row) => row.listenerClass === 'OkListener'),
+            output,
+        )
     })
 })
 
