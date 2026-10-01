@@ -296,6 +296,12 @@ The same task runs `scripts/kit_migrations_live_test.ts` (#444): it scaffolds
 the web and api kits, points each at a throwaway database it creates and drops
 (`lockness_kit_<kit>_<random>`), and runs `db:migrate` twice and `db:fresh`.
 
+And `scripts/kit_token_flow_live_test.ts` (#452): it scaffolds and migrates the
+api kit on its own throwaway database (`lockness_kit_tokens_<random>`), then
+runs a probe inside the app — the README's `POST /auth/token` must authenticate
+`GET /auth/me`, only the token's hash may be stored, and an unknown, expired or
+revoked token must be refused.
+
 ## Mutation batteries
 
 A test that passes proves the code ran. It does not prove the test would have
