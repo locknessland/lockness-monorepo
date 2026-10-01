@@ -19,7 +19,7 @@
 
 import { join } from '@std/path'
 import type { ControllerClass } from '../types.ts'
-import { importAppFile } from '@lockness/contract'
+import { importAppFile, renderError, safeForLog } from '@lockness/contract'
 
 /** Supported file extensions for controller files */
 const CONTROLLER_EXTENSIONS = ['.ts', '.js', '.tsx'] as const
@@ -79,6 +79,7 @@ export class ControllerDiscovery {
                 if (this.isControllerFile(entry)) {
                     const fileControllers = await this.loadControllersFromFile(
                         join(absolutePath, entry.name),
+                        join(dirPath, entry.name),
                     )
                     controllers.push(...fileControllers)
                 }
@@ -153,12 +154,15 @@ export class ControllerDiscovery {
      * that have been decorated with `@Controller` (identified by `_basePath`).
      *
      * @param filePath - Absolute path of the controller file
+     * @param shown - The path as the app names it, for log lines: never the
+     *   absolute one
      * @returns Promise resolving to an array of controller classes from the file
      *
      * @internal
      */
     private async loadControllersFromFile(
         filePath: string,
+        shown: string,
     ): Promise<ControllerClass[]> {
         const controllers: ControllerClass[] = []
 
@@ -170,7 +174,7 @@ export class ControllerDiscovery {
                 if (this.isControllerClass(exported)) {
                     // TC39 decorators: addInitializer only runs on instance creation
                     // Create temporary instance to trigger metadata initialization
-                    this.initializeControllerMetadata(exported)
+                    this.initializeControllerMetadata(exported, shown)
                     controllers.push(exported)
                 }
             }
@@ -211,21 +215,31 @@ export class ControllerDiscovery {
      * which populate the `_routes` array with route information.
      *
      * @param Controller - Controller class to initialize
+     * @param shown - The controller file as the app names it, for the warning
      *
      * @remarks
-     * Silently ignores errors during instantiation, as the controller
-     * may have dependencies that can't be resolved during discovery.
+     * A controller that throws on construction (a dependency that cannot be
+     * resolved during discovery, say) is still returned, and the failure is
+     * warned: its routes may be missing, and saying why beats a silent gap.
      *
      * @internal
      */
-    private initializeControllerMetadata(Controller: ControllerClass): void {
+    private initializeControllerMetadata(
+        Controller: ControllerClass,
+        shown: string,
+    ): void {
         // Only initialize if routes haven't been set yet
         if (!Controller._routes || Controller._routes.length === 0) {
             try {
                 new Controller()
-            } catch {
-                // Ignore errors during temporary instantiation
-                // The controller may have dependencies that can't be resolved here
+            } catch (error) {
+                console.warn(
+                    `⚠️  Could not instantiate ${Controller.name} from ${
+                        safeForLog(shown)
+                    } to read its routes, so they may be missing: ${
+                        renderError(error)
+                    }`,
+                )
             }
         }
     }

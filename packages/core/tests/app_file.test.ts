@@ -11,7 +11,12 @@
  * `lockness/app-file-specifier` lint rule (`scripts/lint/`).
  */
 
-import { assert, assertEquals, assertNotStrictEquals } from '@std/assert'
+import {
+    assert,
+    assertEquals,
+    assertNotStrictEquals,
+    assertStringIncludes,
+} from '@std/assert'
 import { join } from '@std/path'
 import { ErrorHandlerRegistry } from '../exceptions/handler.ts'
 import { defaultErrorHandler } from '../exceptions/default_view.ts'
@@ -135,6 +140,45 @@ Deno.test("ControllerDiscovery - imports a controller under a path with '#' and 
         )
         assert(marked(key), 'the controller file was imported')
         assertEquals(found.length, 1)
+    })
+})
+
+/** Run `body` and return what it wrote to the console, which stays quiet. */
+async function captured(body: () => Promise<unknown>): Promise<string> {
+    const original = {
+        log: console.log,
+        warn: console.warn,
+        error: console.error,
+    }
+    const lines: string[] = []
+    console.log = console.warn = console.error = (...args: unknown[]) => {
+        lines.push(args.map(String).join(' '))
+    }
+    try {
+        await body()
+    } finally {
+        Object.assign(console, original)
+    }
+    return lines.join('\n')
+}
+
+Deno.test('ControllerDiscovery - warns about a controller it cannot instantiate, and still returns it', async () => {
+    await withAwkwardDir({
+        'needy_controller.ts': `
+export class NeedyController {
+    static _basePath = '/needy'
+    constructor() { throw new Error('needs an injected service') }
+}
+`,
+    }, async ({ rel }) => {
+        let found: unknown[] = []
+        const output = await captured(async () => {
+            found = await new ControllerDiscovery().discover(rel)
+        })
+        assertEquals(found.length, 1)
+        assertStringIncludes(output, 'NeedyController')
+        assertStringIncludes(output, 'needy_controller.ts')
+        assertStringIncludes(output, 'needs an injected service')
     })
 })
 
