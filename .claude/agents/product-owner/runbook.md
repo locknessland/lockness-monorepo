@@ -7,7 +7,7 @@ Keep the GitHub Project #2 Kanban clean, prioritized, and free of duplicates.
 ## Backlog source of truth
 
 - Repo: `locknessland/lockness-monorepo`
-- Project: #1 ("Lockness", org `locknessland`)
+- Project: #2 ("Lockness", org `locknessland`)
 - URL: https://github.com/orgs/locknessland/projects/2/views/1
 - Status options: `Backlog`, `Ready`, `In progress`, `In review`, `Done`
 
