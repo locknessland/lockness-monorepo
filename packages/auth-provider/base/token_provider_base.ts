@@ -368,8 +368,11 @@ export abstract class TokenProviderBase<User extends Authenticatable>
         } catch (error) {
             console.warn(
                 `[auth-provider] could not record the last use of access token ${
-                    JSON.stringify(row.id)
-                }; the token was verified anyway`,
+                    // String() first: a bigint id (bigserial, mode 'bigint') makes
+                    // JSON.stringify throw, and the catch must not reject.
+                    JSON.stringify(
+                        String(row.id),
+                    )}; the token was verified anyway`,
                 error,
             )
             return last ?? undefined
