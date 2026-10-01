@@ -321,6 +321,16 @@ const NAMES_NO_DATABASE: readonly (readonly [string, readonly string[]])[] = [
         // and an empty-userinfo form with no path is refused here, before R3.
         'postgres://localhost/?database=app',
         'postgres://:@:5432/',
+        // postgres.js sends every query key as a startup parameter, so a
+        // `database` key overrides the path, and an empty one sends none: the
+        // server then picks the user's database. Refused for postgresql.
+        `postgres://app@${URL_HOST}/app?database=`,
+        `postgres://app@${URL_HOST}/app?database=other`,
+        // postgres.js decodes a `%2C` in the host into a host list and rewrites
+        // the URL, which can cut the database out of the path. No real host
+        // holds a comma.
+        `postgres://app@%2C${URL_HOST}:5432/,${URL_HOST}:5432`,
+        `postgres://app@x%2c${URL_HOST}:5432/app`,
         // What `postgres://localhost:5432/${DB_NAME ?? ''}` becomes with
         // credentials and a query string around the missing name.
         `postgres://app:pw@${URL_HOST}:5432/`,
@@ -376,8 +386,15 @@ const NAMES_A_DATABASE: readonly (readonly [string, readonly string[]])[] = [
         `postgres://[::1]:5432/app`,
         `postgres://${URL_HOST}/%61pp`,
         `postgres://${URL_HOST}/app/.`,
+        // An encoded comma in the password is not in the host.
+        `postgres://app:p%2Cw@${URL_HOST}:5432/app`,
     ]],
-    ['mysql', ['mysql://localhost:3306/app', `mysql://app:pw@${URL_HOST}/app`]],
+    ['mysql', [
+        'mysql://localhost:3306/app',
+        `mysql://app:pw@${URL_HOST}/app`,
+        // mysql2 skips a query key it already has as an option: the path wins.
+        `mysql://app:pw@${URL_HOST}/app?database=other`,
+    ]],
     ['sqlite', [
         'file:./app.db',
         'file:app.db',

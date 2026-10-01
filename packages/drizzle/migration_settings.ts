@@ -335,8 +335,12 @@ const FILE_URL = /^file:(?:\/\/[^/?#]*)?(?<path>[^?#]*)/i
  *   mirrored instead. A remote URL (`libsql://`, `https://`) names its
  *   database by host, and `:memory:` is a target the config chose.
  *
- * A database named only in the query string (`?database=app`) is not read:
- * the named target is the one in the path.
+ * The named target is the one in the path. For postgresql two more forms are
+ * refused, because postgres.js reads them differently from the path: a
+ * `database` query key (it overrides the path; an empty one sends no database,
+ * so the server picks the user's), and a host holding an encoded comma (it is
+ * decoded into a host list and the URL rewritten). mysql2 skips a query key it
+ * already holds as an option, so for mysql the path wins.
  *
  * @param dialect - The dialect the URL is read for.
  * @param url - `dbCredentials.url`, non-blank. Never quoted.
@@ -353,9 +357,19 @@ function namesDatabase(dialect: KitDialect, url: string): boolean {
     // `URL.parse`, not `new URL`: the TypeError the constructor throws quotes
     // the input. A placeholder authority and a tail that starts with `/`, `?`
     // or `#` always parse, so the empty default only keeps this fail-closed.
-    const path = URL.parse(`${scheme}://h${trimmed.slice(authority.length)}`)
-        ?.pathname ?? ''
-    return path.slice(1) !== ''
+    const parsed = URL.parse(`${scheme}://h${trimmed.slice(authority.length)}`)
+    if (parsed === null || parsed.pathname.slice(1) === '') return false
+    if (dialect === 'postgresql') {
+        // postgres.js sends every query key as a startup parameter, so a
+        // `database` key overrides the path; an empty one sends none.
+        if (parsed.searchParams.has('database')) return false
+        // It decodes a `%2C` in the host into a host list and rewrites the
+        // URL, which can cut the database out of the path. The host is what
+        // follows the userinfo; a password may hold an encoded comma.
+        const host = authority.slice(authority.lastIndexOf('@') + 1)
+        if (/%2c/i.test(host)) return false
+    }
+    return true
 }
 
 /**
