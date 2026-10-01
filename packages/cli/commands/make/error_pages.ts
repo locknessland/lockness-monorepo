@@ -73,7 +73,7 @@ export const makeErrorPages: MakeCommand = {
             console.log(`✅ Created ${handlerPath}`)
 
             console.log('\n🎉 All error pages created successfully!')
-            console.log('\n💡 Configure error handler in app/kernel.tsx:')
+            console.log('\n💡 Configure error handler in app/kernel.ts:')
             console.log(`
 import { errorHandler } from '@view/pages/errors/error_handler.tsx'
 

@@ -131,7 +131,7 @@ export const makeCrud: MakeCommand = {
             console.log(
                 `   2. Implement methods in ${repoPath} and ${servicePath}`,
             )
-            console.log(`   3. Add routes in app/kernel.tsx:`)
+            console.log(`   3. Add routes in app/kernel.ts:`)
             console.log(`      app.route('/${route}', ${modelName}Controller)`)
             console.log(
                 `   4. Run "deno task db:generate" to create migrations`,
