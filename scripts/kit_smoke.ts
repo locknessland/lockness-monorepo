@@ -7,8 +7,10 @@
  * that promise: the framework's own suite tests the framework, and the stub
  * files are inert text until something scaffolds them.
  *
- * Each kit is taken through the four steps a new user takes, in order —
- * scaffold, type-check, test, boot — and the first failure stops that kit.
+ * Each kit is taken through the steps a new user takes, in order — scaffold,
+ * type-check, test, boot — and the first failure stops that kit. A kit that
+ * ships migrations also runs its `db:generate` before booting, which must
+ * report no schema changes (#444).
  *
  * **The scaffold is re-pointed at this working tree** before anything runs.
  * Left alone it would resolve `jsr:@lockness/core@^0.2.0` and test the *last
@@ -29,6 +31,7 @@
 import { parseArgs } from '@std/cli'
 import { join } from '@std/path'
 import { type KitName, KITS } from '@lockness/init'
+import { MIGRATIONS_DIR, readTree, shipsMigrations } from './kit_migrations.ts'
 
 const ROOT = Deno.cwd()
 const PACKAGES = join(ROOT, 'packages')
@@ -170,7 +173,44 @@ async function boots(dir: string, port: number): Promise<StepResult> {
 }
 
 /**
- * Take one kit through scaffold → check → test → boot.
+ * Run the app's own `db:generate` and require it to find nothing to do (#444).
+ *
+ * The shipped migrations folder carries drizzle-kit's snapshot of the shipped
+ * schema, so a fresh app's first `db:generate` must report no changes. If it
+ * writes a migration instead, the user's first migration of their own would
+ * re-create `users` and fail. It also proves the command is registered at all:
+ * without `lockness.packages`, `db:generate` is an unknown command.
+ *
+ * @param dir - The scaffolded project.
+ * @returns Whether drizzle-kit reported no changes and wrote no file.
+ */
+async function generatesNothing(dir: string): Promise<StepResult> {
+    const folder = join(dir, MIGRATIONS_DIR)
+    const before = await readTree(folder)
+    const generate = await run(
+        Deno.execPath(),
+        ['task', 'cli', 'db:generate'],
+        dir,
+    )
+    if (!generate.ok) return { ok: false, detail: `\n${tail(generate.output)}` }
+    if (!generate.output.includes('No schema changes')) {
+        return {
+            ok: false,
+            detail: `did not report "No schema changes"\n${
+                tail(generate.output)
+            }`,
+        }
+    }
+    const after = await readTree(folder)
+    const written = [...after.keys()].filter((path) => !before.has(path))
+    if (written.length > 0 || after.size !== before.size) {
+        return { ok: false, detail: `wrote ${written.join(', ')}` }
+    }
+    return { ok: true, detail: 'no schema changes' }
+}
+
+/**
+ * Take one kit through scaffold → check → test → db:generate → boot.
  *
  * @param kit - The kit to exercise.
  * @param workdir - Where to scaffold it.
@@ -225,6 +265,14 @@ async function smoke(
                 .pop()?.trim() ?? 'passed'
         }`,
     )
+
+    if (shipsMigrations(kit)) {
+        const generated = await generatesNothing(dir)
+        console.log(
+            `  ${generated.ok ? '✅' : '❌'} db:generate — ${generated.detail}`,
+        )
+        if (!generated.ok) return false
+    }
 
     const booted = await boots(dir, port)
     console.log(
