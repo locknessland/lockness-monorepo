@@ -7,7 +7,9 @@
  */
 
 import type { Cli } from '../mod.ts'
-import type { QueueConfig } from '@lockness/queue'
+import type { JobClass, QueueConfig } from '@lockness/queue'
+import { join } from '@std/path'
+import { importAppFile, renderError, safeForLog } from '@lockness/contract'
 
 /**
  * Raised when `QUEUE_DRIVER=redis` is selected but the Redis connection
@@ -149,6 +151,78 @@ export function resolveQueueConfigFromEnv(
 }
 
 /**
+ * Import every `.ts` file of the app's job directory and register each class
+ * it exports, for `queue:work`.
+ *
+ * Three outcomes stay distinct, because a worker started with no job
+ * registered looks healthy and processes nothing:
+ *
+ * - **No directory**: no jobs, silently. An app without jobs is normal.
+ * - **A directory that cannot be read** (a permission error): reported.
+ * - **A file that exists but fails to load or register**: reported and
+ *   skipped, so the other jobs still register.
+ *
+ * @param register - What registers a job class; `registerJob` in production.
+ * @param dir - The job directory, absolute or relative to the working
+ *   directory.
+ * @returns How many job classes were registered.
+ *
+ * @example
+ * ```ts
+ * const { registerJob } = await import('@lockness/queue')
+ * await discoverJobs(registerJob)
+ * ```
+ */
+export async function discoverJobs(
+    register: (job: JobClass) => void,
+    dir: string = join('app', 'job'),
+): Promise<number> {
+    const names: string[] = []
+    try {
+        for await (const entry of Deno.readDir(dir)) {
+            if (entry.isFile && entry.name.endsWith('.ts')) {
+                names.push(entry.name)
+            }
+        }
+    } catch (error) {
+        if (!(error instanceof Deno.errors.NotFound)) {
+            console.warn(
+                `⚠️  Job directory ${
+                    safeForLog(dir)
+                } could not be read, so no job was registered: ${
+                    renderError(error)
+                }`,
+            )
+        }
+        return 0
+    }
+
+    let registered = 0
+    for (const name of names) {
+        try {
+            // Through the app root, never this module's URL: from JSR a bare
+            // path resolves against the registry (#477).
+            const module = await importAppFile(join(dir, name))
+            for (const Exported of Object.values(module)) {
+                if (typeof Exported === 'function' && Exported.prototype) {
+                    register(Exported as JobClass)
+                    registered++
+                }
+            }
+        } catch (error) {
+            console.error(
+                `❌ Job file ${
+                    safeForLog(name)
+                } failed to load, so the jobs it declares are not registered: ${
+                    renderError(error)
+                }`,
+            )
+        }
+    }
+    return registered
+}
+
+/**
  * Register queue management commands.
  *
  * Commands registered:
@@ -197,24 +271,7 @@ export function registerQueueCommands(cli: Cli): void {
         configureQueue(resolveQueueConfigFromEnv())
 
         // Auto-discover and register jobs from app/job/
-        try {
-            for await (const entry of Deno.readDir('./app/job')) {
-                if (entry.isFile && entry.name.endsWith('.ts')) {
-                    const modulePath = `${Deno.cwd()}/app/job/${entry.name}`
-                    const module = await import(modulePath)
-                    for (const key in module) {
-                        const Exported = module[key]
-                        if (
-                            typeof Exported === 'function' && Exported.prototype
-                        ) {
-                            registerJob(Exported)
-                        }
-                    }
-                }
-            }
-        } catch {
-            // No jobs directory
-        }
+        await discoverJobs(registerJob)
 
         const worker = new QueueWorker({
             queues: queue.split(','),

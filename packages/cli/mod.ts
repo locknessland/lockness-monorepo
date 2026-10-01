@@ -22,6 +22,8 @@
  * ```
  */
 
+import { join } from '@std/path'
+import { importAppFile, renderError, safeForLog } from '@lockness/contract'
 import { Stub } from './stubs.ts'
 import { isCommandFailure, toFailureStatus } from './command_failure.ts'
 
@@ -305,9 +307,23 @@ export class Cli {
     }
 
     /**
-     * Discover and register commands from a directory
+     * Discover and register the `*_command.ts` / `*_command.js` files of a
+     * directory.
+     *
+     * A missing directory registers nothing, silently: a project without
+     * commands is normal. A file that fails to load is reported and skipped,
+     * so the others still register.
+     *
+     * @param dirPath - The directory, relative to the working directory or
+     *   absolute.
+     * @returns Resolves once every file has been tried.
+     *
+     * @example
+     * ```ts
+     * await cli.discoverCommands('app/command')
+     * ```
      */
-    async discoverCommands(dirPath: string) {
+    async discoverCommands(dirPath: string): Promise<void> {
         try {
             for await (const entry of Deno.readDir(dirPath)) {
                 if (
@@ -315,24 +331,27 @@ export class Cli {
                     (entry.name.endsWith('_command.ts') ||
                         entry.name.endsWith('_command.js'))
                 ) {
-                    const filePath =
-                        `file://${Deno.cwd()}/${dirPath}/${entry.name}`
                     try {
-                        const module = await import(filePath)
+                        // Through the app root, never this module's URL: from
+                        // JSR that is the registry (#477).
+                        const module = await importAppFile(
+                            join(dirPath, entry.name),
+                        )
                         for (const key in module) {
                             const Exported = module[key]
                             if (
                                 typeof Exported === 'function' &&
-                                Exported._commandName
+                                (Exported as Partial<CommandMetadata>)
+                                    ._commandName
                             ) {
                                 this.registerCommand(Exported as CommandClass)
                             }
                         }
                     } catch (e) {
                         console.warn(
-                            `⚠️ Failed to load command ${entry.name}: ${
-                                (e as Error).message
-                            }`,
+                            `⚠️ Failed to load command ${
+                                safeForLog(entry.name)
+                            }: ${renderError(e)}`,
                         )
                     }
                 }
@@ -342,8 +361,8 @@ export class Cli {
             // else (a permission error, say) hides commands and is reported.
             if (!(e instanceof Deno.errors.NotFound)) {
                 console.warn(
-                    `⚠️ Failed to scan ${dirPath} for commands: ${
-                        (e as Error).message
+                    `⚠️ Failed to scan ${safeForLog(dirPath)} for commands: ${
+                        renderError(e)
                     }`,
                 )
             }

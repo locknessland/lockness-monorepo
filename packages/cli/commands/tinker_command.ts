@@ -8,6 +8,8 @@
  */
 
 import type { Cli } from '../mod.ts'
+import { join } from '@std/path'
+import { importAppFile, renderError, safeForLog } from '@lockness/contract'
 
 /**
  * Register the tinker REPL command.
@@ -48,50 +50,98 @@ export function registerTinkerCommand(cli: Cli): void {
     }, 'Start an interactive REPL session')
 }
 
-async function loadTinkerContext(context: Record<string, unknown>) {
-    const dirs = [
-        { path: './app/model', prefix: '' },
-        { path: './app/service', prefix: '' },
-        { path: './app/repository', prefix: '' },
-    ]
-
-    for (const { path } of dirs) {
+/**
+ * Fill the REPL context from the app: every named export of its models,
+ * services and repositories, then `db` and `kernel` from its `app/kernel.ts`.
+ *
+ * What is absent is skipped silently — an app need not have every directory,
+ * nor a kernel exporting a database. What exists but fails to load is
+ * reported, so a missing name in the REPL is never a mystery.
+ *
+ * @param context - The REPL context, filled in place.
+ * @param root - The app root. Defaults to the working directory.
+ * @returns Resolves once every file has been tried.
+ * @internal Exported for tests.
+ *
+ * @example
+ * ```ts
+ * const context: Record<string, unknown> = {}
+ * await loadTinkerContext(context)
+ * ```
+ */
+export async function loadTinkerContext(
+    context: Record<string, unknown>,
+    root: string = Deno.cwd(),
+): Promise<void> {
+    for (const dir of ['model', 'service', 'repository']) {
+        const directory = join(root, 'app', dir)
+        const names: string[] = []
         try {
-            for await (const entry of Deno.readDir(path)) {
+            for await (const entry of Deno.readDir(directory)) {
                 if (entry.isFile && entry.name.endsWith('.ts')) {
-                    try {
-                        const modulePath = `${Deno.cwd()}${
-                            path.slice(1)
-                        }/${entry.name}`
-                        const module = await import(modulePath)
-
-                        // Import all named exports
-                        for (const key in module) {
-                            if (key !== 'default') {
-                                context[key] = module[key]
-                            }
-                        }
-                    } catch {
-                        // Skip files that fail to import
-                    }
+                    names.push(entry.name)
                 }
             }
-        } catch {
-            // Directory doesn't exist, skip
+        } catch (error) {
+            if (!(error instanceof Deno.errors.NotFound)) {
+                console.warn(
+                    `⚠️  app/${dir} could not be read: ${renderError(error)}`,
+                )
+            }
+            continue
+        }
+
+        for (const name of names) {
+            try {
+                // Through the app root, never this module's URL: from JSR a
+                // bare path resolves against the registry (#477).
+                const module = await importAppFile(join(directory, name))
+
+                // Import all named exports
+                for (const key in module) {
+                    if (key !== 'default') {
+                        context[key] = module[key]
+                    }
+                }
+            } catch (error) {
+                console.error(
+                    `❌ app/${dir}/${safeForLog(name)} failed to load: ${
+                        renderError(error)
+                    }`,
+                )
+            }
         }
     }
 
-    // Try to import drizzle db
+    // The kernel may export a drizzle `db` and the `kernel` itself.
+    const kernelPath = join(root, 'app', 'kernel.ts')
+    let kernelExists = true
     try {
-        const drizzleModule = await import(`${Deno.cwd()}/app/kernel.ts`)
-        if (drizzleModule.db) {
-            context.db = drizzleModule.db
+        await Deno.stat(kernelPath)
+    } catch (error) {
+        kernelExists = false
+        if (!(error instanceof Deno.errors.NotFound)) {
+            console.warn(
+                `⚠️  app/kernel.ts could not be read: ${renderError(error)}`,
+            )
         }
-        if (drizzleModule.kernel) {
-            context.kernel = drizzleModule.kernel
+    }
+    if (kernelExists) {
+        try {
+            const kernelModule = await importAppFile(kernelPath)
+            if (kernelModule.db) {
+                context.db = kernelModule.db
+            }
+            if (kernelModule.kernel) {
+                context.kernel = kernelModule.kernel
+            }
+        } catch (error) {
+            console.error(
+                `❌ app/kernel.ts failed to load, so db and kernel are not available: ${
+                    renderError(error)
+                }`,
+            )
         }
-    } catch {
-        // No drizzle setup
     }
 
     // Add helper utilities

@@ -9,6 +9,7 @@
 // deno-lint-ignore-file no-explicit-any
 import type { Cli } from '../mod.ts'
 import { join } from '@std/path'
+import { importAppFile, renderError, safeForLog } from '@lockness/contract'
 
 /**
  * Information about a registered route.
@@ -21,6 +22,78 @@ interface RouteInfo {
     readonly controller: string
     readonly action: string
     readonly middlewares: ReadonlyArray<string>
+}
+
+/**
+ * A controller class as `router:list` reads it: the metadata the route
+ * decorators attach to the constructor.
+ * @internal
+ */
+export type RouteControllerClass = (new () => unknown) & {
+    readonly _basePath?: string
+    readonly _routes?: ReadonlyArray<unknown>
+}
+
+/**
+ * Load the controller classes of a directory, for `router:list`.
+ *
+ * A file that fails to load is reported and skipped, so the other controllers
+ * are still listed.
+ *
+ * @param controllerDir - The directory to scan, absolute or relative to the
+ *   working directory.
+ * @returns Every export with a `_basePath`, in directory order.
+ * @throws When the directory itself cannot be read (missing, unreadable).
+ *
+ * @example
+ * ```ts
+ * const controllers = await loadRouteControllers('app/controller')
+ * ```
+ */
+export async function loadRouteControllers(
+    controllerDir: string,
+): Promise<RouteControllerClass[]> {
+    const controllers: RouteControllerClass[] = []
+    for await (const entry of Deno.readDir(controllerDir)) {
+        if (
+            !entry.isFile ||
+            !(entry.name.endsWith('.ts') || entry.name.endsWith('.tsx'))
+        ) continue
+
+        let module: Record<string, unknown>
+        try {
+            // Through the app root, never this module's URL: from JSR that
+            // is the registry, and a hand-built `file://` string truncates
+            // at a '#' (#477).
+            module = await importAppFile(join(controllerDir, entry.name))
+        } catch (importError) {
+            console.warn(
+                `⚠️  Could not import ${safeForLog(entry.name)}: ${
+                    renderError(importError)
+                }`,
+            )
+            continue
+        }
+
+        for (const Exported of Object.values(module)) {
+            if (
+                typeof Exported !== 'function' ||
+                (Exported as RouteControllerClass)._basePath === undefined
+            ) continue
+            const Controller = Exported as RouteControllerClass
+            // TC39 decorators: addInitializer only runs on instance creation,
+            // so a temporary instance is what populates the route metadata.
+            if (!Controller._routes || Controller._routes.length === 0) {
+                try {
+                    new Controller()
+                } catch (_e) {
+                    // Ignore errors during temporary instantiation
+                }
+            }
+            controllers.push(Controller)
+        }
+    }
+    return controllers
 }
 
 /**
@@ -39,58 +112,14 @@ interface RouteInfo {
 export function registerRouterCommands(cli: Cli): void {
     cli.register('router:list', async () => {
         try {
-            // Load controllers from app/controller directory
-            const controllerDir = join(Deno.cwd(), 'app', 'controller')
-            const controllers: any[] = []
-
+            let controllers: any[]
             try {
-                for await (const entry of Deno.readDir(controllerDir)) {
-                    if (
-                        entry.isFile &&
-                        (entry.name.endsWith('.ts') ||
-                            entry.name.endsWith('.tsx'))
-                    ) {
-                        const filePath = `file://${
-                            join(controllerDir, entry.name)
-                        }`
-                        try {
-                            const module = await import(
-                                /* @vite-ignore */ filePath
-                            )
-
-                            for (const key in module) {
-                                const Exported = module[key]
-                                if (
-                                    typeof Exported === 'function' &&
-                                    (Exported as any)._basePath !== undefined
-                                ) {
-                                    // TC39 decorators: addInitializer only runs on instance creation
-                                    // Create temporary instance to trigger metadata initialization
-                                    if (
-                                        !(Exported as any)._routes ||
-                                        (Exported as any)._routes.length === 0
-                                    ) {
-                                        try {
-                                            new Exported()
-                                        } catch (_e) {
-                                            // Ignore errors during temporary instantiation
-                                        }
-                                    }
-                                    controllers.push(Exported)
-                                }
-                            }
-                        } catch (importError) {
-                            console.warn(
-                                `⚠️  Could not import ${entry.name}: ${
-                                    (importError as Error).message
-                                }`,
-                            )
-                        }
-                    }
-                }
+                controllers = await loadRouteControllers(
+                    join(Deno.cwd(), 'app', 'controller'),
+                )
             } catch (e) {
                 console.error('❌ Could not read app/controller directory')
-                console.error(`   ${(e as Error).message}`)
+                console.error(`   ${renderError(e)}`)
                 return
             }
 
