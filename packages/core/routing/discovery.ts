@@ -19,6 +19,7 @@
 
 import { join } from 'node:path'
 import type { ControllerClass } from '../types.ts'
+import { appFileUrl } from '../app_file_url.ts'
 
 /** Supported file extensions for controller files */
 const CONTROLLER_EXTENSIONS = ['.ts', '.js', '.tsx'] as const
@@ -76,7 +77,9 @@ export class ControllerDiscovery {
         try {
             for await (const entry of Deno.readDir(absolutePath)) {
                 if (this.isControllerFile(entry)) {
-                    const filePath = `file://${join(absolutePath, entry.name)}`
+                    const filePath = appFileUrl(
+                        join(absolutePath, entry.name),
+                    )
                     const fileControllers = await this.loadControllersFromFile(
                         filePath,
                     )
