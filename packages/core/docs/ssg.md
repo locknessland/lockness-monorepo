@@ -117,8 +117,11 @@ The command prints this warning on every run.
 
 ## How it works
 
-1. The command boots the app from `@Kernel` (`createApp`), which instantiates
-   every controller and populates route + `@Static` metadata.
+1. The command loads the kernel file — `app/kernel.ts`, or `app/kernel.tsx` when
+   no `.ts` exists (the same lookup as `compile`; see
+   [compilation.md](../../../docs/compilation.md)) — and boots the app from its
+   `@Kernel` (`createApp`), which instantiates every controller and populates
+   route + `@Static` metadata.
 2. It enumerates `@Static` GET routes by joining the app's registered routes
    (`app.getRoutes()`) with the `@Static` opt-in metadata.
 3. It renders each target in-memory via `App.fetch(new Request(url))` — no
