@@ -13,20 +13,61 @@
  * working Ctrl-C into a hang, which is strictly worse than before the feature.
  */
 
-import { assertEquals, assertStringIncludes } from '@std/assert'
+import {
+    assert,
+    assertEquals,
+    assertRejects,
+    assertStringIncludes,
+} from '@std/assert'
 import { exitCodeFor } from '../kernel/signals.ts'
 
 /** Where a probe script lives. Inside the repo, so the import map resolves. */
 const DIR = `${Deno.cwd()}/tmp`
 
 /**
+ * How a probe app starts listening and says so.
+ *
+ * Port 0, never a literal: the OS assigns a free port, so a probe's outcome
+ * depends only on the shutdown behaviour under test, not on which ports a
+ * parallel suite, a second worktree's gate, or any local process holds. With
+ * fixed ports a taken one made the child exit 1 before READY, which read as a
+ * shutdown failure (#493, the same class of gate flake as #455).
+ *
+ * `App.listen()` returns a promise wearing a server's type, so it is awaited
+ * before the bound port is read off `addr`.
+ */
+const LISTEN = `const server = await app.listen(0)
+console.log('READY ' + server.addr.port)`
+
+/**
+ * The ready line: `READY`, then the bound port when the probe listens. The
+ * trailing newline is required so a port split across two stdout chunks is
+ * never read half-written.
+ */
+const READY_LINE = /^READY(?: (\d+))?\r?\n/m
+
+/** What one probe run left behind. */
+interface ProbeResult {
+    /** The child's exit code. */
+    code: number
+    /** Its stdout followed by its stderr. */
+    out: string
+    /** The port the OS bound, from the ready line; `null` if it never listens. */
+    port: number | null
+}
+
+/**
  * Run one probe: write it, start it, wait for READY, signal it, collect.
+ *
+ * @throws {Error} "probe did not start" when the child ends, or the wait runs
+ * out, without printing its ready line. Signalling a probe that never started
+ * would measure its startup failure and report it as a shutdown one.
  */
 async function probe(
     source: string,
     signal: Deno.Signal,
     { twice = false } = {},
-): Promise<{ code: number; out: string }> {
+): Promise<ProbeResult> {
     await Deno.mkdir(DIR, { recursive: true })
     const file = `${DIR}/shutdown-probe-${crypto.randomUUID().slice(0, 8)}.ts`
     await Deno.writeTextFile(file, source)
@@ -45,21 +86,32 @@ async function probe(
     // Wait for the probe to say it is listening. Signalling before the handler
     // is installed would measure a race, not the behaviour.
     const deadline = Date.now() + 15_000
+    let ready: RegExpMatchArray | null = null
+    let ended = false
     while (Date.now() < deadline) {
         const { value, done } = await reader.read()
-        if (done) break
+        if (done) {
+            ended = true
+            break
+        }
         chunks.push(decoder.decode(value))
-        if (chunks.join('').includes('READY')) break
+        ready = chunks.join('').match(READY_LINE)
+        if (ready) break
     }
 
-    child.kill(signal)
-    if (twice) {
-        await new Promise((r) => setTimeout(r, 30))
-        try {
-            child.kill(signal)
-        } catch {
-            // Already gone — which is itself a pass for the "exits" assertions.
+    if (ready) {
+        child.kill(signal)
+        if (twice) {
+            await new Promise((r) => setTimeout(r, 30))
+            try {
+                child.kill(signal)
+            } catch {
+                // Already gone — which is itself a pass for the "exits" assertions.
+            }
         }
+    } else if (!ended) {
+        // Alive but never ready: stop it so the drain below can finish.
+        child.kill('SIGKILL')
     }
 
     // Drain the rest so the pipe closes and the child can exit.
@@ -84,11 +136,22 @@ async function probe(
     const status = await child.status
     await Deno.remove(file).catch(() => {})
 
-    return { code: status.code, out: chunks.join('') + errText }
+    const out = chunks.join('') + errText
+    if (!ready) {
+        throw new Error(
+            `probe did not start: no READY line (exit code ${status.code})\n${out}`,
+        )
+    }
+
+    return {
+        code: status.code,
+        out,
+        port: ready[1] === undefined ? null : Number(ready[1]),
+    }
 }
 
 /** A probe app: real App, real listen(), one hook that reports it ran. */
-function appSource(port: number, extra = ''): string {
+function appSource(extra = ''): string {
     const core = new URL('../mod.ts', import.meta.url).href
     return `
 import { App } from '${core}'
@@ -96,14 +159,13 @@ const app = new App()
 await app.init({ controllers: [] })
 app.onShutdown('probe-hook', () => { console.log('HOOK_RAN') })
 ${extra}
-app.listen(${port})
-console.log('READY')
+${LISTEN}
 setTimeout(() => { console.log('TIMED_OUT'); Deno.exit(99) }, 20000)
 `
 }
 
 Deno.test('signals - SIGTERM runs the hooks and exits 0', async () => {
-    const { code, out } = await probe(appSource(8931), 'SIGTERM')
+    const { code, out } = await probe(appSource(), 'SIGTERM')
 
     assertStringIncludes(out, 'HOOK_RAN')
     assertEquals(code, 0)
@@ -111,39 +173,86 @@ Deno.test('signals - SIGTERM runs the hooks and exits 0', async () => {
 })
 
 Deno.test('signals - SIGINT runs the hooks and exits 0', async () => {
-    const { code, out } = await probe(appSource(8932), 'SIGINT')
+    const { code, out } = await probe(appSource(), 'SIGINT')
 
     assertStringIncludes(out, 'HOOK_RAN')
     assertEquals(code, 0)
 })
 
+/** A probe app with no shutdown hook at all. */
+function noHooksSource(): string {
+    const core = new URL('../mod.ts', import.meta.url).href
+    return `
+import { App } from '${core}'
+const app = new App()
+await app.init({ controllers: [] })
+${LISTEN}
+setTimeout(() => { console.log('TIMED_OUT'); Deno.exit(99) }, 20000)
+`
+}
+
 Deno.test('signals - the process exits even with NO hooks registered', async () => {
     // The regression that matters most. Registering a handler suppresses
     // Deno's default exit, so an app with nothing to tear down must still be
     // killed by Ctrl-C — otherwise this feature makes every trivial app worse.
-    const core = new URL('../mod.ts', import.meta.url).href
-    const { code, out } = await probe(
-        `
-import { App } from '${core}'
-const app = new App()
-await app.init({ controllers: [] })
-app.listen(8933)
-console.log('READY')
-setTimeout(() => { console.log('TIMED_OUT'); Deno.exit(99) }, 20000)
-`,
-        'SIGINT',
-    )
+    const { code, out } = await probe(noHooksSource(), 'SIGINT')
 
     assertEquals(code, 0)
     assertEquals(out.includes('TIMED_OUT'), false)
 })
 
+Deno.test('signals - probes pass while the ports they once hard-coded are held', async () => {
+    // #493. The SIGINT and no-hooks probes used to bind these two ports, and a
+    // second worktree's gate holding either one failed them for reasons that
+    // had nothing to do with shutdown. The only literal ports left in the
+    // file, on purpose: they name the collision this test reproduces.
+    const formerlyHardCoded = [8932, 8933]
+    const held: Deno.Listener[] = []
+    try {
+        for (const port of formerlyHardCoded) {
+            try {
+                held.push(Deno.listen({ port }))
+            } catch (error) {
+                // Already held by someone else is the very condition under
+                // test, so it counts; anything else is a real failure.
+                if (!(error instanceof Deno.errors.AddrInUse)) throw error
+            }
+        }
+
+        const sigint = await probe(appSource(), 'SIGINT')
+        assertStringIncludes(sigint.out, 'HOOK_RAN')
+        assertEquals(sigint.code, 0)
+
+        const noHooks = await probe(noHooksSource(), 'SIGINT')
+        assertEquals(noHooks.code, 0)
+        assertEquals(noHooks.out.includes('TIMED_OUT'), false)
+
+        for (const { port } of [sigint, noHooks]) {
+            assert(port !== null, 'the probe reports its bound port')
+            assertEquals(
+                formerlyHardCoded.includes(port),
+                false,
+                'the OS assigned the probe a free port',
+            )
+        }
+    } finally {
+        for (const listener of held) listener.close()
+    }
+})
+
+Deno.test('probe - a child that never prints READY fails as "did not start"', async () => {
+    // A probe that dies before it is ready must not be signalled and then
+    // judged on shutdown: its failure is a startup one, and says so.
+    await assertRejects(
+        () => probe(`console.log('no ready line'); Deno.exit(3)`, 'SIGTERM'),
+        Error,
+        'probe did not start',
+    )
+})
+
 Deno.test('signals - a failing hook still exits, with code 1', async () => {
     const { code, out } = await probe(
-        appSource(
-            8934,
-            `app.onShutdown('boom', () => { throw new Error('x') })`,
-        ),
+        appSource(`app.onShutdown('boom', () => { throw new Error('x') })`),
         'SIGTERM',
     )
 
@@ -160,7 +269,6 @@ Deno.test('signals - a hook that hangs is bounded by the deadline', async () => 
     // Deno's default exit is gone because a handler is installed.
     const { code, out } = await probe(
         appSource(
-            8935,
             `app.configureShutdown({ deadlineMs: 300 })
 app.onShutdown('hangs', () => new Promise(() => {}))`,
         ),
@@ -187,8 +295,7 @@ Deno.addSignalListener('SIGTERM', async () => {
     console.log('AUTHOR_HANDLER_COMPLETED')
     Deno.exit(7)
 })
-app.listen(8936)
-console.log('READY')
+${LISTEN}
 setTimeout(() => { console.log('TIMED_OUT'); Deno.exit(99) }, 20000)
 `,
         'SIGTERM',
@@ -218,8 +325,7 @@ await app.init({ controllers: [] })
 app.configureShutdown({ deadlineMs: 30000 })
 // Long enough that the FIRST signal cannot have finished when the second lands.
 app.onShutdown('slow', () => new Promise((r) => setTimeout(r, 25000)))
-app.listen(8937)
-console.log('READY')
+${LISTEN}
 setTimeout(() => { console.log('TIMED_OUT'); Deno.exit(99) }, 20000)
 `,
         'SIGINT',
