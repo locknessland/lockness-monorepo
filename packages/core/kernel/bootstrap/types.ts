@@ -27,6 +27,7 @@ import type { App } from '../../app.ts'
 import type { KernelConfig } from '../kernel_decorators.ts'
 import type { BootHookMeta } from '../decorators.ts'
 import type { ShutdownHookMeta } from '../shutdown_decorators.ts'
+import type { ImportModule } from './optional_packages.ts'
 
 /**
  * Shared context passed to all bootstrap steps.
@@ -90,6 +91,18 @@ export interface BootstrapContext {
      * a context built before the field existed.
      */
     readonly shutdownHooks?: readonly ShutdownHookMeta[]
+
+    /**
+     * How a step loads an optional package (#505). Absent means
+     * `defaultImportModule` — a dynamic `import()` resolved against the
+     * application's import map — which is what `createApp` uses.
+     *
+     * A seam, not a configuration point: a test passes an importer that
+     * records or refuses every specifier, which is how "an empty kernel
+     * imports no optional package" is proven rather than assumed. Optional
+     * for the same reason `shutdownHooks` is — the interface is public.
+     */
+    readonly importModule?: ImportModule
 }
 
 /**

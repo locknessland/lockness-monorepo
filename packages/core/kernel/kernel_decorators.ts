@@ -302,10 +302,58 @@ export interface KernelConfig {
     shutdown?: ShutdownConfig
 
     /**
-     * Enable devtools in development
+     * Enable devtools in development.
+     *
+     * Requires `@lockness/devtools` in the application's imports: with the key
+     * set in development and the package absent, boot refuses with
+     * `MissingOptionalPackageError`. Outside development the key is ignored and
+     * nothing is imported.
+     *
      * @default false
      */
     devtools?: boolean
+
+    /**
+     * Install `@lockness/telemetry`'s tracing middleware on every request.
+     *
+     * Opt-in, like `devtools`, and for the same reason: core imports an
+     * optional package only when the kernel names it, so a package merely
+     * being present in the import map no longer changes what the app does.
+     * Installed in every environment — the middleware no-ops cleanly when
+     * `OTEL_DENO` is unset, so turning tracing on in production is a matter of
+     * that variable, not of this key.
+     *
+     * Requires `@lockness/telemetry` in the application's imports; set without
+     * it, boot refuses with `MissingOptionalPackageError`.
+     *
+     * @default false
+     *
+     * @example
+     * ```typescript
+     * @Kernel({ telemetry: true })
+     * ```
+     */
+    telemetry?: boolean
+
+    /**
+     * Route framework diagnostics through `@lockness/logger`.
+     *
+     * Today that means the scheduler's failure reporter: with the key set,
+     * scheduled-task failures go to `logger()` instead of the scheduler's raw
+     * `console.error` fallback — unless the application installed a reporter
+     * of its own, which wins.
+     *
+     * Requires `@lockness/logger` in the application's imports; set without
+     * it, boot refuses with `MissingOptionalPackageError`.
+     *
+     * @default false
+     *
+     * @example
+     * ```typescript
+     * @Kernel({ logger: true })
+     * ```
+     */
+    logger?: boolean
 
     /**
      * Static files directory

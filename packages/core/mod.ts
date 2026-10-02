@@ -165,6 +165,11 @@ export {
 // Export kernel loader
 export { createApp } from './kernel/loader.ts'
 
+// What `createApp` raises when the kernel configures a feature whose package
+// the application does not declare (#505) — public so a caller can tell that
+// refusal apart from any other boot failure.
+export { MissingOptionalPackageError } from './kernel/bootstrap/optional_packages.ts'
+
 // Re-export essential framework packages (used by core functionality)
 export * from '@lockness/container'
 
