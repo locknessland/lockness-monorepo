@@ -273,30 +273,13 @@ function redactPairs(text: string): string {
             }
             url = true
         }
-        if (
-            text[valueStart] === '\\' && QUOTES.has(text[valueStart + 1])
-        ) {
-            // An escaped opener (`\"`, JSON-serialised text) closes at its
-            // escaped twin.
-            const close = text.indexOf(
-                `\\${text[valueStart + 1]}`,
-                valueStart + 2,
-            )
-            const valueEnd = close < 0 ? text.length : close
-            if (valueEnd > valueStart + 2) {
-                out += `${text.slice(copied, valueStart + 2)}***`
-                copied = valueEnd
+        const quoted = quotedValue(text, valueStart)
+        if (quoted !== undefined) {
+            if (quoted.end > quoted.start) {
+                out += `${text.slice(copied, quoted.start)}***`
+                copied = quoted.end
             }
-            i = close < 0 ? text.length : close + 2
-            continue
-        }
-        if (QUOTES.has(text[valueStart])) {
-            const valueEnd = closingQuote(text, valueStart)
-            if (valueEnd > valueStart + 1) {
-                out += `${text.slice(copied, valueStart + 1)}***`
-                copied = valueEnd
-            }
-            i = valueEnd + 1
+            i = quoted.next
             continue
         }
         const ends = url ? URL_VALUE_END : RAW_VALUE_END
@@ -314,6 +297,48 @@ function redactPairs(text: string): string {
         i = Math.max(end, i + equalsLength)
     }
     return copied === 0 ? text : out + text.slice(copied)
+}
+
+/** The span of a quoted value's content, and where the scan resumes. */
+interface QuotedValue {
+    /** The index of the content's first character, past the opener. */
+    readonly start: number
+    /** One past the content's last character: the closer, or the length. */
+    readonly end: number
+    /** Where the scan resumes, past the closer. */
+    readonly next: number
+}
+
+/**
+ * Read a value that opens with a quote, plain (`"`) or escaped (`\"`).
+ *
+ * @param text - The text being scanned.
+ * @param at - Where the value starts.
+ * @returns The content's span, or `undefined` when no quote opens it.
+ */
+function quotedValue(text: string, at: number): QuotedValue | undefined {
+    if (text[at] === '\\' && QUOTES.has(text[at + 1])) {
+        // An escaped opener (`\"`, JSON-serialised text) closes at its
+        // escaped twin.
+        const end = closingEscapedQuote(text, at)
+        return { start: at + 2, end, next: end + 2 }
+    }
+    if (!QUOTES.has(text[at])) return undefined
+    const end = closingQuote(text, at)
+    return { start: at + 1, end, next: end + 1 }
+}
+
+/**
+ * Where an escaped-quote value ends: the next escaped twin of its opener, or
+ * the end of the text.
+ *
+ * @param text - The text being scanned.
+ * @param open - The index of the opener's backslash.
+ * @returns The index of the closer's backslash, or the text's length.
+ */
+function closingEscapedQuote(text: string, open: number): number {
+    const close = text.indexOf(`\\${text[open + 1]}`, open + 2)
+    return close < 0 ? text.length : close
 }
 
 /**
