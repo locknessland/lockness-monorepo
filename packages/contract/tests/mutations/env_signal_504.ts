@@ -118,8 +118,8 @@ const MUTATIONS: Mutation[] = [
             'the drizzle guard drops the tripwire — db:seed runs under DENO_ENV=production alone',
         file: GUARD,
         edits: [[
-            "if (legacy?.kind === 'conflict') {",
-            "if (false && legacy?.kind === 'conflict') {",
+            'const legacy = legacyEnvironmentSignal()',
+            'const legacy = undefined as ReturnType<typeof legacyEnvironmentSignal>',
         ]],
         killedBy: 'a DENO_ENV conflicting with APP_ENV refuses',
     },
