@@ -1045,15 +1045,20 @@ A libsql `authToken`, a `?password=` or an `sslpassword` in the query string was
 hidden only when a driver echoed the exact DSN. Echoed on its own, or inside a
 URL the driver rebuilt, it reached the thrown error, `/ready` and `db:check`
 (#438). `probe()` now holds the value of every query parameter whose name marks
-a credential, in each form a driver may echo (as written, percent-decoded, with
-`+` read as a space, and as `new URL()` serialises it), and withholds a message
-holding one, exactly as it does for the password.
+a credential, in each form a driver may echo (as written, percent-decoded,
+decoded and re-encoded, with `+` read as a space, and as `new URL()` serialises
+it; `%2b` and `%2B` count as the same), and withholds a message holding one,
+exactly as it does for the password. A driver that echoes only part of a value
+is not caught: the message is never edited around a value, so only whole forms
+are matched.
 
 - **Which names:** a name that, lowercased and with `.`, `_`, `~` and `-`
-  removed, ends in `token`, `key`, `secret`, `password`, `passwd`, `pwd`,
-  `pass`, `sig`, `signature`, `credential`, `auth` or `jwt`, or is exactly
-  `code`. `key_id` and `token_type` are not credentials; `sslkey` is (its value
-  is a path, which then withholds a message quoting it).
+  removed, and trailing digits and a trailing `confirmation` dropped, ends in
+  `token`, `key`, `secret`, `password`, `passwd`, `pwd`, `pass`, `sig`,
+  `signature`, `credential`, `auth`, `jwt`, `phrase`, `assertion` or `verifier`
+  (or one of those plus `s`), or is exactly `code`. `key_id` and `token_type`
+  are not credentials; `sslkey` is (its value is a path, which then withholds a
+  message quoting it).
 - **The sentence changed:** every withheld message now ends in
   `contains a database credential` rather than
   `contains the database

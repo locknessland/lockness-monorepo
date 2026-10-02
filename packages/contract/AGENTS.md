@@ -93,6 +93,13 @@ Anything not listed is internal and free to change.
   DSN's values and withholds a message that echoes one (#438). Add a stem there,
   never a second list beside a caller — two lists drift on the first vendor name
   somebody adds to only one.
+- **What the `renderError` net does not see.** It is a shape rule for
+  `name=value` (quoted values, spaces around `=` and ANSI-coloured names
+  included). It does not see a JSON `"token":"…"`, a header- or YAML-style
+  `name: value`, an `Authorization: Bearer …` header, a bare token with no name,
+  a doubly encoded separator (`%253D`), or a session id under a name it does not
+  know. Those need a source-side fix where the value is known; do not widen the
+  net to guess at them.
 - **A compile failure is recognised by its message shape, never by class or
   `code`** (`logging/compile_diagnostic.ts`). Deno reports a parse failure as a
   `TypeError` with `ERR_MODULE_NOT_FOUND`, the same pair "Module not found"
