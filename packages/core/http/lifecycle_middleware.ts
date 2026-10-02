@@ -14,6 +14,12 @@
  */
 
 import type { Context, MiddlewareHandler, Next } from 'hono'
+import {
+    dispatcher,
+    ExceptionOccurred,
+    RequestCompleted,
+    RequestStarted,
+} from '@lockness/events'
 
 /**
  * Generate a unique request ID
@@ -40,11 +46,6 @@ function generateRequestId(): string {
  * @internal
  */
 export function createLifecycleMiddleware(): MiddlewareHandler {
-    // Lazy load events module to avoid circular dependencies
-    // deno-lint-ignore no-explicit-any
-    let eventsModule: any = null
-    let eventsLoaded = false
-
     return async (c: Context, next: Next) => {
         const startTime = performance.now()
         const requestId = generateRequestId()
@@ -53,30 +54,6 @@ export function createLifecycleMiddleware(): MiddlewareHandler {
 
         // Store requestId in context for access in controllers/listeners
         c.set('requestId', requestId)
-
-        // Lazy load events module on first request
-        if (!eventsLoaded) {
-            try {
-                eventsModule = await import('@lockness/events')
-                eventsLoaded = true
-            } catch {
-                // Events package not available, skip lifecycle events
-                eventsModule = null
-                eventsLoaded = true
-            }
-        }
-
-        if (!eventsModule) {
-            await next()
-            return
-        }
-
-        const {
-            dispatcher,
-            RequestStarted,
-            RequestCompleted,
-            ExceptionOccurred,
-        } = eventsModule
 
         try {
             // Emit RequestStarted event

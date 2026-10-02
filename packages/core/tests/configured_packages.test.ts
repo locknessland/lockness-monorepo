@@ -38,6 +38,15 @@ import { devtoolsStep } from '../kernel/bootstrap/steps/devtools.ts'
 import { devtoolsRoutesStep } from '../kernel/bootstrap/steps/devtools_routes.ts'
 import { schedulerStep } from '../kernel/bootstrap/steps/scheduler.ts'
 import { scheduler, setScheduler } from '@lockness/scheduler'
+import { eventsStep } from '../kernel/bootstrap/steps/events.ts'
+import { createLifecycleMiddleware } from '../http/lifecycle_middleware.ts'
+import {
+    dispatcher,
+    KernelBooted,
+    RequestCompleted,
+    RequestStarted,
+} from '@lockness/events'
+import { Hono } from 'hono'
 
 /** Run `fn` with the given variables set (or deleted), then restore them. */
 async function withEnv<T>(
@@ -288,4 +297,49 @@ Deno.test('the refusal names the fix in words an operator can act on', async () 
     assertStringIncludes(error.message, 'deno add jsr:@lockness/cache')
     assertStringIncludes(error.message, 'remove `cache` from @Kernel()')
     assertStrictEquals(error.cause instanceof TypeError, true)
+})
+
+Deno.test('events - KernelBooted reaches a listener without consulting the importer', async () => {
+    // #505: the step used to load @lockness/events through the variable
+    // specifier, which resolves against the APPLICATION's import map. A
+    // JSR-installed app does not map @lockness/events, so KernelBooted never
+    // fired there. A hard dependency is imported statically now, so the event
+    // arrives even with an importer that resolves nothing.
+    const { importModule, calls } = refusingImporter()
+    let seen: unknown
+    const off = dispatcher().on(KernelBooted, (event: unknown) => {
+        seen = event
+    })
+
+    try {
+        await eventsStep.run(contextFor({}, importModule, false))
+    } finally {
+        off?.()
+    }
+
+    assertEquals(seen instanceof KernelBooted, true)
+    assertEquals(calls, [])
+})
+
+Deno.test('lifecycle middleware - emits RequestStarted and RequestCompleted for a request', async () => {
+    const seen: string[] = []
+    const offStarted = dispatcher().on(RequestStarted, () => {
+        seen.push('started')
+    })
+    const offCompleted = dispatcher().on(RequestCompleted, () => {
+        seen.push('completed')
+    })
+
+    try {
+        const hono = new Hono()
+        hono.use('*', createLifecycleMiddleware())
+        hono.get('/', (c) => c.text('ok'))
+        const response = await hono.request('/')
+        await response.text()
+    } finally {
+        offStarted?.()
+        offCompleted?.()
+    }
+
+    assertEquals(seen, ['started', 'completed'])
 })

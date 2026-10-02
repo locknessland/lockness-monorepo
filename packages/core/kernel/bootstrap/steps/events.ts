@@ -8,7 +8,7 @@
  */
 
 import type { BootstrapStep } from '../types.ts'
-import { tryImportOptionalPackage } from '../helpers.ts'
+import { dispatcher, KernelBooted } from '@lockness/events'
 import { resolveEnvName } from '../../../environment.ts'
 
 /**
@@ -18,29 +18,18 @@ import { resolveEnvName } from '../../../environment.ts'
  *
  * Responsibilities:
  * - Emit KernelBooted event to notify listeners that app is ready
- * - Skip gracefully if events package not available
+ *
+ * `@lockness/events` is a hard dependency of core and is imported statically
+ * (#505). It used to go through the optional-package loader, whose variable
+ * specifier resolves against the *application's* import map — which a
+ * JSR-installed app does not give `@lockness/events` — so `KernelBooted` never
+ * fired there, while every workspace test saw it fire.
  */
 export const eventsStep: BootstrapStep = {
     id: 'events',
     order: 500,
 
     async run(_context) {
-        const eventsModule = await tryImportOptionalPackage<{
-            dispatcher: () => {
-                emit: (event: unknown) => Promise<void>
-            }
-            KernelBooted: new (appName: string, appEnv: string) => unknown
-        }>(
-            '@lockness/events',
-            'events',
-        )
-
-        if (!eventsModule) {
-            return
-        }
-
-        const { dispatcher, KernelBooted } = eventsModule
-
         try {
             await dispatcher().emit(
                 new KernelBooted(
