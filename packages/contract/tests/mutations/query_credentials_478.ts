@@ -1,6 +1,7 @@
 /**
- * @fileoverview The mutation battery for #478 and #438, and the #494
- * regressions their fold-in introduced (rows labelled `#494`).
+ * @fileoverview The mutation battery for #478 and #438, the #494
+ * regressions their fold-in introduced (rows labelled `#494`), and the gaps
+ * the #494 reviews found (rows labelled `#499`).
  *
  * Runs under the shared contract in `harness.ts`, which refuses to start unless
  * the suites are already green and the target files are clean, and requires
@@ -170,14 +171,14 @@ const MUTATIONS: Mutation[] = [
         killedBy: 'blanks after `=` are skipped even with none before it',
     },
     {
-        label: 'a plural count masked — `max_tokens=4096` is lost',
+        label: 'a known count name masked — `max_tokens=4096` is lost',
         file: CREDENTIALS,
         edits: [[
             "match === 'count' && isDigits(text, valueStart, end)",
             'false',
         ]],
         killedBy:
-            'a plural stem with an all-digit value is a count, not a secret',
+            'a known count name with an all-digit value is a count, not a secret',
     },
     {
         label: '#494 R2 every plural is a count — `api_tokens=123456` is shown',
@@ -193,8 +194,8 @@ const MUTATIONS: Mutation[] = [
             '#494 R4 `&amp;` is not a query separator — an href `code` leaks',
         file: CREDENTIALS,
         edits: [[
-            'if (isEscapedAmpersand(text, start - AMP.length)) return true',
-            '',
+            'if (!isEscapedAmpersand(text, start - AMP.length)) {',
+            'if (true) {',
         ]],
         killedBy: 'an OAuth `code` after an HTML-escaped `&amp;` is in a query',
     },
@@ -204,6 +205,37 @@ const MUTATIONS: Mutation[] = [
         file: CREDENTIALS,
         edits: [['if (!run.query) {', 'if (true) {']],
         killedBy: 'a `code` ending at `&` and another pair is a form body',
+    },
+    {
+        label:
+            '#499 a form body ignores `&amp;` — `code=M&amp;grant_type=` leaks',
+        file: CREDENTIALS,
+        edits: [[
+            'let j = isEscapedAmpersand(text, end) ? end + AMP.length : end + 1',
+            'let j = end + 1',
+        ]],
+        killedBy: 'a `code` ending at `&` and another pair is a form body',
+    },
+    {
+        label:
+            '#499 the form run re-read at every `code=` — the scan goes quadratic',
+        file: CREDENTIALS,
+        edits: [[
+            'if (run.end < valueStart) run = readFormRun(text, valueStart)',
+            'if (true) run = readFormRun(text, valueStart)',
+        ]],
+        killedBy: 'the scan stays linear on a run of bare `code=` pairs',
+    },
+    {
+        label:
+            '#499 every name after `&amp;` in URL mode — `password=M&lt;…` shows its tail',
+        file: CREDENTIALS,
+        edits: [[
+            'if (URL_SEPARATORS.has(text[start - 1])) return true',
+            'if (URL_SEPARATORS.has(text[start - 1]) || isEscapedAmpersand(text, start - AMP.length)) return true',
+        ]],
+        killedBy:
+            'after `&amp;`, a credential other than `code` keeps the raw end',
     },
     {
         label:
