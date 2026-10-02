@@ -162,24 +162,32 @@ The first query after the database has suspended still pays its resume latency.
 A host that does not answer makes that first query wait for the driver's connect
 timeout.
 
-### What `connect()`, `probe()` and `isConnected()` mean
+### What `connect()`, `probe()`, `close()`, `db` and `isConnected()` mean
 
-| Method          | Round trips | Meaning                                                                                                                                                                                                                                                                                                                |
-| :-------------- | :---------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `connect()`     | 0           | Checks the DSN, loads the driver and builds the client. `success: false` means the DSN was refused, the client package is missing, or the client rejected the URL.                                                                                                                                                     |
-| `probe()`       | 1           | Runs `SELECT 1`. Throws `Database is not connected` before `connect()` or after `close()`. Otherwise it re-throws a driver failure: the exact DSN is replaced with `<dsn redacted>`, and a message holding a credential (the password, or a credential query value such as `authToken`) is withheld whole (see below). |
-| `isConnected()` | 0           | `true` once a client is configured and until `close()`. It does **not** mean that the database is reachable. Call `probe()` to find out.                                                                                                                                                                               |
+| Member          | Round trips | Meaning                                                                                                                                                                                                                                                                                                                                                                                         |
+| :-------------- | :---------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `connect()`     | 0           | Checks the DSN, loads the driver and builds the client. `success: false` means the DSN was refused, the client package is missing, or the client rejected the URL; no client is kept, so a retry is legal. Prints one line unless `silent: true`. **Throws** `Database is already configured; call close() before connect() again` when the instance already holds a client or is building one. |
+| `probe()`       | 1           | Runs `SELECT 1`. Throws `Database is not connected` before `connect()` or after `close()`. Otherwise it re-throws a driver failure: the exact DSN is replaced with `<dsn redacted>`, and a message holding a credential (the password, or a credential query value such as `authToken`) is withheld whole (see below).                                                                          |
+| `close()`       | 0           | Closes the client. Waits for a `connect()` still in flight, then closes what it built: once `close()` resolves, no client exists. Safe to call twice, or before `connect()`. After it, `connect()` is legal again.                                                                                                                                                                              |
+| `db`            | 0           | The Drizzle instance of the configured client. Throws `Database is not connected` before `connect()` and after `close()`. Read-only: stub it in tests with `setDriverFactory()`, not by assignment.                                                                                                                                                                                             |
+| `isConnected()` | 0           | `true` once a client is configured and until `close()`. It does **not** mean that the database is reachable. Call `probe()` to find out.                                                                                                                                                                                                                                                        |
 
 A custom driver registered with `Database.setDriverFactory()` must follow the
 same contract: the factory constructs its client and makes no round trip.
 
+**One client per `Database`.** The container holds one `Database`, and it holds
+one client at a time. When `@Kernel({ database })` is set, the boot step
+configures it, so an `@OnBoot` hook must not call `connect()` again: that
+throws, and the boot fails. To point the instance at another database, call
+`close()` first.
+
 ### Where each failure surfaces
 
-| Failure                                           | At boot                                                                                                                                                                                          | After boot                                                                                                                            |
-| :------------------------------------------------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------ |
-| DSN refused (see [DSN format](#dsn-format))       | `connect()` returns `success: false` with a fixed message that quotes no part of the DSN. Boot continues.                                                                                        | `/ready` returns `503` with `database: down`. `db:seed` and `db:check` print the error and exit 1.                                    |
-| Client package missing, or URL the client rejects | `connect()` returns `success: false` and logs a `❌` line: the package and import error (withheld if it holds a credential), or the client's message withheld (error name only). Boot continues. | `/ready` returns `503` with `database: down`. `db:seed` and `db:check` print the error and exit 1.                                    |
-| Host unreachable, bad credentials, database down  | Nothing is sent, so nothing is reported.                                                                                                                                                         | `/ready` returns `503` within 3 s. The first query gets the driver's error. `db:check` reports it, withheld if it holds a credential. |
+| Failure                                           | At boot                                                                                                                                                                                                                  | After boot                                                                                                                            |
+| :------------------------------------------------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------ |
+| DSN refused (see [DSN format](#dsn-format))       | `connect()` returns `success: false` with a fixed message that quotes no part of the DSN. Boot continues.                                                                                                                | `/ready` returns `503` with `database: down`. `db:seed` and `db:check` print the error once and exit 1.                               |
+| Client package missing, or URL the client rejects | `connect()` returns `success: false` and, unless `silent: true`, logs a `❌` line: the package and import error (withheld if it holds a credential), or the client's message withheld (error name only). Boot continues. | `/ready` returns `503` with `database: down`. `db:seed` and `db:check` print the error once and exit 1.                               |
+| Host unreachable, bad credentials, database down  | Nothing is sent, so nothing is reported.                                                                                                                                                                                 | `/ready` returns `503` within 3 s. The first query gets the driver's error. `db:check` reports it, withheld if it holds a credential. |
 
 ### Monitoring: `/health` for liveness, `/ready` for readiness
 
@@ -1017,8 +1025,10 @@ export class PostController {
 
 ## Upgrading to v0.5.0
 
-Two items. **Migration step:** percent-encode the password in your
-`DATABASE_URL` if `connect()` now refuses it.
+Three items. **Migration steps:** percent-encode the password in your
+`DATABASE_URL` if `connect()` now refuses it; remove a second `connect()` on the
+same `Database`; and stub `db` in tests through `setDriverFactory()` rather than
+by assignment.
 
 ### 1. `connect()` refuses a DSN a driver could misparse
 
@@ -1089,6 +1099,37 @@ exactly as it does for the password.
   password`. Match on the start of the sentence if you
   match it at all.
 - **An empty value holds nothing:** `?authToken=` cannot withhold every message.
+
+### 3. A `Database` holds one client at a time
+
+A second `connect()` on a configured `Database` built a second client and
+dropped the first without closing it; two concurrent calls did the same; and a
+`close()` during a `connect()` returned before the client existed, which then
+outlived it (#427). Each orphaned client kept its sockets open. What changes:
+
+- **A second `connect()` throws**
+  `Database is already configured; call close()
+  before connect() again` —
+  whatever its URL, whether the first call has finished or is still building,
+  and before it checks the DSN or prints anything. The first client stays in
+  use. To switch databases, `close()` first. The most likely way to hit it:
+  setting `@Kernel({ database })` **and** calling `connect()` from an `@OnBoot`
+  hook. Keep one of the two. The boot step does not catch this error: two
+  configures in one process are a wiring error, so the boot fails.
+- **`close()` waits for a `connect()` in flight** and closes what it builds.
+  Once it resolves, no client exists and `connect()` is legal again.
+- **`db` throws `Database is not connected`** before `connect()` and after
+  `close()`, where it used to be `undefined` and then the closed client. It is
+  now a getter with no setter: a test that assigned `database.db = fake` must
+  register a fake driver with `setDriverFactory()` and call `connect()` instead.
+  Code that kept a reference to `database.db` across a `close()` still gets the
+  driver's own error, not this one.
+- **`silent: true` silences the failure line too.** `connect()` used to print
+  `❌ Database connection failed` whatever `silent` said. The failure is still
+  returned as `success: false`, so a caller that passes `silent` must report it.
+  `db:check`, `db:seed` and `db:fresh` now pass it, and print a failure once
+  instead of twice, with no `✅ Database configured` line before a failing
+  probe.
 
 ## Upgrading to v0.4.0
 

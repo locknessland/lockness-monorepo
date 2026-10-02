@@ -84,6 +84,15 @@ Anything not listed is internal and free to change.
 - `drizzle-kit check` (behind `db:status`) validates the migrations folder only;
   it never reads the schema or the database. Do not word `db:status` as a drift
   or pending-migrations check.
+- A `Database` configures once per open (#427): a second `connect()` throws
+  until `close()`, and `db` throws before `connect()` and after `close()`. Tests
+  that touch the container singleton (`createApp` with `database`, the default
+  `db:*` connection port, `Factory.create`) reset it — `close()` then
+  `container.delete(Database)` — and stub the client with `setDriverFactory()`,
+  never by assigning `db`. `probe()` and `maintenance` capture the handle and
+  its held DSN together before any await; reading `held` back from `this` later
+  lets a racing `close()` strip the redaction (pinned by
+  `tests/mutations/lifecycle_427.ts`, M12).
 - It imports `@lockness/cli` at runtime (`install.ts`, `cli_commands.ts`), so it
   must not be imported from `cli` in return — that would close a cycle.
 - Issue #26 proposes a Kysely sibling; it must not deprecate or reshape this
@@ -93,7 +102,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-17 test files for 16 source files:
+18 test files for 16 source files:
 
 - `packages/drizzle/tests/app_file.test.ts`
 - `packages/drizzle/tests/cli_commands.test.ts`
@@ -103,6 +112,7 @@ Anything not listed is internal and free to change.
 - `packages/drizzle/tests/fresh_libsql.test.ts`
 - `packages/drizzle/tests/fresh_postgres_live.test.ts`
 - `packages/drizzle/tests/install.test.ts`
+- `packages/drizzle/tests/lifecycle.test.ts`
 - `packages/drizzle/tests/maintenance.test.ts`
 - `packages/drizzle/tests/make_factory.test.ts`
 - `packages/drizzle/tests/make_model_dialect.test.ts`
@@ -112,6 +122,14 @@ Anything not listed is internal and free to change.
 - `packages/drizzle/tests/production_guard.test.ts`
 - `packages/drizzle/tests/query_credentials.test.ts`
 - `packages/drizzle/tests/reset.test.ts`
+
+1 mutation battery — **`deno test` does not run these.** Each is an executable
+that mutates a source file and re-runs the suites that should notice. Run them
+with `deno task mutate` (all of them, one at a time) or
+`deno task mutate <name>` (one); nightly CI runs the full sweep. See
+[testing.md](../../docs/testing.md#mutation-batteries).
+
+- `packages/drizzle/tests/mutations/lifecycle_427.ts`
 
 <!-- /generated:tests -->
 
@@ -126,7 +144,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 17 test files directly —
+Then, specific to this package: run its 18 test files directly —
 
 ```bash
 deno test -A packages/drizzle/
