@@ -343,3 +343,29 @@ Deno.test('lifecycle middleware - emits RequestStarted and RequestCompleted for 
 
     assertEquals(seen, ['started', 'completed'])
 })
+
+Deno.test("schedulerStep - schedulerLock.driver 'redis' without @lockness/redis refuses the boot", async () => {
+    // It used to log once and install no lock, so every replica ran each
+    // onOneServer task — the duplicate the lock exists to prevent.
+    const { importModule, calls } = refusingImporter()
+    try {
+        const error = await assertRejects(
+            async () =>
+                await schedulerStep.run(contextFor({
+                    schedulerLock: {
+                        driver: 'redis',
+                        redis: { hostname: '127.0.0.1' },
+                    },
+                    schedulesDir: './tmp/does-not-exist-schedules',
+                }, importModule)),
+            MissingOptionalPackageError,
+        )
+        assertEquals(error.packageName, '@lockness/redis')
+        assertEquals(error.feature, "schedulerLock.driver 'redis'")
+        assertEquals(calls, ['@lockness/redis'])
+        assertEquals(scheduler().hasLock, false)
+    } finally {
+        scheduler().stop()
+        setScheduler(undefined)
+    }
+})

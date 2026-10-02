@@ -6,9 +6,9 @@
  */
 
 import type { BootstrapContext, BootstrapStep } from '../types.ts'
-import { tryImportOptionalPackage } from '../helpers.ts'
 import {
     defaultImportModule,
+    importRequiredPackage,
     loadConfiguredPackage,
 } from '../optional_packages.ts'
 import { registerDisposable } from '@lockness/contract'
@@ -148,25 +148,31 @@ export const schedulerStep: BootstrapStep = {
                 '../../../scheduler/locks.ts'
             )
             if (lockConfig.driver === 'redis' && lockConfig.redis) {
-                const redisMod = await tryImportOptionalPackage<{
+                // Required, not optional (#505). A missing @lockness/redis
+                // used to log once and install NO lock — so every replica ran
+                // each `onOneServer` task, the exact duplicate the lock exists
+                // to prevent, behind a boot that looked healthy.
+                const redisMod = await importRequiredPackage<{
                     RedisClient: new (c: unknown) => {
                         command(
                             ...a: string[]
                         ): Promise<{ type: string; value?: string | number }>
                         close(): Promise<void>
                     }
-                }>('@lockness/redis', 'scheduler lock')
-                if (redisMod) {
-                    const client = new redisMod.RedisClient(lockConfig.redis)
-                    scheduler().setLock(
-                        new RedisSchedulerLock(client, lockConfig.ttlMs),
-                    )
-                    registerDisposable({
-                        name: 'scheduler:lock:redis',
-                        dispose: () => client.close(),
-                        priority: SHUTDOWN_PRIORITY.STORES,
-                    })
-                }
+                }>(
+                    '@lockness/redis',
+                    "schedulerLock.driver 'redis'",
+                    context.importModule ?? defaultImportModule,
+                )
+                const client = new redisMod.RedisClient(lockConfig.redis)
+                scheduler().setLock(
+                    new RedisSchedulerLock(client, lockConfig.ttlMs),
+                )
+                registerDisposable({
+                    name: 'scheduler:lock:redis',
+                    dispose: () => client.close(),
+                    priority: SHUTDOWN_PRIORITY.STORES,
+                })
             } else if (lockConfig.driver === 'deno-kv') {
                 const kv = await Deno.openKv(lockConfig.kvPath)
                 scheduler().setLock(
