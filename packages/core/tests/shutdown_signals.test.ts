@@ -289,13 +289,12 @@ Deno.test('signals - probes pass while the ports they once hard-coded are held',
         assertEquals(noHooks.code, 0)
         assertEquals(noHooks.out.includes('TIMED_OUT'), false)
 
+        // Only that a port was reported. Whether it differs from the held
+        // ones is not asserted: ephemeral ranges start far above them, so
+        // that check could never fail (#495). Passing while they are held is
+        // the proof.
         for (const { port } of [sigint, noHooks]) {
             assert(port !== null, 'the probe reports its bound port')
-            assertEquals(
-                formerlyHardCoded.includes(port),
-                false,
-                'the OS assigned the probe a free port',
-            )
         }
     } finally {
         for (const listener of held) listener.close()
