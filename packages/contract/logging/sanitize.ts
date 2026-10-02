@@ -393,7 +393,111 @@ const MAX_NAME = 64
 const MAX_CAUSE_LINKS = 2
 
 /**
- * Render one error of a chain: redacted, capped, encoded. Never the stack.
+ * Most stack frames a sink may ask for (#488).
+ *
+ * A count is a request, and a request from a caller is still a length this
+ * file has to bound: without it `frames: 1e6` on a deep recursion would print
+ * every frame V8 kept. Fifty is five times V8's default capture depth.
+ */
+const MAX_FRAMES = 50
+
+/**
+ * Longest run of a single frame, in code points (#488).
+ *
+ * A frame is a function name and a module URL, so it is usually short — but a
+ * dynamic class name or a long query string is not, and a frame is no more
+ * trustworthy than a message. Like `MAX_MESSAGE`, it is charged before
+ * encoding, so a frame's emitted width is bounded by `safeForLog`'s factor.
+ */
+const MAX_FRAME = 300
+
+/**
+ * A stack line that is a frame, not part of the header.
+ *
+ * V8 writes `Name: message` and then one `    at …` per frame. The header is
+ * already rendered — redacted — as the head of the line, so repeating it from
+ * the stack would print the message twice and a second time outside the
+ * message cap. No `g` flag: it is used with `test`.
+ */
+const FRAME_LINE = /^\s*at\s/
+
+/**
+ * A `data:` URL in a frame (#488).
+ *
+ * A module imported from a `data:` URL is named by its whole source, so its
+ * frames carry that source verbatim — and source holds literals no redaction
+ * recognises. The URL is collapsed to `data:…`: the frame still says where it
+ * ran, and none of what it ran.
+ */
+const DATA_URL = /data:[^\s)]+/g
+
+/** What a stack whose read threw renders as, already indented. */
+const UNREADABLE_STACK = '    [unreadable stack]'
+
+/**
+ * Normalise a sink's frame request to a count this file will honour.
+ *
+ * @param frames - What the sink asked for.
+ * @returns `0` for anything that is not a positive integer, otherwise the
+ *   request clamped to `MAX_FRAMES`.
+ */
+function frameCount(frames: number | undefined): number {
+    if (frames === undefined || !Number.isInteger(frames) || frames < 1) {
+        return 0
+    }
+    return Math.min(frames, MAX_FRAMES)
+}
+
+/**
+ * Render one frame: redacted, collapsed, capped, encoded.
+ *
+ * The order is the same as for a message, and for the same reason: both
+ * redactions run on the whole frame **before** the cap, so a cut can never
+ * strip the `@` the userinfo rule needs and leave the password before it.
+ *
+ * @param line - One raw stack line that `FRAME_LINE` accepted.
+ * @returns The frame, without its indent.
+ */
+function renderFrame(line: string): string {
+    const withoutUserinfo = redactDsnCredentials(line.trim())
+    const withoutPairs = redactQueryCredentials(withoutUserinfo)
+    const collapsed = withoutPairs.replace(DATA_URL, 'data:…')
+    return safeForLog(capCodePoints(collapsed, MAX_FRAME))
+}
+
+/**
+ * Render the head error's first `count` frames, one per line.
+ *
+ * **Total, like `renderOne`.** The `.stack` read is a property access on a
+ * caught value, and a getter can throw; the catch returns a sentinel so the
+ * line still says a stack was asked for and could not be read. Only an `Error`
+ * with a string `stack` has frames — anything else has none to offer.
+ *
+ * @param error - The head of the chain.
+ * @param count - A count already normalised by `frameCount`.
+ * @returns `''`, or each frame on its own indented line, each preceded by
+ *   `\n`.
+ */
+function renderFrames(error: unknown, count: number): string {
+    if (count === 0) return ''
+    let stack: unknown
+    try {
+        if (!(error instanceof Error)) return ''
+        stack = error.stack
+    } catch {
+        return `\n${UNREADABLE_STACK}`
+    }
+    if (typeof stack !== 'string') return ''
+    return stack.split('\n')
+        .filter((line) => FRAME_LINE.test(line))
+        .slice(0, count)
+        .map((line) => `\n    ${renderFrame(line)}`)
+        .join('')
+}
+
+/**
+ * Render one error of a chain: redacted, capped, encoded. Never the stack —
+ * frames are `renderFrames`' job, and only the head's.
  *
  * **Total by construction.** Every caller is a `catch` block, and several are
  * shutdown drains or a `void guard(...)` whose rejection Deno turns into a
@@ -492,15 +596,34 @@ export interface RenderErrorOptions {
      * sink.
      */
     followCause?: boolean
+
+    /**
+     * Stack frames of the head error to append, one per line. Defaults to `0`.
+     *
+     * **Set it only for a sink a human reads in the same process** — the CLI
+     * dispatcher asks for 10. Leave it unset for a sink that carries the line
+     * out of the process (telemetry, a log shipper), on the reasoning
+     * `followCause` gives: a frame names functions and absolute module paths,
+     * and its text outside a URL is not redacted.
+     *
+     * Each frame goes through the same chain as a message: userinfo, then
+     * credential pairs, then a `data:` URL collapsed to `data:…`, then a cap
+     * of 300 code points, then `safeForLog`, indented four spaces. The header
+     * is never repeated, a cause's frames are never shown, a count that is not
+     * a positive integer means `0`, and a count above 50 is clamped. A `stack`
+     * that cannot be read renders as `[unreadable stack]`.
+     */
+    frames?: number
 }
 
 /**
  * Render a caught error for a log line.
  *
  * The name, its code when spelled like a runtime or driver code, and the
- * **redacted, truncated, encoded** message; no other property, ever, and never
- * the stack. `console.error('...', error)` prints the whole object and its
- * stack, and teardown is exactly where credential-bearing errors are
+ * **redacted, truncated, encoded** message; no other property, ever, and the
+ * stack's frames only when the sink asks (`frames`, #488) — redacted the same
+ * way, one per line. `console.error('...', error)` prints the whole object and
+ * its stack, and teardown is exactly where credential-bearing errors are
  * produced: a Postgres driver failure carries
  * `postgres://user:password@host/db`, a `fetch` rejection
  * carries a URL with its token in the query string. Log stores routinely have
@@ -544,14 +667,19 @@ export interface RenderErrorOptions {
  * `@lockness/core` re-exports it, so no caller changed.
  *
  * @param error - Whatever was thrown.
- * @param options - How much of the cause chain this sink carries.
- * @returns One safe, bounded line.
+ * @param options - How much of the cause chain, and how many stack frames,
+ *   this sink carries.
+ * @returns One safe, bounded line — then, only when `frames` asks, up to that
+ *   many indented frame lines, each one as bounded. Every newline in the result
+ *   is structural; none comes from the error.
  *
  * @example
  * ```typescript
  * renderError(new Error('boom'))  // 'Error: boom'
  * renderError(Object.assign(new Error('duplicate key'), { code: '23505' }))
  * // 'Error [23505]: duplicate key'
+ * renderError(new Error('boom'), { frames: 2 })
+ * // 'Error: boom\n    at main (file:///app/x.ts:3:9)\n    at file:///app/x.ts:5:1'
  * ```
  */
 export function renderError(
@@ -569,9 +697,10 @@ export function renderError(
     // cause exactly as they apply to the head. A chain that skipped either
     // would be a credential hole opened by the fix.
     //
-    // The stack stays dropped. That omission is about filesystem paths, and a
-    // cause chain carries none — so the argument for dropping the stack was
-    // never an argument for dropping the cause.
+    // The stack stays dropped unless the sink asks for frames (#488). That
+    // omission is about filesystem paths, and a cause chain carries none — so
+    // the argument for dropping the stack was never an argument for dropping
+    // the cause.
     const links = options.followCause === false ? 0 : MAX_CAUSE_LINKS
     const seen = new Set<unknown>()
     let rendered = ''
@@ -602,5 +731,5 @@ export function renderError(
         }
     }
 
-    return rendered
+    return rendered + renderFrames(error, frameCount(options.frames))
 }
