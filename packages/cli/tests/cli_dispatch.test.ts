@@ -11,12 +11,22 @@
  * | unknown command                   | 1                          | `❌ Unknown command` + list |
  * | handler resolves                  | 0                          | —                          |
  * | failure-shaped throw              | its `exitCode` (1–255) / 1 | `❌ <message>`, no stack    |
- * | any other throw                   | 1                          | `❌ <name> failed:` + error |
+ * | any other throw                   | 1                          | `❌ <name> failed: ` + `renderError(error, { frames: 10 })` + hint |
+ * | any other throw, raw switch on    | 1                          | banner + `❌ <name> failed:` + the error object |
+ *
+ * The last two rows are #488: by default the error is rendered — name, vetted
+ * code, redacted message per link, then frames — and raw only with
+ * `LOCKNESS_CLI_RAW_ERRORS=1`. Every case prints exactly one `console.error`.
  *
  * @module @lockness/cli/tests/cli_dispatch
  */
 
-import { assert, assertEquals, assertStringIncludes } from '@std/assert'
+import {
+    assert,
+    assertEquals,
+    assertStrictEquals,
+    assertStringIncludes,
+} from '@std/assert'
 import {
     Cli,
     Command,
@@ -154,24 +164,221 @@ for (const code of [0, 256, -3]) {
     })
 }
 
-Deno.test('dispatch - an unexpected Error exits 1, printed once with its stack', async () => {
+Deno.test('dispatch - an unexpected Error exits 1, rendered once with its frames', async () => {
     const boom = new TypeError('cannot read foo of undefined')
     const cli = cliWith(() => Promise.reject(boom))
-    const { result, error } = await capture(() => cli.dispatch(['task']))
+    const { result, error } = await withRawErrors(
+        undefined,
+        () => capture(() => cli.dispatch(['task'])),
+    )
     assertEquals(result, 1)
     assertEquals(error.length, 1)
-    assertEquals(error[0][0], '❌ task failed:')
-    // The Error object itself is handed to console.error, which prints its
-    // stack — the one case where a stack helps the reader.
-    assertEquals(error[0][1], boom)
-    assert(boom.stack !== undefined)
+    assertEquals(error[0].length, 1)
+    const [line] = error[0] as [string]
+    assert(
+        line.startsWith(
+            '❌ task failed: TypeError: cannot read foo of undefined\n    at ',
+        ),
+        line,
+    )
+    assert(line.endsWith(`\n${OFF_HINT}`), line)
 })
 
-Deno.test('dispatch - a non-Error throw exits 1', async () => {
+Deno.test('dispatch - a non-Error throw exits 1 as one rendered string (#440(f))', async () => {
     const cli = cliWith(() => Promise.reject('plain string'))
-    const { result, error } = await capture(() => cli.dispatch(['task']))
+    const { result, error } = await withRawErrors(
+        undefined,
+        () => capture(() => cli.dispatch(['task'])),
+    )
     assertEquals(result, 1)
-    assertEquals(error, [['❌ task failed:', 'plain string']])
+    assertEquals(error, [[`❌ task failed: plain string\n${OFF_HINT}`]])
+})
+
+// -----------------------------------------------------------------------------
+// Cli.dispatch — the non-failure branch prints through renderError (#488)
+// -----------------------------------------------------------------------------
+
+/** A fake secret, distinct per call; it must never reach stderr. */
+function fakeSecret(tag: string): string {
+    return ['fx', tag, crypto.randomUUID().slice(0, 8)].join('')
+}
+
+/** What the console prints for one call: strings as-is, the rest inspected. */
+function printed(args: unknown[]): string {
+    return args.map((x) => typeof x === 'string' ? x : Deno.inspect(x))
+        .join(' ')
+}
+
+/** Assert that `secret` is nowhere in `out`. */
+function assertAbsent(out: string, secret: string): void {
+    assert(!out.includes(secret), `leaked ${JSON.stringify(secret)}:\n${out}`)
+}
+
+/** The raw switch's variable. */
+const RAW = 'LOCKNESS_CLI_RAW_ERRORS'
+
+/** The last line of a redacted print when the switch is off. */
+const OFF_HINT =
+    '(Credentials redacted. LOCKNESS_CLI_RAW_ERRORS=1 prints the raw error; never set it where the log is public.)'
+
+/**
+ * Run `fn` with the raw switch set to `value` (unset when `undefined`), always
+ * restoring what the process had — so a developer's shell cannot flip a
+ * default-state test, and a test cannot leak the switch into the next one.
+ */
+async function withRawErrors<T>(
+    value: string | undefined,
+    fn: () => Promise<T>,
+): Promise<T> {
+    const original = Deno.env.get(RAW)
+    if (value === undefined) Deno.env.delete(RAW)
+    else Deno.env.set(RAW, value)
+    try {
+        return await fn()
+    } finally {
+        if (original === undefined) Deno.env.delete(RAW)
+        else Deno.env.set(RAW, original)
+    }
+}
+
+/**
+ * An error carrying a fake credential in its message, in a nested cause (with
+ * a code that fails the spelling check), and in two of its stack frames.
+ */
+function credentialBearingError(): { boom: Error; secrets: string[] } {
+    const [message, dsn, userinfo, query, code] = [
+        'msg',
+        'dsn',
+        'frame',
+        'query',
+        'code',
+    ].map(fakeSecret)
+    const nested = Object.assign(
+        new Error(`connect failed: postgres://app:${dsn}@db.test/app`),
+        { code: `x-${code}` },
+    )
+    const wrapper = new Error('pool exhausted', { cause: nested })
+    const head = `request failed: https://api.test/v1?api_key=${message}`
+    const boom = new Error(head, { cause: wrapper })
+    boom.stack = [
+        `Error: ${head}`,
+        `    at fetchUser (https://u:${userinfo}@cdn.test/mod.ts:1:2)`,
+        `    at file:///app/x.ts?token=${query}:2:3`,
+    ].join('\n')
+    return { boom, secrets: [message, dsn, userinfo, query, code] }
+}
+
+Deno.test('dispatch - T1 by default no credential reaches stderr from message, cause, code or frame', async () => {
+    const { boom, secrets } = credentialBearingError()
+    const cli = cliWith(() => Promise.reject(boom))
+    const { result, error } = await withRawErrors(
+        undefined,
+        () => capture(() => cli.dispatch(['task'])),
+    )
+    assertEquals(result, 1)
+    assertEquals(error.length, 1)
+    const out = printed(error[0])
+    for (const secret of secrets) assertAbsent(out, secret)
+    assertStringIncludes(out, '***')
+    // Both cause links rendered, so redaction — not truncation — removed them.
+    assertStringIncludes(out, 'caused by: Error: pool exhausted')
+    assertStringIncludes(out, 'caused by: Error: connect failed: postgres://')
+    assertStringIncludes(out, 'at fetchUser (https://***')
+})
+
+/** Throws from a named function, so its frame is recognisable on stderr. */
+function explodeForT2(): never {
+    throw new RangeError('t2 frame marker')
+}
+
+Deno.test('dispatch - T2 the top-level frames are kept, and the message is printed once (#440)', async () => {
+    const cli = cliWith(async () => {
+        await Promise.resolve()
+        explodeForT2()
+    })
+    const { error } = await withRawErrors(
+        undefined,
+        () => capture(() => cli.dispatch(['task'])),
+    )
+    const out = printed(error[0])
+    assertStringIncludes(out, 'at explodeForT2')
+    assertStringIncludes(out, 'cli_dispatch.test.ts')
+    assertEquals(out.split('t2 frame marker').length - 1, 1, out)
+})
+
+Deno.test('dispatch - T3 with the switch unset, no Error object reaches the console', async () => {
+    const boom = new Error('unset switch')
+    const cli = cliWith(() => Promise.reject(boom))
+    const { result, error } = await withRawErrors(
+        undefined,
+        () => capture(() => cli.dispatch(['task'])),
+    )
+    assertEquals(result, 1)
+    assertEquals(error.length, 1)
+    for (const arg of error[0]) assertEquals(typeof arg, 'string')
+    assertStringIncludes(printed(error[0]), OFF_HINT)
+})
+
+Deno.test('dispatch - T4 with the switch on, a banner precedes the same error object', async () => {
+    const boom = new Error('raw on purpose')
+    const cli = cliWith(() => Promise.reject(boom))
+    const { result, error } = await withRawErrors(
+        '1',
+        () => capture(() => cli.dispatch(['task'])),
+    )
+    assertEquals(result, 1)
+    assertEquals(error.length, 1)
+    assertEquals(
+        error[0][0],
+        '⚠️ LOCKNESS_CLI_RAW_ERRORS is on: the error below is unredacted.\n❌ task failed:',
+    )
+    assertStrictEquals(error[0][1], boom)
+})
+
+Deno.test('dispatch - T5 an unrecognised switch value prints redacted output and a notice', async () => {
+    const { boom, secrets } = credentialBearingError()
+    const cli = cliWith(() => Promise.reject(boom))
+    const { result, error } = await withRawErrors(
+        'maybe',
+        () => capture(() => cli.dispatch(['task'])),
+    )
+    assertEquals(result, 1)
+    assertEquals(error.length, 1)
+    for (const arg of error[0]) assertEquals(typeof arg, 'string')
+    const out = printed(error[0])
+    for (const secret of secrets) assertAbsent(out, secret)
+    assertStringIncludes(out, `${RAW}="maybe" is not recognised`)
+    assert(!out.includes(OFF_HINT), out)
+})
+
+Deno.test('dispatch - T8 a pg-shaped error shows its SQLSTATE and neither detail nor hint', async () => {
+    const detail = fakeSecret('detail')
+    const hint = fakeSecret('hint')
+    const pg = Object.assign(
+        new Error(
+            'duplicate key value violates unique constraint "users_email_key"',
+        ),
+        {
+            name: 'PostgresError',
+            code: '23505',
+            detail: `Key (email)=(${detail}) already exists.`,
+            hint: `Try ${hint}`,
+        },
+    )
+    const cli = cliWith(() => Promise.reject(pg))
+    const { result, error } = await withRawErrors(
+        undefined,
+        () => capture(() => cli.dispatch(['task'])),
+    )
+    assertEquals(result, 1)
+    assertEquals(error.length, 1)
+    const out = printed(error[0])
+    assertStringIncludes(
+        out,
+        '❌ task failed: PostgresError [23505]: duplicate key value violates',
+    )
+    assertAbsent(out, detail)
+    assertAbsent(out, hint)
 })
 
 Deno.test('dispatch - an unknown command exits 1 and lists the commands', async () => {

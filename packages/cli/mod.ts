@@ -27,6 +27,7 @@ import { importAppFile } from '@lockness/contract/app-file/internal'
 import { renderError, safeForLog } from '@lockness/contract'
 import { Stub } from './stubs.ts'
 import { isCommandFailure, toFailureStatus } from './command_failure.ts'
+import { rawErrorsHint, readRawErrorsSwitch } from './raw_errors.ts'
 
 export { CommandFailedError } from './command_failure.ts'
 export type {
@@ -380,11 +381,18 @@ export class Cli {
      * | unknown command                          | `1`                            | `❌ Unknown command: <name>` + list |
      * | handler resolves                         | `0`                            | —                                |
      * | handler throws a failure-shaped error    | its `exitCode` (`1`–`255`), else `1` | `❌ <message>`, no stack   |
-     * | handler throws anything else             | `1`                            | `❌ <name> failed:` + the error, with its stack |
+     * | handler throws anything else             | `1`                            | `❌ <name> failed:` + name, vetted code, redacted message per link, then frames; raw only with `LOCKNESS_CLI_RAW_ERRORS=1` |
      *
      * A failure-shaped error is any `Error` with an integer `exitCode` — see
      * {@link CommandFailedError}. The failure is printed here, once; a handler
      * that throws must not print it as well.
+     *
+     * Anything else goes through `renderError(error, { frames: 10 })` (#488):
+     * at most 2 cause links, credentials redacted in the message, every link
+     * and the top-level error's 10 frames, then a hint line. CLI output lands in
+     * CI logs, which are often public. `LOCKNESS_CLI_RAW_ERRORS=1` prints the
+     * error object raw instead, behind a banner; an unrecognised value prints
+     * the redacted form and says so. Every case is one `console.error` call.
      *
      * @param args - The command name followed by its arguments.
      * @returns The exit status: `0` on success, `1`–`255` on failure.
@@ -418,7 +426,20 @@ export class Cli {
                 console.error(`❌ ${error.message}`)
                 return toFailureStatus(error.exitCode)
             }
-            console.error(`❌ ${commandName} failed:`, error)
+            // Read here and only here, so no other path needs `--allow-env`.
+            const raw = readRawErrorsSwitch()
+            if (raw.state === 'on') {
+                console.error(
+                    `⚠️ LOCKNESS_CLI_RAW_ERRORS is on: the error below is unredacted.\n❌ ${commandName} failed:`,
+                    error,
+                )
+                return 1
+            }
+            console.error(
+                `❌ ${commandName} failed: ${
+                    renderError(error, { frames: 10 })
+                }\n${rawErrorsHint(raw)}`,
+            )
             return 1
         }
     }
