@@ -63,7 +63,7 @@ export class ChannelPackageMissingError extends Error {
  * The signals Deno emits for an unresolvable specifier. Kept in one place — the
  * "not installed" vs "failed for another reason" decision must not drift.
  *
- * NOTE (A-F4): this heuristic mirrors core's `tryImportOptionalPackage`. On a
+ * NOTE (A-F4): this heuristic mirrors core's `isUnresolvableSpecifier`. On a
  * third soft-loader in the workspace, hoist it to `@lockness/contract` (a hard
  * dep of both) rather than growing a third copy.
  */

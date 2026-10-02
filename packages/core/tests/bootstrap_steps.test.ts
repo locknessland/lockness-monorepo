@@ -2,13 +2,17 @@
  * Tests for bootstrap step helpers and infrastructure
  */
 
-import { assertEquals, assertExists } from '@std/assert'
+import { assertEquals, assertExists, assertRejects } from '@std/assert'
 import {
     getDatabaseUrl,
     normalizeCacheConfig,
     normalizeSessionConfig,
-    tryImportOptionalPackage,
 } from '../kernel/bootstrap/helpers.ts'
+import {
+    defaultImportModule,
+    importRequiredPackage,
+    MissingOptionalPackageError,
+} from '../kernel/bootstrap/optional_packages.ts'
 import {
     getDefaultSteps,
     runBootstrapSteps,
@@ -22,24 +26,32 @@ import type {
 // Helper Function Tests
 // ============================================================================
 
-Deno.test('tryImportOptionalPackage - successfully imports existing package', async () => {
-    // Import a package that definitely exists
-    const result = await tryImportOptionalPackage<{ assert: unknown }>(
+// `tryImportOptionalPackage` returned null and warned for a missing package.
+// Its successor refuses instead (#505); these are the same two cases against
+// the real resolver.
+Deno.test('importRequiredPackage - successfully imports existing package', async () => {
+    const result = await importRequiredPackage<{ assert: unknown }>(
         '@std/assert',
         'assert',
+        defaultImportModule,
     )
 
     assertExists(result)
     assertExists(result.assert)
 })
 
-Deno.test('tryImportOptionalPackage - returns null for non-existent package', async () => {
-    const result = await tryImportOptionalPackage(
-        '@lockness/non-existent-package',
-        'test',
+Deno.test('importRequiredPackage - refuses a non-existent package instead of returning null', async () => {
+    const error = await assertRejects(
+        () =>
+            importRequiredPackage(
+                '@lockness/non-existent-package',
+                'test',
+                defaultImportModule,
+            ),
+        MissingOptionalPackageError,
     )
 
-    assertEquals(result, null)
+    assertEquals(error.packageName, '@lockness/non-existent-package')
 })
 
 Deno.test('normalizeSessionConfig - handles boolean shorthand', () => {

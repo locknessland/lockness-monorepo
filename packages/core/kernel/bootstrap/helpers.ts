@@ -1,25 +1,18 @@
 /**
  * @fileoverview Helper utilities for bootstrap steps.
  *
- * This module provides centralized helpers for:
- * - Optional package imports with standardized error handling
- * - Configuration normalization
- * - Error classification
+ * This module provides centralized helpers for configuration normalization.
+ * Loading an optional package is not one of them: that lives in
+ * `optional_packages.ts`, which refuses the boot when a configured package
+ * does not resolve (#505).
  *
  * @module @lockness/core/kernel/bootstrap/helpers
  * @since 0.2.0
  *
- * @example Using optional import helper
+ * @example
  * ```typescript
- * const drizzle = await tryImportOptionalPackage(
- *     '@lockness/drizzle',
- *     'database'
- * )
- *
- * if (drizzle) {
- *     const { Database } = drizzle
- *     // Use Database class
- * }
+ * const cache = normalizeCacheConfig(true)
+ * // { driver: 'memory', ttl: 3600, prefix: 'lockness' }
  * ```
  */
 
@@ -72,57 +65,6 @@ export interface NormalizedCacheConfig {
     ttl: number
     prefix: string
     kvPath?: string
-}
-
-/**
- * Attempt to import an optional package with standardized error handling.
- *
- * If the package is not installed, logs a warning and returns null.
- * If import fails for other reasons, re-throws the error.
- *
- * @param packageName - Name of the package to import (e.g., '@lockness/session')
- * @param featureName - Human-readable feature name for error messages (e.g., 'session')
- * @returns The imported module or null if package not found
- * @throws {Error} If import fails for reasons other than missing package
- *
- * @example
- * ```typescript
- * const sessionModule = await tryImportOptionalPackage(
- *     '@lockness/session',
- *     'session'
- * )
- *
- * if (sessionModule) {
- *     const { configureSession } = sessionModule
- *     configureSession({ driver: 'cookie' })
- * }
- * ```
- */
-export async function tryImportOptionalPackage<T = unknown>(
-    packageName: string,
-    featureName: string,
-): Promise<T | null> {
-    try {
-        return await import(packageName) as T
-    } catch (error) {
-        // Check if this is a "package not found" error
-        if (
-            error instanceof TypeError &&
-            (
-                error.message.includes('Cannot resolve') ||
-                error.message.includes('not a dependency') ||
-                error.message.includes('not in import map')
-            )
-        ) {
-            console.warn(
-                `⚠️  ${packageName} not found - skipping ${featureName} setup`,
-            )
-            return null
-        }
-
-        // Re-throw unexpected errors (connection failures, etc.)
-        throw error
-    }
 }
 
 /**
