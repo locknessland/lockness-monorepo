@@ -750,15 +750,22 @@ Create seed data for development:
 
 ```typescript
 // database/seeders/user_seeder.ts
+import { container } from '@lockness/core'
 import { Database } from '@lockness/drizzle'
 import { users } from '../../app/model/user.ts'
 import * as bcrypt from 'bcrypt'
 
 export class UserSeeder {
-    async run(database: Database) {
+    private database: Database
+
+    constructor() {
+        this.database = container.get<Database>(Database)
+    }
+
+    async run(): Promise<void> {
         const hashedPassword = await bcrypt.hash('password123', 10)
 
-        await database.db.insert(users).values([
+        await this.database.db.insert(users).values([
             {
                 email: 'alice@example.com',
                 name: 'Alice Smith',
@@ -776,16 +783,29 @@ export class UserSeeder {
 }
 ```
 
-Register in `database/seeders/database_seeder.ts`:
+`db:seed` instantiates the seeder with `new` and calls `run()` with no argument,
+so a seeder takes `Database` from the container itself, as the `make:seeder`
+stub does.
+
+Register it in `database/seeders/database_seeder.ts`. With no argument,
+`db:seed` runs the `DatabaseSeeder` class exported there:
 
 ```typescript
 import { UserSeeder } from './user_seeder.ts'
 import { PostSeeder } from './post_seeder.ts'
 
-export const seeders = [
-    UserSeeder,
-    PostSeeder,
-]
+export class DatabaseSeeder {
+    async run(): Promise<void> {
+        const seeders: { new (): { run(): Promise<void> } }[] = [
+            UserSeeder,
+            PostSeeder,
+        ]
+
+        for (const Seeder of seeders) {
+            await new Seeder().run()
+        }
+    }
+}
 ```
 
 Run seeders:

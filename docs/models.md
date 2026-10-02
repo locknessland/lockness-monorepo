@@ -15,7 +15,7 @@ The `-a` flag creates:
 - `app/model/post.ts` - Drizzle schema + Zod validation
 - `app/repository/post_repository.ts` - Data access layer
 - `app/controller/post_controller.ts` - REST API controller
-- `app/seeder/post_seeder.ts` - Database seeder
+- `database/seeders/post_seeder.ts` - Database seeder
 
 ## Defining Models
 
@@ -133,13 +133,20 @@ deno task cli db:migrate
 Create seed data for testing:
 
 ```typescript
-// app/seeder/post_seeder.ts
+// database/seeders/post_seeder.ts
+import { container } from '@lockness/core'
 import { Database } from '@lockness/drizzle'
-import { posts } from '../model/post.ts'
+import { posts } from '../../app/model/post.ts'
 
 export class PostSeeder {
-    async run(database: Database) {
-        await database.db.insert(posts).values([
+    private database: Database
+
+    constructor() {
+        this.database = container.get<Database>(Database)
+    }
+
+    async run(): Promise<void> {
+        await this.database.db.insert(posts).values([
             {
                 title: 'First Post',
                 content: 'This is the content of the first post',
@@ -155,10 +162,18 @@ export class PostSeeder {
 }
 ```
 
+`db:seed` instantiates the seeder with `new` and calls `run()` with no argument,
+so the seeder takes `Database` from the container itself.
+
 Run seeders:
 
 ```bash
+# Runs the DatabaseSeeder in database/seeders/database_seeder.ts —
+# add PostSeeder to its list
 deno task cli db:seed
+
+# Runs database/seeders/post_seeder.ts alone
+deno task cli db:seed post
 ```
 
 ## Relationships

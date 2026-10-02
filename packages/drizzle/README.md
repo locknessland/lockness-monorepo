@@ -69,19 +69,51 @@ export default defineConfig({
 
 ### Initialize Database Connection
 
+Enable the database on your `@Kernel`. At boot, `createApp` connects with
+`DATABASE_URL` and registers `Database` in the container:
+
 ```typescript
-import { createApp } from '@lockness/contract'
-import { Database } from '@lockness/drizzle'
+// app/kernel.ts
+import { Kernel } from '@lockness/core'
+import { UserController } from './controller/user_controller.ts'
 
-const app = createApp()
-
-// Database instance is available via dependency injection
-app.get('/users', async (c) => {
-    const database = c.get('container').resolve(Database)
-    const users = await database.db.select().from(usersTable)
-    return c.json(users)
+@Kernel({
+    database: true, // reads DATABASE_URL
+    controllers: [UserController],
 })
+export class AppKernel {}
 ```
+
+```typescript
+// main.ts
+import { createApp } from '@lockness/core'
+import { AppKernel } from './app/kernel.ts'
+
+const app = await createApp(AppKernel)
+await app.listen(8888)
+```
+
+Routes live on controllers, which get `Database` from the container:
+
+```typescript
+// app/controller/user_controller.ts
+import { container, type Context, Controller, Get } from '@lockness/core'
+import { Database } from '@lockness/drizzle'
+import { users } from '../model/user.ts'
+
+@Controller('/users')
+export class UserController {
+    @Get('/')
+    async index(c: Context) {
+        const database = container.get(Database)
+        const rows = await database.db.select().from(users)
+        return c.json(rows)
+    }
+}
+```
+
+`@Inject(Database)` on a class field works too — see
+[Repository Pattern](#repository-pattern).
 
 ## CLI Commands
 
@@ -267,7 +299,7 @@ Create a repository for clean data access:
 
 ```typescript
 // app/repository/user_repository.ts
-import { Inject, Service } from '@lockness/contract'
+import { Inject, Service } from '@lockness/core'
 import { Database } from '@lockness/drizzle'
 import { eq } from 'drizzle-orm'
 import { type NewUser, type User, users } from '../model/user.ts'
@@ -318,12 +350,19 @@ Create seed data for development and testing:
 
 ```typescript
 // database/seeders/user_seeder.ts
+import { container } from '@lockness/core'
 import { Database } from '@lockness/drizzle'
 import { users } from '../../app/model/user.ts'
 
 export class UserSeeder {
-    async run(database: Database) {
-        await database.db.insert(users).values([
+    private database: Database
+
+    constructor() {
+        this.database = container.get<Database>(Database)
+    }
+
+    async run(): Promise<void> {
+        await this.database.db.insert(users).values([
             {
                 email: 'alice@example.com',
                 name: 'Alice Smith',
@@ -337,15 +376,24 @@ export class UserSeeder {
 }
 ```
 
-Register in `database/seeders/database_seeder.ts`:
+Register it in `database/seeders/database_seeder.ts`. With no argument,
+`db:seed` runs the `DatabaseSeeder` class exported there:
 
 ```typescript
 import { UserSeeder } from './user_seeder.ts'
 
-export const seeders = [
-    UserSeeder,
-    // Add more seeders...
-]
+export class DatabaseSeeder {
+    async run(): Promise<void> {
+        const seeders: { new (): { run(): Promise<void> } }[] = [
+            UserSeeder,
+            // Add more seeders...
+        ]
+
+        for (const Seeder of seeders) {
+            await new Seeder().run()
+        }
+    }
+}
 ```
 
 ## Relationships
