@@ -82,6 +82,26 @@ const STRIPPED: ReadonlySet<string> = new Set(['.', '_', '~', '-'])
  * ```
  */
 export function isCredentialParamName(name: string): boolean {
+    return classifyName(name) !== undefined
+}
+
+/**
+ * How a name matched the rule, which the net needs and drizzle does not.
+ *
+ * - `exact` — the whole name is `code`: an OAuth code only inside a URL.
+ * - `plural` — it ends in a stem plus `s` only (`max_tokens`): an all-digit
+ *   value is a count.
+ * - `stem` — it ends in a stem.
+ */
+type NameMatch = 'exact' | 'plural' | 'stem'
+
+/**
+ * Normalise a name and say how it matched, if it did.
+ *
+ * @param name - The parameter name, as written or already decoded.
+ * @returns The kind of match, or `undefined` for no credential.
+ */
+function classifyName(name: string): NameMatch | undefined {
     let normalised = ''
     for (const char of decodeAsciiEscapes(name).toLowerCase()) {
         if (!STRIPPED.has(char)) normalised += char
@@ -93,11 +113,14 @@ export function isCredentialParamName(name: string): boolean {
     ) {
         normalised = normalised.slice(0, -CONFIRMATION.length)
     }
-    if (normalised === '') return false
-    if (CREDENTIAL_NAMES.has(normalised)) return true
-    return CREDENTIAL_STEMS.some((stem) =>
-        normalised.endsWith(stem) || normalised.endsWith(`${stem}s`)
-    )
+    if (normalised === '') return undefined
+    if (CREDENTIAL_NAMES.has(normalised)) return 'exact'
+    if (CREDENTIAL_STEMS.some((stem) => normalised.endsWith(stem))) {
+        return 'stem'
+    }
+    return CREDENTIAL_STEMS.some((stem) => normalised.endsWith(`${stem}s`))
+        ? 'plural'
+        : undefined
 }
 
 /**
@@ -126,8 +149,10 @@ export function isCredentialParamName(name: string): boolean {
  * **Where a value ends depends on where the pair is.**
  *
  * - A value that opens with `"`, `'` or a backtick runs to the matching
- *   closing quote, or to the end of the text when there is none — so
- *   `password='a b'` and `AWS_SECRET_ACCESS_KEY="…"` are covered whole.
+ *   closing quote, skipping backslash-escaped ones, or to the end of the text
+ *   when there is none — so `password='a b'` and `AWS_SECRET_ACCESS_KEY="…"`
+ *   are covered whole. An escaped opener (`\"`, as JSON serialisation writes a
+ *   quoted CLI argument) runs to its escaped twin.
  * - Inside a URL query or fragment (the name follows `?`, `&` or `#`, raw or
  *   percent-encoded) a value also ends at `&`, `#`, `<` or `>`, so the
  *   neighbouring parameters stay readable.
@@ -136,7 +161,15 @@ export function isCredentialParamName(name: string): boolean {
  *   rest. `;` and `%26` never end a value: an ODBC tail after `Pwd=` is
  *   eaten, and eating more is the safe direction.
  *
- * An empty value is left alone, so `token=&page=1` stays diagnostic.
+ * An empty value is left alone, so `?token=&page=1` stays diagnostic; blanks
+ * after `=` count as part of the value only when blanks also precede it
+ * (`name = value`), so `token= in header` keeps its `in`.
+ *
+ * **Non-secrets kept on purpose.** A bare `code` is an OAuth code only in a
+ * URL query; elsewhere (`status code=503`, Postgres `code=23505`) it is left
+ * alone. A name that matches only through a plural stem with an all-digit
+ * value is a count (`max_tokens=4096`), not a credential — chosen over a
+ * documented over-match because LLM and quota errors carry exactly these.
  *
  * **Not seen.** This net is a shape rule for `name=value`. It does not see a
  * JSON `"token":"…"`, a header- or YAML-style `name: value`, an
@@ -184,18 +217,40 @@ function redactPairs(text: string): string {
         }
         const nameEnd = skipBlanksLeft(text, i, copied)
         const start = nameStart(text, nameEnd, copied)
-        if (
-            start === nameEnd ||
-            !isCredentialParamName(text.slice(start, nameEnd))
-        ) {
+        const match = start === nameEnd
+            ? undefined
+            : classifyName(text.slice(start, nameEnd))
+        const url = match !== undefined && inUrl(text, start)
+        // `code` is an OAuth code in a URL query; anywhere else it is a status
+        // or exit code (`code=23505`, `exit code=1`) an operator needs.
+        if (match === undefined || (match === 'exact' && !url)) {
             i += equalsLength
             continue
         }
-        const valueStart = skipBlanksRight(text, i + equalsLength)
-        const quote = text[valueStart]
-        if (QUOTES.has(quote)) {
-            const close = text.indexOf(quote, valueStart + 1)
+        // Blanks after `=` belong to the value only in the symmetric
+        // `name = value` spelling; `token= in header` has an empty value.
+        const valueStart = nameEnd < i
+            ? skipBlanksRight(text, i + equalsLength)
+            : i + equalsLength
+        if (
+            text[valueStart] === '\\' && QUOTES.has(text[valueStart + 1])
+        ) {
+            // An escaped opener (`\"`, JSON-serialised text) closes at its
+            // escaped twin.
+            const close = text.indexOf(
+                `\\${text[valueStart + 1]}`,
+                valueStart + 2,
+            )
             const valueEnd = close < 0 ? text.length : close
+            if (valueEnd > valueStart + 2) {
+                out += `${text.slice(copied, valueStart + 2)}***`
+                copied = valueEnd
+            }
+            i = close < 0 ? text.length : close + 2
+            continue
+        }
+        if (QUOTES.has(text[valueStart])) {
+            const valueEnd = closingQuote(text, valueStart)
             if (valueEnd > valueStart + 1) {
                 out += `${text.slice(copied, valueStart + 1)}***`
                 copied = valueEnd
@@ -203,9 +258,14 @@ function redactPairs(text: string): string {
             i = valueEnd + 1
             continue
         }
-        const ends = inUrl(text, start) ? URL_VALUE_END : RAW_VALUE_END
+        const ends = url ? URL_VALUE_END : RAW_VALUE_END
         let end = valueStart
         while (end < text.length && !ends.has(text[end])) end++
+        if (match === 'plural' && isDigits(text, valueStart, end)) {
+            // `max_tokens=4096` counts tokens; it is not one.
+            i = end
+            continue
+        }
         if (end > valueStart) {
             out += `${text.slice(copied, valueStart)}***`
             copied = end
@@ -213,6 +273,45 @@ function redactPairs(text: string): string {
         i = Math.max(end, i + equalsLength)
     }
     return copied === 0 ? text : out + text.slice(copied)
+}
+
+/**
+ * Where a quoted value ends: its matching quote, skipping any escaped with a
+ * backslash, or the end of the text.
+ *
+ * @param text - The text being scanned.
+ * @param open - The index of the opening quote.
+ * @returns The index of the closing quote, or the text's length.
+ */
+function closingQuote(text: string, open: number): number {
+    const quote = text[open]
+    let j = open + 1
+    while (j < text.length) {
+        if (text[j] === '\\') {
+            j += 2
+            continue
+        }
+        if (text[j] === quote) return j
+        j++
+    }
+    return text.length
+}
+
+/**
+ * Whether `text[from, to)` is a non-empty run of ASCII digits.
+ *
+ * @param text - The text being scanned.
+ * @param from - The first index.
+ * @param to - One past the last index.
+ * @returns True for digits only.
+ */
+function isDigits(text: string, from: number, to: number): boolean {
+    if (to <= from) return false
+    for (let j = from; j < to; j++) {
+        const code = text.charCodeAt(j)
+        if (code < 0x30 || code > 0x39) return false
+    }
+    return true
 }
 
 /** The quotes that open a quoted value. */

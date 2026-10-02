@@ -306,3 +306,57 @@ Deno.test('#478 userinfo runs before the query pass: a `=` in a password cannot 
         'Error: connect failed: postgres://***:***@h/db',
     )
 })
+
+// ============================================================================
+// Re-review fold-in: escaped quotes, and non-secrets left readable
+// ============================================================================
+
+Deno.test('#478 a backslash-escaped quote opens a value that closes at its escaped twin', () => {
+    // The shape JSON serialisation gives a quoted CLI argument.
+    const text = `{"cmd":"tool --password=\\"${M}\\" -v"}`
+    assertEquals(
+        redactQueryCredentials(text),
+        '{"cmd":"tool --password=\\"***\\" -v"}',
+    )
+    assertNoMarker(render(text))
+})
+
+Deno.test('#478 an escaped quote inside a quoted value does not end it', () => {
+    const text = `password="ab\\"${M}" next=1`
+    assertEquals(redactQueryCredentials(text), 'password="***" next=1')
+    assertNoMarker(render(text))
+})
+
+Deno.test('#478 a bare `code` outside a URL is a diagnostic, not an OAuth code', () => {
+    for (
+        const text of [
+            'status code=503',
+            'exit code=1',
+            'duplicate key (code=23505)',
+            'connect failed: code=ECONNREFUSED',
+        ]
+    ) {
+        assertEquals(redactQueryCredentials(text), text)
+    }
+    assertEquals(
+        redactQueryCredentials(`/cb?code=${M}&state=1`),
+        '/cb?code=***&state=1',
+    )
+})
+
+Deno.test('#478 an empty value right after `=` does not swallow the next word', () => {
+    assertEquals(
+        redactQueryCredentials('token= in header'),
+        'token= in header',
+    )
+    // Blanks on both sides are still the libpq `name = value` spelling.
+    assertEquals(redactQueryCredentials(`token = ${M}`), 'token = ***')
+})
+
+Deno.test('#478 a plural stem with an all-digit value is a count, not a secret', () => {
+    for (const text of ['max_tokens=4096', 'prompt_tokens=9000 total=1']) {
+        assertEquals(redactQueryCredentials(text), text)
+    }
+    assertNoMarker(render(`api_keys=${M}`))
+    assertEquals(redactQueryCredentials('token=4096'), 'token=***')
+})
