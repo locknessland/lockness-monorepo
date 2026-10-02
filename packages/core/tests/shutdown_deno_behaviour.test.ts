@@ -65,32 +65,56 @@ Deno.test('deno - SIGKILL cannot be bound, and says so with a TypeError', () => 
     assertEquals(thrown instanceof TypeError, true)
 })
 
-Deno.test('deno - setTimeout clamps out-of-range delays to 1ms', async () => {
+/** A delay `setTimeout` honours exactly, to race the out-of-range one against. */
+const REFERENCE_DELAY_MS = 50
+
+/**
+ * Schedule `delay`, then a valid {@link REFERENCE_DELAY_MS} timer, and report
+ * which fires first. Both are cleared either way, so a delay that IS honoured
+ * leaves no 24-day timer behind for the sanitizer to flag.
+ *
+ * The out-of-range timer is scheduled FIRST on purpose: its deadline is then
+ * at or before the reference's for any reference of at least 1ms, however long
+ * the process stalls between the two calls.
+ */
+function firstToFire(delay: number): Promise<'out-of-range' | 'reference'> {
+    return new Promise((resolve) => {
+        const timers: ReturnType<typeof setTimeout>[] = []
+        const settle = (winner: 'out-of-range' | 'reference') => {
+            for (const timer of timers) clearTimeout(timer)
+            resolve(winner)
+        }
+        timers.push(setTimeout(() => settle('out-of-range'), delay))
+        timers.push(setTimeout(() => settle('reference'), REFERENCE_DELAY_MS))
+    })
+}
+
+Deno.test('deno - setTimeout clamps out-of-range delays instead of honouring them', async () => {
     // Why resolveDeadlineMs rejects instead of passing values through.
     // `deadlineMs: Infinity` written to mean "never time out" would otherwise
     // become the SHORTEST possible deadline, silently.
-    // WARM THE TIMER SUBSYSTEM FIRST. The very first `setTimeout` in a fresh
-    // process pays its initialisation — measured at 52.6ms on Deno 2.9.6 where
-    // every later call is 1-3ms — and the threshold below is 50ms, so this test
-    // was failing on the FIRST iteration for a reason that has nothing to do
-    // with clamping. All three values are still clamped; what changed is how
-    // long the runtime takes to get going.
     //
-    // A wider threshold would have hidden the thing being measured: the gap
-    // between "clamped to ~1ms" and "waited 24 days" is enormous, and the point
-    // of the number is to sit far below the second, not to tolerate startup.
-    await new Promise<void>((resolve) => setTimeout(resolve, 0))
-
-    for (const bad of [NaN, Infinity, 2 ** 31]) {
-        const started = performance.now()
-        await new Promise<void>((resolve) => setTimeout(resolve, bad))
-        const elapsed = performance.now() - started
-
+    // ORDER, NOT ELAPSED TIME (#455). This used to assert `elapsed < 50` on the
+    // wall clock, which measured the machine's scheduling latency as well as
+    // the clamp. Sampled on Deno 2.9.6 inside the core suite, with kits:smoke
+    // running alongside: p50 2.6ms, p99 11.7ms, and 1 run in 40 still failed —
+    // setTimeout(NaN) after 121ms. Adding busy loops at 4x the core count: p99
+    // 25ms, max 85ms in the samples, and 2 runs in 24 failed at 89ms and 96ms.
+    // Every failure was the first timer measured, and the tail has no ceiling
+    // under load: a wider bound would only have moved the cliff.
+    //
+    // Two timers in the same queue fire in deadline order, so a stall delays
+    // both and cannot swap them. Across 6,855 such races, sampled idle and under
+    // every load above, the clamped timer never lost, even to a 2ms reference. If a delay were
+    // honoured (24 days for 2**31), the 50ms reference would win and this would
+    // fail, at a cost of 50ms rather than a hang.
+    for (const outOfRange of [NaN, Infinity, 2 ** 31]) {
         assertEquals(
-            elapsed < 50,
-            true,
-            `setTimeout(${bad}) fired after ${elapsed}ms — it was expected to be ` +
-                `clamped to ~1ms, which is the whole reason the deadline is validated`,
+            await firstToFire(outOfRange),
+            'out-of-range',
+            `setTimeout(${outOfRange}) fired after a ${REFERENCE_DELAY_MS}ms timer ` +
+                `scheduled after it, so it was honoured as a long delay instead of ` +
+                `being clamped to ~1ms, which is the whole reason the deadline is validated`,
         )
     }
 })
