@@ -264,15 +264,20 @@ function redactPairs(text: string): string {
         const valueStart = skipBlanksRight(text, i + equalsLength)
         let url = inUrl(text, start)
         if (match === 'exact' && !url) {
-            // `code` is an OAuth code in a URL query or a form body
-            // (`code=…&grant_type=…`); anywhere else it is a status or exit
-            // code (`code=23505`, `exit code=1`) an operator needs. The run is
-            // reused while the scan stays inside it, which keeps a text of
+            // `code` is an OAuth code in a URL query, after the `&amp;` an
+            // `href` writes, or in a form body (`code=…&grant_type=…`);
+            // anywhere else it is a status or exit code (`code=23505`,
+            // `exit code=1`) an operator needs. Only this decision reads
+            // `&amp;`: any other name after it keeps the raw end, because an
+            // HTML-escaped value carries `&lt;` or `&amp;` as content. The run
+            // is reused while the scan stays inside it, which keeps a text of
             // bare `code=` pairs linear.
-            if (run.end < valueStart) run = readFormRun(text, valueStart)
-            if (!run.query) {
-                i += equalsLength
-                continue
+            if (!isEscapedAmpersand(text, start - AMP.length)) {
+                if (run.end < valueStart) run = readFormRun(text, valueStart)
+                if (!run.query) {
+                    i += equalsLength
+                    continue
+                }
             }
             url = true
         }
@@ -483,7 +488,10 @@ function readFormRun(text: string, from: number): FormRun {
 
 /**
  * Whether the name starting at `start` sits in a URL query or fragment: it
- * follows `?`, `&`, `&amp;` or `#`, raw or percent-encoded.
+ * follows `?`, `&` or `#`, raw or percent-encoded.
+ *
+ * Not `&amp;`: only a bare `code` reads it as a separator, in
+ * {@link redactPairs}.
  *
  * @param text - The text being scanned.
  * @param start - The index of the name's first character.
@@ -491,7 +499,6 @@ function readFormRun(text: string, from: number): FormRun {
  */
 function inUrl(text: string, start: number): boolean {
     if (URL_SEPARATORS.has(text[start - 1])) return true
-    if (isEscapedAmpersand(text, start - AMP.length)) return true
     if (start < 3 || text[start - 3] !== '%') return false
     const escaped = text.slice(start - 2, start).toUpperCase()
     return escaped === '3F' || escaped === '26' || escaped === '23'

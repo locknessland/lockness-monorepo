@@ -405,6 +405,28 @@ Deno.test('#494 an OAuth `code` after an HTML-escaped `&amp;` is in a query', ()
     )
 })
 
+Deno.test('#499 after `&amp;`, a credential other than `code` keeps the raw end', () => {
+    // A credential put into a URL unencoded, then HTML-escaped, carries the
+    // escape inside its value: only whitespace or a quote may end it.
+    for (const name of ['password', 'api_key']) {
+        for (const inner of ['&lt;', '&amp;', '&quot;', '#', '&']) {
+            for (
+                const text of [
+                    `/x?y=1&amp;${name}=${HEAD}${inner}${TAIL} end`,
+                    `run --opt=1&amp;${name}=${HEAD}${inner}${TAIL} end`,
+                ]
+            ) {
+                assertEquals(
+                    redactQueryCredentials(text),
+                    text.replace(`${HEAD}${inner}${TAIL}`, '***'),
+                    text,
+                )
+                assertNoMarker(render(text), text)
+            }
+        }
+    }
+})
+
 Deno.test('#494 a `code` ending at `&` and another pair is a form body', () => {
     assertEquals(
         redactQueryCredentials(
