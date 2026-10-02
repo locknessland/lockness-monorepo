@@ -3,6 +3,7 @@
     "nodeModulesDir": "auto",
     "tasks": {
         "dev": "deno run -A --watch --env main.ts",
+        "build": "deno task routes:generate",
         "start": "deno run -A --env-file=.env.production.local main.ts",
         "cli": "deno run -A --env cli.ts",
         "routes:generate": "deno run -A scripts/generate_routes.ts",

@@ -1,80 +1,61 @@
 # ============================================================================
 # Lockness JS - Production Dockerfile
-# Multi-stage build for optimized production image
+# Single stage: the app runs with `deno run`, so the image needs Deno anyway.
 #
 # Build: docker build -t my-app .
-# Run:   docker run -p 8888:8888 --env-file .env.production my-app
+# Run:   docker run -p 8888:8888 --env-file .env.production.local my-app
 #
-# Override Deno version: docker build --build-arg DENO_VERSION=2.7.0 -t my-app .
+# Override Deno version: docker build --build-arg DENO_VERSION=2.9.6 -t my-app .
+# Use a JSR mirror:      docker build --build-arg JSR_URL=https://<mirror> -t my-app .
+#
+# Commit deno.lock: without it the build resolves dependencies afresh, and
+# Deno's minimum dependency age can pick the previous release of a package.
 # ============================================================================
 
 # Deno version - can be overridden at build time
-ARG DENO_VERSION=2.6.3
+ARG DENO_VERSION=2.9.6
+FROM denoland/deno:${DENO_VERSION}
 
-# -----------------------------------------------------------------------------
-# Stage 1: Build
-# -----------------------------------------------------------------------------
-FROM denoland/deno:${DENO_VERSION} AS builder
+# Registry the build resolves jsr: specifiers from. The running container keeps
+# it (ENV below): Deno keys its module cache by registry origin, so a
+# --cached-only start finds the modules only under the registry they came from.
+ARG JSR_URL=https://jsr.io
 
 WORKDIR /app
 
-# Copy dependency files first for better caching
+# Dependencies first, so editing the app does not re-download them
 COPY deno.json deno.lock* ./
-COPY vite.config.ts ./
-
-# Copy source files
-COPY app/ ./app/
-COPY public/ ./public/
-COPY main.ts cli.ts ./
-
-# Cache dependencies
 RUN deno install
 
-# Build the production bundle (SSR)
-RUN deno run -A npm:vite build && deno run -A npm:vite build --ssr
+# The app, then its build step (route registry, CSS), then every module the
+# entrypoint loads, so the server starts without fetching anything
+COPY . .
+RUN deno task build && deno install --entrypoint main.ts
 
-# -----------------------------------------------------------------------------
-# Stage 2: Production
-# -----------------------------------------------------------------------------
-ARG DENO_VERSION
-FROM denoland/deno:${DENO_VERSION} AS production
-
-WORKDIR /app
-
-# Create non-root user for security
-RUN addgroup --system --gid 1001 lockness && \
-    adduser --system --uid 1001 lockness
-
-# Copy built assets from builder
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/deno.json ./
-COPY --from=builder /app/deno.lock* ./
-
-# Copy public assets if needed
-COPY --from=builder /app/public ./public
-
-# Set ownership
-RUN chown -R lockness:lockness /app
-
-# Switch to non-root user
-USER lockness
+# The base image's unprivileged user. The app tree stays owned by root, so the
+# running process cannot rewrite its own code.
+USER deno
 
 # Expose the application port
 EXPOSE 8888
 
 # Health check — liveness only, so it polls /health and never /ready.
-# A failing Docker health check gets the container restarted, so it must track
-# whether the process is up and nothing else. /health touches no dependency.
-# /ready probes the database: polled from here it would wake a scale-to-zero
-# database on every interval, and restart a healthy process whenever the
-# database is briefly unavailable. /ready belongs to a load balancer or an
+# It must track whether the process is up and nothing else: /health touches no
+# dependency. /ready probes the database: polled from here it would wake a
+# scale-to-zero database on every interval, and flag a healthy process whenever
+# the database is briefly unavailable. /ready belongs to a load balancer or an
 # orchestrator readiness gate.
+# An unhealthy container is only marked unhealthy by plain Docker and Compose;
+# Swarm replaces it; Kubernetes ignores HEALTHCHECK, so point its liveness
+# probe at /health.
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD deno eval "const r = await fetch('http://localhost:8888/health'); if (!r.ok) Deno.exit(1);" || exit 1
+    CMD deno eval "const r = await fetch('http://localhost:${PORT:-8888}/health'); if (!r.ok) Deno.exit(1);" || exit 1
 
-# Environment variables
-ENV DENO_ENV=production
+# Set after the build steps, so `deno task build` runs in development mode
+ENV APP_ENV=production
 ENV PORT=8888
+ENV JSR_URL=${JSR_URL}
 
-# Run the production server
-CMD ["deno", "run", "--allow-net", "--allow-read", "--allow-env", "--allow-sys", "dist/server.js"]
+# Run the server. --cached-only: everything was fetched at build time, and the
+# running container must never reach a registry.
+CMD ["deno", "run", "--cached-only", "--allow-net", "--allow-read", "--allow-env", "--allow-sys", "main.ts"]

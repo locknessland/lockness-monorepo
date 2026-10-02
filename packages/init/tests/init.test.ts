@@ -209,23 +209,30 @@ describe('init command', () => {
                 'docker-test/Dockerfile',
             )
 
-            // Check for multi-stage build
+            // Single stage, on the base image's own unprivileged user (#503)
             expect(dockerfile).toContain('FROM denoland/deno')
-            expect(dockerfile).toContain('AS builder')
-            expect(dockerfile).toContain('AS production')
+            expect(dockerfile).not.toContain(' AS ')
+            expect(dockerfile).toContain('USER deno')
 
-            // Check for DENO_VERSION arg
+            // Deno version floor, and the registry the build resolves from
             expect(dockerfile).toContain('ARG DENO_VERSION=')
+            expect(dockerfile).toContain('ARG JSR_URL=')
 
-            // Check for non-root user
-            expect(dockerfile).toContain('USER lockness')
+            // Production mode, set after the build steps; nothing fetched
+            // at runtime
+            expect(dockerfile).toContain('ENV APP_ENV=production')
+            expect(dockerfile.indexOf('ENV APP_ENV=production'))
+                .toBeGreaterThan(
+                    dockerfile.indexOf('RUN deno task build'),
+                )
+            expect(dockerfile).toContain('"--cached-only"')
 
-            // Health check polls liveness (/health), not / or /ready (#424)
+            // Health check polls liveness (/health) on the configured port
+            // (#424); scripts/dockerfile_healthcheck_test.ts owns the block
             expect(dockerfile).toContain('HEALTHCHECK')
             expect(dockerfile).toContain(
-                "fetch('http://localhost:8888/health')",
+                "fetch('http://localhost:${PORT:-8888}/health')",
             )
-            expect(dockerfile).not.toContain("fetch('http://localhost:8888/')")
 
             // Check for correct port
             expect(dockerfile).toContain('EXPOSE 8888')

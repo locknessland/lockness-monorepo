@@ -4,7 +4,9 @@ node_modules/
 
 # Build outputs
 dist/
+_dist/
 _output/
+.compiled/
 coverage/
 
 # Development files
