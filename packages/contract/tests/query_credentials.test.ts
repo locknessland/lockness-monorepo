@@ -378,6 +378,52 @@ Deno.test('#478 a plural stem with an all-digit value is a count, not a secret',
     assertEquals(redactQueryCredentials('token=4096'), 'token=***')
 })
 
+Deno.test('#494 an OAuth `code` after an HTML-escaped `&amp;` is in a query', () => {
+    assertEquals(
+        redactQueryCredentials(`<a href="/cb?state=1&amp;code=${M}">`),
+        '<a href="/cb?state=1&amp;code=***">',
+    )
+    assertEquals(
+        redactQueryCredentials(`/cb?state=1&AMP;code=${M}&amp;x=1`),
+        '/cb?state=1&AMP;code=***&amp;x=1',
+    )
+})
+
+Deno.test('#494 a `code` ending at `&` and another pair is a form body', () => {
+    assertEquals(
+        redactQueryCredentials(
+            `POST /token body code=${M}&grant_type=authorization_code`,
+        ),
+        'POST /token body code=***&grant_type=authorization_code',
+    )
+    // Diagnostics with no following pair are still left alone.
+    for (
+        const text of [
+            'status code=503',
+            'exit code=1',
+            'exit code=1 && retry',
+            'exit code=1&&retry=2',
+            'code=503& done',
+        ]
+    ) {
+        assertEquals(redactQueryCredentials(text), text)
+    }
+})
+
+Deno.test('#494 the scan stays linear on a run of bare `code=` pairs', () => {
+    for (
+        const text of [
+            'code='.repeat(1 << 18),
+            'code='.repeat(1 << 17) + '&' + 'a'.repeat(1 << 19),
+        ]
+    ) {
+        const start = performance.now()
+        redactQueryCredentials(text)
+        const elapsed = performance.now() - start
+        assert(elapsed < 1000, `${text.length}: ${elapsed.toFixed(0)} ms`)
+    }
+})
+
 Deno.test('#494 only a known count name keeps an all-digit value', () => {
     // Counts: a `tokens` or `keys` plural named for a limit or a tally.
     for (

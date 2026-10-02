@@ -239,6 +239,7 @@ function redactPairs(text: string): string {
     let out = ''
     let copied = 0
     let i = 0
+    let run: FormRun = { end: -1, query: false }
     while (i < text.length) {
         const equalsLength = equalsAt(text, i)
         if (equalsLength === 0) {
@@ -250,10 +251,7 @@ function redactPairs(text: string): string {
         const match = start === nameEnd
             ? undefined
             : classifyName(text.slice(start, nameEnd))
-        const url = match !== undefined && inUrl(text, start)
-        // `code` is an OAuth code in a URL query; anywhere else it is a status
-        // or exit code (`code=23505`, `exit code=1`) an operator needs.
-        if (match === undefined || (match === 'exact' && !url)) {
+        if (match === undefined) {
             i += equalsLength
             continue
         }
@@ -261,6 +259,20 @@ function redactPairs(text: string): string {
         // what `util.format('password=', v)` prints. The cost is that an
         // empty value takes the next word (`token= *** header`).
         const valueStart = skipBlanksRight(text, i + equalsLength)
+        let url = inUrl(text, start)
+        if (match === 'exact' && !url) {
+            // `code` is an OAuth code in a URL query or a form body
+            // (`code=…&grant_type=…`); anywhere else it is a status or exit
+            // code (`code=23505`, `exit code=1`) an operator needs. The run is
+            // reused while the scan stays inside it, which keeps a text of
+            // bare `code=` pairs linear.
+            if (run.end < valueStart) run = readFormRun(text, valueStart)
+            if (!run.query) {
+                i += equalsLength
+                continue
+            }
+            url = true
+        }
         if (
             text[valueStart] === '\\' && QUOTES.has(text[valueStart + 1])
         ) {
@@ -377,9 +389,55 @@ const URL_SEPARATORS: ReadonlySet<string | undefined> = new Set([
     '#',
 ])
 
+/** The HTML escape of `&`, as a query inside an `href` attribute is written. */
+const AMP = '&amp;'
+
+/**
+ * Whether `text` holds `&amp;` at `at`, in any case.
+ *
+ * @param text - The text being scanned.
+ * @param at - Where the escape would start; may be negative.
+ * @returns True for `&amp;`, `&AMP;` and the like.
+ */
+function isEscapedAmpersand(text: string, at: number): boolean {
+    return at >= 0 && text.slice(at, at + AMP.length).toLowerCase() === AMP
+}
+
+/**
+ * Where an unquoted value would end under the URL rule, and whether it ends
+ * as a form body does: at `&` followed by another `name=`.
+ */
+interface FormRun {
+    /** The index of the first URL value terminator, or the text's length. */
+    readonly end: number
+    /** Whether `&` and another pair follow at `end`. */
+    readonly query: boolean
+}
+
+/**
+ * Read the run of non-terminators from `from` and say whether it ends as a
+ * form body: `code=…&grant_type=…` is an OAuth token request's body, which
+ * carries no `?` for {@link inUrl} to see.
+ *
+ * Each run is read once: a later `code=` inside it shares the same end.
+ *
+ * @param text - The text being scanned.
+ * @param from - Where the value starts.
+ * @returns The run's end and whether another pair follows it.
+ */
+function readFormRun(text: string, from: number): FormRun {
+    let end = from
+    while (end < text.length && !URL_VALUE_END.has(text[end])) end++
+    if (text[end] !== '&') return { end, query: false }
+    let j = isEscapedAmpersand(text, end) ? end + AMP.length : end + 1
+    const name = j
+    while (j < text.length && isNameCharacter(text[j])) j++
+    return { end, query: j > name && equalsAt(text, j) > 0 }
+}
+
 /**
  * Whether the name starting at `start` sits in a URL query or fragment: it
- * follows `?`, `&` or `#`, raw or percent-encoded.
+ * follows `?`, `&`, `&amp;` or `#`, raw or percent-encoded.
  *
  * @param text - The text being scanned.
  * @param start - The index of the name's first character.
@@ -387,6 +445,7 @@ const URL_SEPARATORS: ReadonlySet<string | undefined> = new Set([
  */
 function inUrl(text: string, start: number): boolean {
     if (URL_SEPARATORS.has(text[start - 1])) return true
+    if (isEscapedAmpersand(text, start - AMP.length)) return true
     if (start < 3 || text[start - 3] !== '%') return false
     const escaped = text.slice(start - 2, start).toUpperCase()
     return escaped === '3F' || escaped === '26' || escaped === '23'
