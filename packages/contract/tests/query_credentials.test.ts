@@ -370,7 +370,7 @@ Deno.test('#494 blanks after `=` are skipped even with none before it', () => {
     )
 })
 
-Deno.test('#478 a plural stem with an all-digit value is a count, not a secret', () => {
+Deno.test('#478 a known count name with an all-digit value is a count, not a secret', () => {
     for (const text of ['max_tokens=4096', 'prompt_tokens=9000 total=1']) {
         assertEquals(redactQueryCredentials(text), text)
     }
@@ -434,6 +434,13 @@ Deno.test('#494 a `code` ending at `&` and another pair is a form body', () => {
         ),
         'POST /token body code=***&grant_type=authorization_code',
     )
+    // An HTML-escaped body separates its pairs with `&amp;`.
+    assertEquals(
+        redactQueryCredentials(
+            `code=${M}&amp;grant_type=authorization_code`,
+        ),
+        'code=***&amp;grant_type=authorization_code',
+    )
     // Diagnostics with no following pair are still left alone.
     for (
         const text of [
@@ -449,10 +456,14 @@ Deno.test('#494 a `code` ending at `&` and another pair is a form body', () => {
 })
 
 Deno.test('#494 the scan stays linear on a run of bare `code=` pairs', () => {
+    // Sized so the linear scan takes milliseconds and a quadratic one takes
+    // seconds: large enough to fail the threshold, small enough to finish,
+    // since the mutation battery runs this suite with no timeout. A step
+    // count would need a counter in the production module.
     for (
         const text of [
-            'code='.repeat(1 << 18),
-            'code='.repeat(1 << 17) + '&' + 'a'.repeat(1 << 19),
+            'code='.repeat(1 << 15),
+            'code='.repeat(1 << 14) + '&' + 'a'.repeat(1 << 16),
         ]
     ) {
         const start = performance.now()
