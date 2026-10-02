@@ -103,7 +103,7 @@ export function isCommandFailure(error: unknown): error is CommandFailure {
  * `Cli.dispatch()` prints `❌ <message>` once — no stack, because the
  * message already explains the failure — and exits with {@link exitCode}.
  * Throw a plain `Error` instead for a failure you did not anticipate; that one
- * is printed with its stack.
+ * is printed with its stack frames, credentials redacted.
  *
  * @example
  * ```ts

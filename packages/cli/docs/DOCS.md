@@ -209,13 +209,13 @@ A command reports failure by **throwing**, never by printing an error and
 returning. `cli.run()` prints the failure once and sets the process exit status,
 so a script or CI step can branch on it:
 
-| Outcome                                                     | Exit                                  | Printed                                              |
-| :---------------------------------------------------------- | :------------------------------------ | :--------------------------------------------------- |
-| No command                                                  | `0`                                   | the command list                                     |
-| Unknown command                                             | `1`                                   | `❌ Unknown command: <name>`, then the list          |
-| The handler resolves                                        | `0`                                   | —                                                    |
-| The handler throws `CommandFailedError` (or the same shape) | its `exitCode` if `1`–`255`, else `1` | `❌ <message>`, no stack                             |
-| The handler throws anything else                            | `1`                                   | `❌ <command> failed:` and the error, with its stack |
+| Outcome                                                     | Exit                                  | Printed                                                                                                                          |
+| :---------------------------------------------------------- | :------------------------------------ | :------------------------------------------------------------------------------------------------------------------------------- |
+| No command                                                  | `0`                                   | the command list                                                                                                                 |
+| Unknown command                                             | `1`                                   | `❌ Unknown command: <name>`, then the list                                                                                      |
+| The handler resolves                                        | `0`                                   | —                                                                                                                                |
+| The handler throws `CommandFailedError` (or the same shape) | its `exitCode` if `1`–`255`, else `1` | `❌ <message>`, no stack                                                                                                         |
+| The handler throws anything else                            | `1`                                   | `❌ <command> failed:` then name, vetted code, redacted message per link, then frames; raw only with `LOCKNESS_CLI_RAW_ERRORS=1` |
 
 ```typescript
 import { CommandFailedError } from '@lockness/cli'
@@ -230,12 +230,65 @@ cli.register('deploy', async () => {
 ```
 
 - Throw `CommandFailedError` for a failure you expected and can explain in one
-  message. Throw (or let through) any other error for a bug: its stack is
-  printed.
+  message. Throw (or let through) any other error for a bug: its stack frames
+  are printed, redacted.
 - Do not print the failure yourself as well; the CLI prints it.
 - `cli.run()` sets `Deno.exitCode` and never calls `Deno.exit()`, so `finally`
   blocks (closing a connection) still run. `cli.dispatch(args)` returns the same
   status without touching the process, which is what a test wants.
+
+### What an unexpected error prints
+
+Any error that is not failure-shaped is printed through `renderError`, the same
+renderer the framework uses for its own logs, as a single `console.error`:
+
+```text
+❌ db:seed failed: Error: connect failed: postgres://***:***@db.test/app caused by: Error [ECONNREFUSED]: connection refused
+    at connect (file:///app/database/seed.ts:4:11)
+    at async Cli.dispatch (…)
+(Credentials redacted. LOCKNESS_CLI_RAW_ERRORS=1 prints the raw error; never set it where the log is public.)
+```
+
+The first line is the error's name, its code when it is spelled like a runtime
+or driver code (`ECONNREFUSED`, `23505`), and its message, then at most two
+`cause` links rendered the same way. A DSN's userinfo and any credential
+`name=value` pair (`token=`, `password=`, `api_key=`, …) are replaced with `***`
+in every link. The next lines are up to 10 stack frames of the top-level error,
+redacted the same way, with a `data:` URL collapsed to `data:…`.
+
+It shows less than the raw error does: no other own property (`detail`, `hint`,
+`parameters`), no frames of a cause, no `AggregateError` members, and long
+messages are truncated. Redaction only knows the shapes it knows: a bare secret
+with no `name=` in front of it still prints, and frame text outside a URL (a
+function or class name) is never redacted.
+
+### Seeing the raw error
+
+Set `LOCKNESS_CLI_RAW_ERRORS` to `1` (or `true`, `on`, `yes`) and the error
+object is handed to `console.error` as-is, behind a banner, so every property,
+the whole cause chain and every stack are printed:
+
+```bash
+LOCKNESS_CLI_RAW_ERRORS=1 ./nessy db:seed
+```
+
+```text
+⚠️ LOCKNESS_CLI_RAW_ERRORS is on: the error below is unredacted.
+❌ db:seed failed: Error: connect failed: postgres://app:<password>@db.test/app
+    …
+```
+
+> **Warning: never set it where the log is public.** The raw error carries
+> whatever the failing code put in it: a database password in a DSN, an API
+> token in a URL, row data in a driver's `detail`. CI and build logs of an
+> open-source project are usually readable by anyone. Use the switch in a local
+> terminal, re-run the command there, and leave it unset in CI configuration and
+> `.env` files.
+
+The switch is off unless it is recognisably on. `0`, `false`, `off`, `no` or an
+empty value keep it off. Any other value also keeps it off and replaces the hint
+with a notice naming the value, so a typo is visible instead of silently
+ignored. A process without `--allow-env` reads it as off.
 
 ### Packages that cannot import `@lockness/cli`
 

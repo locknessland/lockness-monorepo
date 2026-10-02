@@ -80,10 +80,12 @@ cli.register('deploy', async () => {
 ```
 
 `CommandFailedError` is printed as `❌ <message>` with no stack and exits with
-its `exitCode` (default `1`); any other error exits `1` with its stack; an
-unknown command exits `1`. The contract is matched by shape (any `Error` with an
-integer `exitCode`), so a package that cannot import `@lockness/cli` can use a
-local subclass. See [docs/DOCS.md](docs/DOCS.md#exit-codes).
+its `exitCode` (default `1`); any other error exits `1`, printed with
+credentials redacted and its stack frames, or raw only with
+`LOCKNESS_CLI_RAW_ERRORS=1`; an unknown command exits `1`. The contract is
+matched by shape (any `Error` with an integer `exitCode`), so a package that
+cannot import `@lockness/cli` can use a local subclass. See
+[docs/DOCS.md](docs/DOCS.md#exit-codes).
 
 ### Stub System
 

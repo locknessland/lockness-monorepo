@@ -26,6 +26,21 @@ User-facing documentation: [README.md](README.md) ·
     **shape** (any `Error` with an integer `exitCode`) so packages that must not
     import cli (mail, features, search, scheduler, i18n) can meet it with a
     local subclass, and so two loaded copies of this package still agree.
+- **The dispatcher prints an error only through `renderError` (#488).** A
+  non-failure error leaves `Cli.dispatch()` as one string,
+  `renderError(error, { frames: 10 })` plus a hint line; the raw error object
+  reaches `console.error` only when `LOCKNESS_CLI_RAW_ERRORS` is on
+  (`raw_errors.ts`, internal), and then behind a banner. CLI output lands in CI
+  logs, which open-source projects publish. Breaks when:
+  - a branch passes the error object to `console.error` with the switch off —
+    `Deno.inspect` prints own properties (`options: { password: … }`), the cause
+    chain and the stacks, none of it redacted;
+  - the switch is read outside the catch-all — every command then needs
+    `--allow-env`;
+  - an unrecognised switch value throws — it would replace the error being
+    reported. It reads as off and the hint becomes a notice;
+  - a state prints twice or returns other than `1` — scripts read the status,
+    and `cli_dispatch.test.ts` pins one `console.error` per state.
 - **`command_failure.ts` imports nothing.** It is published as
   `@lockness/cli/command-failure` so a package whose commands load at app boot
   (`@lockness/drizzle`) can throw `CommandFailedError` without pulling the
@@ -85,7 +100,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-14 test files for 39 source files:
+15 test files for 40 source files:
 
 - `packages/cli/tests/app_file.test.ts`
 - `packages/cli/tests/cli_dispatch.test.ts`
@@ -101,6 +116,7 @@ Anything not listed is internal and free to change.
 - `packages/cli/tests/make_service.test.ts`
 - `packages/cli/tests/make_view.test.ts`
 - `packages/cli/tests/queue_commands.test.ts`
+- `packages/cli/tests/raw_errors.test.ts`
 
 <!-- /generated:tests -->
 
@@ -115,7 +131,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 14 test files directly —
+Then, specific to this package: run its 15 test files directly —
 
 ```bash
 deno test -A packages/cli/
