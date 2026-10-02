@@ -108,6 +108,9 @@ the current version. For an arbitrary jump, use `deno task bump:legacy 0.3.0`
 (the pre-adoption script, kept as a fallback — see
 [releasing.md](releasing.md)).
 
+Both commands end by refreshing `deno.lock` with `deno install`; commit it with
+the manifests. `--dry-run` previews either one without writing.
+
 **After bumping:**
 
 1. Review changes: `git diff`

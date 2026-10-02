@@ -77,7 +77,8 @@ mechanics each step delegates to, not a second procedure.
          │     │     ├─ rewrites every packages/*/deno.json
          │     │     ├─ rewrites @lockness/* cross-package specifiers
          │     │     └─ does NOT touch the root's own version (#324)
-         │     └─ writes deno.jsonc's version itself, after
+         │     ├─ writes deno.jsonc's version itself, after
+         │     └─ deno install → deno.lock          ← scripts/lockfile.ts (#429)
          ├─ git add -A && git commit -m "chore(release): vX.Y.Z"
          ├─ git tag -a vX.Y.Z -m "Release vX.Y.Z ..."
          └─ git push origin <branch> && git push origin vX.Y.Z
@@ -100,6 +101,13 @@ cannot express as one increment; `bump-native.ts` still imports its
 `updateRootJsonc` to write the root. Anything describing `bump.ts` as the
 release mechanism predates the migration.
 
+Both paths end with the same lockfile refresh, `refreshLockfile()` in
+`scripts/lockfile.ts`: one command, one dry-run notice, one failure and
+recovery message. A bump path that skips it leaves a release commit
+`deno publish` refuses (v0.4.0's first publish; #429 for the legacy path). Both
+accept `--dry-run`. `tests/bump.test.ts` runs each path against a throwaway
+workspace and asserts the lockfile admits the new version.
+
 ## File map
 
 | Path                                                | Owner of...                                                                   |
@@ -109,6 +117,7 @@ release mechanism predates the migration.
 | `scripts/release_notes.ts`                          | `deno task release:notes` — upgrade-guide check, Release body composition     |
 | `scripts/bump-native.ts`                            | **the** version rewrite — `deno bump-version --workspace`, plus the root's own `version` (#324) |
 | `scripts/bump.ts`                                   | `deno task bump:legacy` — arbitrary version jumps; exports `updateRootJsonc`   |
+| `scripts/lockfile.ts`                               | `refreshLockfile()` — the `deno.lock` refresh both bump paths end with (#429)  |
 | `.github/workflows/publish.yml`                     | JSR publish triggered by `release: published`                                 |
 | `.github/workflows/test.yml`                        | PR gate: `deno task gate --leaks`, plus coverage / live-broker / kits jobs    |
 | `.claude/skills/ship/phases/tag.md`                 | tag phase contract, `/ship` step 2 (Specnaut 4.4.0 moved it out of `/specnaut`) |

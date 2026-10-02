@@ -51,6 +51,15 @@ for the two things native cannot do: set an arbitrary version in one jump, and
 serve as a fallback while `deno bump-version` is still flagged experimental.
 Neither tool touches stub files — no stub carries a version pin today.
 
+Both tools end the same way: they run `deno install` so `deno.lock` records the
+new `@lockness/*` ranges, through one shared module, `scripts/lockfile.ts`. The
+lockfile belongs in the release commit. Left stale, the first deno command on
+the tagged tree rewrites it and `deno publish` refuses the dirty checkout, which
+is how v0.4.0's first publish failed. If the refresh fails, the bump is already
+applied: run `deno install` once it can succeed, then commit, and do not run the
+bump again. `--dry-run` works on both tools, writes nothing, and says the
+lockfile would be refreshed.
+
 ### Why lockstep, and not per-package semver
 
 This is the one home of the rationale; the `/ship` skill points here.
