@@ -121,6 +121,10 @@ const SYNTAX_ERROR_SIGNAL = 'SyntaxError: '
  * The phrases V8 puts in a compile error that quotes source, measured on Deno
  * 2.9.6: a regex literal quotes its body, a link error names the export. They
  * survive an application wrapping the error in a plain `Error`.
+ *
+ * **Re-measure on every Deno upgrade.** These are V8's wording, not a
+ * contract: a release that rephrases one silently drops that leg of the net.
+ * The real-file tests in `tests/compile_diagnostic.test.ts` fail when it does.
  */
 const V8_COMPILE_PHRASES: readonly string[] = [
     'Invalid regular expression:',

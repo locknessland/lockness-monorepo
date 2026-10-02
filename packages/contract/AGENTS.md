@@ -104,7 +104,9 @@ Anything not listed is internal and free to change.
   `code`** (`logging/compile_diagnostic.ts`). Deno reports a parse failure as a
   `TypeError` with `ERR_MODULE_NOT_FOUND`, the same pair "Module not found"
   carries. If Deno's format changes, the real-file tests in
-  `tests/compile_diagnostic.test.ts` are what notice.
+  `tests/compile_diagnostic.test.ts` are what notice. The V8 phrases the net
+  also keys on (`V8_COMPILE_PHRASES`) were measured on Deno 2.9.6 and are V8's
+  wording, not a contract: re-measure them on every Deno upgrade.
 - It has tests (`tests/`) but no `docs/` — JSDoc is the documentation, so it is
   not optional on any exported symbol.
 - Renaming an exported type here is a breaking change for eight packages at

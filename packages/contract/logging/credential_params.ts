@@ -179,22 +179,25 @@ function isCountName(normalised: string): boolean {
  *   closing quote, skipping backslash-escaped ones, or to the end of the text
  *   when there is none — so `password='a b'` and `AWS_SECRET_ACCESS_KEY="…"`
  *   are covered whole. An escaped opener (`\"`, as JSON serialisation writes a
- *   quoted CLI argument) runs to its escaped twin.
- * - Inside a URL query or fragment (the name follows `?`, `&` or `#`, raw or
- *   percent-encoded) a value also ends at `&`, `#`, `<` or `>`, so the
- *   neighbouring parameters stay readable.
+ *   quoted CLI argument) runs to its escaped twin, skipping a serialised
+ *   escaped quote (`\\\"`).
+ * - Inside a URL query or fragment (the name follows `?`, `&`, `&amp;` or
+ *   `#`, raw or percent-encoded) a value also ends at `&`, `#`, `<` or `>`,
+ *   so the neighbouring parameters stay readable.
  * - Anywhere else it ends only at ASCII whitespace or a quote. A CLI
  *   `--password=ab&cd` holds its `&` as content; ending there would leak the
  *   rest. `;` and `%26` never end a value: an ODBC tail after `Pwd=` is
  *   eaten, and eating more is the safe direction.
  *
- * An empty value is left alone, so `?token=&page=1` stays diagnostic; blanks
- * after `=` count as part of the value only when blanks also precede it
- * (`name = value`), so `token= in header` keeps its `in`.
+ * An empty value is left alone, so `?token=&page=1` stays diagnostic. Blanks
+ * after `=` are always skipped, so `password= …` (what `util.format('k=', v)`
+ * prints) is covered; the accepted cost is that `token= in header` renders
+ * as `token= *** header`.
  *
  * **Non-secrets kept on purpose.** A bare `code` is an OAuth code only in a
- * URL query; elsewhere (`status code=503`, Postgres `code=23505`) it is left
- * alone. A known count name with an unquoted all-digit value is a count
+ * URL query, or in a form body where its value ends at `&` and another
+ * `name=` (`code=…&grant_type=…`); elsewhere (`status code=503`, Postgres
+ * `code=23505`) it is left alone. A known count name with an unquoted all-digit value is a count
  * (`max_tokens=4096`), not a credential — chosen over a documented
  * over-match because LLM and quota errors carry exactly these. A count name
  * ends in `tokens` or `keys` AND contains `max`, `prompt`, `completion` or
