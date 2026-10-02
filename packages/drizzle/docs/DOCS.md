@@ -1048,9 +1048,13 @@ URL the driver rebuilt, it reached the thrown error, `/ready` and `db:check`
 a credential, in each form a driver may echo (as written, percent-decoded,
 decoded and re-encoded, with `+` read as a space, and as `new URL()` serialises
 it; `%2b` and `%2B` count as the same), and withholds a message holding one,
-exactly as it does for the password. A driver that echoes only part of a value
-is not caught: the message is never edited around a value, so only whole forms
-are matched.
+exactly as it does for the password.
+
+- **Not detected: a partial echo.** A driver that prints only a prefix or a
+  suffix of a token (`token abc…` truncated, or `…xyz` as a hint) matches no
+  held form, so its message is shown. Catching it would mean editing driver text
+  around the value, which #425 forbids: replacing by value turns the replacement
+  into a detector of where the secret is. Only whole forms are matched.
 
 - **Which names:** a name that, lowercased and with `.`, `_`, `~` and `-`
   removed, and trailing digits and a trailing `confirmation` dropped, ends in
