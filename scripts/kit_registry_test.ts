@@ -12,9 +12,13 @@ import { fromFileUrl } from '@std/path'
 import { type KitName, KITS } from '@lockness/init'
 import {
     appPathRequests,
+    INSPECT_FORMAT,
+    judgeContainerHealth,
     judgeNotFound,
     judgeRouterList,
     missingFromRegistry,
+    parseContainerState,
+    pollHealthy,
     publishableMembers,
     publishToRegistry,
     ROUTER_LIST_ROUTE,
@@ -127,4 +131,130 @@ Deno.test('publishToRegistry refuses a non-loopback registry before spawning', a
             url,
         )
     }
+})
+
+// ---------------------------------------------------------------------------
+// `--docker` (#503): reading `docker inspect`, judging it, and polling it
+// ---------------------------------------------------------------------------
+
+Deno.test('parseContainerState reads the INSPECT_FORMAT line, none as no health check', () => {
+    assertEquals(parseContainerState('running starting 0\n'), {
+        status: 'running',
+        health: 'starting',
+        exitCode: 0,
+    })
+    assertEquals(parseContainerState('exited none 1'), {
+        status: 'exited',
+        health: null,
+        exitCode: 1,
+    })
+    assertEquals(parseContainerState('Error: No such object: abc'), undefined)
+    assertEquals(parseContainerState(''), undefined)
+    // The template is what produces `none`; keep the two together.
+    assert(INSPECT_FORMAT.includes('{{else}}none{{end}}'))
+})
+
+/** A container state, for the verdict tables below. */
+function state(status: string, health: string | null, exitCode = 0) {
+    return { status, health, exitCode }
+}
+
+Deno.test('judgeContainerHealth passes only healthy, waits only while starting', () => {
+    assertEquals(judgeContainerHealth(state('running', 'healthy')), {
+        done: true,
+        result: { ok: true, detail: 'container healthy' },
+    })
+    assertEquals(judgeContainerHealth(state('running', 'starting')), {
+        done: false,
+    })
+    assertEquals(judgeContainerHealth(state('created', 'starting')), {
+        done: false,
+    })
+    // None of these can still become healthy: fail now, saying which.
+    const final = [
+        [state('running', 'unhealthy'), 'unhealthy'],
+        [state('running', null), 'no HEALTHCHECK'],
+        [state('exited', 'starting', 1), 'exited with code 1'],
+        [state('dead', 'healthy', 137), 'dead with code 137'],
+    ] as const
+    for (const [reading, detail] of final) {
+        const verdict = judgeContainerHealth(reading)
+        assert(verdict.done, `${JSON.stringify(reading)} must be final`)
+        assert(!verdict.result.ok, `${JSON.stringify(reading)} must fail`)
+        assert(
+            verdict.result.detail.includes(detail),
+            `"${verdict.result.detail}" should say "${detail}"`,
+        )
+    }
+})
+
+/** A fake clock whose sleep advances it, so a poll takes no real time. */
+function fakeClock() {
+    let t = 0
+    return {
+        now: () => t,
+        sleep: (ms: number) => {
+            t += ms
+            return Promise.resolve()
+        },
+    }
+}
+
+Deno.test('pollHealthy reads until healthy and says how long it took', async () => {
+    const readings = ['starting', 'starting', 'healthy']
+    const result = await pollHealthy(
+        () => Promise.resolve(state('running', readings.shift()!)),
+        { ...fakeClock(), intervalMs: 1_000, timeoutMs: 90_000 },
+    )
+    assertEquals(result, { ok: true, detail: 'container healthy in 2s' })
+    assertEquals(readings, [])
+})
+
+Deno.test('pollHealthy fails at the timeout with the last status seen', async () => {
+    let reads = 0
+    const result = await pollHealthy(
+        () => {
+            reads++
+            return Promise.resolve(state('running', 'starting'))
+        },
+        { ...fakeClock(), intervalMs: 1_000, timeoutMs: 5_000 },
+    )
+    assertEquals(result, {
+        ok: false,
+        detail: 'container still running/starting after 5s',
+    })
+    // Read at 0s through 5s: the timeout ends the poll, never a whole
+    // interval past it.
+    assertEquals(reads, 6)
+})
+
+Deno.test('pollHealthy stops at the first final reading, not at the timeout', async () => {
+    let reads = 0
+    const result = await pollHealthy(
+        () => {
+            reads++
+            return Promise.resolve(
+                reads < 2
+                    ? state('running', 'starting')
+                    : state('exited', 'starting', 1),
+            )
+        },
+        { ...fakeClock(), intervalMs: 1_000, timeoutMs: 90_000 },
+    )
+    assertEquals(result, {
+        ok: false,
+        detail: 'container exited with code 1 before it was healthy in 1s',
+    })
+    assertEquals(reads, 2)
+})
+
+Deno.test('pollHealthy turns an inspect failure into a failed verdict', async () => {
+    const result = await pollHealthy(
+        () => Promise.reject(new Error('No such container: abc')),
+        fakeClock(),
+    )
+    assertEquals(result, {
+        ok: false,
+        detail: 'docker inspect failed: No such container: abc',
+    })
 })
