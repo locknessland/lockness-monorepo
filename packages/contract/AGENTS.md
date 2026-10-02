@@ -100,6 +100,14 @@ Anything not listed is internal and free to change.
   a doubly encoded separator (`%253D`), or a session id under a name it does not
   know. Those need a source-side fix where the value is known; do not widen the
   net to guess at them.
+- **Two non-secrets the net keeps on purpose**, because an operator needs them.
+  A known count name (`max_tokens`, `max-keys`: a `tokens` or `keys` plural
+  containing `max`, `prompt`, `completion` or `total`) keeps an unquoted
+  all-digit value; every other plural is masked whatever its value. A bare
+  `code` is an OAuth code only in a URL query, after `&amp;`, or in a form body
+  (`code=…&grant_type=…`); elsewhere (`status code=503`, `exit code=1`) it
+  renders. Only that `code` decision reads `&amp;` as a separator: any other
+  name after it keeps the raw end, or an HTML-escaped value shows its tail.
 - **A compile failure is recognised by its message shape, never by class or
   `code`** (`logging/compile_diagnostic.ts`). Deno reports a parse failure as a
   `TypeError` with `ERR_MODULE_NOT_FOUND`, the same pair "Module not found"

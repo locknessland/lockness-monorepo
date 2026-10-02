@@ -181,11 +181,14 @@ function isCountName(normalised: string): boolean {
  *   are covered whole. An escaped opener (`\"`, as JSON serialisation writes a
  *   quoted CLI argument) runs to its escaped twin, skipping a serialised
  *   escaped quote (`\\\"`).
- * - Inside a URL query or fragment (the name follows `?`, `&`, `&amp;` or
- *   `#`, raw or percent-encoded) a value also ends at `&`, `#`, `<` or `>`,
- *   so the neighbouring parameters stay readable.
- * - Anywhere else it ends only at ASCII whitespace or a quote. A CLI
- *   `--password=ab&cd` holds its `&` as content; ending there would leak the
+ * - Inside a URL query or fragment (the name follows `?`, `&` or `#`, raw or
+ *   percent-encoded) a value also ends at `&`, `#`, `<` or `>`, so the
+ *   neighbouring parameters stay readable. A bare `code` after `&amp;` (an
+ *   `href`'s query) ends there too.
+ * - Anywhere else it ends only at ASCII whitespace or a quote, save a
+ *   form-body `code`, which ends at `&` (below). A CLI `--password=ab&cd`
+ *   holds its `&` as content, and so does a value after `&amp;` that was
+ *   HTML-escaped whole (`password=ab&lt;cd`); ending there would leak the
  *   rest. `;` and `%26` never end a value: an ODBC tail after `Pwd=` is
  *   eaten, and eating more is the safe direction.
  *
@@ -195,14 +198,15 @@ function isCountName(normalised: string): boolean {
  * as `token= *** header`.
  *
  * **Non-secrets kept on purpose.** A bare `code` is an OAuth code only in a
- * URL query, or in a form body where its value ends at `&` and another
- * `name=` (`code=…&grant_type=…`); elsewhere (`status code=503`, Postgres
- * `code=23505`) it is left alone. A known count name with an unquoted all-digit value is a count
- * (`max_tokens=4096`), not a credential — chosen over a documented
- * over-match because LLM and quota errors carry exactly these. A count name
- * ends in `tokens` or `keys` AND contains `max`, `prompt`, `completion` or
- * `total`; every other plural stays masked (`api_tokens=123456`,
- * `passwords=4821`), and so does a quoted count (`max_tokens="4096"`).
+ * URL query, after `&amp;`, or in a form body where its value ends at `&`
+ * (or `&amp;`) and another `name=` (`code=…&grant_type=…`); elsewhere
+ * (`status code=503`, Postgres `code=23505`) it is left alone. A known count
+ * name with an unquoted all-digit value is a count (`max_tokens=4096`), not
+ * a credential — chosen over a documented over-match because LLM and quota
+ * errors carry exactly these. A count name ends in `tokens` or `keys` AND
+ * contains `max`, `prompt`, `completion` or `total`; every other plural stays
+ * masked (`api_tokens=123456`, `passwords=4821`), and so does a quoted count
+ * (`max_tokens="4096"`).
  *
  * **Not seen.** This net is a shape rule for `name=value`. It does not see a
  * JSON `"token":"…"`, a header- or YAML-style `name: value`, an
