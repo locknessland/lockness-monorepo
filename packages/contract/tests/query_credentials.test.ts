@@ -378,6 +378,22 @@ Deno.test('#478 a plural stem with an all-digit value is a count, not a secret',
     assertEquals(redactQueryCredentials('token=4096'), 'token=***')
 })
 
+Deno.test('#494 an escaped quote inside an escaped-quote value does not end it', () => {
+    // `--password="ab\"<secret>"` serialised: the inner `\"` becomes `\\\"`.
+    const text = JSON.stringify(`--password="ab\\"${M}" --x`)
+    assertEquals(redactQueryCredentials(text), '"--password=\\"***\\" --x"')
+    assertNoMarker(render(text))
+    // An escaped backslash before the closer is content, not an escape of it.
+    assertEquals(
+        redactQueryCredentials(JSON.stringify(`--password="C:\\\\" --x`)),
+        '"--password=\\"***\\" --x"',
+    )
+    assertEquals(
+        redactQueryCredentials(JSON.stringify(`token="a\\nb${M}" next=1`)),
+        '"token=\\"***\\" next=1"',
+    )
+})
+
 Deno.test('#494 an OAuth `code` after an HTML-escaped `&amp;` is in a query', () => {
     assertEquals(
         redactQueryCredentials(`<a href="/cb?state=1&amp;code=${M}">`),

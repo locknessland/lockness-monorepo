@@ -329,16 +329,34 @@ function quotedValue(text: string, at: number): QuotedValue | undefined {
 }
 
 /**
- * Where an escaped-quote value ends: the next escaped twin of its opener, or
- * the end of the text.
+ * Where an escaped-quote value ends: the escaped twin of its opener, or the
+ * end of the text.
+ *
+ * {@link closingQuote}'s escape rule, one level up. In serialised text a
+ * backslash is itself written `\\`, so `\\` escapes the unit after it — one
+ * character, or a whole `\x` pair — and `\\\"` is an escaped quote inside
+ * the value, not its end. Any other `\x` pair is one serialised character.
  *
  * @param text - The text being scanned.
  * @param open - The index of the opener's backslash.
  * @returns The index of the closer's backslash, or the text's length.
  */
 function closingEscapedQuote(text: string, open: number): number {
-    const close = text.indexOf(`\\${text[open + 1]}`, open + 2)
-    return close < 0 ? text.length : close
+    const quote = text[open + 1]
+    let j = open + 2
+    while (j < text.length) {
+        if (text[j] !== '\\') {
+            j++
+        } else if (text[j + 1] === quote) {
+            return j
+        } else if (text[j + 1] === '\\') {
+            // A serialised backslash: step over it and the unit it escapes.
+            j += text[j + 2] === '\\' ? 4 : 3
+        } else {
+            j += 2
+        }
+    }
+    return text.length
 }
 
 /**
