@@ -62,9 +62,15 @@ USER lockness
 # Expose the application port
 EXPOSE 8888
 
-# Health check
+# Health check — liveness only, so it polls /health and never /ready.
+# A failing Docker health check gets the container restarted, so it must track
+# whether the process is up and nothing else. /health touches no dependency.
+# /ready probes the database: polled from here it would wake a scale-to-zero
+# database on every interval, and restart a healthy process whenever the
+# database is briefly unavailable. /ready belongs to a load balancer or an
+# orchestrator readiness gate.
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD deno eval "const r = await fetch('http://localhost:8888/'); if (!r.ok) Deno.exit(1);" || exit 1
+    CMD deno eval "const r = await fetch('http://localhost:8888/health'); if (!r.ok) Deno.exit(1);" || exit 1
 
 # Environment variables
 ENV DENO_ENV=production
