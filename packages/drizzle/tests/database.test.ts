@@ -732,3 +732,30 @@ Deno.test('#426 an import error rejected as a string that holds the password nev
     })
     assertNoFragment(`${result.error}\n${logged}`, 'connect()')
 })
+
+Deno.test('#426 an error name holding the password withholds the message, and is not shown', async () => {
+    // The name is driver text like the message. Here it is not
+    // identifier-shaped, so the shown-name rule would drop it anyway — the
+    // check on the name is all that stands between it and the render, which
+    // would print it in front of a message holding nothing.
+    const thrown = new Error('connection refused')
+    thrown.name = `auth failed for ${DECODED}`
+    const message = await probeFailure(ENCODED_DSN, thrown)
+    assertEquals(message, probeWithheld())
+    assertNoFragment(message, 'probe()')
+})
+
+Deno.test('#426 a non-string error name falls back to Error', async () => {
+    // An application subclass can assign anything to `name`. It is read as
+    // `Error`, the coercion `renderError` makes — never String()-ed into the
+    // render, and never handed to the credential check as a non-string.
+    const names: unknown[] = [42, { toString: () => DECODED }]
+    for (const name of names) {
+        const thrown = Object.assign(new Error('connection refused'), { name })
+        assertEquals(
+            await probeFailure(ENCODED_DSN, thrown),
+            'Error: connection refused',
+            String(name),
+        )
+    }
+})
