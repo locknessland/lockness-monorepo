@@ -38,7 +38,13 @@ User-facing documentation: [README.md](README.md) ·
   - the switch is read outside the catch-all — every command then needs
     `--allow-env`;
   - an unrecognised switch value throws — it would replace the error being
-    reported. It reads as off and the hint becomes a notice;
+    reported. It reads as off and the hint becomes a notice. The same holds for
+    a read that fails (`InvalidData` on bytes that are not valid Unicode): every
+    throw but `NotCapable` becomes a `<not valid Unicode>` / `<unreadable>`
+    notice (#508);
+  - the switch is read with a bare `Deno.env.get` — in a terminal Deno then
+    prompts for the permission mid-report. `readEnvWithoutPrompt` asks
+    `Deno.permissions.querySync` first;
   - a state prints twice or returns other than `1` — scripts read the status,
     and `cli_dispatch.test.ts` pins one `console.error` per state.
 - **`command_failure.ts` imports nothing.** It is published as
@@ -100,7 +106,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-15 test files for 40 source files:
+15 test files for 41 source files:
 
 - `packages/cli/tests/app_file.test.ts`
 - `packages/cli/tests/cli_dispatch.test.ts`

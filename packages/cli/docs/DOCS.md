@@ -254,7 +254,9 @@ or driver code (`ECONNREFUSED`, `23505`), and its message, then at most two
 `cause` links rendered the same way. A DSN's userinfo and any credential
 `name=value` pair (`token=`, `password=`, `api_key=`, …) are replaced with `***`
 in every link. The next lines are up to 10 stack frames of the top-level error,
-redacted the same way, with a `data:` URL collapsed to `data:…`.
+redacted the same way, with a `data:` URL collapsed to `data:…` and the frame's
+`:line:col`. A message line that looks like a frame is part of the message, so
+it is truncated and redacted with it and never printed as a frame.
 
 It shows less than the raw error does: no other own property (`detail`, `hint`,
 `parameters`), no frames of a cause, no `AggregateError` members, and long
@@ -288,7 +290,11 @@ LOCKNESS_CLI_RAW_ERRORS=1 ./nessy db:seed
 The switch is off unless it is recognisably on. `0`, `false`, `off`, `no` or an
 empty value keep it off. Any other value also keeps it off and replaces the hint
 with a notice naming the value, so a typo is visible instead of silently
-ignored. A process without `--allow-env` reads it as off.
+ignored. A value that cannot be read at all, such as bytes that are not valid
+Unicode, also keeps it off, and the notice shows it as `<not valid Unicode>`;
+the command's own error still prints. A process that was not granted env access
+to the variable reads it as off. The CLI checks the permission first, so it
+never shows a permission prompt in the middle of an error report.
 
 ### Packages that cannot import `@lockness/cli`
 
