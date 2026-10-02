@@ -8,7 +8,10 @@
  */
 
 import type { BootstrapStep } from '../types.ts'
-import { tryImportOptionalPackage } from '../helpers.ts'
+import {
+    defaultImportModule,
+    loadConfiguredPackage,
+} from '../optional_packages.ts'
 
 /**
  * Devtools enablement step.
@@ -18,7 +21,9 @@ import { tryImportOptionalPackage } from '../helpers.ts'
  * Responsibilities:
  * - Import @lockness/devtools if devtools is enabled
  * - Enable devtools in development mode
- * - Skip gracefully if package not installed or not in development
+ * - Skip outside development — nothing is imported there
+ * - Refuse the boot in development if `devtools` is set and the package does
+ *   not resolve
  */
 export const devtoolsStep: BootstrapStep = {
     id: 'devtools',
@@ -34,11 +39,12 @@ export const devtoolsStep: BootstrapStep = {
             return
         }
 
-        const devtoolsModule = await tryImportOptionalPackage<{
+        const devtoolsModule = await loadConfiguredPackage<{
             enableDevtools: (hono: unknown) => void
         }>(
-            '@lockness/devtools',
+            context.config,
             'devtools',
+            context.importModule ?? defaultImportModule,
         )
 
         if (!devtoolsModule) {

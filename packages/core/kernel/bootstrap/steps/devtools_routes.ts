@@ -8,7 +8,10 @@
  */
 
 import type { BootstrapStep } from '../types.ts'
-import { tryImportOptionalPackage } from '../helpers.ts'
+import {
+    defaultImportModule,
+    loadConfiguredPackage,
+} from '../optional_packages.ts'
 
 /**
  * Devtools route collection step.
@@ -34,11 +37,12 @@ export const devtoolsRoutesStep: BootstrapStep = {
             return
         }
 
-        const devtoolsModule = await tryImportOptionalPackage<{
+        const devtoolsModule = await loadConfiguredPackage<{
             collectAppRoutes: (app: unknown) => void
         }>(
-            '@lockness/devtools',
+            context.config,
             'devtools',
+            context.importModule ?? defaultImportModule,
         )
 
         if (!devtoolsModule) {

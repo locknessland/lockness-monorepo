@@ -5,8 +5,12 @@
  * @since 0.2.0
  */
 
-import type { BootstrapStep } from '../types.ts'
+import type { BootstrapContext, BootstrapStep } from '../types.ts'
 import { tryImportOptionalPackage } from '../helpers.ts'
+import {
+    defaultImportModule,
+    loadConfiguredPackage,
+} from '../optional_packages.ts'
 import { registerDisposable } from '@lockness/contract'
 import { SHUTDOWN_PRIORITY } from '../../shutdown_registry.ts'
 
@@ -19,23 +23,30 @@ import { SHUTDOWN_PRIORITY } from '../../shutdown_registry.ts'
  * declared and unused, and every scheduled-task failure in every application
  * falls back to raw `console.error`.
  *
+ * Opt-in through `logger: true` (#505). It used to switch on whenever
+ * `@lockness/logger` happened to be in the import map, so adding the package
+ * for an unrelated reason rewired scheduler failures; now the kernel says so.
+ *
+ * @param context - The bootstrap context: its `logger` key and its importer.
  * @returns A reporter backed by the application's logger, or `undefined` when
- * `@lockness/logger` is not installed — in which case the Scheduler's own
- * console fallback applies.
+ * the kernel does not set `logger` — in which case the Scheduler's own console
+ * fallback applies.
+ * @throws {MissingOptionalPackageError} When `logger` is set and
+ * `@lockness/logger` does not resolve.
  */
-async function buildReporter(): Promise<
+async function buildReporter(context: BootstrapContext): Promise<
     | {
         error(message: string, fields: Record<string, unknown>): void
         warn(message: string, fields: Record<string, unknown>): void
     }
     | undefined
 > {
-    const loggerModule = await tryImportOptionalPackage<{
+    const loggerModule = await loadConfiguredPackage<{
         logger: () => {
             error: (m: string, f?: Record<string, unknown>) => Promise<void>
             warn: (m: string, f?: Record<string, unknown>) => Promise<void>
         }
-    }>('@lockness/logger', 'scheduler logging')
+    }>(context.config, 'logger', context.importModule ?? defaultImportModule)
 
     if (!loggerModule) return undefined
 
@@ -60,9 +71,10 @@ async function buildReporter(): Promise<
  * Responsibilities:
  * - Skip entirely when `SCHEDULER_ENABLED` is set to a falsy value, so a
  *   multi-replica operator has a one-variable answer rather than a code change
- * - Wire the application's logger into the Scheduler's reporter port, so
- *   failures do not fall back to raw `console.error` (FR-020) — unless the
- *   application already installed a reporter of its own, which wins
+ * - With `logger: true`, wire the application's logger into the Scheduler's
+ *   reporter port, so failures do not fall back to raw `console.error`
+ *   (FR-020) — unless the application already installed a reporter of its
+ *   own, which wins
  * - Discover from `schedulesDir`, and register the explicit `schedules` list
  * - Start the scheduler and log the **armed** count unconditionally
  * - **Re-throw** parse and registration failures. A schedule that cannot be
@@ -116,7 +128,12 @@ export const schedulerStep: BootstrapStep = {
         // tells people to install with `setScheduler(new Scheduler({ … }))`,
         // which was silently overwritten whenever @lockness/logger happened to
         // be present. `hasReporter` is what makes the application's choice win.
-        const reporter = await buildReporter()
+        //
+        // Built even when the application's reporter will win: a `logger` key
+        // naming an absent package is a configuration error either way, and
+        // refusing it only sometimes would make the refusal depend on code
+        // the operator is not looking at.
+        const reporter = await buildReporter(context)
         if (reporter && !scheduler().hasReporter) {
             scheduler().setReporter(reporter)
         }

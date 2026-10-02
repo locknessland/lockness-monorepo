@@ -26,17 +26,22 @@ function contextWith(config: Record<string, unknown>): BootstrapContext {
 
 /**
  * Run the step against a fresh shared scheduler, then put the process-wide
- * instance back. `schedulesDir` names a directory that does not exist, which
+ * instance back. `config` defaults to `{ logger: true }` — the opt-in that
+ * wires the logger in since #505. `schedulesDir` names a directory that does not exist, which
  * the step treats as "this application has no scheduled tasks".
  */
 async function withBootedScheduler(
     install: Scheduler,
     run: () => Promise<void>,
+    config: Record<string, unknown> = { logger: true },
 ): Promise<void> {
     setScheduler(install)
     try {
         await schedulerStep.run(
-            contextWith({ schedulesDir: './tmp/does-not-exist-schedules' }),
+            contextWith({
+                ...config,
+                schedulesDir: './tmp/does-not-exist-schedules',
+            }),
         )
         await run()
     } finally {
@@ -45,7 +50,7 @@ async function withBootedScheduler(
     }
 }
 
-Deno.test('schedulerStep - boots with a reporter installed, so failures never reach console.error', async () => {
+Deno.test('schedulerStep - logger: true boots with a reporter installed, so failures never reach console.error', async () => {
     const errors: unknown[][] = []
     const originalError = console.error
     console.error = (...args: unknown[]) => void errors.push(args)
@@ -119,4 +124,14 @@ Deno.test("schedulerStep - an application's own reporter is not overwritten", as
             "the application's reporter still receives failures",
         )
     })
+})
+
+Deno.test('schedulerStep - without logger: true no reporter is wired, and the logger is not imported', async () => {
+    // #505: the logger used to be wired whenever @lockness/logger resolved —
+    // present in the import map for any reason. Now only the kernel key turns
+    // it on, and the scheduler keeps its own console fallback otherwise.
+    await withBootedScheduler(new Scheduler(), () => {
+        assertEquals(scheduler().hasReporter, false)
+        return Promise.resolve()
+    }, {})
 })

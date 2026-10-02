@@ -9,7 +9,11 @@
  */
 
 import type { BootstrapStep } from '../types.ts'
-import { getDatabaseUrl, tryImportOptionalPackage } from '../helpers.ts'
+import { getDatabaseUrl } from '../helpers.ts'
+import {
+    defaultImportModule,
+    loadConfiguredPackage,
+} from '../optional_packages.ts'
 import { container } from '@lockness/container'
 import { registerHealthCheck } from '@lockness/contract'
 import { SHUTDOWN_PRIORITY } from '../../shutdown_registry.ts'
@@ -24,18 +28,15 @@ import { SHUTDOWN_PRIORITY } from '../../shutdown_registry.ts'
  * - Configure the database client using URL from config or environment —
  *   with zero round trips (#420)
  * - Register the `database` readiness check behind `/ready`
- * - Skip gracefully if package not installed
+ * - Refuse the boot if `database` is set and the package does not resolve
  */
 export const databaseStep: BootstrapStep = {
     id: 'database',
     order: 100,
 
     async run(context) {
-        if (!context.config.database) {
-            return
-        }
-
-        const drizzleModule = await tryImportOptionalPackage<{
+        const setting = context.config.database
+        const drizzleModule = await loadConfiguredPackage<{
             Database: new () => {
                 connect(
                     url: string,
@@ -46,11 +47,13 @@ export const databaseStep: BootstrapStep = {
                 probe(): Promise<unknown>
             }
         }>(
-            '@lockness/drizzle',
+            context.config,
             'database',
+            context.importModule ?? defaultImportModule,
         )
-
-        if (!drizzleModule) {
+        // `!setting` narrows the type only: the loader already returned null
+        // for an unset key, having imported nothing.
+        if (!drizzleModule || !setting) {
             return
         }
 
@@ -58,15 +61,13 @@ export const databaseStep: BootstrapStep = {
         const db = container.get(Database)
 
         // Determine connection URL
-        const url = getDatabaseUrl(context.config.database)
+        const url = getDatabaseUrl(setting)
 
         // Connect if URL is available. Pass the configured dialect so the boot
         // path honours `driver`; the CLI path relies on URL-scheme inference.
         // `config.database` may be `true` (defaults shorthand) — only an object
         // carries a driver.
-        const driver = typeof context.config.database === 'object'
-            ? context.config.database.driver
-            : undefined
+        const driver = typeof setting === 'object' ? setting.driver : undefined
         if (url) {
             // Configure only — boot does NOT probe (#420). `connect()` builds a
             // lazy client and makes zero round trips: on a scale-to-zero
@@ -132,16 +133,24 @@ export const databaseTeardownStep: BootstrapStep = {
             throw new Error('App instance not created')
         }
 
-        const drizzleModule = await tryImportOptionalPackage<{
-            Database: new () => unknown
-        }>('@lockness/drizzle', 'database')
-        if (!drizzleModule) return
-
         // Only when this boot actually connected. Registering unconditionally
         // would call close() on a service that was never opened.
+        //
+        // Checked BEFORE the import (#505). The import used to come first, so
+        // every boot without a database probed for @lockness/drizzle once more
+        // here — the fourth "not found - skipping" line on the slim kit.
         const dbConfig = context.config.database
-        if (dbConfig === undefined) return
+        if (!dbConfig) return
         if (!getDatabaseUrl(dbConfig)) return
+
+        const drizzleModule = await loadConfiguredPackage<{
+            Database: new () => unknown
+        }>(
+            context.config,
+            'database',
+            context.importModule ?? defaultImportModule,
+        )
+        if (!drizzleModule) return
 
         const db = container.get(drizzleModule.Database) as {
             close?: () => void | Promise<void>

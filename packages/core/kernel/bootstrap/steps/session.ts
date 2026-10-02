@@ -14,8 +14,11 @@ import {
     isProduction,
     type NormalizedSessionConfig,
     normalizeSessionConfig,
-    tryImportOptionalPackage,
 } from '../helpers.ts'
+import {
+    defaultImportModule,
+    loadConfiguredPackage,
+} from '../optional_packages.ts'
 
 /**
  * Session configuration step.
@@ -29,18 +32,15 @@ import {
  * - Supply a per-process random key outside production
  * - Warn once when the app sets `secure: false` outside explicit development
  * - Configure session manager (the `secure` default is the session package's)
- * - Skip gracefully if package not installed
+ * - Refuse the boot if `session` is set and the package does not resolve
  */
 export const sessionStep: BootstrapStep = {
     id: 'session',
     order: 110,
 
     async run(context) {
-        if (!context.config.session) {
-            return
-        }
-
-        const sessionModule = await tryImportOptionalPackage<{
+        const setting = context.config.session
+        const sessionModule = await loadConfiguredPackage<{
             configureSession: (config: NormalizedSessionConfig) => void
             assertUsableSecret: (
                 secret: string | undefined,
@@ -48,18 +48,20 @@ export const sessionStep: BootstrapStep = {
             ) => Uint8Array
             generateAppKey: () => string
         }>(
-            '@lockness/session',
+            context.config,
             'session',
+            context.importModule ?? defaultImportModule,
         )
-
-        if (!sessionModule) {
+        // `!setting` narrows the type only: the loader already returned null
+        // for an unset key, having imported nothing.
+        if (!sessionModule || !setting) {
             return
         }
 
         const { assertUsableSecret, configureSession, generateAppKey } =
             sessionModule
 
-        const sessionConfig = normalizeSessionConfig(context.config.session)
+        const sessionConfig = normalizeSessionConfig(setting)
 
         // Where the operator would go to fix it: the kernel config if they set
         // one there, otherwise the environment.
@@ -67,10 +69,7 @@ export const sessionStep: BootstrapStep = {
         // development fallback supplies the key, so a later failure does not
         // send them to an APP_KEY they never set.
         let resolvedFrom: 'config' | 'app-key' | 'generated' =
-            typeof context.config.session === 'object' &&
-                context.config.session.secret
-                ? 'config'
-                : 'app-key'
+            typeof setting === 'object' && setting.secret ? 'config' : 'app-key'
 
         // The one place that can decide this, and therefore the only place that
         // does.
