@@ -31,6 +31,7 @@
         "@lockness/auth": "jsr:@lockness/auth@{{ locknessVersion }}",
         "@lockness/auth-provider": "jsr:@lockness/auth-provider@{{ locknessVersion }}",
         "@lockness/auth-provider/drizzle": "jsr:@lockness/auth-provider@{{ locknessVersion }}/drizzle",
+        "@lockness/cache": "jsr:@lockness/cache@{{ locknessVersion }}",
         "@lockness/container": "jsr:@lockness/container@{{ locknessVersion }}",
         "@lockness/drizzle": "jsr:@lockness/drizzle@{{ locknessVersion }}",
         "@lockness/session": "jsr:@lockness/session@{{ locknessVersion }}",

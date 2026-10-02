@@ -28,6 +28,7 @@
         "@lockness/auth": "jsr:@lockness/auth@{{ locknessVersion }}",
         "@lockness/auth-provider": "jsr:@lockness/auth-provider@{{ locknessVersion }}",
         "@lockness/auth-provider/drizzle": "jsr:@lockness/auth-provider@{{ locknessVersion }}/drizzle",
+        "@lockness/cache": "jsr:@lockness/cache@{{ locknessVersion }}",
         "@lockness/container": "jsr:@lockness/container@{{ locknessVersion }}",
         "@lockness/drizzle": "jsr:@lockness/drizzle@{{ locknessVersion }}",
         "@lockness/openapi": "jsr:@lockness/openapi@{{ locknessVersion }}",
@@ -35,6 +36,9 @@
         "drizzle-kit": "npm:drizzle-kit@0.31.10",
         "postgres": "npm:postgres@^3.4.4"
     },
+    "unstable": [
+        "kv"
+    ],
     "lockness": {
         "packages": ["drizzle"]
     },
