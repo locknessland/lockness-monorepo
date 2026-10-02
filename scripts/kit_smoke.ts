@@ -1278,20 +1278,70 @@ export async function pollHealthy(
     }
 }
 
+/** Runs one `docker` command and reports how it ended. */
+export type DockerRunner = (
+    args: string[],
+) => Promise<{ success: boolean; stderr: string }>
+
 /**
  * Run `docker` with no tracker, so it still runs once the tracker has been
  * aborted — the cleanup after a signal is exactly when it must.
  */
-async function dockerUntracked(args: string[]): Promise<void> {
+const runDockerUntracked: DockerRunner = async (args) => {
+    const { success, stderr } = await new Deno.Command('docker', {
+        args,
+        stdout: 'null',
+        stderr: 'piped',
+    }).output()
+    return { success, stderr: new TextDecoder().decode(stderr) }
+}
+
+/**
+ * Remove one container or image this script created (`docker rm -f <name>`
+ * or `docker image rm -f <tag>`), and say so when that fails.
+ *
+ * "No such container / image" counts as removed: the object was never
+ * created (a build or a run that failed), so nothing is left over. Any other
+ * failure prints a warning naming the object and {@link DOCKER_LABEL}, so the
+ * leftover can be found and removed by hand. A missing `docker` binary
+ * (`NotFound`) means nothing was created either; every other error is thrown.
+ *
+ * @param args - The `docker` arguments; the last one is the name or tag.
+ * @param runner - Runs the command (the real `docker` by default).
+ * @param warn - Where the warning goes.
+ * @returns Whether the object is gone.
+ * @throws {Error} Anything the runner throws other than `Deno.errors.NotFound`.
+ *
+ * @example
+ * ```ts
+ * await removeDockerObject(['rm', '-f', 'lockness-kit-smoke-slim-1a2b3c4d'])
+ * ```
+ */
+export async function removeDockerObject(
+    args: string[],
+    runner: DockerRunner = runDockerUntracked,
+    warn: (message: string) => void = console.warn,
+): Promise<boolean> {
+    let result: { success: boolean; stderr: string }
     try {
-        await new Deno.Command('docker', {
-            args,
-            stdout: 'null',
-            stderr: 'null',
-        }).output()
-    } catch {
-        // No docker binary: there is nothing of ours to remove either.
+        result = await runner(args)
+    } catch (error) {
+        // No docker binary: this script cannot have created anything.
+        if (error instanceof Deno.errors.NotFound) return true
+        throw error
     }
+    if (result.success || /No such (container|image)/i.test(result.stderr)) {
+        return true
+    }
+    const target = args[args.length - 1]
+    warn(
+        `⚠️  docker ${
+            args.join(' ')
+        } failed: ${target} may be left over. Find leftovers with ` +
+            `docker ps -a --filter label=${DOCKER_LABEL} and ` +
+            `docker image ls --filter label=${DOCKER_LABEL}.\n${result.stderr.trim()}`,
+    )
+    return false
 }
 
 /**
@@ -1306,12 +1356,12 @@ export class DockerLeftovers {
 
     /** `docker rm -f` every container, then `docker image rm -f` every image. */
     async removeAll(): Promise<void> {
-        for (const id of [...this.containers]) {
-            await dockerUntracked(['rm', '-f', id])
-            this.containers.delete(id)
+        for (const name of [...this.containers]) {
+            await removeDockerObject(['rm', '-f', name])
+            this.containers.delete(name)
         }
         for (const tag of [...this.images]) {
-            await dockerUntracked(['image', 'rm', '-f', tag])
+            await removeDockerObject(['image', 'rm', '-f', tag])
             this.images.delete(tag)
         }
     }
@@ -1344,8 +1394,12 @@ async function dockerProof(
     leftovers: DockerLeftovers,
 ): Promise<{ ok: boolean; lines: string[] }> {
     const lines: string[] = []
-    const tag = `lockness-kit-smoke-${kit}:${crypto.randomUUID().slice(0, 8)}`
-    let container: string | undefined
+    const runId = crypto.randomUUID().slice(0, 8)
+    const tag = `lockness-kit-smoke-${kit}:${runId}`
+    // Named, and recorded before `docker run` starts: a signal that lands
+    // while it runs still finds the container by this name.
+    const container = `lockness-kit-smoke-${kit}-${runId}`
+    let started = false
     try {
         const buildStarted = Date.now()
         leftovers.images.add(tag)
@@ -1370,11 +1424,15 @@ async function dockerProof(
             }s`,
         )
 
-        const started = await run(
+        leftovers.containers.add(container)
+        started = true
+        const ran = await run(
             'docker',
             [
                 'run',
                 '-d',
+                '--name',
+                container,
                 '--label',
                 DOCKER_LABEL,
                 '--network',
@@ -1386,12 +1444,10 @@ async function dockerProof(
             dir,
             { APP_KEY: generateAppKey() },
         )
-        if (!started.ok) {
-            lines.push(`  ❌ docker run\n${tail(started.output)}`)
+        if (!ran.ok) {
+            lines.push(`  ❌ docker run\n${tail(ran.output)}`)
             return { ok: false, lines }
         }
-        container = started.output.trim().split('\n').pop()!.trim()
-        leftovers.containers.add(container)
 
         const id = container
         const healthy = await pollHealthy(async () => {
@@ -1428,11 +1484,11 @@ async function dockerProof(
         )
         return { ok: false, lines }
     } finally {
-        if (container !== undefined) {
-            await dockerUntracked(['rm', '-f', container])
+        if (started) {
+            await removeDockerObject(['rm', '-f', container])
             leftovers.containers.delete(container)
         }
-        await dockerUntracked(['image', 'rm', '-f', tag])
+        await removeDockerObject(['image', 'rm', '-f', tag])
         leftovers.images.delete(tag)
     }
 }
