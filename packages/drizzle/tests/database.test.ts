@@ -1,6 +1,6 @@
 /**
- * @fileoverview #301/#302/#420/#425 — what `connect()` does on the wire, and
- * what a failure is allowed to say.
+ * @fileoverview #301/#302/#420/#425/#426 — what `connect()` does on the wire,
+ * and what a failure is allowed to say.
  *
  * #420: `connect()` only configures a lazy client and makes **zero** round
  * trips; `probe()` is the one method that talks to the database. So a failure
@@ -19,6 +19,9 @@
  * application may put it somewhere a log line would never go. It is also the
  * site that holds the DSN, which is what lets it redact by identity where the
  * shared encoder can only redact by pattern.
+ *
+ * #426: a driver that rejects with a bare string, and an error name that holds
+ * the password or is not a string at all, take the same check.
  *
  * @module @lockness/drizzle/tests/database
  */

@@ -13,6 +13,11 @@
  * That is where #301 lived: the rule looked right, and the class it was built on
  * quietly contained U+FEFF.
  *
+ * The `#426` rows close the gaps the #420 review found in drizzle's failure
+ * render: `probe()` throwing the driver's own error object, the non-Error
+ * branch of `readHead` (a driver that rejects with a string), and the error
+ * name — checked for the password, and coerced when it is not a string.
+ *
  * ```bash
  * deno run -A packages/contract/tests/mutations/dsn_redaction_301_303.ts
  * ```
@@ -31,7 +36,29 @@ const SUITES = [
         .pathname,
     new URL('../../../drizzle/tests/database.test.ts', import.meta.url)
         .pathname,
+    // Holds SC-006, the one test that checks WHICH object `probe()` throws —
+    // not only what its message says (#426).
+    new URL('../../../drizzle/tests/multi_db.test.ts', import.meta.url)
+        .pathname,
 ]
+
+/** `readHead`'s non-Error branch: a driver that rejects with a bare value. */
+const NON_ERROR_HEAD = 'return { name: undefined, message: String(raw) }'
+
+/** The held check, over the name and every piece of the message. */
+const HELD_CHECK =
+    '(head.name !== undefined && holds(head.name)) || pieces.some(holds)'
+
+/** `readHead`'s coercion of an application-assigned, non-string name. */
+const NAME_COERCION = "typeof raw.name === 'string' ? raw.name : 'Error'"
+
+/** The #426 test that drives a probe string holding the password. */
+const STRING_WITHHELD =
+    '#426 a probe rejecting with a string that holds the password is withheld'
+
+/** The #426 test that drives a probe string holding only the exact DSN. */
+const STRING_SHOWN =
+    '#426 a probe rejecting with a string that holds only the exact DSN'
 
 const MUTATIONS: Mutation[] = [
     {
@@ -236,6 +263,109 @@ const MUTATIONS: Mutation[] = [
         // `probe()` with an error that carries a cause.
         killedBy:
             '#420 with no DSN held, the render is untouched and head-only',
+    },
+    // ---- #426: the branches of drizzle's failure render no test reached --
+    {
+        label:
+            '#426 SECURITY — probe() re-throws the raw driver error, not the render',
+        file: DRIZZLE,
+        edits: [[
+            'throw new Error(renderFailure(error, held, probeWithheld))',
+            'throw error',
+        ]],
+        // The error object carries the credential on a property and in its
+        // cause, which no message assertion sees.
+        killedBy:
+            'SC-006: a connection failure does not leak credentials from the error object',
+    },
+    {
+        label:
+            '#426 SECURITY — the held check skipped for a non-Error: a probe string leaks',
+        file: DRIZZLE,
+        edits: [[
+            HELD_CHECK,
+            'head.name !== undefined && (holds(head.name) || pieces.some(holds))',
+        ]],
+        killedBy: STRING_WITHHELD,
+    },
+    {
+        label:
+            '#426 SECURITY — the same skip, on the import error ConnectionResult returns',
+        file: DRIZZLE,
+        edits: [[
+            HELD_CHECK,
+            'head.name !== undefined && (holds(head.name) || pieces.some(holds))',
+        ]],
+        killedBy:
+            '#426 an import error rejected as a string that holds the password',
+    },
+    {
+        label: '#426 a non-Error reads as unreadable — every string a sentinel',
+        file: DRIZZLE,
+        edits: [[NON_ERROR_HEAD, 'return undefined']],
+        killedBy: STRING_SHOWN,
+    },
+    {
+        label: '#426 a non-Error borrows the name `Error` it never had',
+        file: DRIZZLE,
+        edits: [[
+            NON_ERROR_HEAD,
+            "return { name: 'Error', message: String(raw) }",
+        ]],
+        killedBy: STRING_WITHHELD,
+    },
+    {
+        label: "#426 a non-Error's text is dropped",
+        file: DRIZZLE,
+        edits: [[NON_ERROR_HEAD, "return { name: undefined, message: '' }"]],
+        killedBy: STRING_SHOWN,
+    },
+    {
+        label:
+            '#426 a non-Error rendered raw — the identity replacement skipped',
+        file: DRIZZLE,
+        edits: [[
+            'error = head.name === undefined\n            ? message',
+            'error = head.name === undefined\n            ? raw',
+        ]],
+        killedBy: STRING_SHOWN,
+    },
+    {
+        label:
+            '#426 SECURITY — the check on the name dropped: a name holding the password renders',
+        file: DRIZZLE,
+        edits: [[HELD_CHECK, 'pieces.some(holds)']],
+        killedBy: '#426 an error name holding the password withholds',
+    },
+    {
+        label: '#426 SECURITY — the withheld sentence shows the unvetted name',
+        file: DRIZZLE,
+        edits: [[
+            'return withheld(shownName(head.name, held.secrets))',
+            'return withheld(head.name)',
+        ]],
+        killedBy: '#426 an error name holding the password withholds',
+    },
+    {
+        label: '#426 a non-string name handed to the check uncoerced',
+        file: DRIZZLE,
+        edits: [[NAME_COERCION, 'raw.name']],
+        killedBy: '#426 a non-string error name falls back to Error',
+    },
+    {
+        label: '#426 a non-string name falls back to no name at all',
+        file: DRIZZLE,
+        edits: [[
+            NAME_COERCION,
+            "typeof raw.name === 'string' ? raw.name : undefined",
+        ]],
+        killedBy: '#426 a non-string error name falls back to Error',
+    },
+    {
+        label: '#426 a non-string name String()-ed into the render',
+        file: DRIZZLE,
+        edits: [[NAME_COERCION, 'String(raw.name)']],
+        killedBy: '#426 a non-string error name falls back to Error',
     },
 ]
 
