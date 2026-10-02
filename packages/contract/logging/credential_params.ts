@@ -86,14 +86,25 @@ export function isCredentialParamName(name: string): boolean {
 }
 
 /**
+ * The plurals a count is named with: `max_tokens`, S3's `max-keys`.
+ */
+const COUNT_PLURALS: readonly string[] = ['tokens', 'keys']
+
+/**
+ * The words that make a `tokens` or `keys` plural a count rather than a list
+ * of credentials: a limit or a tally, as LLM and quota errors report them.
+ */
+const COUNT_WORDS: readonly string[] = ['max', 'prompt', 'completion', 'total']
+
+/**
  * How a name matched the rule, which the net needs and drizzle does not.
  *
  * - `exact` — the whole name is `code`: an OAuth code only inside a URL.
- * - `plural` — it ends in a stem plus `s` only (`max_tokens`): an all-digit
+ * - `count` — a known count name (`max_tokens`, `max-keys`): an all-digit
  *   value is a count.
- * - `stem` — it ends in a stem.
+ * - `stem` — it ends in a stem, or in a stem plus `s`.
  */
-type NameMatch = 'exact' | 'plural' | 'stem'
+type NameMatch = 'exact' | 'count' | 'stem'
 
 /**
  * Normalise a name and say how it matched, if it did.
@@ -118,9 +129,25 @@ function classifyName(name: string): NameMatch | undefined {
     if (CREDENTIAL_STEMS.some((stem) => normalised.endsWith(stem))) {
         return 'stem'
     }
-    return CREDENTIAL_STEMS.some((stem) => normalised.endsWith(`${stem}s`))
-        ? 'plural'
-        : undefined
+    if (!CREDENTIAL_STEMS.some((stem) => normalised.endsWith(`${stem}s`))) {
+        return undefined
+    }
+    return isCountName(normalised) ? 'count' : 'stem'
+}
+
+/**
+ * Whether a normalised plural name counts something rather than lists
+ * credentials: it ends in `tokens` or `keys` AND names a limit or a tally.
+ *
+ * Both halves, because the count reason covers nothing wider: `api_tokens`
+ * and `passwords` are credentials whatever their value looks like.
+ *
+ * @param normalised - A normalised name that ends in a plural stem.
+ * @returns True for `maxtokens`, `prompttokens`, `maxkeys` and the like.
+ */
+function isCountName(normalised: string): boolean {
+    return COUNT_PLURALS.some((plural) => normalised.endsWith(plural)) &&
+        COUNT_WORDS.some((word) => normalised.includes(word))
 }
 
 /**
@@ -167,9 +194,12 @@ function classifyName(name: string): NameMatch | undefined {
  *
  * **Non-secrets kept on purpose.** A bare `code` is an OAuth code only in a
  * URL query; elsewhere (`status code=503`, Postgres `code=23505`) it is left
- * alone. A name that matches only through a plural stem with an all-digit
- * value is a count (`max_tokens=4096`), not a credential — chosen over a
- * documented over-match because LLM and quota errors carry exactly these.
+ * alone. A known count name with an unquoted all-digit value is a count
+ * (`max_tokens=4096`), not a credential — chosen over a documented
+ * over-match because LLM and quota errors carry exactly these. A count name
+ * ends in `tokens` or `keys` AND contains `max`, `prompt`, `completion` or
+ * `total`; every other plural stays masked (`api_tokens=123456`,
+ * `passwords=4821`), and so does a quoted count (`max_tokens="4096"`).
  *
  * **Not seen.** This net is a shape rule for `name=value`. It does not see a
  * JSON `"token":"…"`, a header- or YAML-style `name: value`, an
@@ -260,7 +290,7 @@ function redactPairs(text: string): string {
         const ends = url ? URL_VALUE_END : RAW_VALUE_END
         let end = valueStart
         while (end < text.length && !ends.has(text[end])) end++
-        if (match === 'plural' && isDigits(text, valueStart, end)) {
+        if (match === 'count' && isDigits(text, valueStart, end)) {
             // `max_tokens=4096` counts tokens; it is not one.
             i = end
             continue

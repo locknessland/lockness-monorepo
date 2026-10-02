@@ -377,3 +377,44 @@ Deno.test('#478 a plural stem with an all-digit value is a count, not a secret',
     assertNoMarker(render(`api_keys=${M}`))
     assertEquals(redactQueryCredentials('token=4096'), 'token=***')
 })
+
+Deno.test('#494 only a known count name keeps an all-digit value', () => {
+    // Counts: a `tokens` or `keys` plural named for a limit or a tally.
+    for (
+        const text of [
+            'max_tokens=4096',
+            'maxTokens=4096',
+            'max_completion_tokens=512',
+            'prompt_tokens=9000',
+            'completion_tokens=12',
+            'total_tokens=9012',
+            'max-keys=1000',
+        ]
+    ) {
+        assertEquals(redactQueryCredentials(text), text)
+    }
+    // Every other plural is a credential, digits or not: a PIN, an OTP, a
+    // numeric API key.
+    const digits = '12' + '3456'
+    for (
+        const name of [
+            'api_tokens',
+            'passwords',
+            'pwds',
+            'secrets',
+            'credentials',
+            'account_keys',
+        ]
+    ) {
+        assertEquals(
+            redactQueryCredentials(`${name}=${digits}`),
+            `${name}=***`,
+            name,
+        )
+    }
+    // The exemption is for unquoted values only.
+    assertEquals(
+        redactQueryCredentials('max_tokens="4096"'),
+        'max_tokens="***"',
+    )
+})
