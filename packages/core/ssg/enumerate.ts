@@ -204,15 +204,14 @@ export async function loadControllers(
             // Fatal, not warn-and-skip: a missing @Static controller would ship a
             // dist/ with holes and still report success (FR-012).
             //
-            // Rendered, never embedded raw (#478): the CLI dispatcher prints
-            // this message and its cause as they are. The cause is safe to
-            // keep only because `importAppFile` already turned a compile
-            // failure into an `AppFileCompileError` with no excerpt.
+            // Rendered, never embedded raw, and with no `cause` (#478): the
+            // CLI dispatcher prints a cause raw through `Deno.inspect`, and a
+            // module that throws while it evaluates can put a credential in
+            // it. The rendered chain is already in this message.
             throw new Error(
                 `SSG could not import controller "${safeForLog(entry.name)}": ${
                     renderError(error)
                 }`,
-                { cause: error },
             )
         }
 

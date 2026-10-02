@@ -9,7 +9,12 @@
  * fake marker assembled at run time, so the secret scan never sees one.
  */
 
-import { assert, assertRejects, assertStringIncludes } from '@std/assert'
+import {
+    assert,
+    assertEquals,
+    assertRejects,
+    assertStringIncludes,
+} from '@std/assert'
 import { join } from '@std/path'
 import { ControllerDiscovery } from '../routing/discovery.ts'
 import { loadControllers } from '../ssg/enumerate.ts'
@@ -124,6 +129,10 @@ Deno.test('#478 loadControllers (ssg) renders a credential pair, never embeds it
         const error = await assertRejects(() => loadControllers(abs), Error)
         assertNoMarker(error.message)
         assertStringIncludes(error.message, 'token=***')
+        // The CLI dispatcher prints a cause raw through Deno.inspect; the
+        // wrapper carries none, and its rendered message is the whole story.
+        assertEquals(error.cause, undefined)
+        assertNoMarker(Deno.inspect(error))
     })
 })
 
