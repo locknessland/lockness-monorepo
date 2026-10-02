@@ -412,24 +412,28 @@ const MAX_FRAMES = 50
 const MAX_FRAME = 300
 
 /**
- * A stack line that is a frame, not part of the header.
+ * A stack line shaped like a frame.
  *
- * V8 writes `Name: message` and then one `    at …` per frame. The header is
- * already rendered — redacted — as the head of the line, so repeating it from
- * the stack would print the message twice and a second time outside the
- * message cap. No `g` flag: it is used with `test`.
+ * V8 writes `Name: message` and then one `    at …` per frame. The shape alone
+ * does not make a line a frame: a message line can be shaped the same way, so
+ * `renderFrames` drops the header by its line count first and applies this only
+ * to what follows (#508). No `g` flag: it is used with `test`.
  */
 const FRAME_LINE = /^\s*at\s/
 
 /**
- * A `data:` URL in a frame (#488).
- *
- * A module imported from a `data:` URL is named by its whole source, so its
- * frames carry that source verbatim — and source holds literals no redaction
- * recognises. The URL is collapsed to `data:…`: the frame still says where it
- * ran, and none of what it ran.
+ * Where a `data:` URL starts in a frame (#488). Case-insensitive, because a URL
+ * scheme is.
  */
-const DATA_URL = /data:[^\s)]+/g
+const DATA_URL = /data:/i
+
+/**
+ * A frame's own `:line:col` position, with the `)` that closes a named frame.
+ *
+ * Anchored to the end of the line, so a `:7:7` inside inline source is never
+ * mistaken for it (#508).
+ */
+const POSITION_SUFFIX = /:\d+:\d+\)?$/
 
 /** What a stack whose read threw renders as, already indented. */
 const UNREADABLE_STACK = '    [unreadable stack]'
@@ -449,6 +453,30 @@ function frameCount(frames: number | undefined): number {
 }
 
 /**
+ * Collapse a `data:` URL in a frame to `data:…`, keeping the frame's position.
+ *
+ * A module imported from a `data:` URL is named by its whole source, so its
+ * frames carry that source verbatim — and source holds literals no redaction
+ * recognises. Everything from `data:` to the frame's own `:line:col` goes, or
+ * to the end of the line when there is no position: the frame still says
+ * where it ran, and none of what it ran.
+ *
+ * **Whatever the source holds** (#508). The collapse used to stop at the first
+ * space or `)`, and unencoded source is full of both, so everything after the
+ * first one printed. It is plain string slicing now, so no character the
+ * source can hold — a CR or U+2028 included — ends it early.
+ *
+ * @param frame - One trimmed frame.
+ * @returns The frame, its `data:` URL replaced by `data:…` and its position.
+ */
+function collapseDataUrl(frame: string): string {
+    const start = frame.search(DATA_URL)
+    if (start === -1) return frame
+    const position = POSITION_SUFFIX.exec(frame.slice(start + 'data:'.length))
+    return `${frame.slice(0, start)}data:…${position?.[0] ?? ''}`
+}
+
+/**
  * Render one frame: redacted, collapsed, capped, encoded.
  *
  * The order is the same as for a message, and for the same reason: both
@@ -461,16 +489,40 @@ function frameCount(frames: number | undefined): number {
 function renderFrame(line: string): string {
     const withoutUserinfo = redactDsnCredentials(line.trim())
     const withoutPairs = redactQueryCredentials(withoutUserinfo)
-    const collapsed = withoutPairs.replace(DATA_URL, 'data:…')
+    const collapsed = collapseDataUrl(withoutPairs)
     return safeForLog(capCodePoints(collapsed, MAX_FRAME))
+}
+
+/**
+ * How many leading stack lines are the header, not frames (#508).
+ *
+ * V8 writes the header as `Error.prototype.toString` of the error, so a
+ * message with newlines spans that many lines — and a message line shaped like
+ * `    at …` used to pass the frame filter. It then printed outside the message
+ * cap, unredacted as message, and pushed the real frames out. Counting the
+ * header's lines drops it whatever its lines look like.
+ *
+ * @param stack - The error's stack.
+ * @param header - `Error.prototype.toString` of the same error.
+ * @returns The header's line count when the stack starts with it, otherwise
+ *   `0`: a stack assigned from elsewhere has no header this can locate, and
+ *   the frame filter alone decides, as it did before.
+ */
+function headerLineCount(stack: string, header: string): number {
+    return stack.startsWith(header) ? header.split('\n').length : 0
 }
 
 /**
  * Render the head error's first `count` frames, one per line.
  *
+ * Frames come only from the lines after the header (`headerLineCount`), so
+ * message text is capped and redacted as message, never as frames.
+ *
  * **Total, like `renderOne`.** The `.stack` read is a property access on a
- * caught value, and a getter can throw; the catch returns a sentinel so the
- * line still says a stack was asked for and could not be read. Only an `Error`
+ * caught value, and a getter can throw; so can the `name` and `message` reads
+ * that build the header. The catch returns a sentinel so the line still says a
+ * stack was asked for and could not be read — without a header there is no
+ * telling message lines from frames, so none is guessed at. Only an `Error`
  * with a string `stack` has frames — anything else has none to offer.
  *
  * @param error - The head of the chain.
@@ -481,14 +533,17 @@ function renderFrame(line: string): string {
 function renderFrames(error: unknown, count: number): string {
     if (count === 0) return ''
     let stack: unknown
+    let header: string
     try {
         if (!(error instanceof Error)) return ''
         stack = error.stack
+        header = Error.prototype.toString.call(error)
     } catch {
         return `\n${UNREADABLE_STACK}`
     }
     if (typeof stack !== 'string') return ''
     return stack.split('\n')
+        .slice(headerLineCount(stack, header))
         .filter((line) => FRAME_LINE.test(line))
         .slice(0, count)
         .map((line) => `\n    ${renderFrame(line)}`)
@@ -607,9 +662,12 @@ export interface RenderErrorOptions {
      * and its text outside a URL is not redacted.
      *
      * Each frame goes through the same chain as a message: userinfo, then
-     * credential pairs, then a `data:` URL collapsed to `data:…`, then a cap
-     * of 300 code points, then `safeForLog`, indented four spaces. The header
-     * is never repeated, a cause's frames are never shown, a count that is not
+     * credential pairs, then a `data:` URL collapsed to `data:…` followed by
+     * the frame's own `:line:col`, then a cap of 300 code points, then
+     * `safeForLog`, indented four spaces. Frames are read only after the
+     * header's lines, so a message line shaped like a frame is never printed
+     * as one. The header is never repeated, a cause's frames are never shown,
+     * a count that is not
      * a positive integer means `0`, and a count above 50 is clamped. A `stack`
      * that cannot be read renders as `[unreadable stack]`.
      */

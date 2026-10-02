@@ -97,17 +97,89 @@ Deno.test('#488 redaction runs before the frame cap, so a straddling URL cannot 
     assertAbsent(out, pass.slice(0, 5))
 })
 
-Deno.test('#488 a data: URL frame collapses to data:…', () => {
+Deno.test('#488 a data: URL frame collapses to data:… and keeps its position', () => {
     const source = marker('src')
     const out = renderError(
         withFrames([
             `    at data:application/typescript;base64,${source}:1:5`,
             `    at run (data:text/javascript,const%20k=${source}:3:4)`,
+            // A `:line:col` inside the source is not the frame's own: only the
+            // one that ends the line is kept.
+            `    at mid (data:text/javascript,a:7:7 ${source}:8:9)`,
         ]),
         { frames: 10 },
     )
     assertAbsent(out, source)
-    assertEquals(frameLines(out), ['    at data:…', '    at run (data:…)'])
+    assertEquals(frameLines(out), [
+        '    at data:…:1:5',
+        '    at run (data:…:3:4)',
+        '    at mid (data:…:8:9)',
+    ])
+})
+
+Deno.test('#508 a data: URL collapses whatever characters its source holds', () => {
+    const source = marker('chars')
+    const out = renderError(
+        withFrames([
+            // No position suffix: the collapse runs to the end of the line.
+            `    at data:text/javascript,a b) ${source} (c`,
+            // `.` in a regex stops at CR and U+2028; the collapse must not.
+            `    at f (data:text/javascript,x\r  ${source}:2:3)`,
+            // A URL scheme is case-insensitive.
+            `    at DATA:text/javascript,${source}:4:5`,
+        ]),
+        { frames: 10 },
+    )
+    assertAbsent(out, source)
+    assertEquals(frameLines(out), [
+        '    at data:…',
+        '    at f (data:…:2:3)',
+        '    at data:…:4:5',
+    ])
+})
+
+/**
+ * Import a `data:` module that throws from a function, and return what it
+ * threw. A real Deno stack, so the test pins what the runtime prints, not a
+ * shape this file invented.
+ */
+async function throwFromDataModule(specifier: string): Promise<Error> {
+    try {
+        await import(specifier)
+    } catch (error) {
+        if (error instanceof Error) return error
+        throw error
+    }
+    throw new Error(`the data: module did not throw: ${specifier}`)
+}
+
+Deno.test('#508 a real unencoded data: module with a space and a ) before the secret prints none of it', async () => {
+    const secret = marker('raw')
+    const error = await throwFromDataModule(
+        `data:application/javascript,const k = "(x) ${secret}"; ` +
+            'function boom() { throw new Error("x") }; boom()',
+    )
+    // The precondition: the runtime does put the source in the frame.
+    assertStringIncludes(String(error.stack), secret)
+    const out = renderError(error, { frames: 10 })
+    assertAbsent(out, secret)
+    const frames = frameLines(out)
+    assert(frames.length >= 2, out)
+    assert(/^ {4}at boom \(data:…:\d+:\d+\)$/.test(frames[0]), out)
+    assert(/^ {4}at data:…:\d+:\d+$/.test(frames[1]), out)
+})
+
+Deno.test('#508 a real percent-encoded data: module prints none of its source', async () => {
+    const secret = marker('enc')
+    const error = await throwFromDataModule(
+        'data:application/javascript,' + encodeURIComponent(
+            `const k = "(x) ${secret}"; function boom() { throw new Error("x") }; boom()`,
+        ),
+    )
+    assertStringIncludes(String(error.stack), secret)
+    const out = renderError(error, { frames: 10 })
+    assertAbsent(out, secret)
+    assert(/^ {4}at boom \(data:…:\d+:\d+\)$/.test(frameLines(out)[0]), out)
 })
 
 Deno.test('#488 ANSI escapes and a carriage return in a frame are encoded', () => {
@@ -201,4 +273,52 @@ Deno.test('#488 only lines shaped like a frame are kept', () => {
         '    at kept (file:///app/x.ts:1:1)',
         '    at tabbed (file:///app/y.ts:2:2)',
     ])
+})
+
+/** An error constructed in a named function, so it has real frames. */
+function realErrorWith(message: string): Error {
+    return new Error(message)
+}
+
+Deno.test('#508 forged at-lines in the message are message text, not frames', () => {
+    const secret = marker('forged')
+    const forged = Array.from(
+        { length: 10 },
+        (_, i) => `    at forged${i} (file:///forged.ts:${i}:1) ${secret}`,
+    )
+    // The marker sits past the 200-code-point message cap, and the forged
+    // lines past it: neither may reach the line.
+    const error = realErrorWith(
+        `${'A'.repeat(250)} ${secret}\n${forged.join('\n')}`,
+    )
+    const out = renderError(error, { frames: 10 })
+    assertAbsent(out, secret)
+    assert(!out.includes('forged'), out)
+    const frames = frameLines(out)
+    assert(frames.length >= 1, out)
+    assert(/^ {4}at realErrorWith \(/.test(frames[0]), out)
+    assertStringIncludes(frames[0], 'error_frames_488.test.ts')
+})
+
+Deno.test('#508 a header the stack does not start with is not skipped', () => {
+    // The stack was assigned from elsewhere, so the header cannot be located
+    // by count: the frame filter alone decides, as before. The message has
+    // three lines, so skipping by its count anyway would eat two frames.
+    const error = new Error('renamed\nover\nlines')
+    error.stack = ['Error: original', ...numbered(3)].join('\n')
+    assertEquals(frameLines(renderError(error, { frames: 10 })), numbered(3))
+})
+
+Deno.test('#508 a header that cannot be built renders the stack as unreadable', () => {
+    const error = new Error('boom')
+    error.stack = 'Error: boom\n    at kept (file:///app/x.ts:1:1)'
+    Object.defineProperty(error, 'name', {
+        get() {
+            throw new Error('name read refused')
+        },
+    })
+    assertEquals(
+        renderError(error, { frames: 5 }),
+        '[unrenderable error]\n    [unreadable stack]',
+    )
 })
