@@ -49,30 +49,42 @@ class CounterFactory extends Factory<Row> {
 }
 
 /**
- * Run `fn` with a fake insert-capable `db` installed on the container's
- * `Database` singleton, restoring the singleton's prior `db` afterwards (via
- * try/finally) so the mutation never leaks to other tests sharing the
+ * Run `fn` against a fresh container `Database` singleton configured through a
+ * fake driver whose `db` records every insert, then close it and drop the
+ * singleton (via try/finally) so nothing leaks to other tests sharing the
  * process-wide container. `fn` receives the array recording each insert.
+ *
+ * Through `setDriverFactory` and `connect()`, not by assigning `db`: since
+ * #427 `db` is a getter with no setter.
  */
 async function withFakeInserts(
     fn: (recorded: { table: unknown; rows: unknown }[]) => Promise<void>,
 ): Promise<void> {
     const recorded: { table: unknown; rows: unknown }[] = []
+    container.delete(Database)
     const svc = container.get(Database)
-    const holder = svc as unknown as { db: unknown }
-    const prevDb = holder.db
-    holder.db = {
-        insert: (table: unknown) => ({
-            values: (rows: unknown) => {
-                recorded.push({ table, rows })
-                return Promise.resolve()
+    svc.setDriverFactory('postgres', () =>
+        Promise.resolve({
+            db: {
+                insert: (table: unknown) => ({
+                    values: (rows: unknown) => {
+                        recorded.push({ table, rows })
+                        return Promise.resolve()
+                    },
+                }),
             },
-        }),
-    }
+            close: () => Promise.resolve(),
+            probe: () => Promise.resolve(),
+        }))
     try {
+        const result = await svc.connect('postgres://localhost:5432/test', {
+            silent: true,
+        })
+        assertEquals(result.success, true, 'the fake driver was not configured')
         await fn(recorded)
     } finally {
-        holder.db = prevDb
+        await svc.close()
+        container.delete(Database)
     }
 }
 

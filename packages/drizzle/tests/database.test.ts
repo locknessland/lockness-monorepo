@@ -303,10 +303,13 @@ Deno.test('#425 the issue passwords reach neither the result nor the log, and no
     ]
     for (const [password, fragments] of cases) {
         const dsn = `postgres://u:${password}@db.invalid:5432/x`
+        // Not silent: since #427 `silent` silences the failure line too, and
+        // the no-leak check below would pass on an empty log.
         const { value: result, logged } = await capturingErrors(() =>
-            new Database().connect(dsn, { silent: true })
+            new Database().connect(dsn)
         )
         assertEquals(result, { success: false, error: REJECTED }, dsn)
+        assertEquals(logged, `❌ Database connection failed: ${REJECTED}`)
         for (const fragment of fragments) {
             assertEquals(
                 `${result.error}\n${logged}`.includes(fragment),
@@ -450,14 +453,16 @@ Deno.test('#425 a client that cannot be built reports its error name, never its 
             new TypeError('boom Pw7Fake in postgres://u:Pw7Fake@h'),
         ),
     )
+    // Not silent (#427): the log is half of what this test checks.
     const { value: result, logged } = await capturingErrors(() =>
-        db.connect('postgres://u:Pw7Fake@h/db', { silent: true })
+        db.connect('postgres://u:Pw7Fake@h/db')
     )
     assertEquals(result, {
         success: false,
         error: "The 'postgres' driver could not be configured (TypeError); " +
             'its message is withheld because it may contain the DSN',
     })
+    assertEquals(logged, `❌ Database connection failed: ${result.error}`)
     assertEquals(logged.includes('Pw7Fake'), false, logged)
     assertEquals(logged.includes('boom'), false, logged)
 })
@@ -506,9 +511,8 @@ Deno.test('#425 an unreadable error name is marked in the one error line, with n
             errorCalls++
             logged.push(args.map(String).join(' '))
         }
-        const result = await db.connect('postgres://u:Pw7Fake@h/db', {
-            silent: true,
-        })
+        // Not silent (#427): the one ERROR line is what this test counts.
+        const result = await db.connect('postgres://u:Pw7Fake@h/db')
         console.error = originalError
         assertEquals(result, {
             success: false,
@@ -533,13 +537,15 @@ Deno.test('#425 a throwing prototype lookup fails connect(), it does not reject'
     })
     const db = new Database()
     db.setDriverFactory('postgres', throwingFactory(hostile))
+    // Not silent (#427): the log is half of what this test checks.
     const { value: result, logged } = await capturingErrors(() =>
-        db.connect('postgres://u:Pw7Fake@h/db', { silent: true })
+        db.connect('postgres://u:Pw7Fake@h/db')
     )
     assertEquals(result, {
         success: false,
         error: configureWithheld('postgres', '[unreadable name]'),
     })
+    assertEquals(logged, `❌ Database connection failed: ${result.error}`)
     assertEquals(logged.includes('trap'), false, logged)
 })
 

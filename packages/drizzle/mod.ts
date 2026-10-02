@@ -31,6 +31,7 @@ import {
     type Dialect,
     type DialectDatabase,
     type DriverFactory,
+    type DriverHandle,
     resolveDialect,
     type SchemaMaintenance,
 } from './drivers.ts'
@@ -88,7 +89,13 @@ export type {
  * Connection options for the Database service.
  */
 export interface ConnectionOptions {
-    /** Whether to suppress the success message */
+    /**
+     * Print nothing. By default `connect()` prints one line — `✅ Database
+     * configured`, or `❌ Database connection failed` with the failure. With
+     * `silent: true` it prints neither; a failure is still returned as
+     * `success: false`, so a caller that silences it reports it itself
+     * (#427).
+     */
     readonly silent?: boolean
     /**
      * The SQL dialect to connect through. When omitted, it is inferred from the
@@ -136,26 +143,40 @@ export interface ConnectionResult {
  */
 @Service()
 export class Database<D extends Dialect = 'postgres'> {
-    /**
-     * Drizzle ORM database instance, typed by the dialect. Defaults to
-     * `PostgresJsDatabase` (dialect `postgres`), so an unparameterised
-     * `Database` and every existing `db.select()` call site is unchanged.
-     */
-    public db!: DialectDatabase<D>
-
     /** The per-dialect driver factories (overridable via {@link Database.setDriverFactory}). */
     #factories: Record<Dialect, DriverFactory> = { ...defaultDriverFactories }
-    /** The configured client's close/probe closures, set at connect time. */
-    #close: (() => Promise<void>) | undefined
-    #probe: (() => Promise<void>) | undefined
-    /** The handle's maintenance capability, when its factory offers one. */
-    #maintenance: SchemaMaintenance | undefined
     /**
-     * What a `probe()` failure must not carry: the DSN the configured client
-     * was built from, and every known form of its credentials (#425, #438).
+     * Where this instance is in its life: no client, one being built, or one
+     * built. A single field, so two live clients cannot be represented (#427).
      */
-    #held: Held = NOTHING_HELD
-    #connected = false
+    #state: Lifecycle = IDLE
+
+    /**
+     * The Drizzle ORM database instance of the configured client, typed by the
+     * dialect. Defaults to `PostgresJsDatabase` (dialect `postgres`), so an
+     * unparameterised `Database` and every `db.select()` call site keep their
+     * type.
+     *
+     * A getter, not a field: before `connect()` and after {@link Database.close}
+     * there is no client, and reading one is an error rather than an
+     * `undefined` the type does not admit, or a closed client that fails far
+     * from the cause. It has no setter — a test stubs the database through
+     * {@link Database.setDriverFactory}, not by assignment (#427).
+     *
+     * @returns The configured client's Drizzle instance.
+     * @throws {Error} `Database is not connected` before `connect()` and after
+     *   {@link Database.close}.
+     *
+     * @example
+     * ```ts
+     * const db = container.get<Database>(Database)
+     * await db.connect(Deno.env.get('DATABASE_URL')!)
+     * const users = await db.db.select().from(usersTable)
+     * ```
+     */
+    public get db(): DialectDatabase<D> {
+        return this.#client().handle.db as DialectDatabase<D>
+    }
 
     /**
      * Override the driver factory for one dialect — the seam for unit tests
@@ -167,6 +188,18 @@ export class Database<D extends Dialect = 'postgres'> {
      *
      * @param dialect - The dialect to override.
      * @param factory - The factory to use for it.
+     *
+     * @example
+     * ```ts
+     * const db = new Database()
+     * db.setDriverFactory('postgres', () =>
+     *     Promise.resolve({
+     *         db: fakeDrizzle,
+     *         close: () => Promise.resolve(),
+     *         probe: () => Promise.resolve(),
+     *     }))
+     * await db.connect('postgres://localhost:5432/app', { silent: true })
+     * ```
      */
     setDriverFactory(dialect: Dialect, factory: DriverFactory): void {
         this.#factories[dialect] = factory
@@ -183,6 +216,14 @@ export class Database<D extends Dialect = 'postgres'> {
      * {@link Database.probe}: on a scale-to-zero database, booting an app must
      * not wake (and bill) the compute (#420). The name is kept for API
      * stability — it configures, it does not connect.
+     *
+     * **One client at a time (#427).** `connect()` is legal only when this
+     * instance holds no client and is building none. Called again — whatever
+     * the URL, and whether the first call has finished or is still building —
+     * it throws before it reads the URL, logs nothing, and leaves the first
+     * client in place. To point the instance at another database, call
+     * {@link Database.close} first. A failed `connect()` (`success: false`)
+     * leaves no client, so a retry is legal.
      *
      * `success: false` therefore means one of three things only, each with a
      * message that cannot carry the DSN's password (#425):
@@ -205,12 +246,19 @@ export class Database<D extends Dialect = 'postgres'> {
      *   is shown, only when it is identifier-shaped and holds no form of the
      *   password, and as `[unreadable name]` when reading it threw.
      *
+     * Unless `silent` is set, the outcome is also printed: one
+     * `✅ Database configured` line, or one `❌ Database connection failed`
+     * line carrying the same message as the result.
+     *
      * An unreachable host, bad credentials or a database that is down surface
      * at {@link Database.probe} (and so at `/ready`) or at the first query.
      *
      * @param url - Connection URL / DSN.
      * @param options - Optional dialect + silence.
      * @returns Whether the client was configured, and the safe error if not.
+     * @throws {Error} `Database is already configured; call close() before
+     *   connect() again` when this instance holds a client or is building one.
+     *   It quotes nothing from either DSN.
      *
      * @example
      * ```ts
@@ -224,24 +272,36 @@ export class Database<D extends Dialect = 'postgres'> {
         url: string,
         options: ConnectionOptions = {},
     ): Promise<ConnectionResult> {
+        // First, before the dialect, the DSN check or any log: a second
+        // configure is a wiring error, not a configuration failure.
+        if (this.#state.kind !== 'idle') throw new Error(ALREADY_CONFIGURED)
         const dialect = resolveDialect(options.driver, url)
         const inspection = inspectDsn(url)
-        if (!inspection.ok) return failed(INVALID_DSN_MESSAGE)
+        if (!inspection.ok) return failed(INVALID_DSN_MESSAGE, options.silent)
         const held: Held = { dsn: url, secrets: inspection.secrets }
 
-        let handle
-        try {
-            handle = await this.#factories[dialect](url)
-        } catch (error) {
-            return failed(configurationFailure(dialect, error, held))
+        // Reserved synchronously, before the first await, so a concurrent
+        // `connect()` sees it and `close()` can wait for it.
+        let settle!: () => void
+        this.#state = {
+            kind: 'configuring',
+            settled: new Promise<void>((resolve) => {
+                settle = resolve
+            }),
         }
-
-        this.db = handle.db as DialectDatabase<D>
-        this.#close = () => handle.close()
-        this.#probe = () => handle.probe()
-        this.#maintenance = handle.maintenance
-        this.#held = held
-        this.#connected = true
+        try {
+            // Inside the try: a custom factory may throw synchronously.
+            const handle = await this.#factories[dialect](url)
+            this.#state = { kind: 'configured', client: { handle, held } }
+        } catch (error) {
+            this.#state = IDLE
+            return failed(
+                configurationFailure(dialect, error, held),
+                options.silent,
+            )
+        } finally {
+            settle()
+        }
 
         if (!options.silent) {
             console.log(`✅ Database configured (${dialect})`)
@@ -251,24 +311,34 @@ export class Database<D extends Dialect = 'postgres'> {
 
     /**
      * Close the database client. Safe to call when not configured, and safe to
-     * call twice; afterwards {@link Database.probe} rejects as not connected.
+     * call twice.
      *
-     * @returns Resolves once the client has closed; immediately when no client
-     *   is configured.
+     * A `connect()` still building its client is waited for, and the client it
+     * builds is closed: once `close()` resolves, no client exists, and
+     * {@link Database.db}, {@link Database.maintenance} and
+     * {@link Database.probe} throw `Database is not connected` until the next
+     * `connect()`. An operation already running keeps the client it started
+     * on, and still redacts against that client's DSN.
+     *
+     * @returns Resolves once the client has closed; immediately when there is
+     *   none.
+     * @throws Whatever the driver's own `close()` rejects with. The instance is
+     *   idle all the same.
      *
      * @example
      * ```ts
      * await db.close()
+     * await db.connect(otherUrl) // legal again
      * ```
      */
     public async close(): Promise<void> {
-        const close = this.#close
-        if (!close) return
-        this.#close = undefined
-        this.#probe = undefined
-        this.#maintenance = undefined
-        this.#connected = false
-        await close()
+        while (this.#state.kind === 'configuring') {
+            await this.#state.settled
+        }
+        const state = this.#state
+        if (state.kind !== 'configured') return
+        this.#state = IDLE
+        await state.client.handle.close()
     }
 
     /**
@@ -278,7 +348,9 @@ export class Database<D extends Dialect = 'postgres'> {
      *
      * Every failure is re-thrown the way {@link Database.probe} re-throws
      * one: head-only, the exact DSN replaced whole, and the whole message
-     * withheld when any known form of a credential occurs in it (#425).
+     * withheld when any known form of a credential occurs in it (#425). The
+     * capability is bound to the client configured when it was read, and
+     * redacts against that client's DSN even after {@link Database.close}.
      *
      * @returns The redacting capability, or `undefined` when there is none.
      * @throws {Error} `Database is not connected` before `connect()` and after
@@ -291,12 +363,10 @@ export class Database<D extends Dialect = 'postgres'> {
      * ```
      */
     public get maintenance(): SchemaMaintenance | undefined {
-        if (!this.#connected) {
-            throw new Error('Database is not connected')
-        }
-        const inner = this.#maintenance
+        // Handle and held together, now: never read back from `this` later.
+        const { handle, held } = this.#client()
+        const inner = handle.maintenance
         if (!inner) return undefined
-        const held = this.#held
         const redacted = async <T>(run: () => Promise<T>): Promise<T> => {
             try {
                 return await run()
@@ -327,6 +397,8 @@ export class Database<D extends Dialect = 'postgres'> {
      * value such as libsql's `authToken` (#438) — occurs in the message or the
      * name, the message is
      * withheld whole behind a fixed sentence that shows only a vetted name.
+     * A probe still running when {@link Database.close} is called redacts
+     * against the client it started on (#427).
      *
      * @returns Resolves when the probe succeeds.
      * @throws {Error} `Database is not connected` when no client is configured
@@ -338,14 +410,13 @@ export class Database<D extends Dialect = 'postgres'> {
      * ```
      */
     public async probe(): Promise<void> {
-        const probe = this.#probe
-        if (!probe) {
-            throw new Error('Database is not connected')
-        }
+        // Captured BEFORE the await: a `close()` meanwhile must not leave the
+        // failure below rendering with nothing held (#425, #438, #427).
+        const { handle, held } = this.#client()
         try {
-            await probe()
+            await handle.probe()
         } catch (error) {
-            throw new Error(renderFailure(error, this.#held, probeWithheld))
+            throw new Error(renderFailure(error, held, probeWithheld))
         }
     }
 
@@ -354,14 +425,73 @@ export class Database<D extends Dialect = 'postgres'> {
      *
      * Since #420 this says nothing about reachability, because
      * {@link Database.connect} makes no round trip. Use {@link Database.probe}
-     * to know whether the database answers.
+     * to know whether the database answers. A `connect()` still building its
+     * client does not count.
      *
      * @returns True between a successful `connect()` and `close()`.
+     *
+     * @example
+     * ```ts
+     * if (!db.isConnected()) {
+     *     await db.connect(Deno.env.get('DATABASE_URL')!)
+     * }
+     * ```
      */
     public isConnected(): boolean {
-        return this.#connected
+        return this.#state.kind === 'configured'
+    }
+
+    /**
+     * The configured client, or the `not connected` error.
+     *
+     * @returns The client — its handle and what its failures must not carry.
+     * @throws {Error} `Database is not connected` when there is no client.
+     */
+    #client(): Configured {
+        const state = this.#state
+        if (state.kind !== 'configured') throw new Error(NOT_CONNECTED)
+        return state.client
     }
 }
+
+// =============================================================================
+// Lifecycle
+// =============================================================================
+
+/**
+ * One configured client: its handle, and what its failures must not carry.
+ * The two live and die together, so no operation can pair a handle with
+ * another client's DSN — or with none.
+ */
+interface Configured {
+    /** The driver handle `connect()` built. */
+    readonly handle: DriverHandle
+    /** The DSN it was built from and every known form of its credentials. */
+    readonly held: Held
+}
+
+/**
+ * Where a {@link Database} is in its life (#427): idle → configuring →
+ * configured, and `close()` back to idle.
+ */
+type Lifecycle =
+    | { readonly kind: 'idle' }
+    | {
+        readonly kind: 'configuring'
+        /** Settles when the configure in flight has finished, either way. */
+        readonly settled: Promise<void>
+    }
+    | { readonly kind: 'configured'; readonly client: Configured }
+
+/** No client and none being built. */
+const IDLE: Lifecycle = { kind: 'idle' }
+
+/** What every operation throws when there is no client. */
+const NOT_CONNECTED = 'Database is not connected'
+
+/** What a second `connect()` throws; it quotes nothing from either DSN. */
+const ALREADY_CONFIGURED =
+    'Database is already configured; call close() before connect() again'
 
 // =============================================================================
 // Failure rendering
@@ -386,23 +516,26 @@ interface Held {
     readonly secrets: readonly string[]
 }
 
-/** Nothing held: before any `connect()`. */
-const NOTHING_HELD: Held = { dsn: '', secrets: [] }
-
 /** What replaces the exact DSN in driver text. */
 const DSN_MARKER = '<dsn redacted>'
 
 /**
- * Log a `connect()` failure and return it as the result.
+ * Return a `connect()` failure as the result, and log it unless silenced.
  *
- * Not a silent path: the failure is logged at ERROR and returned as an
- * explicit `success: false`, whatever `silent` says (#427 owns that option).
+ * Not a silent catch: the failure is always RETURNED as an explicit
+ * `success: false` carrying the same message. `silent` only moves the duty to
+ * report it to the caller, who asked for that — the CLI commands pass it and
+ * print the failure once themselves (#427).
  *
  * @param message - A message already known to carry no part of the password.
+ * @param silent - `ConnectionOptions.silent`: when true, nothing is logged.
  * @returns The failed result.
  */
-function failed(message: string): ConnectionResult {
-    console.error('❌ Database connection failed:', message)
+function failed(
+    message: string,
+    silent: boolean | undefined,
+): ConnectionResult {
+    if (!silent) console.error('❌ Database connection failed:', message)
     return { success: false, error: message }
 }
 
@@ -421,8 +554,9 @@ type Classified =
  * `name` getter can throw too. Either would make `connect()` reject instead of
  * returning `success: false`. So the checks, the read and the identifier test
  * all run under one `try`, whose catch answers {@link UNREADABLE_NAME}. That
- * marker goes into the one failure line, which is always logged at ERROR and
- * returned — the failure is reported, not swallowed.
+ * marker goes into the one failure message, which is always returned and
+ * logged at ERROR unless the caller silenced it to report it itself — the
+ * failure is reported, not swallowed.
  *
  * @param error - Whatever a factory threw.
  * @param secrets - Every known form of every credential.
@@ -594,8 +728,8 @@ const UNRENDERABLE = '[unrenderable error]'
  * Reading an arbitrary thrown value can throw: a hostile `message` getter, a
  * Proxy, a `toString` that throws. `renderError` answers that with a sentinel
  * rather than a throw, and so does this: the caller renders
- * {@link UNRENDERABLE}, which reaches the result and the log, so the failure
- * is reported, not swallowed.
+ * {@link UNRENDERABLE}, which reaches the result (and the log, unless
+ * silenced), so the failure is reported, not swallowed.
  *
  * @param raw - Whatever was thrown.
  * @returns The head, or `undefined` when reading it threw.

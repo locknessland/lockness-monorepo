@@ -13,6 +13,18 @@ import {
     OnBoot,
 } from '../mod.ts'
 import type { App } from '../app.ts'
+import { container } from '@lockness/container'
+import { Database } from '@lockness/drizzle'
+
+/**
+ * Close and drop the container's `Database` singleton. A boot with a database
+ * URL configures it, and since #427 a second configure in one process throws —
+ * so every test that boots with `database` set leaves it as it found it.
+ */
+async function resetDatabase(): Promise<void> {
+    await container.get(Database).close()
+    container.delete(Database)
+}
 
 Deno.test('@Kernel - stores configuration metadata on class', () => {
     const config: KernelConfig = {
@@ -268,8 +280,12 @@ Deno.test('createApp - supports database configuration as boolean', async () => 
 
     // Should not throw even if @lockness/drizzle is not installed
     // The loader will warn and skip database setup
-    const app = await createApp(TestKernel)
-    assertExists(app)
+    try {
+        const app = await createApp(TestKernel)
+        assertExists(app)
+    } finally {
+        await resetDatabase()
+    }
 })
 
 Deno.test({
@@ -285,8 +301,12 @@ Deno.test({
         class TestKernel {}
 
         // Should not throw even if @lockness/drizzle is not installed
-        const app = await createApp(TestKernel)
-        assertExists(app)
+        try {
+            const app = await createApp(TestKernel)
+            assertExists(app)
+        } finally {
+            await resetDatabase()
+        }
     },
 })
 
@@ -334,8 +354,12 @@ Deno.test('createApp - handles missing optional dependencies gracefully', async 
     class TestKernel {}
 
     // Should not throw - just logs warnings if packages not installed
-    const app = await createApp(TestKernel)
-    assertExists(app)
+    try {
+        const app = await createApp(TestKernel)
+        assertExists(app)
+    } finally {
+        await resetDatabase()
+    }
 })
 
 Deno.test({

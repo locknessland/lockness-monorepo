@@ -284,7 +284,9 @@ async function connectCapturingLog(
         lines.push(args.map(String).join(' '))
     }
     try {
-        const result = await new Database().connect(dsn, { silent: true })
+        // Not silent: since #427 `silent` silences the failure line too, and
+        // the log is what this helper exists to capture.
+        const result = await new Database().connect(dsn)
         return { result, logged: lines.join('\n') }
     } finally {
         console.error = original
