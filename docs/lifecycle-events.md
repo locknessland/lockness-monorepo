@@ -425,6 +425,8 @@ signals for you — an application writes no `Deno.addSignalListener`.
 ```typescript
 @Kernel({ controllersDir: './app/controller' })
 class AppKernel {
+    // Only without `@Kernel({ database })`: the boot step then configures the
+    // Database itself, and a second connect() throws.
     @OnBoot({ priority: 100 })
     async connectDatabase(app: App) {
         await db.connect(Deno.env.get('DATABASE_URL')!)

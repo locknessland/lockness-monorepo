@@ -129,6 +129,8 @@ export interface OnBootOptions {
  * import { Database } from '@lockness/drizzle'
  *
  * class AppKernel {
+ *     // Only when `@Kernel({ database })` is NOT set: the boot step already
+ *     // configures the Database, and a second connect() throws.
  *     @OnBoot({ priority: 100 })
  *     async connectDatabase(app: App) {
  *         const db = container.get<Database>(Database)

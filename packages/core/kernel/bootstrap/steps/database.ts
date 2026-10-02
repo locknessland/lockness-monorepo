@@ -78,6 +78,12 @@ export const databaseStep: BootstrapStep = {
             // `database` check below then reports it on `/ready`. An app that
             // wants boot to fail when the database is down calls
             // `Database.probe()` from its own `@OnBoot` hook.
+            //
+            // A THROW is deliberately not caught (#427): `connect()` throws
+            // only when the singleton already holds a client — a second
+            // configure in one process, such as an `@OnBoot` hook that also
+            // calls `connect()`. That is a wiring error, like `App instance
+            // not created`, so it fails boot with drizzle's own message.
             await db.connect(url, { driver })
 
             // Announce a readiness probe for `/ready` (#218). `probe()` runs
