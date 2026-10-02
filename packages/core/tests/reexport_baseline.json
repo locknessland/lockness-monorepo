@@ -47,6 +47,7 @@
     "MAX_PER_PAGE": "number",
     "MIDDLEWARE_NAME_KEY": "symbol",
     "Middleware": "function",
+    "MissingOptionalPackageError": "function",
     "NEVER_SERIALISE": "object",
     "OVERFLOW_POLICIES": "object",
     "OnBoot": "function",
