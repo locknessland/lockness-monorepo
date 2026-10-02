@@ -1,7 +1,9 @@
 /**
  * The session cookie `secure` flag must default fail-closed: on everywhere
  * except an explicitly-development environment, while an explicit consumer
- * value always wins (M1, #167).
+ * value always wins (M1, #167). `APP_ENV` is the only signal (#504): a
+ * `DENO_ENV` alone changes nothing, and an explicitly `undefined` `secure`
+ * means not set, never insecure.
  *
  * @module @lockness/session/tests/secure_default
  */
@@ -40,14 +42,28 @@ Deno.test('secure defaults to false only under an explicit development signal (#
         configureSession({ driver: 'cookie' })
         assertEquals(getSessionConfig().secure, false)
     })
+})
+
+Deno.test('a DENO_ENV alone is not a development signal (#504)', () => {
     withEnv({ DENO_ENV: 'development' }, () => {
         configureSession({ driver: 'cookie' })
+        assertEquals(getSessionConfig().secure, true)
+    })
+})
+
+Deno.test('an explicitly undefined secure takes the fail-closed default (#504)', () => {
+    withEnv({}, () => {
+        configureSession({ driver: 'cookie', secure: undefined })
+        assertEquals(getSessionConfig().secure, true)
+    })
+    withEnv({ APP_ENV: 'development' }, () => {
+        configureSession({ driver: 'cookie', secure: undefined })
         assertEquals(getSessionConfig().secure, false)
     })
 })
 
 Deno.test('secure defaults to true in production (#167)', () => {
-    withEnv({ DENO_ENV: 'production' }, () => {
+    withEnv({ APP_ENV: 'production' }, () => {
         configureSession({ driver: 'cookie' })
         assertEquals(getSessionConfig().secure, true)
     })
@@ -55,7 +71,7 @@ Deno.test('secure defaults to true in production (#167)', () => {
 
 Deno.test('an explicit secure value always wins over the derived default (#167)', () => {
     // Explicit false in production must be honoured...
-    withEnv({ DENO_ENV: 'production' }, () => {
+    withEnv({ APP_ENV: 'production' }, () => {
         configureSession({ driver: 'cookie', secure: false })
         assertEquals(getSessionConfig().secure, false)
     })

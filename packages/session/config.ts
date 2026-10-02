@@ -16,8 +16,12 @@ import type { SessionConfig } from './types.ts'
  * unless we are *explicitly* in development — `isExplicitlyDevelopment()` fails
  * closed, so an unset or ambiguous environment (fresh deploy, compiled binary
  * without `--allow-env`) yields `true`, and only a positive
- * `DENO_ENV`/`APP_ENV=development` signal allows the plaintext-localhost `false`
- * (M1, #167). A consumer may always override it explicitly.
+ * `APP_ENV=development` signal allows the plaintext-localhost `false` (M1,
+ * #167). A consumer may always override it explicitly.
+ *
+ * This is the **only** home of the default (#504): `@lockness/core` passes
+ * `secure` through only when the app set it, and the scaffolded config no
+ * longer sets it.
  *
  * @returns `true` unless the environment is explicitly development.
  */
@@ -77,11 +81,13 @@ let globalConfig: SessionConfig = {
  */
 export function configureSession(config: Partial<SessionConfig>): void {
     // `secure` is re-derived here so it reflects the environment at configuration
-    // time; an explicit `config.secure` overrides it (spread order).
+    // time. An explicit boolean wins; an absent OR `undefined` one takes the
+    // default — spreading `{ secure: undefined }` last would otherwise erase it,
+    // and the cookie driver reads a missing flag as "not Secure" (#504).
     globalConfig = {
         ...defaultConfig,
-        secure: secureCookieDefault(),
         ...config,
+        secure: config.secure ?? secureCookieDefault(),
     }
 }
 
