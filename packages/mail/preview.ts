@@ -4,7 +4,7 @@
  * Security controls (S1/S2/S4):
  * - **Opt-in, default OFF** (`enableMailPreview()`); captures nothing otherwise.
  * - **Production fail-closed** — both capture and the handler refuse when
- *   `APP_ENV`/`DENO_ENV` is `production`, independent of the enable flag.
+ *   `APP_ENV` names a prod-like environment, independent of the enable flag.
  * - **Bounded** — a ring buffer (oldest evicted) so a long dev session / soak
  *   test cannot exhaust memory.
  * - **XSS-contained** — a captured body is served **only** from a raw endpoint
@@ -18,6 +18,7 @@
  * @module @lockness/mail/preview
  */
 
+import { resolveEnvName } from '@lockness/contract'
 import type { MailMessage } from './types.ts'
 
 /** A captured mail (dev only). */
@@ -45,11 +46,13 @@ const BLOCKED_ENVS = new Set(['production', 'prod', 'staging', 'preview'])
  * Whether the preview must fail closed for the current environment — any
  * prod-like env (production / prod / staging / preview). An unset env is treated
  * as local development (the opt-in `enableMailPreview()` is the deliberate gate).
+ *
+ * The name comes from the framework's one resolver (#504), so `APP_ENV` is
+ * read, trimmed and lower-cased exactly as everywhere else, and `DENO_ENV` is
+ * not read at all.
  */
 function isProduction(): boolean {
-    const env = (Deno.env.get('APP_ENV') ?? Deno.env.get('DENO_ENV'))
-        ?.toLowerCase()
-    return env !== undefined && BLOCKED_ENVS.has(env)
+    return BLOCKED_ENVS.has(resolveEnvName())
 }
 
 /**

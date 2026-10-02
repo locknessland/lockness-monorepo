@@ -8,14 +8,17 @@
  * so a new destructive command inherits the guard by calling one function.
  *
  * Environment resolution is delegated to `@lockness/contract`'s
- * {@link isProduction} (reads `DENO_ENV` first, then `APP_ENV`; absence is never
- * production), so the guard honours the same rules as the rest of the framework.
+ * {@link isProduction} (reads `APP_ENV` only; absence is never production), so
+ * the guard honours the same rules as the rest of the framework. A `DENO_ENV`
+ * that disagrees with `APP_ENV` is refused outright (#504): these commands run
+ * outside the app boot, so they carry the tripwire themselves.
  *
  * @module @lockness/drizzle/production_guard
  * @since 0.2.1
  */
 
 import { isProduction } from '@lockness/contract'
+import { legacyEnvironmentSignal } from '@lockness/contract/environment/internal'
 
 /**
  * The CLI flag and programmatic-option name that override the guard. Kept as a
@@ -38,6 +41,9 @@ export const ALLOW_PRODUCTION_FLAG = '--allow-production' as const
  *   in production. Defaults to `false`.
  * @throws {Error} When the environment is production and `allowProduction` is not
  *   set — the operation is refused.
+ * @throws {Error} When `DENO_ENV` disagrees with `APP_ENV` (including `APP_ENV`
+ *   unset), whatever `allowProduction` says — the message names `APP_ENV` and
+ *   the fix.
  *
  * @example
  * ```ts
@@ -52,11 +58,19 @@ export function assertNotProduction(
     operation: string,
     allowProduction: boolean = false,
 ): void {
+    // The DENO_ENV tripwire comes first, and the override does not reach it:
+    // `allowProduction` authorises production, not an environment the
+    // operator may still believe is production under the pre-v0.5.0 name.
+    const legacy = legacyEnvironmentSignal()
+    if (legacy?.kind === 'conflict') {
+        throw new Error(`Refusing to run "${operation}": ${legacy.message}`)
+    }
+
     if (allowProduction || !isProduction()) return
 
     throw new Error(
         `Refusing to run "${operation}" against a production environment ` +
-            `(DENO_ENV/APP_ENV is "production"). This is a destructive dev/test ` +
+            `(APP_ENV is "production"). This is a destructive dev/test ` +
             `operation. If this is intentional, override it explicitly: pass the ` +
             `${ALLOW_PRODUCTION_FLAG} CLI flag, or the { allowProduction: true } ` +
             `option for the programmatic API.`,

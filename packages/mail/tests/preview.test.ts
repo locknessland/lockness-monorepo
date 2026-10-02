@@ -110,6 +110,48 @@ Deno.test('SC-006a: a prod-like env (staging) is fail-closed like production', (
     }
 })
 
+/** Run `fn` with `APP_ENV` / `DENO_ENV` set exactly as given, then restore. */
+function withEnv(
+    combo: { APP_ENV?: string; DENO_ENV?: string },
+    fn: () => void,
+): void {
+    const prior = {
+        APP_ENV: Deno.env.get('APP_ENV'),
+        DENO_ENV: Deno.env.get('DENO_ENV'),
+    }
+    const set = (key: string, value: string | undefined) =>
+        value === undefined ? Deno.env.delete(key) : Deno.env.set(key, value)
+    set('APP_ENV', combo.APP_ENV)
+    set('DENO_ENV', combo.DENO_ENV)
+    try {
+        fn()
+    } finally {
+        resetMailPreview()
+        set('APP_ENV', prior.APP_ENV)
+        set('DENO_ENV', prior.DENO_ENV)
+    }
+}
+
+Deno.test('#504: the preview reads the framework environment — APP_ENV normalised', () => {
+    // A CRLF .env line used to read as 'production\r', which is not blocked.
+    withEnv({ APP_ENV: ' Production\r' }, () => {
+        resetMailPreview()
+        enableMailPreview()
+        capturePreview(msg('S', '<p>x</p>'))
+        assertEquals(capturedMails().length, 0)
+    })
+})
+
+Deno.test('#504: DENO_ENV is not an environment signal for the preview', () => {
+    // APP_ENV is the one signal; the preview used to fall back to DENO_ENV.
+    withEnv({ DENO_ENV: 'staging' }, () => {
+        resetMailPreview()
+        enableMailPreview()
+        capturePreview(msg('S', '<p>x</p>'))
+        assertEquals(capturedMails().length, 1)
+    })
+})
+
 Deno.test('disableMailPreview clears the store', () => {
     resetMailPreview()
     enableMailPreview()

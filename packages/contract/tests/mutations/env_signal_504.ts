@@ -18,9 +18,14 @@ import { type Mutation, runBattery } from '@mutations/harness.ts'
 const ENVIRONMENT = new URL('../../environment.ts', import.meta.url)
 const READ = new URL('../../environment_read.ts', import.meta.url)
 const LEGACY = new URL('../../environment_legacy.ts', import.meta.url)
+// The destructive drizzle commands run outside the app boot, so they carry
+// the tripwire themselves; their rows live here, beside the tripwire's own.
+const GUARD = new URL('../../../drizzle/production_guard.ts', import.meta.url)
 const SUITES = [
     new URL('../environment.test.ts', import.meta.url).pathname,
     new URL('../environment_legacy.test.ts', import.meta.url).pathname,
+    new URL('../../../drizzle/tests/production_guard.test.ts', import.meta.url)
+        .pathname,
 ]
 
 const MATRIX = 'the predicates depend on APP_ENV alone'
@@ -107,6 +112,35 @@ const MUTATIONS: Mutation[] = [
             "const shown = readEnvVar('DENO_ENV') ?? ''",
         ]],
         killedBy: 'encodes a DENO_ENV value carrying terminal controls',
+    },
+    {
+        label:
+            'the drizzle guard drops the tripwire — db:seed runs under DENO_ENV=production alone',
+        file: GUARD,
+        edits: [[
+            "if (legacy?.kind === 'conflict') {",
+            "if (false && legacy?.kind === 'conflict') {",
+        ]],
+        killedBy: 'a DENO_ENV conflicting with APP_ENV refuses',
+    },
+    {
+        label:
+            '--allow-production bypasses the tripwire — the override reaches an unknown env',
+        file: GUARD,
+        edits: [[
+            "if (legacy?.kind === 'conflict') {",
+            "if (!allowProduction && legacy?.kind === 'conflict') {",
+        ]],
+        killedBy: 'a DENO_ENV conflicting with APP_ENV refuses',
+    },
+    {
+        label: 'the production message names DENO_ENV again',
+        file: GUARD,
+        edits: [[
+            '`(APP_ENV is "production"). This is a destructive dev/test ` +',
+            '`(DENO_ENV/APP_ENV is "production"). This is a destructive dev/test ` +',
+        ]],
+        killedBy: 'a DENO_ENV equal to APP_ENV changes nothing',
     },
 ]
 

@@ -22,7 +22,7 @@ names does not belong here._
 
 | Direction                                      | Packages                                                                            |
 | :--------------------------------------------- | :---------------------------------------------------------------------------------- |
-| Imports (static)                               | —                                                                                   |
+| Imports (static)                               | `contract`                                                                          |
 | Imports (soft, via `tryImportOptionalPackage`) | `markdown`, `queue`                                                                 |
 | Imported by                                    | `notification`                                                                      |
 | **Must never import**                          | `notification` — each already reaches this package, so importing one closes a cycle |

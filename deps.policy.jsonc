@@ -111,13 +111,15 @@
         "inertia": { "tier": "implementation", "allow": ["hono"] },
         "init": { "tier": "implementation", "allow": ["cli"] },
         "logger": { "tier": "implementation", "allow": ["contract"] },
-        // `mail` stays zero-hard-dep (`allow: []`). Markdown mailables + queued
+        // `mail`'s one hard edge is `contract`, for the framework's environment
+        // resolver (#504): the preview's production gate must read APP_ENV
+        // exactly as every other gate does. Markdown mailables + queued
         // mail load their backing only when used, through mail's OWN local
         // `tryImport` (packages/mail/optional.ts) — a soft edge, never a value
         // or `import type` of markdown/queue (either would harden it).
         "mail": {
             "tier": "implementation",
-            "allow": [],
+            "allow": ["contract"],
             "soft": ["markdown", "queue"],
             "runtimeImports": {
                 "optional.ts": {
