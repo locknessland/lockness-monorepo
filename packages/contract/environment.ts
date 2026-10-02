@@ -1,59 +1,64 @@
 /**
  * @fileoverview Environment-name resolution — the single home of the rule that
- * turns process environment variables into `'production'` / `'development'`.
+ * turns the process environment into `'production'` / `'development'`.
  *
  * Lives in `@lockness/contract` (the zero-dependency foundation) so every layer
  * — including feature packages like `@lockness/devtools` — can consult it
  * without importing `@lockness/core` and inverting the dependency graph.
- * `@lockness/core` re-exports it, so its public API is unchanged.
+ * `@lockness/core` re-exports it, and scaffolded apps read their environment
+ * through that re-export rather than through `Deno.env`.
  *
- * Two variable names are in use: the scaffolded `.env` and the generated Docker
- * image set `APP_ENV` (the image sets `APP_ENV=production`, since #503), while
- * `DENO_ENV` is the Deno-ecosystem convention a host may set instead. A site
- * that consults only one is inert under the other — so resolution lives in one
- * place and honours **both**, `DENO_ENV` first.
+ * **`APP_ENV` is the only signal** (#504). It is read in exactly one place,
+ * trimmed and lower-cased, and every predicate below derives from that one
+ * read, so they cannot disagree with each other or with the app's config.
+ * `DENO_ENV` is not read here; since v0.5.0 the framework only notices it at
+ * boot and refuses to start when it disagrees with `APP_ENV` (see
+ * `@lockness/contract/environment/internal`).
  *
  * Invariants:
  * - **One reader.** Callers use these functions, never a raw `Deno.env` read.
- * - **Absence is never production.** Neither variable set → `'development'`, so
- *   the error-detail gates fail closed.
- * - **Resolution never throws.** `Deno.env.get` raises `NotCapable` without
- *   `--allow-env`; the read is guarded so callers need no permission and no
- *   guard of their own.
+ * - **Absence is never production.** An unset or blank `APP_ENV` resolves to
+ *   `'development'` for the conveniences, but is never production and never
+ *   explicit development, so the security controls fail closed.
+ * - **Production and explicit development are mutually exclusive.**
+ * - **Resolution never throws on a missing permission.** Without `--allow-env`
+ *   `Deno.env.get` raises `NotCapable`; that reads as unset.
  *
  * @module @lockness/contract/environment
  */
 
+import { readEnvName } from './environment_read.ts'
+
+/** The normalised `APP_ENV`, or `undefined` when unset, blank or unreadable. */
+function explicitEnvName(): string | undefined {
+    return readEnvName('APP_ENV')
+}
+
 /**
- * Resolve the environment name from the process environment.
+ * Resolve the environment name from `APP_ENV`.
  *
- * Reads `DENO_ENV` first, then `APP_ENV`, defaulting to `'development'`. Safe to
- * call without `--allow-env`: a read failure resolves to `'development'` rather
- * than propagating.
+ * Trimmed and lower-cased; an unset, blank or unreadable `APP_ENV` resolves to
+ * `'development'`. Safe to call without `--allow-env`.
  *
- * @returns The environment name, e.g. `'production'` or `'development'`.
+ * @returns The environment name, e.g. `'production'`, `'staging'` or
+ * `'development'`.
  *
  * @example
  * ```typescript
- * const env = resolveEnvName()  // 'production' under DENO_ENV=production
+ * const env = resolveEnvName()  // 'production' under APP_ENV=production
  * ```
  */
 export function resolveEnvName(): string {
-    try {
-        return Deno.env.get('DENO_ENV') ?? Deno.env.get('APP_ENV') ??
-            'development'
-    } catch {
-        // No `--allow-env` (NotCapable). The safe default: absence never means
-        // production, and this must not throw before shutdown handlers exist.
-        // An expected, documented condition with one correct outcome.
-        return 'development'
-    }
+    return explicitEnvName() ?? 'development'
 }
 
 /**
  * Whether the application is running in production.
  *
- * @returns `true` when the resolved environment name is `'production'`.
+ * True only when `APP_ENV` is explicitly `production` (any case, surrounding
+ * whitespace ignored). An unset `APP_ENV` is never production.
+ *
+ * @returns `true` when `APP_ENV` names production.
  *
  * @example
  * ```typescript
@@ -61,22 +66,23 @@ export function resolveEnvName(): string {
  * ```
  */
 export function isProduction(): boolean {
-    return resolveEnvName() === 'production'
+    return explicitEnvName() === 'production'
 }
 
 /**
  * Whether the application is running in development.
  *
- * Note this is `true` when neither variable is set (the default name is
- * `'development'`). A control that must **fail closed** on an ambiguous
- * environment — e.g. deciding whether to expose a debug surface — must use
+ * A convenience that **fails open**: it is `true` when `APP_ENV` is unset (the
+ * default name is `'development'`). A control that must **fail closed** on an
+ * ambiguous environment — deciding whether to expose a debug surface, or
+ * whether a cookie may travel without `Secure` — must use
  * {@link isExplicitlyDevelopment} instead.
  *
  * @returns `true` when the resolved environment name is `'development'`.
  *
  * @example
  * ```typescript
- * const showDetails = isDevelopment()
+ * const verboseLogs = isDevelopment()
  * ```
  */
 export function isDevelopment(): boolean {
@@ -84,15 +90,15 @@ export function isDevelopment(): boolean {
 }
 
 /**
- * Whether an environment variable is **explicitly** set to `'development'`.
+ * Whether `APP_ENV` is **explicitly** set to `'development'`.
  *
- * Unlike {@link isDevelopment}, this is `false` when neither `DENO_ENV` nor
- * `APP_ENV` is set and `false` under a `NotCapable` read — it requires a
- * positive, explicit signal. Use it to **fail closed** for surfaces that must
- * never activate by default (e.g. mounting a dev-only debug bar): an unset,
- * ambiguous, or permission-denied environment resolves to `false`.
+ * Unlike {@link isDevelopment}, this is `false` when `APP_ENV` is unset, blank
+ * or unreadable — it requires a positive, explicit signal. Use it to **fail
+ * closed** for surfaces that must never activate by default (e.g. mounting a
+ * dev-only debug bar, or showing error details). It is never true at the same
+ * time as {@link isProduction}.
  *
- * @returns `true` only when `DENO_ENV` or `APP_ENV` is exactly `'development'`.
+ * @returns `true` only when `APP_ENV` names development.
  *
  * @example
  * ```typescript
@@ -100,10 +106,5 @@ export function isDevelopment(): boolean {
  * ```
  */
 export function isExplicitlyDevelopment(): boolean {
-    try {
-        return Deno.env.get('DENO_ENV') === 'development' ||
-            Deno.env.get('APP_ENV') === 'development'
-    } catch {
-        return false
-    }
+    return explicitEnvName() === 'development'
 }

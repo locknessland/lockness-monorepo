@@ -12,6 +12,7 @@
         "./logging/internal": "./logging/credential_params.ts",
         "./lifecycle/health/internal": "./lifecycle/health.ts",
         "./environment": "./environment.ts",
+        "./environment/internal": "./environment_legacy.ts",
         "./pagination": "./pagination/mod.ts",
         "./resource": "./resource/mod.ts"
     },
