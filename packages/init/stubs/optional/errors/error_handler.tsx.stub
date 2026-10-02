@@ -1,4 +1,8 @@
-import { formatErrorForConsole, type Context } from '@lockness/core'
+import {
+    formatErrorForConsole,
+    isExplicitlyDevelopment,
+    type Context,
+} from '@lockness/core'
 import { NotFoundPage } from './not_found.tsx'
 import { UnauthorizedPage } from './unauthorized.tsx'
 import { ForbiddenPage } from './forbidden.tsx'
@@ -24,8 +28,9 @@ export const errorHandler = (error: Error, c: Context) => {
         case 403:
             return c.html(<ForbiddenPage />, 403)
         default: {
-            // Show error details only in development
-            const showDetails = Deno.env.get('APP_ENV') === 'development'
+            // Show error details only when APP_ENV is explicitly development:
+            // an unset or unknown environment hides them (fail closed).
+            const showDetails = isExplicitlyDevelopment()
             return c.html(
                 <ServerErrorPage error={error} showDetails={showDetails} />,
                 500,

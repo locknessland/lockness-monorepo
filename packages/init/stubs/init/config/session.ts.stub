@@ -10,5 +10,6 @@ export const sessionConfig: SessionConfig = {
     driver: 'cookie',
     secret: Deno.env.get('APP_KEY'),
     lifetime: 7200, // 2 hours
-    secure: Deno.env.get('APP_ENV') === 'production',
+    // `secure` is deliberately absent: the framework sets the Secure flag
+    // unless APP_ENV=development. Set it only to override that default.
 }

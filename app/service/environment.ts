@@ -32,10 +32,12 @@ export class Environment {
     /**
      * Whether the application runs in production.
      *
-     * Sourced from `config/app.ts` (`APP_ENV === 'production'`) — the project's
-     * single source of truth. Read here, never in the consuming service.
+     * Sourced from `config/app.ts`, which asks the framework's resolver
+     * (`isProduction()` from `@lockness/core`: `APP_ENV`, trimmed and
+     * lower-cased) — so the app and the framework never disagree (#504). Read
+     * here, never in the consuming service.
      *
-     * @returns `true` when `APP_ENV` is `production`, otherwise `false`.
+     * @returns `true` when `APP_ENV` names production, otherwise `false`.
      */
     get isProduction(): boolean {
         return isProduction

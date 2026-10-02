@@ -75,10 +75,7 @@ export const config = {
     },
 } as const
 
-/** Check if running in development mode */
-export const isDevelopment = config.app.env === 'development'
-
-/** Check if running in production mode */
-export const isProduction = config.app.env === 'production'
+/** Whether the process runs in development / production — see config/app.ts. */
+export { isDevelopment, isProduction } from './app.ts'
 
 export type { CountryCode, LanguageCode } from './i18n.ts'

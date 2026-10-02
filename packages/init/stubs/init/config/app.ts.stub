@@ -1,17 +1,26 @@
 /**
  * Application Configuration
  *
- * General application settings.
+ * General application settings. The environment comes from the framework's
+ * one resolver (`@lockness/core`), so this file and the framework never
+ * disagree on whether the process is in production: `APP_ENV`, trimmed and
+ * lower-cased, defaulting to `'development'`.
  *
  * @module config/app
  */
+
+import {
+    isDevelopment as isDevelopmentEnv,
+    isProduction as isProductionEnv,
+    resolveEnvName,
+} from '@lockness/core'
 
 export const appConfig = {
     /** Application name */
     name: Deno.env.get('APP_NAME') || '{{ projectName }}',
 
     /** Environment: 'development' | 'production' | 'testing' */
-    env: Deno.env.get('APP_ENV') || 'development',
+    env: resolveEnvName(),
 
     /** Enable debug mode */
     debug: Deno.env.get('APP_DEBUG') === 'true',
@@ -21,7 +30,7 @@ export const appConfig = {
 }
 
 /** Check if running in development mode */
-export const isDevelopment = appConfig.env === 'development'
+export const isDevelopment = isDevelopmentEnv()
 
 /** Check if running in production mode */
-export const isProduction = appConfig.env === 'production'
+export const isProduction = isProductionEnv()
