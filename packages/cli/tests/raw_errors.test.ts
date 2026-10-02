@@ -6,7 +6,7 @@
  * @module @lockness/cli/tests/raw_errors
  */
 
-import { assertEquals, assertStringIncludes, assertThrows } from '@std/assert'
+import { assertEquals, assertStringIncludes } from '@std/assert'
 import { rawErrorsHint, readRawErrorsSwitch } from '../raw_errors.ts'
 
 /** A reader that answers `value` for the switch and nothing for anything else. */
@@ -44,12 +44,66 @@ Deno.test('raw errors - a reader denied the environment (NotCapable) reads as of
     assertEquals(readRawErrorsSwitch(denied), { state: 'off' })
 })
 
-Deno.test('raw errors - any other reader failure is not swallowed', () => {
+Deno.test('raw errors - a value that is not valid Unicode (InvalidData) reads as off, with a notice', () => {
+    const invalid = () => {
+        throw new Deno.errors.InvalidData(
+            'environment variable was not valid unicode',
+        )
+    }
+    assertEquals(readRawErrorsSwitch(invalid), {
+        state: 'unreadable',
+        placeholder: '<not valid Unicode>',
+    })
+})
+
+Deno.test('raw errors - any other reader failure reads as off, with a notice', () => {
     const broken = () => {
         throw new TypeError('reader bug')
     }
-    assertThrows(() => readRawErrorsSwitch(broken), TypeError, 'reader bug')
+    assertEquals(readRawErrorsSwitch(broken), {
+        state: 'unreadable',
+        placeholder: '<unreadable>',
+    })
 })
+
+/**
+ * Run `fn` with `Deno.permissions.querySync` answering `state` for every
+ * descriptor and `Deno.env.get` counting its calls, both restored afterwards.
+ * `Deno.env.get` throws, standing in for the prompt a real read would raise in
+ * a terminal: a test that reaches it has already lost.
+ */
+function withPermission(
+    state: Deno.PermissionState,
+    fn: () => void,
+): { envReads: number } {
+    const permissions = Deno.permissions as { querySync: unknown }
+    const env = Deno.env as { get: unknown }
+    const original = { querySync: permissions.querySync, get: env.get }
+    let envReads = 0
+    permissions.querySync = () => ({ state, partial: false })
+    env.get = () => {
+        envReads++
+        throw new Error('the env read was reached: in a terminal this prompts')
+    }
+    try {
+        fn()
+    } finally {
+        permissions.querySync = original.querySync
+        env.get = original.get
+    }
+    return { envReads }
+}
+
+for (const state of ['prompt', 'denied'] as const) {
+    Deno.test(`raw errors - env permission "${state}" reads as off without touching the environment`, () => {
+        let read: ReturnType<typeof readRawErrorsSwitch> | undefined
+        const { envReads } = withPermission(state, () => {
+            read = readRawErrorsSwitch()
+        })
+        assertEquals(read, { state: 'off' })
+        assertEquals(envReads, 0)
+    })
+}
 
 Deno.test('raw errors - the default reader is the process environment', () => {
     const original = Deno.env.get('LOCKNESS_CLI_RAW_ERRORS')
@@ -76,4 +130,14 @@ Deno.test('raw errors - the unrecognised notice quotes the value, encoded', () =
         'LOCKNESS_CLI_RAW_ERRORS="tru\\x1be\\x0d" is not recognised',
     )
     assertStringIncludes(hint, '1, true, on, yes, 0, false, off, no')
+})
+
+Deno.test('raw errors - the unreadable notice shows a placeholder, never the bytes', () => {
+    assertEquals(
+        rawErrorsHint({
+            state: 'unreadable',
+            placeholder: '<not valid Unicode>',
+        }),
+        'LOCKNESS_CLI_RAW_ERRORS=<not valid Unicode> could not be read, so the error above is redacted. Use one of: 1, true, on, yes, 0, false, off, no.',
+    )
 })

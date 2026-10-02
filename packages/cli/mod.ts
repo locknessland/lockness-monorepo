@@ -391,8 +391,10 @@ export class Cli {
      * at most 2 cause links, credentials redacted in the message, every link
      * and the top-level error's 10 frames, then a hint line. CLI output lands in
      * CI logs, which are often public. `LOCKNESS_CLI_RAW_ERRORS=1` prints the
-     * error object raw instead, behind a banner; an unrecognised value prints
-     * the redacted form and says so. Every case is one `console.error` call.
+     * error object raw instead, behind a banner; an unrecognised or unreadable
+     * value prints the redacted form and says so, and a process not granted
+     * the variable reads it as off without a permission prompt. Every case is
+     * one `console.error` call.
      *
      * @param args - The command name followed by its arguments.
      * @returns The exit status: `0` on success, `1`–`255` on failure.
@@ -427,6 +429,8 @@ export class Cli {
                 return toFailureStatus(error.exitCode)
             }
             // Read here and only here, so no other path needs `--allow-env`.
+            // Total and prompt-free (#508): nothing it meets can replace
+            // `error` or stall the report on a permission prompt.
             const raw = readRawErrorsSwitch()
             if (raw.state === 'on') {
                 console.error(

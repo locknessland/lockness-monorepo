@@ -17,6 +17,8 @@
  * The last two rows are #488: by default the error is rendered — name, vetted
  * code, redacted message per link, then frames — and raw only with
  * `LOCKNESS_CLI_RAW_ERRORS=1`. Every case prints exactly one `console.error`.
+ * A switch value that cannot be read at all (#508) is the default row with a
+ * notice in place of the hint: the command's own error is never lost.
  *
  * @module @lockness/cli/tests/cli_dispatch
  */
@@ -349,6 +351,47 @@ Deno.test('dispatch - T5 an unrecognised switch value prints redacted output and
     for (const secret of secrets) assertAbsent(out, secret)
     assertStringIncludes(out, `${RAW}="maybe" is not recognised`)
     assert(!out.includes(OFF_HINT), out)
+})
+
+Deno.test({
+    name:
+        'dispatch - T6 a switch value that is not valid Unicode still prints the real error once, exit 1',
+    // A POSIX shell builds the bytes; `Deno.Command` takes only strings.
+    ignore: Deno.build.os === 'windows',
+    async fn() {
+        const message = ['fx', 'real', crypto.randomUUID().slice(0, 8)].join(
+            '',
+        )
+        const fixture = new URL(
+            './fixtures/raw-errors/dispatch.ts',
+            import.meta.url,
+        )
+        const { code, stdout, stderr } = await new Deno.Command('sh', {
+            args: [
+                '-c',
+                `${RAW}="$(printf '\\377\\376')" exec "$0" run --allow-env "$1" "$2"`,
+                Deno.execPath(),
+                fixture.pathname,
+                message,
+            ],
+            cwd: new URL('..', import.meta.url).pathname,
+            stdout: 'piped',
+            stderr: 'piped',
+        }).output()
+        const out = new TextDecoder().decode(stdout) +
+            new TextDecoder().decode(stderr)
+        assertEquals(code, 1, out)
+        assertEquals(
+            out.split(`❌ task failed: Error: ${message}`).length - 1,
+            1,
+            out,
+        )
+        assertStringIncludes(
+            out,
+            `${RAW}=<not valid Unicode> could not be read`,
+        )
+        assert(!out.includes('InvalidData'), out)
+    },
 })
 
 Deno.test('dispatch - T8 a pg-shaped error shows its SQLSTATE and neither detail nor hint', async () => {
