@@ -18,7 +18,10 @@ import {
 } from '@std/assert'
 import { isAbsolute, join, toFileUrl } from '@std/path'
 import { renderError } from '../logging/sanitize.ts'
-import { readCompileDiagnostic } from '../logging/compile_diagnostic.ts'
+import {
+    readCompileDiagnostic,
+    translateImportFailure,
+} from '../logging/compile_diagnostic.ts'
 import { AppFileCompileError, importAppFile } from '../app_file.ts'
 
 const HEAD = 'FA' + 'KE'
@@ -271,5 +274,69 @@ Deno.test('#478 a hostile value thrown at evaluation is rethrown untouched', asy
             threw = true
         }
         assert(threw, 'expected the original Proxy back')
+    })
+})
+
+// ============================================================================
+// Review fold-in: the backstop's reach, the translation's strictness
+// ============================================================================
+
+Deno.test('#478 renderError withholds a V8 compile error wrapped in a plain Error', async () => {
+    await withFiles({ 'regex.ts': BROKEN['regex.ts'] }, async (dir) => {
+        const raw = await rawFailure(join(dir, 'regex.ts'))
+        const wrapped = new Error(`load failed: ${raw.message}`)
+        const out = renderError(wrapped)
+        assertNoMarker(out)
+        assert(out.startsWith('Error at file://'), out)
+        assert(out.endsWith('/regex.ts:1:18 [source excerpt withheld]'), out)
+    })
+})
+
+Deno.test('#478 importAppFile rethrows a runtime throw that only looks like an excerpt', async () => {
+    await withFiles({
+        'table.ts': 'throw new Error("table\\n  | row")\nexport {}\n',
+    }, async (root) => {
+        const error = await assertRejects(() => importAppFile('table.ts', root))
+        assert(!(error instanceof AppFileCompileError), String(error))
+        assertEquals((error as Error).message, 'table\n  | row')
+    })
+})
+
+Deno.test('#478 a non-file location has its credential pairs redacted', async () => {
+    // Derived from a real parse failure: only the module URL is swapped for
+    // a remote one carrying a credential, as a broken remote import would.
+    await withFiles({ 'excerpt.ts': BROKEN['excerpt.ts'] }, async (root) => {
+        const raw = await rawFailure(join(root, 'excerpt.ts'))
+        const remote = `https://cdn.example.com/mod.ts?token=${M}`
+        const message = raw.message.replace(
+            toFileUrl(join(root, 'excerpt.ts')).href,
+            remote,
+        )
+        assertStringIncludes(message, remote)
+        const error = translateImportFailure(raw.name, message, 'x.ts', root)
+        assertInstanceOf(error, AppFileCompileError)
+        assertEquals(error.file, 'https://cdn.example.com/mod.ts?token=***')
+        assertNoMarker(error.message)
+        assertNoMarker(Deno.inspect(error))
+    })
+})
+
+Deno.test('#478 an unusable file location falls back to the imported file', async () => {
+    await withFiles({ 'excerpt.ts': BROKEN['excerpt.ts'] }, async (root) => {
+        const raw = await rawFailure(join(root, 'excerpt.ts'))
+        const message = raw.message.replace(
+            toFileUrl(join(root, 'excerpt.ts')).href,
+            'file://elsewhere.example/excerpt.ts',
+        )
+        const error = translateImportFailure(
+            raw.name,
+            message,
+            'app/x.ts',
+            root,
+        )
+        assertInstanceOf(error, AppFileCompileError)
+        assertEquals(error.file, join('app', 'x.ts'))
+        assertEquals([error.line, error.column], [undefined, undefined])
+        assertNoMarker(Deno.inspect(error))
     })
 })

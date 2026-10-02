@@ -28,6 +28,9 @@
  * @module
  */
 
+import { fromFileUrl, isAbsolute, relative, resolve } from '@std/path'
+import { redactQueryCredentials } from './credential_params.ts'
+
 /** What a recognised compile or link failure keeps: its kind and location. */
 export interface CompileDiagnostic {
     /** `SyntaxError`, from the message's `XxxError: ` prefix or the error name. */
@@ -63,12 +66,17 @@ const LOCATION_URL = /^[a-z][a-z0-9+.-]*:\/\/\S+$/i
 const ANSI = /\x1b\[[0-9;]*m/g
 
 /**
- * Read a compile or link failure out of an error's name and message.
+ * Read a compile or link failure out of an error's name and message — the
+ * BROAD reading `renderError` uses as its net.
  *
- * Fires when the message holds an excerpt gutter line, OR when its kind is
- * `SyntaxError` and it ends with ` at <scheme>://…:L:C`. Anything else —
- * "Module not found", an application `TypeError('SyntaxError: …')` with no
- * location, a `JSON.parse` error — is not a compile diagnostic.
+ * Fires when the message holds an excerpt gutter line, OR when it ends with a
+ * location ` at <scheme>://…:L:C`, whatever the error is called. The second
+ * leg is what catches a V8 compile error an application wrapped
+ * (`new Error('load failed: ' + e.message)`), whose own name says nothing.
+ * Over-withholding is the safe direction for a log line: what is lost is a
+ * headline, never a location. "Module not found", an application
+ * `TypeError('SyntaxError: …')` with no location and a `JSON.parse` error are
+ * not compile diagnostics.
  *
  * @param name - The error's `name`.
  * @param message - The error's `message`, as thrown.
@@ -88,14 +96,137 @@ export function readCompileDiagnostic(
     name: string,
     message: string,
 ): CompileDiagnostic | undefined {
+    const shape = readShape(name, message)
+    if (!shape.excerpt && shape.location === undefined) return undefined
+    return { kind: shape.kind, ...shape.location }
+}
+
+/**
+ * Read a compile or link failure the STRICT way `importAppFile` translates.
+ *
+ * A translation replaces the error a caller sees, so it demands more than the
+ * net: a trailing location always, plus either an excerpt gutter (every
+ * measured parse failure has both) or an error that really is a
+ * `SyntaxError` (V8's regex and link errors carry no excerpt). A runtime
+ * throw whose message merely contains `\n  |` is not one.
+ *
+ * @param name - The error's `name`.
+ * @param message - The error's `message`, as thrown.
+ * @returns The kind and location, or `undefined` to rethrow untouched.
+ */
+function readImportDiagnostic(
+    name: string,
+    message: string,
+): CompileDiagnostic | undefined {
+    const shape = readShape(name, message)
+    if (shape.location === undefined) return undefined
+    if (!shape.excerpt && name !== 'SyntaxError') return undefined
+    return { kind: shape.kind, ...shape.location }
+}
+
+/** What a message looks like, before either reading decides. */
+interface Shape {
+    /** The `XxxError: ` prefix, or the error name. */
+    readonly kind: string
+    /** Whether an excerpt gutter line is present. */
+    readonly excerpt: boolean
+    /** The trailing location, when there is one. */
+    readonly location: { url: string; line: number; column: number } | undefined
+}
+
+/**
+ * Read the parts both readings decide on.
+ *
+ * @param name - The error's `name`.
+ * @param message - The error's `message`.
+ * @returns The kind, whether an excerpt is present, and the location.
+ */
+function readShape(name: string, message: string): Shape {
     const text = message.includes('\x1b') ? message.replace(ANSI, '') : message
-    const kind = KIND_PREFIX.exec(text)?.[1] ?? name
-    const location = readLocation(text)
-    const excerpt = EXCERPT_LINE.test(text)
-    if (!excerpt && !(kind === 'SyntaxError' && location !== undefined)) {
-        return undefined
+    return {
+        kind: KIND_PREFIX.exec(text)?.[1] ?? name,
+        excerpt: EXCERPT_LINE.test(text),
+        location: readLocation(text),
     }
-    return { kind, ...location }
+}
+
+/**
+ * Translate an `import()` rejection into an {@link AppFileCompileError}, the
+ * strict way (see {@link readImportDiagnostic}).
+ *
+ * The file is the module the runtime names — a broken dependency is located
+ * at the dependency — relative to `root` when under it. A non-`file:` URL is
+ * kept, with its credential pairs redacted. A `file:` URL that names a host
+ * or does not parse falls back to the imported file with no line or column,
+ * rather than rethrowing the raw error: by then the failure is known to quote
+ * source.
+ *
+ * @param name - The rejection's `name`, already read.
+ * @param message - The rejection's `message`, already read.
+ * @param path - The file that was imported.
+ * @param root - The app root `path` was resolved against.
+ * @returns The translated error, or `undefined` to rethrow untouched.
+ *
+ * @example
+ * ```typescript
+ * const translated = translateImportFailure(error.name, error.message, path, root)
+ * throw translated ?? error
+ * ```
+ */
+export function translateImportFailure(
+    name: string,
+    message: string,
+    path: string,
+    root: string,
+): AppFileCompileError | undefined {
+    const diagnostic = readImportDiagnostic(name, message)
+    if (diagnostic === undefined) return undefined
+    const file = diagnostic.url === undefined
+        ? undefined
+        : locatedFile(diagnostic.url, root)
+    if (file === undefined) {
+        return new AppFileCompileError(
+            diagnostic.kind,
+            shownPath(resolve(root, path), root),
+        )
+    }
+    return new AppFileCompileError(
+        diagnostic.kind,
+        file,
+        diagnostic.line,
+        diagnostic.column,
+    )
+}
+
+/**
+ * The file a location URL names, as an error should show it.
+ *
+ * @param url - The URL from the runtime's message.
+ * @param root - The app root.
+ * @returns The path to show, or `undefined` when a `file:` URL is unusable.
+ */
+function locatedFile(url: string, root: string): string | undefined {
+    if (!url.toLowerCase().startsWith('file:')) {
+        return redactQueryCredentials(url)
+    }
+    const parsed = URL.parse(url)
+    if (parsed === null || parsed.hostname !== '') return undefined
+    return shownPath(fromFileUrl(parsed), root)
+}
+
+/**
+ * A file as an error should show it: relative to `root` when under it, so a
+ * log line does not carry the machine's directory layout; else absolute.
+ *
+ * @param absolute - The file's absolute path.
+ * @param root - The app root.
+ * @returns The path to show.
+ */
+function shownPath(absolute: string, root: string): string {
+    const shown = relative(resolve(root), absolute)
+    return shown === '' || shown.startsWith('..') || isAbsolute(shown)
+        ? absolute
+        : shown
 }
 
 /**
