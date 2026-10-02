@@ -205,7 +205,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-8 test files for 10 source files:
+8 test files for 11 source files:
 
 - `packages/redis/tests/backoff.test.ts`
 - `packages/redis/tests/client.test.ts`
