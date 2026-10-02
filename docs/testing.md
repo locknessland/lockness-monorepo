@@ -69,8 +69,10 @@ the suite.
 
 Instead, race the timer under test against a reference timer with a valid delay,
 scheduled **after** it, and assert which one fires first. Timers in the same
-queue fire in deadline order, so a stall delays both and cannot swap them. A
-regression still flips the result. See
+queue fire in deadline order, so a stall delays both and cannot swap them. The
+reference delay is the detection threshold: a regression flips the result only
+when it pushes the delay past the reference, so pick a reference well above the
+expected delay and well below the wrong behaviour's. See
 `packages/core/tests/shutdown_deno_behaviour.test.ts`.
 
 ## In-Memory Storage Mocks
