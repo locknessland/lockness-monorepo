@@ -1127,9 +1127,9 @@ outlived it (#427). Each orphaned client kept its sockets open. What changes:
 - **`silent: true` silences the failure line too.** `connect()` used to print
   `❌ Database connection failed` whatever `silent` said. The failure is still
   returned as `success: false`, so a caller that passes `silent` must report it.
-  `db:check`, `db:seed` and `db:fresh` now pass it, and print a failure once
-  instead of twice, with no `✅ Database configured` line before a failing
-  probe.
+  `db:check` and `db:seed` now pass it, as `db:fresh` already did, and print a
+  failure once instead of twice, with no `✅ Database configured` line before a
+  failing probe.
 
 ## Upgrading to v0.4.0
 

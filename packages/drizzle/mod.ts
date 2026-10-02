@@ -426,14 +426,15 @@ export class Database<D extends Dialect = 'postgres'> {
      * Since #420 this says nothing about reachability, because
      * {@link Database.connect} makes no round trip. Use {@link Database.probe}
      * to know whether the database answers. A `connect()` still building its
-     * client does not count.
+     * client does not count, so `false` does not mean `connect()` is allowed:
+     * a second call while the first is in flight still throws.
      *
      * @returns True between a successful `connect()` and `close()`.
      *
      * @example
      * ```ts
-     * if (!db.isConnected()) {
-     *     await db.connect(Deno.env.get('DATABASE_URL')!)
+     * if (db.isConnected()) {
+     *     await db.probe()
      * }
      * ```
      */
