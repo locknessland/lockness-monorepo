@@ -904,8 +904,11 @@ session cookie would not have been marked secure.
 
 Replace `Dockerfile` with the one a v0.5.0 scaffold writes (scaffold a throwaway
 app of the same kit and copy it), and add `_dist/` and `.compiled/` to
-`.dockerignore`. The new image runs `deno task build`, so add that task to
-`deno.json`:
+`.dockerignore`. In both `.dockerignore` and `.gitignore`, replace the `.env`
+lines with `.env*` followed by `!.env.exemple`: the new image copies the whole
+project, and the old docs suggested keeping production values in
+`.env.production`, which the old ignore lines let into an image layer. The new
+image runs `deno task build`, so add that task to `deno.json`:
 
 ```json
 {

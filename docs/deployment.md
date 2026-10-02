@@ -182,7 +182,14 @@ The Dockerfile:
 - Runs your kit's `deno task build`, then caches every module `main.ts` loads,
   and starts the server with `--cached-only`: the running container fetches
   nothing. It keeps `JSR_URL` from the build, because Deno keys its module cache
-  by registry origin.
+  by registry origin. So never put credentials in `JSR_URL`: it persists in the
+  image config. For a private mirror, pass `DENO_AUTH_TOKENS` to the
+  `deno install` steps through a BuildKit secret mount
+  (`RUN --mount=type=secret,...`), never as a build argument.
+- Leaves every `.env*` file except `.env.exemple`, and key files (`*.pem`,
+  `*.key`, `*.p8`, `*.p12`, `*.pfx`), out of the build context
+  (`.dockerignore`), so `COPY . .` cannot bake a secret into a layer. Pass
+  configuration at run time with `--env-file`.
 - Runs as the base image's non-root `deno` user. The app files stay owned by
   root, so the process cannot rewrite its own code.
 - Sets `APP_ENV=production` (after the build steps, so the build itself runs in
