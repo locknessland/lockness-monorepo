@@ -292,6 +292,18 @@ Deno.test('#478 renderError withholds a V8 compile error wrapped in a plain Erro
     })
 })
 
+Deno.test('#494 renderError withholds a wrapped link error by its V8 phrase', async () => {
+    // V8's link error carries no `SyntaxError: ` and no excerpt: only the
+    // measured phrase recognises it once wrapped.
+    await withFiles({ 'link.ts': BROKEN['link.ts'] }, async (dir) => {
+        const raw = await rawFailure(join(dir, 'link.ts'))
+        assert(!raw.message.includes('SyntaxError: '), raw.message)
+        const out = renderError(new Error(`load failed: ${raw.message}`))
+        assertNoMarker(out)
+        assert(out.endsWith('/link.ts:1:10 [source excerpt withheld]'), out)
+    })
+})
+
 Deno.test('#478 importAppFile rethrows a runtime throw that only looks like an excerpt', async () => {
     await withFiles({
         'table.ts': 'throw new Error("table\\n  | row")\nexport {}\n',

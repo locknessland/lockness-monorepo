@@ -1,5 +1,6 @@
 /**
- * @fileoverview The mutation battery for #478 and #438.
+ * @fileoverview The mutation battery for #478 and #438, and the #494
+ * regressions their fold-in introduced (rows labelled `#494`).
  *
  * Runs under the shared contract in `harness.ts`, which refuses to start unless
  * the suites are already green and the target files are clean, and requires
@@ -78,7 +79,10 @@ const MUTATIONS: Mutation[] = [
     {
         label: "quoted values lose their handling — `password='M'` leaks",
         file: CREDENTIALS,
-        edits: [['if (QUOTES.has(text[valueStart])) {', 'if (false) {']],
+        edits: [[
+            'if (!QUOTES.has(text[at])) return undefined',
+            'return undefined',
+        ]],
         killedBy: 'a quoted value is redacted up to its closing quote',
     },
     {
@@ -136,7 +140,7 @@ const MUTATIONS: Mutation[] = [
         label: 'an escaped opener read as raw — `--password=\\"M\\"` leaks',
         file: CREDENTIALS,
         edits: [[
-            "text[valueStart] === '\\\\' && QUOTES.has(text[valueStart + 1])",
+            "text[at] === '\\\\' && QUOTES.has(text[at + 1])",
             'false',
         ]],
         killedBy:
@@ -151,27 +155,63 @@ const MUTATIONS: Mutation[] = [
     {
         label: 'a bare `code` masked everywhere — `code=23505` is lost',
         file: CREDENTIALS,
-        edits: [["(match === 'exact' && !url)", 'false']],
+        edits: [["if (match === 'exact' && !url) {", 'if (false) {']],
         killedBy:
             'a bare `code` outside a URL is a diagnostic, not an OAuth code',
     },
     {
         label:
-            'blanks after `=` always skipped — `token= in header` loses `in`',
+            '#494 R1 blanks after `=` skipped only after blanks — `password= M` leaks',
         file: CREDENTIALS,
-        edits: [['const valueStart = nameEnd < i', 'const valueStart = true']],
-        killedBy:
-            'an empty value right after `=` does not swallow the next word',
+        edits: [[
+            'const valueStart = skipBlanksRight(text, i + equalsLength)',
+            'const valueStart = nameEnd < i ? skipBlanksRight(text, i + equalsLength) : i + equalsLength',
+        ]],
+        killedBy: 'blanks after `=` are skipped even with none before it',
     },
     {
         label: 'a plural count masked — `max_tokens=4096` is lost',
         file: CREDENTIALS,
         edits: [[
-            "match === 'plural' && isDigits(text, valueStart, end)",
+            "match === 'count' && isDigits(text, valueStart, end)",
             'false',
         ]],
         killedBy:
             'a plural stem with an all-digit value is a count, not a secret',
+    },
+    {
+        label: '#494 R2 every plural is a count — `api_tokens=123456` is shown',
+        file: CREDENTIALS,
+        edits: [[
+            'COUNT_WORDS.some((word) => normalised.includes(word))',
+            'true',
+        ]],
+        killedBy: 'only a known count name keeps an all-digit value',
+    },
+    {
+        label:
+            '#494 R4 `&amp;` is not a query separator — an href `code` leaks',
+        file: CREDENTIALS,
+        edits: [[
+            'if (isEscapedAmpersand(text, start - AMP.length)) return true',
+            '',
+        ]],
+        killedBy: 'an OAuth `code` after an HTML-escaped `&amp;` is in a query',
+    },
+    {
+        label:
+            '#494 R4 a form body is not a query — `code=M&grant_type=` leaks',
+        file: CREDENTIALS,
+        edits: [['if (!run.query) {', 'if (true) {']],
+        killedBy: 'a `code` ending at `&` and another pair is a form body',
+    },
+    {
+        label:
+            '#494 P1 a serialised backslash escapes nothing — an inner `\\\\\\"` ends the value',
+        file: CREDENTIALS,
+        edits: [["j += text[j + 2] === '\\\\' ? 4 : 3", 'j += 2']],
+        killedBy:
+            'an escaped quote inside an escaped-quote value does not end it',
     },
     // ---- renderOne's order ----------------------------------------------------
     {
@@ -256,6 +296,24 @@ const MUTATIONS: Mutation[] = [
         ]],
         killedBy:
             'renderError withholds a V8 compile error wrapped in a plain Error',
+    },
+    {
+        label:
+            '#494 R3 `SyntaxError: ` mid-message is no signal — a flattened excerpt leaks',
+        file: DIAGNOSTIC,
+        edits: [[
+            'compilePhrase: text.includes(SYNTAX_ERROR_SIGNAL) ||',
+            'compilePhrase:',
+        ]],
+        killedBy:
+            'a wrapped parse error with its newlines flattened is withheld',
+    },
+    {
+        label:
+            '#494 the link-error phrase dropped — a wrapped link error leaks',
+        file: DIAGNOSTIC,
+        edits: [["    'does not provide an export named',\n", '']],
+        killedBy: 'renderError withholds a wrapped link error by its V8 phrase',
     },
     {
         label:
