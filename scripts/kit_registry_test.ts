@@ -12,6 +12,7 @@ import { fromFileUrl } from '@std/path'
 import { type KitName, KITS } from '@lockness/init'
 import {
     appPathRequests,
+    DOCKER_LABEL,
     INSPECT_FORMAT,
     judgeContainerHealth,
     judgeNotFound,
@@ -21,6 +22,7 @@ import {
     pollHealthy,
     publishableMembers,
     publishToRegistry,
+    removeDockerObject,
     ROUTER_LIST_ROUTE,
 } from './kit_smoke.ts'
 import { LocalJsrStore } from './local_jsr.ts'
@@ -257,4 +259,72 @@ Deno.test('pollHealthy turns an inspect failure into a failed verdict', async ()
         ok: false,
         detail: 'docker inspect failed: No such container: abc',
     })
+})
+
+Deno.test('removeDockerObject warns, naming the object and the label, when removal fails', async () => {
+    const warnings: string[] = []
+    const removed = await removeDockerObject(
+        ['rm', '-f', 'lockness-kit-smoke-web-1a2b3c4d'],
+        () =>
+            Promise.resolve({
+                success: false,
+                stderr: 'Error response from daemon: cannot remove: in use',
+            }),
+        (message) => warnings.push(message),
+    )
+    assertEquals(removed, false)
+    assertEquals(warnings.length, 1)
+    assert(warnings[0].includes('lockness-kit-smoke-web-1a2b3c4d'))
+    assert(warnings[0].includes(DOCKER_LABEL))
+    assert(warnings[0].includes('cannot remove: in use'))
+})
+
+Deno.test('removeDockerObject: success and "No such …" are removed, silently', async () => {
+    const warnings: string[] = []
+    const warn = (message: string) => warnings.push(message)
+    for (
+        const result of [
+            { success: true, stderr: '' },
+            { success: false, stderr: 'Error: No such container: x' },
+            { success: false, stderr: 'Error: No such image: x:1' },
+        ]
+    ) {
+        assert(
+            await removeDockerObject(
+                ['rm', '-f', 'x'],
+                () => Promise.resolve(result),
+                warn,
+            ),
+        )
+    }
+    assertEquals(warnings, [])
+})
+
+Deno.test('removeDockerObject swallows only a missing docker binary', async () => {
+    const warn = () => {}
+    assert(
+        await removeDockerObject(
+            ['rm', '-f', 'x'],
+            () => Promise.reject(new Deno.errors.NotFound('docker')),
+            warn,
+        ),
+    )
+    await assertRejects(
+        () =>
+            removeDockerObject(
+                ['rm', '-f', 'x'],
+                () => Promise.reject(new Deno.errors.PermissionDenied('run')),
+                warn,
+            ),
+        Deno.errors.PermissionDenied,
+    )
+    await assertRejects(
+        () =>
+            removeDockerObject(
+                ['rm', '-f', 'x'],
+                () => Promise.reject(new TypeError('bug')),
+                warn,
+            ),
+        TypeError,
+    )
 })
