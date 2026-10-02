@@ -70,13 +70,15 @@ const ANSI = /\x1b\[[0-9;]*m/g
  * BROAD reading `renderError` uses as its net.
  *
  * Fires when the message holds an excerpt gutter line, OR when it ends with a
- * location ` at <scheme>://…:L:C`, whatever the error is called. The second
- * leg is what catches a V8 compile error an application wrapped
+ * location ` at <scheme>://…:L:C` AND is a compile error: its kind is
+ * `SyntaxError`, or it holds a measured V8 compile phrase. The phrase leg is
+ * what catches a V8 compile error an application wrapped
  * (`new Error('load failed: ' + e.message)`), whose own name says nothing.
- * Over-withholding is the safe direction for a log line: what is lost is a
- * headline, never a location. "Module not found", an application
+ * A location alone is not enough: "Module not found … at file:///a.ts:1:8"
+ * names the missing module, and a message that happens to end in a URL would
+ * otherwise be blanked by anyone who can shape its tail. An application
  * `TypeError('SyntaxError: …')` with no location and a `JSON.parse` error are
- * not compile diagnostics.
+ * not compile diagnostics either.
  *
  * @param name - The error's `name`.
  * @param message - The error's `message`, as thrown.
@@ -97,9 +99,24 @@ export function readCompileDiagnostic(
     message: string,
 ): CompileDiagnostic | undefined {
     const shape = readShape(name, message)
-    if (!shape.excerpt && shape.location === undefined) return undefined
+    if (shape.excerpt) return { kind: shape.kind, ...shape.location }
+    if (shape.location === undefined) return undefined
+    // A location alone is ordinary in a message — "Module not found … at
+    // file:///a.ts:1:8", or any tail ending in a URL — so it withholds only
+    // what is measured to be a compile error.
+    if (shape.kind !== 'SyntaxError' && !shape.compilePhrase) return undefined
     return { kind: shape.kind, ...shape.location }
 }
+
+/**
+ * The phrases V8 puts in a compile error that quotes source, measured on Deno
+ * 2.9.6: a regex literal quotes its body, a link error names the export. They
+ * survive an application wrapping the error in a plain `Error`.
+ */
+const V8_COMPILE_PHRASES: readonly string[] = [
+    'Invalid regular expression:',
+    'does not provide an export named',
+]
 
 /**
  * Read a compile or link failure the STRICT way `importAppFile` translates.
@@ -132,6 +149,8 @@ interface Shape {
     readonly excerpt: boolean
     /** The trailing location, when there is one. */
     readonly location: { url: string; line: number; column: number } | undefined
+    /** Whether the text holds a measured V8 compile-error phrase. */
+    readonly compilePhrase: boolean
 }
 
 /**
@@ -147,6 +166,9 @@ function readShape(name: string, message: string): Shape {
         kind: KIND_PREFIX.exec(text)?.[1] ?? name,
         excerpt: EXCERPT_LINE.test(text),
         location: readLocation(text),
+        compilePhrase: V8_COMPILE_PHRASES.some((phrase) =>
+            text.includes(phrase)
+        ),
     }
 }
 

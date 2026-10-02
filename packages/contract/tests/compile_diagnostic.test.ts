@@ -340,3 +340,26 @@ Deno.test('#478 an unusable file location falls back to the imported file', asyn
         assertNoMarker(Deno.inspect(error))
     })
 })
+
+Deno.test('#478 a missing import with a trailing location renders unchanged', async () => {
+    await withFiles({
+        'importer.ts': "import './nope.ts'\nexport const a = 1\n",
+    }, async (dir) => {
+        const raw = await rawFailure(join(dir, 'importer.ts'))
+        // The runtime colours this location, so it is read without ANSI.
+        // deno-lint-ignore no-control-regex
+        const plain = raw.message.replace(/\x1b\[[0-9;]*m/g, '')
+        assertStringIncludes(plain, 'Module not found')
+        assertStringIncludes(plain, '/importer.ts:1:8')
+        assertEquals(readCompileDiagnostic(raw.name, raw.message), undefined)
+        const out = renderError(raw)
+        assert(!out.includes('[source excerpt withheld]'), out)
+        assertStringIncludes(out, 'Module not found')
+        assertStringIncludes(out, 'nope.ts')
+    })
+})
+
+Deno.test('#478 a message that merely ends in a URL location is not withheld', () => {
+    const error = new Error('request failed at http://a:1:1')
+    assertEquals(renderError(error), 'Error: request failed at http://a:1:1')
+})
