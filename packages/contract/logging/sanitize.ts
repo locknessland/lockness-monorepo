@@ -524,8 +524,10 @@ export interface RenderErrorOptions {
  * failed reaches the operator. It is shown only when `isShowableErrorCode`
  * accepts its spelling: SQLSTATE, POSIX errno, or upper-snake with an
  * underscore, at most 48 characters. **That check limits the code's shape, not
- * its secrecy** — it turns away the shapes randomness takes, but a
- * five-character PIN would still pass. `detail`, `hint` and every other
+ * its secrecy** — it turns away the common shapes of random secrets, but any
+ * five characters of `[0-9A-Z]`, `E` followed by up to fifteen letters, and any
+ * upper-snake value still pass whatever they carry, so never put a secret in
+ * `.code`. `detail`, `hint` and every other
  * property are never rendered: they carry row data no redaction recognises. A
  * compile failure shows no code, because Deno labels a parse failure
  * `ERR_MODULE_NOT_FOUND`.

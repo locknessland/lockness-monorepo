@@ -10,11 +10,14 @@
  * data that no redaction recognises.
  *
  * **The check limits the code's SHAPE, not its secrecy.** It admits only the
- * three spellings real codes use, which shuts out the shapes randomness takes
- * (a six-digit one-time password, a 20-character key id, a base32 seed), but a
- * five-character PIN or an application's upper-snake value carrying data would
- * still pass. That residue is accepted: `name` is already shown with no vetting
- * at all, and a code is strictly narrower than a name.
+ * three spellings real codes use, which shuts out the common shapes of random
+ * secrets (a six-digit one-time password, a 20-character key id, a 32-character
+ * base32 seed). Three shapes still pass whatever they carry: any five
+ * characters of `[0-9A-Z]` (a PIN, a short one-time code, a coupon), `E`
+ * followed by up to fifteen letters (about 1 in 720 random 16-character base32
+ * seeds), and any upper-snake value up to 48 characters. That residue is
+ * accepted: `name` is already shown with no vetting at all, and a code is
+ * strictly narrower than a name. Never put a secret in `.code`.
  *
  * Internal: `renderError` imports it; no entry point does.
  *
