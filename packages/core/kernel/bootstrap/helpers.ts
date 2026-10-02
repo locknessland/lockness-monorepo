@@ -26,15 +26,14 @@
 import type { CacheConfig, SessionConfig } from '../kernel_decorators.ts'
 
 // Environment-name resolution lives in one place — `../../environment.ts`.
-// Imported for local use (the `secure` cookie default below) and re-exported
-// for the bootstrap consumers (e.g. the session boot gate) that already import
-// it from this module.
-import {
+// Re-exported for the bootstrap consumers (e.g. the session boot gate) that
+// already import it from this module.
+export {
     isDevelopment,
+    isExplicitlyDevelopment,
     isProduction,
     resolveEnvName,
 } from '../../environment.ts'
-export { isDevelopment, isProduction, resolveEnvName }
 
 /**
  * Normalized session config.
@@ -56,7 +55,13 @@ export interface NormalizedSessionConfig {
     absoluteLifetime?: number
     /** Whether per-session cookie revocation is enabled. Requires the cap. */
     revocation?: boolean
-    secure: boolean
+    /**
+     * The cookie `Secure` flag, present **only when the app set it** (#504).
+     * Absent, `@lockness/session` applies its fail-closed default — secure
+     * unless `APP_ENV` is explicitly development. Core supplying its own value
+     * here is how the default used to be overridden with `false`.
+     */
+    secure?: boolean
 }
 
 /**
@@ -132,12 +137,12 @@ export async function tryImportOptionalPackage<T = unknown>(
  * @example
  * ```typescript
  * const config1 = normalizeSessionConfig(true)
- * // Returns: { driver: 'cookie', secret: env.APP_KEY, lifetime: 7200, secure: false }
+ * // Returns: { driver: 'cookie', secret: env.APP_KEY, lifetime: 7200 }
  * // — with `secret: undefined` when APP_KEY is unset. That is not an oversight;
  * //   see the note in the body.
  *
  * const config2 = normalizeSessionConfig({ driver: 'memory' })
- * // Returns: { driver: 'memory', secret: env.APP_KEY, lifetime: 7200, secure: false }
+ * // Returns: { driver: 'memory', secret: env.APP_KEY, lifetime: 7200 }
  * ```
  */
 export function normalizeSessionConfig(
@@ -176,14 +181,17 @@ export function normalizeSessionConfig(
         )
     }
 
-    return {
+    const normalized: NormalizedSessionConfig = {
         driver: baseConfig.driver ?? 'cookie',
         secret,
         lifetime: baseConfig.lifetime ?? 7200,
         absoluteLifetime,
         revocation,
-        secure: baseConfig.secure ?? isProduction(),
     }
+    // Only the app's own choice is passed on. The default belongs to
+    // @lockness/session (fail closed); supplying one here overrode it (#504).
+    if (baseConfig.secure !== undefined) normalized.secure = baseConfig.secure
+    return normalized
 }
 
 /**

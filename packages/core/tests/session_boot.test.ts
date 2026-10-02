@@ -16,8 +16,9 @@
  *   than a refusal to start.
  */
 
-import { assertEquals, assertRejects } from '@std/assert'
+import { assertEquals, assertRejects, assertStringIncludes } from '@std/assert'
 import { runBootstrapSteps } from '../kernel/bootstrap/registry.ts'
+import { environmentStep } from '../kernel/bootstrap/steps/environment.ts'
 import { sessionStep } from '../kernel/bootstrap/steps/session.ts'
 import {
     devSessionKey,
@@ -149,34 +150,111 @@ Deno.test('session boot - normalizeSessionConfig never substitutes a literal', a
     })
 })
 
-Deno.test('session boot - DENO_ENV=production refuses to start, not just APP_ENV', async () => {
-    // A host may set DENO_ENV rather than APP_ENV (the framework's own image
-    // set DENO_ENV until #503), and http/server.ts reads `DENO_ENV || APP_ENV`.
-    // A gate consulting only APP_ENV would be inert wherever DENO_ENV is the
-    // one set — the feature would ship looking correct and doing nothing in
-    // production.
+Deno.test('session boot - DENO_ENV=production alone is refused before the session step, naming APP_ENV', async () => {
+    // Until v0.5.0 the framework read DENO_ENV first, and the generated image
+    // set only DENO_ENV. Reading APP_ENV alone would silently move such a
+    // deployment off production — no APP_KEY refusal, no Secure default — so
+    // the environment step refuses it instead (#504). Run together with the
+    // session step, the refusal is the tripwire's, not SessionSecretError.
     await withEnv(
         { DENO_ENV: 'production', APP_ENV: undefined, APP_KEY: undefined },
         async () => {
             const error = await assertRejects(
-                () => runBootstrapSteps(contextFor(true), [sessionStep]),
-                SessionSecretError,
+                () =>
+                    runBootstrapSteps(contextFor(true), [
+                        environmentStep,
+                        sessionStep,
+                    ]),
+                Error,
             )
 
-            assertEquals(error.reason, 'missing')
+            assertEquals(error instanceof SessionSecretError, false)
+            assertStringIncludes(error.message, 'Set APP_ENV')
         },
     )
 })
 
-Deno.test('session boot - the secure cookie flag reads the same two names', async () => {
-    // Same mismatch, same file: `secure` defaulted off DENO_ENV-less APP_ENV, so
-    // the cookie lost `Secure` in that image too. One helper, both callers.
+/** The effective cookie `secure` flag after the session step has booted. */
+async function bootedSecure(
+    env: Record<string, string | undefined>,
+    // deno-lint-ignore no-explicit-any
+    session: any = true,
+): Promise<boolean> {
+    let secure = false
     await withEnv(
-        { DENO_ENV: 'production', APP_ENV: undefined },
-        () => {
-            assertEquals(normalizeSessionConfig(true).secure, true)
-            return Promise.resolve()
+        { DENO_ENV: undefined, APP_KEY: generateAppKey(), ...env },
+        async () => {
+            await runBootstrapSteps(contextFor(session), [sessionStep])
+            secure = getSessionConfig().secure === true
         },
+    )
+    return secure
+}
+
+Deno.test('session boot - the effective secure flag fails closed when APP_ENV is unset (#504)', async () => {
+    // Core used to supply `secure: isProduction()`, which is false when the
+    // environment is unset, and that explicit false overrode the session
+    // package's fail-closed default. Core now passes `secure` through only when
+    // the app set it, so the effective flag is the package's default.
+    assertEquals(await bootedSecure({ APP_ENV: undefined }), true)
+    assertEquals(await bootedSecure({ APP_ENV: 'staging' }), true)
+    assertEquals(await bootedSecure({ APP_ENV: 'production' }), true)
+    assertEquals(await bootedSecure({ APP_ENV: 'development' }), false)
+})
+
+Deno.test('session boot - an explicit secure in the kernel config wins (#504)', async () => {
+    assertEquals(
+        await bootedSecure({ APP_ENV: 'production' }, { secure: false }),
+        false,
+    )
+    assertEquals(
+        await bootedSecure({ APP_ENV: 'development' }, { secure: true }),
+        true,
+    )
+})
+
+/** The warnings naming `secure`, captured while `fn` runs. */
+async function secureWarnings(fn: () => Promise<unknown>): Promise<string[]> {
+    const warnings: string[] = []
+    const original = console.warn
+    console.warn = (...args: unknown[]) => {
+        const line = args.map(String).join(' ')
+        if (line.includes('secure')) warnings.push(line)
+    }
+    try {
+        await fn()
+    } finally {
+        console.warn = original
+    }
+    return warnings
+}
+
+Deno.test('session boot - an explicit secure: false outside explicit development warns once (#504)', async () => {
+    for (const appEnv of ['production', 'staging', undefined]) {
+        const warnings = await secureWarnings(() =>
+            bootedSecure({ APP_ENV: appEnv }, { secure: false })
+        )
+        assertEquals(warnings.length, 1, `APP_ENV=${appEnv}`)
+        assertStringIncludes(warnings[0], 'APP_ENV=development')
+    }
+})
+
+Deno.test('session boot - no secure warning in explicit development, or when secure is left alone (#504)', async () => {
+    assertEquals(
+        await secureWarnings(() =>
+            bootedSecure({ APP_ENV: 'development' }, { secure: false })
+        ),
+        [],
+    )
+    assertEquals(
+        await secureWarnings(() => bootedSecure({ APP_ENV: 'production' })),
+        [],
+    )
+    assertEquals(
+        await secureWarnings(() =>
+            bootedSecure({ APP_ENV: 'production' }, { secure: true })
+        ),
+        [],
     )
 })
 

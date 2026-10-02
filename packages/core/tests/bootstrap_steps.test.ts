@@ -78,22 +78,24 @@ Deno.test('normalizeSessionConfig - merges object config with defaults', () => {
     assertEquals(config.secret, 'base64:AAAA')
 })
 
-Deno.test('normalizeSessionConfig - respects secure flag from environment', () => {
-    // Save original env
+Deno.test('normalizeSessionConfig - passes secure through only when the app set it (#504)', () => {
+    // Core used to supply `secure: isProduction()`, an explicit false whenever
+    // APP_ENV was unset, which overrode @lockness/session's fail-closed
+    // default. The default has one home now, and core leaves the key absent.
     const originalEnv = Deno.env.get('APP_ENV')
-
     try {
-        // Test production environment
-        Deno.env.set('APP_ENV', 'production')
-        const config1 = normalizeSessionConfig(true)
-        assertEquals(config1.secure, true)
-
-        // Test development environment
-        Deno.env.set('APP_ENV', 'development')
-        const config2 = normalizeSessionConfig(true)
-        assertEquals(config2.secure, false)
+        for (const env of ['production', 'development', undefined]) {
+            if (env === undefined) Deno.env.delete('APP_ENV')
+            else Deno.env.set('APP_ENV', env)
+            assertEquals('secure' in normalizeSessionConfig(true), false)
+            assertEquals(
+                'secure' in normalizeSessionConfig({ driver: 'memory' }),
+                false,
+            )
+        }
+        assertEquals(normalizeSessionConfig({ secure: false }).secure, false)
+        assertEquals(normalizeSessionConfig({ secure: true }).secure, true)
     } finally {
-        // Restore original env
         if (originalEnv !== undefined) {
             Deno.env.set('APP_ENV', originalEnv)
         } else {

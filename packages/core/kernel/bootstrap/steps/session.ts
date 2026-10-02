@@ -10,6 +10,7 @@
 import type { BootstrapStep } from '../types.ts'
 import {
     devSessionKey,
+    isExplicitlyDevelopment,
     isProduction,
     type NormalizedSessionConfig,
     normalizeSessionConfig,
@@ -26,7 +27,8 @@ import {
  * - Normalize session configuration
  * - **Refuse to boot** when the cookie driver has no usable key in production
  * - Supply a per-process random key outside production
- * - Configure session manager
+ * - Warn once when the app sets `secure: false` outside explicit development
+ * - Configure session manager (the `secure` default is the session package's)
  * - Skip gracefully if package not installed
  */
 export const sessionStep: BootstrapStep = {
@@ -103,6 +105,18 @@ export const sessionStep: BootstrapStep = {
 
         if (sessionConfig.driver === 'cookie') {
             assertUsableSecret(sessionConfig.secret, resolvedFrom)
+        }
+
+        // An explicit opt-out is honoured — the app may sit behind a TLS proxy
+        // that speaks plain HTTP to it — but it is said out loud once, because
+        // outside explicit development it is the one setting that lets a
+        // captured cookie be replayed (#167, #504).
+        if (sessionConfig.secure === false && !isExplicitlyDevelopment()) {
+            console.warn(
+                '⚠️  session.secure is set to false outside APP_ENV=development: ' +
+                    'the session cookie can travel over plain HTTP and be replayed. ' +
+                    'Remove the setting to get the secure default.',
+            )
         }
 
         configureSession(sessionConfig)

@@ -28,6 +28,7 @@
 import type { BootstrapContext, BootstrapStep } from './types.ts'
 
 // Import all step implementations
+import { environmentStep } from './steps/environment.ts'
 import { eventsDebugStep } from './steps/events_debug.ts'
 import { databaseStep, databaseTeardownStep } from './steps/database.ts'
 import { sessionStep } from './steps/session.ts'
@@ -51,6 +52,8 @@ import { healthStep } from './steps/health.ts'
  * Get the default bootstrap steps in execution order.
  *
  * Steps are ordered by their `order` property (lower values execute first):
+ * - 1: `DENO_ENV` tripwire (refuses a conflicting environment)
+ * - 10: Events debug switch
  * - 100: Database initialization
  * - 110: Session configuration
  * - 120: Cache configuration
@@ -72,6 +75,9 @@ import { healthStep } from './steps/health.ts'
  */
 export function getDefaultSteps(): readonly BootstrapStep[] {
     return [
+        // Order 1 — the DENO_ENV tripwire refuses a conflicting environment
+        // before any step acts on APP_ENV.
+        environmentStep,
         // Order 10 — before anything can emit, so the switch is on for the
         // boot it was turned on to diagnose.
         eventsDebugStep,
