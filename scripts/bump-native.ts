@@ -33,6 +33,7 @@ import { parse as parseJsonc } from '@std/jsonc'
 import { parseArgs } from '@std/cli/parse-args'
 import * as semver from '@std/semver'
 import { updateImportVersion, updateRootJsonc } from './bump.ts'
+import { refreshLockfile } from './lockfile.ts'
 
 /** Path to the root workspace configuration. */
 const ROOT_CONFIG_PATH = './deno.jsonc' as const
@@ -187,21 +188,6 @@ async function runNative(
 }
 
 /**
- * Run `deno install` so `deno.lock` records the bumped workspace ranges.
- *
- * @returns The subprocess exit code (0 on success).
- */
-async function refreshLockfile(): Promise<number> {
-    const command = new Deno.Command('deno', {
-        args: ['install'],
-        stdout: 'inherit',
-        stderr: 'inherit',
-    })
-    const { code } = await command.output()
-    return code
-}
-
-/**
  * Print usage and the legacy escape hatch.
  */
 function printUsage(): void {
@@ -284,28 +270,20 @@ async function main(): Promise<void> {
         for (const path of swept) {
             console.log(`   ${path} specifiers -> ${bumped}`)
         }
-
-        // The lockfile records every member's `@lockness/*` range, so a bump
-        // leaves it naming the previous version. Left out of the release
-        // commit, the first deno command on the tagged tree rewrites it.
-        // v0.4.0's first publish failed this way: publish.yml's gate shared
-        // a job with `deno publish`, dirtied the tree, and the publish
-        // aborted. The gate now runs in a job of its own (#476), but
-        // `deno publish` still resolves the graph to type-check, so the
-        // release commit must carry a lockfile that matches its versions.
-        const lockCode = await refreshLockfile()
-        if (lockCode !== 0) {
-            console.error(
-                `deno install exited with code ${lockCode}; deno.lock was ` +
-                    'not refreshed, and a release commit without it cannot ' +
-                    'be published. The version bump IS applied: run ' +
-                    '`deno install` once it can succeed, then commit. Do not ' +
-                    're-run the bump, or it takes a second step.',
-            )
-            Deno.exit(lockCode)
-        }
-        console.log('   deno.lock refreshed')
     }
+
+    // The lockfile records every member's `@lockness/*` range, so a bump
+    // leaves it naming the previous version. Left out of the release commit,
+    // the first deno command on the tagged tree rewrites it. v0.4.0's first
+    // publish failed this way: publish.yml's gate shared a job with `deno
+    // publish`, dirtied the tree, and the publish aborted. The gate now runs
+    // in a job of its own (#476), but `deno publish` still resolves the graph
+    // to type-check, so the release commit must carry a lockfile that matches
+    // its versions. A dry run says so instead of running it.
+    const lockCode = await refreshLockfile({
+        dryRun: args['dry-run'] === true,
+    })
+    if (lockCode !== 0) Deno.exit(lockCode)
     Deno.exit(code)
 }
 

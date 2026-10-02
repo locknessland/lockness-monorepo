@@ -17,12 +17,23 @@
  * Per-package `packages/*\/deno.json` files are plain JSON by convention
  * (no comments) and continue to use `JSON.parse` / `JSON.stringify`.
  *
+ * ## Lockfile
+ *
+ * After the manifests are written, the script regenerates `deno.lock` through
+ * the shared `refreshLockfile()` in `scripts/lockfile.ts`, exactly as
+ * `deno task bump` does. Without it the release commit carries a lockfile that
+ * names the previous version and `deno publish` refuses the tagged tree (#429).
+ * `--dry-run` writes nothing and says the lockfile would be refreshed.
+ *
  * @module scripts/bump
  *
  * @example
  * ```bash
  * # Bump all packages to version 0.2.0
- * deno task bump 0.2.0
+ * deno task bump:legacy 0.2.0
+ *
+ * # Show what would change, write nothing
+ * deno task bump:legacy 0.2.0 --dry-run
  *
  * # Or run directly
  * deno run -A scripts/bump.ts 0.2.0
@@ -33,6 +44,7 @@ import { parse as parseJsonc } from '@david/jsonc-morph'
 import { parse } from '@std/jsonc'
 import { parseArgs } from '@std/cli/parse-args'
 import * as semver from '@std/semver'
+import { refreshLockfile } from './lockfile.ts'
 
 // =============================================================================
 // Types
@@ -68,6 +80,8 @@ interface UpdateResult {
     readonly success: boolean
     /** Path that was updated */
     readonly path: string
+    /** Whether the file's content changed (or would, in a dry run) */
+    readonly changed?: boolean
     /** Error message if failed */
     readonly error?: string
 }
@@ -228,12 +242,16 @@ export function updateRootJsonc(text: string, newVersion: string): string {
  * Uses {@link updateRootJsonc} to preserve comments in `deno.jsonc`.
  *
  * @param newVersion - The new version to set
+ * @param dryRun - When true, compute the rewrite but do not write it
  * @returns The updated root configuration (parsed for workspace traversal)
  */
-async function updateRootConfig(newVersion: string): Promise<RootConfig> {
+async function updateRootConfig(
+    newVersion: string,
+    dryRun: boolean,
+): Promise<RootConfig> {
     const content = await Deno.readTextFile(ROOT_CONFIG_PATH)
     const rewritten = updateRootJsonc(content, newVersion)
-    await Deno.writeTextFile(ROOT_CONFIG_PATH, rewritten)
+    if (!dryRun) await Deno.writeTextFile(ROOT_CONFIG_PATH, rewritten)
     // Parse for caller to read workspace list; use @std/jsonc for read-only
     return parse(rewritten) as unknown as RootConfig
 }
@@ -243,11 +261,13 @@ async function updateRootConfig(newVersion: string): Promise<RootConfig> {
  *
  * @param memberPath - Path to the package (e.g., './packages/core')
  * @param newVersion - The new version to set
+ * @param dryRun - When true, compute the rewrite but do not write it
  * @returns Result of the update operation
  */
 async function updatePackage(
     memberPath: string,
     newVersion: string,
+    dryRun: boolean,
 ): Promise<UpdateResult> {
     const configPath = `${memberPath}/deno.json`
 
@@ -280,15 +300,17 @@ async function updatePackage(
 
         // Nothing to bump — do not rewrite (and reformat) an untouched file.
         if (!hasChanges) {
-            return { success: true, path: memberPath }
+            return { success: true, path: memberPath, changed: false }
         }
 
-        await Deno.writeTextFile(
-            configPath,
-            JSON.stringify(config, null, 4) + '\n',
-        )
+        if (!dryRun) {
+            await Deno.writeTextFile(
+                configPath,
+                JSON.stringify(config, null, 4) + '\n',
+            )
+        }
 
-        return { success: true, path: memberPath }
+        return { success: true, path: memberPath, changed: true }
     } catch (error) {
         return {
             success: false,
@@ -303,11 +325,13 @@ async function updatePackage(
  *
  * @param stubPath - Path to the stub file
  * @param newVersion - The new version to set
+ * @param dryRun - When true, compute the rewrite but do not write it
  * @returns Result of the update operation
  */
 async function updateStubFile(
     stubPath: string,
     newVersion: string,
+    dryRun: boolean,
 ): Promise<UpdateResult> {
     try {
         const content = await Deno.readTextFile(stubPath)
@@ -317,11 +341,11 @@ async function updateStubFile(
         )
 
         if (updatedContent !== content) {
-            await Deno.writeTextFile(stubPath, updatedContent)
-            return { success: true, path: stubPath }
+            if (!dryRun) await Deno.writeTextFile(stubPath, updatedContent)
+            return { success: true, path: stubPath, changed: true }
         }
 
-        return { success: true, path: stubPath }
+        return { success: true, path: stubPath, changed: false }
     } catch (error) {
         return {
             success: false,
@@ -339,9 +363,17 @@ async function updateStubFile(
  * Print the final summary and next steps.
  *
  * @param newVersion - The version that was set
+ * @param dryRun - Whether this was a dry run (nothing written)
  */
-function printSummary(newVersion: string): void {
+function printSummary(newVersion: string, dryRun: boolean): void {
     console.log('')
+    if (dryRun) {
+        console.log(
+            `Dry run: nothing was written. A real run sets every package to ${newVersion}.`,
+        )
+        console.log('')
+        return
+    }
     console.log(
         `✨ Bump terminé ! Tous les packages sont en version ${newVersion}`,
     )
@@ -349,7 +381,10 @@ function printSummary(newVersion: string): void {
     console.log('📝 Prochaines étapes:')
     console.log('   1. Vérifier les changements: git diff')
     console.log('   2. Tester: deno task test')
-    console.log('   3. Publier: deno publish')
+    console.log(
+        '   3. Committer deno.lock avec les manifestes, sinon deno publish refuse le tag',
+    )
+    console.log('   4. Publier: deno publish')
     console.log('')
 }
 
@@ -360,7 +395,7 @@ function printSummary(newVersion: string): void {
  */
 async function main(): Promise<void> {
     const args = parseArgs(Deno.args, {
-        boolean: ['major', 'minor', 'patch'],
+        boolean: ['major', 'minor', 'patch', 'dry-run'],
         alias: { major: 'M', minor: 'm', patch: 'p' },
     })
 
@@ -416,19 +451,22 @@ async function main(): Promise<void> {
         Deno.exit(1)
     }
 
+    const dryRun = args['dry-run'] === true
+
     console.log(`🚀 Mise à jour vers la version ${newVersion}`)
+    if (dryRun) console.log('   (dry run: no file is written)')
     console.log('')
 
     // Step 0: Update root config
     console.log('🏠 Mise à jour de la version du monorepo racine...')
-    const rootConfig = await updateRootConfig(newVersion)
+    const rootConfig = await updateRootConfig(newVersion, dryRun)
     console.log(`   ✅ deno.jsonc → ${newVersion}`)
     console.log('')
 
     // Step 1: Update all packages
     console.log('📦 Mise à jour des versions des packages...')
     for (const member of rootConfig.workspace) {
-        const result = await updatePackage(member, newVersion)
+        const result = await updatePackage(member, newVersion, dryRun)
         if (result.success) {
             console.log(`   ✅ ${member} → ${newVersion}`)
         } else {
@@ -452,13 +490,9 @@ async function main(): Promise<void> {
 
     let stubUpdates = 0
     for (const stubPath of stubFiles) {
-        const result = await updateStubFile(stubPath, newVersion)
+        const result = await updateStubFile(stubPath, newVersion, dryRun)
         if (result.success) {
-            const content = await Deno.readTextFile(stubPath)
-            if (
-                content.includes(`@^${newVersion}`) ||
-                content.includes(`@~${newVersion}`)
-            ) {
+            if (result.changed === true) {
                 console.log(`   ✅ ${stubPath}`)
                 stubUpdates++
             }
@@ -473,7 +507,16 @@ async function main(): Promise<void> {
         console.log('   ℹ️  Aucun fichier stub trouvé')
     }
 
-    printSummary(newVersion)
+    // Step 3: Refresh the lockfile, through the same module as `deno task
+    // bump`. It records every member's `@lockness/*` range; left stale, the
+    // release commit names the previous version and `deno publish` refuses
+    // the tagged tree (#429).
+    console.log('')
+    console.log('🔒 deno.lock...')
+    const lockCode = await refreshLockfile({ dryRun })
+    if (lockCode !== 0) Deno.exit(lockCode)
+
+    printSummary(newVersion, dryRun)
 }
 
 // =============================================================================
@@ -481,5 +524,5 @@ async function main(): Promise<void> {
 // =============================================================================
 
 if (import.meta.main) {
-    main()
+    await main()
 }
