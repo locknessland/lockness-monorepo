@@ -18,13 +18,15 @@ coverage/
 
 # Environment files and key material (secrets): `COPY . .` would bake them
 # into an image layer. Pass them at run time instead (--env-file).
-.env*
-!.env.exemple
-*.pem
-*.key
-*.p8
-*.p12
-*.pfx
+# `**/` makes each pattern match at any depth: Docker matches .dockerignore
+# from the context root only, so a bare `.env*` misses config/.env.production.
+**/.env*
+!**/.env.exemple
+**/*.pem
+**/*.key
+**/*.p8
+**/*.p12
+**/*.pfx
 
 # Test files
 tests/

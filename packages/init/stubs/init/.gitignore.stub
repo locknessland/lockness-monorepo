@@ -2,6 +2,13 @@
 .env*
 !.env.exemple
 
+# Key material
+*.pem
+*.key
+*.p8
+*.p12
+*.pfx
+
 # Node modules
 node_modules
 
