@@ -11,6 +11,7 @@
  */
 
 import { assert, assertEquals, assertRejects } from '@std/assert'
+import { FakeTime } from '@std/testing/time'
 import { drainDisposables } from '@lockness/contract/lifecycle/internal'
 import { RedisClient } from '../mod.ts'
 import { deadlineIn, exchange } from '../connection.ts'
@@ -20,6 +21,7 @@ import {
     RespFramingError,
 } from '../resp.ts'
 import { startFakeServer } from './fake_server.ts'
+import { pinRandom } from './pinned_random.ts'
 
 /**
  * Run `body` with `console.warn` captured, and return the messages it emitted.
@@ -555,11 +557,14 @@ function faultingConn(): Deno.Conn {
     } as unknown as Deno.Conn
 }
 
-Deno.test('#299: a wedged broker cannot be driven into a dial per command', async () => {
-    // Before this, a forced discard re-dialled on the very next command with no
-    // backoff and no circuit breaker — so a wedged or hostile peer drove the
-    // loop at the application's command rate, re-sending AUTH in cleartext on
-    // every cycle since `tls` defaults to false.
+/**
+ * Stub `Deno.connect` with a dialer whose every socket faults, and count the
+ * dials. Disposing the binding restores the real `Deno.connect`.
+ */
+function faultingDialer(): {
+    opens: () => number
+    [Symbol.dispose]: () => void
+} {
     let opens = 0
     const real = Deno.connect
     Object.defineProperty(Deno, 'connect', {
@@ -570,6 +575,41 @@ Deno.test('#299: a wedged broker cannot be driven into a dial per command', asyn
         configurable: true,
         writable: true,
     })
+    return {
+        opens: () => opens,
+        [Symbol.dispose]: () =>
+            void Object.defineProperty(Deno, 'connect', {
+                value: real,
+                configurable: true,
+                writable: true,
+            }),
+    }
+}
+
+/** Issue `count` commands against `client`, every one of which must reject. */
+async function rejectedBurst(client: RedisClient, count: number) {
+    for (let i = 0; i < count; i++) {
+        await assertRejects(() => client.command('GET', 'k'), Error)
+    }
+}
+
+Deno.test('#299: a wedged broker cannot be driven into a dial per command', async () => {
+    // Before this, a forced discard re-dialled on the very next command with no
+    // backoff and no circuit breaker — so a wedged or hostile peer drove the
+    // loop at the application's command rate, re-sending AUTH in cleartext on
+    // every cycle since `tls` defaults to false.
+    //
+    // THE DRAW AND THE CLOCK ARE BOTH PINNED (#498). The window is full jitter,
+    // anywhere in 1..2000ms here, and this test used to leave it to chance. CI
+    // drew 1ms once: the window closed before the 40 commands did, a third
+    // dial was — correctly — allowed, and the run went red with nothing wrong
+    // in the subject. The draw is pinned to its MINIMUM, the case the bound has
+    // to survive, and the clock is frozen, so "the whole burst lands inside the
+    // window" is a fact of the test rather than a race against the scheduler.
+    // What a window that DOES elapse permits is the next test's subject.
+    using random = pinRandom(0)
+    using _clock = new FakeTime()
+    using dialer = faultingDialer()
     const client = new RedisClient({
         hostname: '127.0.0.1',
         port: 1,
@@ -577,23 +617,62 @@ Deno.test('#299: a wedged broker cannot be driven into a dial per command', asyn
         retryMaxMs: 2000,
     })
     try {
-        for (let i = 0; i < 40; i++) {
-            await assertRejects(() => client.command('GET', 'k'), Error)
-        }
+        const messages = await captureWarnings(() => rejectedBurst(client, 40))
+        // PIN THE PREMISE. Without it this passes just as well if the draw was
+        // never taken, or a later seam bypassed the stub and drew 2000ms.
+        assert(random.calls() > 0, 'the refusal window was never drawn')
+        assert(
+            messages.some((m) => /refusing new dials for 1ms/.test(m)),
+            `the window is not the minimum draw's 1ms: ${messages.join(' | ')}`,
+        )
         assertEquals(
-            opens,
+            dialer.opens(),
             2,
-            `40 commands produced ${opens} dials. Two is the design: the first ` +
-                'fault re-dials immediately so a transient blip costs nothing, ' +
-                'and the second opens the window. Unbounded, this is 40 — and ' +
-                '40 cleartext AUTH frames on the wire.',
+            `40 commands produced ${dialer.opens()} dials. Two is the design: ` +
+                'the first fault re-dials immediately so a transient blip ' +
+                'costs nothing, and the second opens the window. Unbounded, ' +
+                'this is 40 — and 40 cleartext AUTH frames on the wire.',
         )
     } finally {
-        Object.defineProperty(Deno, 'connect', {
-            value: real,
-            configurable: true,
-            writable: true,
+        await client.close()
+    }
+})
+
+Deno.test('#299: at the minimum draw, each elapsed window admits exactly ONE dial', async () => {
+    // The bound stated in terms of the window, which is what it really is
+    // (#498). A 1ms window legitimately allows another dial 1ms later — full
+    // jitter draws that low on purpose, and changing that is out of scope here.
+    // What a window must never allow is a dial per COMMAND. So the claim is
+    // "dials = 2 + windows elapsed", however many commands land in each one;
+    // a fixed count that ignores the clock was only ever true for long draws.
+    using _random = pinRandom(0)
+    using clock = new FakeTime()
+    using dialer = faultingDialer()
+    const client = new RedisClient({
+        hostname: '127.0.0.1',
+        port: 1,
+        retryBaseMs: 2000,
+        retryMaxMs: 2000,
+    })
+    try {
+        await captureWarnings(async () => {
+            await rejectedBurst(client, 40)
+            assertEquals(dialer.opens(), 2, 'the window opened on fault two')
+            for (let elapsed = 1; elapsed <= 3; elapsed++) {
+                // Exactly the minimum draw's window, not a millisecond more:
+                // the next dial is due at its last instant.
+                clock.tick(1)
+                await rejectedBurst(client, 40)
+                assertEquals(
+                    dialer.opens(),
+                    2 + elapsed,
+                    `${elapsed} window(s) elapsed with 40 commands after ` +
+                        `each, for ${dialer.opens()} dials. One per window ` +
+                        'is the bound; more means a command dialled inside one.',
+                )
+            }
         })
+    } finally {
         await client.close()
     }
 })
