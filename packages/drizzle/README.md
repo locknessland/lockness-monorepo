@@ -69,8 +69,11 @@ export default defineConfig({
 
 ### Initialize Database Connection
 
-Enable the database on your `@Kernel`. At boot, `createApp` connects with
-`DATABASE_URL` and registers `Database` in the container:
+Enable the database on your `@Kernel`. At boot, `createApp` configures the
+connection from `DATABASE_URL` and registers `Database` in the container. The
+client is lazy: no round trip happens at boot, so a bad database surfaces on
+`/ready` or on the first query. Call `Database.probe()` in an `@OnBoot` hook if
+you want boot to fail fast.
 
 ```typescript
 // app/kernel.ts
@@ -93,26 +96,27 @@ const app = await createApp(AppKernel)
 await app.listen(8888)
 ```
 
-Routes live on controllers, which get `Database` from the container:
+Routes live on controllers. A controller stays thin: it asks a repository for
+the data and never queries the database itself:
 
 ```typescript
 // app/controller/user_controller.ts
-import { container, type Context, Controller, Get } from '@lockness/core'
-import { Database } from '@lockness/drizzle'
-import { users } from '../model/user.ts'
+import { type Context, Controller, Get, Inject } from '@lockness/core'
+import { UserRepository } from '../repository/user_repository.ts'
 
 @Controller('/users')
 export class UserController {
+    @Inject(UserRepository)
+    accessor users!: UserRepository
+
     @Get('/')
     async index(c: Context) {
-        const database = container.get(Database)
-        const rows = await database.db.select().from(users)
-        return c.json(rows)
+        return c.json(await this.users.findAll())
     }
 }
 ```
 
-`@Inject(Database)` on a class field works too — see
+The repository holds the queries and gets `Database` from the container — see
 [Repository Pattern](#repository-pattern).
 
 ## CLI Commands
