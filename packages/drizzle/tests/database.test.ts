@@ -98,24 +98,27 @@ Deno.test('#420 probe() rejects with "not connected" before any connect()', asyn
     await assertRejects(() => new Database().probe(), Error, 'not connected')
 })
 
-Deno.test('#301 a password containing a slash never reaches the result', () => {
+Deno.test('#301 a password containing a slash never reaches the result', async () => {
     // `/` in the userinfo is what makes `new URL()` throw AND what a pattern
     // redactor could not span — the same characters on both sides. The
     // assertion is on the PROPERTY, not on which mechanism got there first.
     // Since #425 the DSN check refuses it before the client's parser runs, so
-    // it still fails at `connect()` with no round trip (#420).
-    return new Database()
-        .connect('postgres://app:aB3/xY9+z@db.invalid:5432/prod', {
-            silent: true,
-        })
-        .then((result) => {
-            assertEquals(result.success, false)
-            assertEquals(
-                result.error?.includes('aB3/xY9+z'),
-                false,
-                'the password reached ConnectionResult.error',
-            )
-        })
+    // it still fails at `connect()` with no round trip (#420). The counting
+    // fake proves no client — and so no resolver — was ever reached (#427).
+    const { counts, factory } = countingFactory()
+    const db = new Database()
+    db.setDriverFactory('postgres', factory)
+    const result = await db.connect(
+        'postgres://app:aB3/xY9+z@db.invalid:5432/prod',
+        { silent: true },
+    )
+    assertEquals(result.success, false)
+    assertEquals(
+        result.error?.includes('aB3/xY9+z'),
+        false,
+        'the password reached ConnectionResult.error',
+    )
+    assertEquals(counts.built, 0, 'the refused DSN reached the factory')
 })
 
 Deno.test('#301 no password shape reaches the returned error', async () => {
@@ -148,24 +151,6 @@ Deno.test('#301 no password shape reaches the returned error', async () => {
     }
 })
 
-Deno.test('#302 probe() re-throws a head-only render, never a cause chain', async () => {
-    // This is the only renderError call site in the repo whose result is
-    // RETURNED (or re-thrown) rather than passed to console — an application
-    // may put it in a response. Same distinction telemetry draws for a span.
-    const db = new Database()
-    const result = await db.connect('postgres://u:p@db.invalid:5432/x', {
-        silent: true,
-    })
-    assertEquals(result.success, true)
-
-    const error = await assertRejects(() => db.probe())
-    assertEquals(
-        messageOf(error).includes('caused by:'),
-        false,
-        'a cause chain reached a re-thrown value',
-    )
-})
-
 /**
  * A fake postgres factory whose probe rejects with `error` — the shape of a
  * third-party client that words its own failure, DSN and cause included.
@@ -178,6 +163,30 @@ function failingFactory(error: unknown): DriverFactory {
             probe: () => Promise.reject(error),
         })
 }
+
+Deno.test('#302 probe() re-throws a head-only render, never a cause chain', async () => {
+    // This is the only renderError call site in the repo whose result is
+    // RETURNED (or re-thrown) rather than passed to console — an application
+    // may put it in a response. Same distinction telemetry draws for a span.
+    // A fake client, not a real resolver (#427): the failure, its cause and
+    // the held DSN are all fixed, so the exact render can be asserted.
+    const db = new Database()
+    db.setDriverFactory(
+        'postgres',
+        failingFactory(
+            new Error('connection refused', {
+                cause: new Error('CAUSE-SENTINEL'),
+            }),
+        ),
+    )
+    const result = await db.connect('postgres://u:p@db.invalid:5432/x', {
+        silent: true,
+    })
+    assertEquals(result.success, true)
+
+    const error = await assertRejects(() => db.probe())
+    assertEquals(messageOf(error), 'Error: connection refused')
+})
 
 Deno.test('#420 with no DSN held, the render is untouched and head-only', async () => {
     // An empty URL is a real input (`DATABASE_URL=` set but blank). There is
