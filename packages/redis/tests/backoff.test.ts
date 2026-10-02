@@ -13,30 +13,37 @@
 
 import { assert } from '@std/assert'
 import { nextDelay } from '../backoff.ts'
+import { pinRandom, TOP_DRAW } from './pinned_random.ts'
 
 Deno.test('#299: the delay grows exponentially until the cap, then stops', () => {
     const base = 100
     const max = 1000
-    // Full jitter means each call is a sample from [1, ceiling], so the CEILING
-    // is what is asserted — over enough samples the maximum observed
-    // approaches it, and no sample may ever exceed it.
+    // Full jitter means each call is a draw from [1, ceiling], so the CEILING
+    // is what is asserted. It used to be found by sampling — 400 real draws
+    // per attempt, then "the highest landed above half" — a verdict resting on
+    // luck, however good the odds (#498). The draws are now named: a sweep
+    // across the range must never leave it, and the TOP of the range must land
+    // on the ceiling itself, which pins the curve exactly rather than to
+    // within a factor of two.
     for (
         const [attempts, ceiling] of [[1, 100], [2, 200], [3, 400], [8, 1000]]
     ) {
-        let highest = 0
-        for (let i = 0; i < 400; i++) {
+        for (const draw of [0, 0.25, 0.5, 0.75, TOP_DRAW]) {
+            using _random = pinRandom(draw)
             const d = nextDelay(attempts, base, max)
             assert(
                 d >= 1 && d <= ceiling,
-                `attempt ${attempts} produced ${d}, outside 1..${ceiling}`,
+                `attempt ${attempts} at draw ${draw} produced ${d}, outside ` +
+                    `1..${ceiling}`,
             )
-            highest = Math.max(highest, d)
         }
+        using _top = pinRandom(TOP_DRAW)
+        const top = nextDelay(attempts, base, max)
         assert(
-            highest > ceiling * 0.5,
-            `attempt ${attempts} never sampled above half its ${ceiling}ms ` +
-                `ceiling in 400 draws (highest ${highest}) — the jitter is not ` +
-                'spanning the interval, so the curve is not what it claims',
+            top >= ceiling - 1,
+            `attempt ${attempts}'s longest possible delay is ${top}ms, short ` +
+                `of its ${ceiling}ms ceiling — the jitter is not spanning the ` +
+                'interval, so the curve is not what it claims',
         )
     }
 })
