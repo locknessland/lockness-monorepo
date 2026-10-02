@@ -22,6 +22,7 @@ import {
     readCompileDiagnostic,
 } from './compile_diagnostic.ts'
 import { redactQueryCredentials } from './credential_params.ts'
+import { readShownCode } from './error_code.ts'
 
 /**
  * Longest run of **input** this encoder consumes before truncating.
@@ -472,6 +473,9 @@ function renderOne(error: unknown): string {
             return renderHead(
                 diagnostic?.kind === name ? undefined : name,
                 redactQueryCredentials(redacted),
+                // A compile failure's code is Deno's `ERR_MODULE_NOT_FOUND`,
+                // which mislabels a parse failure (#478), so none is shown.
+                diagnostic === undefined ? readShownCode(error) : undefined,
             )
         }
         return safeForLog(
@@ -486,16 +490,24 @@ function renderOne(error: unknown): string {
 }
 
 /**
- * Cap and encode one error's name and its already-redacted message.
+ * Cap and encode one error's name, its code and its already-redacted message.
  *
  * @param name - The error's name, or `undefined` to render the message alone.
  * @param redacted - The message, with both redactions already applied.
- * @returns `name: message`, or the message alone.
+ * @param code - A code already vetted by `readShownCode`, shown only beside a
+ *   name.
+ * @returns `name [code]: message`, `name: message`, or the message alone.
  */
-function renderHead(name: string | undefined, redacted: string): string {
+function renderHead(
+    name: string | undefined,
+    redacted: string,
+    code?: string,
+): string {
     const shown = safeForLog(capCodePoints(redacted, MAX_MESSAGE))
     if (name === undefined) return shown
-    return `${safeForLog(capCodePoints(name, MAX_NAME))}: ${shown}`
+    return `${safeForLog(capCodePoints(name, MAX_NAME))}${
+        code === undefined ? '' : ` [${safeForLog(code)}]`
+    }: ${shown}`
 }
 
 /** How a sink wants an error rendered. */
