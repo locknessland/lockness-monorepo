@@ -18,6 +18,7 @@ import {
     assertEquals,
     assertRejects,
     assertStringIncludes,
+    assertThrows,
 } from '@std/assert'
 import { exitCodeFor } from '../kernel/signals.ts'
 
@@ -86,6 +87,29 @@ async function readWithin(
 }
 
 /**
+ * Signal a child, tolerating only that it has already exited.
+ *
+ * `Deno.ChildProcess.kill()` throws a `TypeError` once the child's exit has
+ * been observed, and a probe child may exit between any two lines here. That
+ * one condition is benign — a child that is gone needs no signal — and must
+ * not skip the cleanup that follows. Every other error is a real fault, the
+ * other `TypeError`s included (an invalid signal is one), so it re-throws.
+ *
+ * @param child The probe child to signal.
+ * @param signal The signal to send.
+ * @throws {unknown} Anything `kill()` throws except "already terminated".
+ */
+function killIfRunning(child: Deno.ChildProcess, signal: Deno.Signal): void {
+    try {
+        child.kill(signal)
+    } catch (error) {
+        const alreadyExited = error instanceof TypeError &&
+            error.message.includes('already terminated')
+        if (!alreadyExited) throw error
+    }
+}
+
+/**
  * Run one probe: write it, start it, wait for READY, signal it, collect.
  *
  * @param deadlineMs How long the child has to print its ready line. Only the
@@ -136,18 +160,15 @@ async function probe(
     }
 
     if (ready) {
-        child.kill(signal)
+        killIfRunning(child, signal)
         if (twice) {
             await new Promise((r) => setTimeout(r, 30))
-            try {
-                child.kill(signal)
-            } catch {
-                // Already gone — which is itself a pass for the "exits" assertions.
-            }
+            // Already gone is itself a pass for the "exits" assertions.
+            killIfRunning(child, signal)
         }
     } else if (!ended) {
         // Alive but never ready: stop it so the drain below can finish.
-        child.kill('SIGKILL')
+        killIfRunning(child, 'SIGKILL')
     }
 
     // Drain the rest so the pipe closes and the child can exit. A read left
@@ -289,6 +310,40 @@ Deno.test('probe - a child that never prints READY fails as "did not start"', as
         Error,
         'probe did not start',
     )
+})
+
+/** Start a bare child with no pipes, so only its exit status needs awaiting. */
+function spawnBare(code: string): Deno.ChildProcess {
+    return new Deno.Command(Deno.execPath(), {
+        args: ['eval', code],
+        stdout: 'null',
+        stderr: 'null',
+    }).spawn()
+}
+
+Deno.test('probe - killing a child that has already exited is tolerated', async () => {
+    // #495. A bare child.kill() throws here, and inside probe() that skipped
+    // the drain, the status await and the temp-file removal.
+    const child = spawnBare('')
+    await child.status
+
+    killIfRunning(child, 'SIGTERM')
+})
+
+Deno.test('probe - any other kill error still surfaces', async () => {
+    // Also a TypeError, so a helper that tolerated the class instead of the
+    // one condition would swallow it. Only "already terminated" is benign.
+    const child = spawnBare('setTimeout(() => {}, 60_000)')
+    try {
+        assertThrows(
+            () => killIfRunning(child, 'SIGBOGUS' as Deno.Signal),
+            TypeError,
+            'Invalid signal',
+        )
+    } finally {
+        killIfRunning(child, 'SIGKILL')
+        await child.status
+    }
 })
 
 Deno.test('probe - a child whose listen() never settles fails as "did not start"', async () => {
