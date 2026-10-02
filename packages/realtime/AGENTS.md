@@ -34,12 +34,12 @@ satisfies `@lockness/notification`'s `BroadcasterLike`.
 
 <!-- generated:deps -->
 
-| Direction                                      | Packages                                             |
-| :--------------------------------------------- | :--------------------------------------------------- |
-| Imports (static)                               | `contract`, `deprecation-contracts`, `hono`, `redis` |
-| Imports (soft, via `tryImportOptionalPackage`) | `events`                                             |
-| Imported by                                    | —                                                    |
-| **Must never import**                          | nothing — no package depends on this one             |
+| Direction                                 | Packages                                             |
+| :---------------------------------------- | :--------------------------------------------------- |
+| Imports (static)                          | `contract`, `deprecation-contracts`, `hono`, `redis` |
+| Imports (soft, loaded at runtime by name) | `events`                                             |
+| Imported by                               | —                                                    |
+| **Must never import**                     | nothing — no package depends on this one             |
 
 Enforced by `deno task deps:analyze` against `deps.policy.jsonc`. A soft edge is
 deliberately **not** declared in this package's `deno.json`: the consuming

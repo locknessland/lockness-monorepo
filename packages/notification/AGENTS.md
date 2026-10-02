@@ -40,12 +40,12 @@ none of mail/queue/sse/drizzle.
 
 <!-- generated:deps -->
 
-| Direction                                      | Packages                                    |
-| :--------------------------------------------- | :------------------------------------------ |
-| Imports (static)                               | `container`, `contract`                     |
-| Imports (soft, via `tryImportOptionalPackage`) | `drizzle`, `logger`, `mail`, `queue`, `sse` |
-| Imported by                                    | —                                           |
-| **Must never import**                          | nothing — no package depends on this one    |
+| Direction                                 | Packages                                    |
+| :---------------------------------------- | :------------------------------------------ |
+| Imports (static)                          | `container`, `contract`                     |
+| Imports (soft, loaded at runtime by name) | `drizzle`, `logger`, `mail`, `queue`, `sse` |
+| Imported by                               | —                                           |
+| **Must never import**                     | nothing — no package depends on this one    |
 
 Enforced by `deno task deps:analyze` against `deps.policy.jsonc`. A soft edge is
 deliberately **not** declared in this package's `deno.json`: the consuming

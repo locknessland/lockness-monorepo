@@ -18,7 +18,7 @@
  * workspace, where an undeclared import of any kind fails. The letters A and C
  * are kept so old logs and docs still line up.
  *
- * **Soft edges cannot be parsed.** `tryImportOptionalPackage('@lockness/drizzle')`
+ * **Soft edges cannot be parsed.** `loadConfiguredPackage(config, 'database', …)`
  * passes the specifier as a *string argument*, so it never appears in any module
  * graph. Those edges are declared in `deps.policy.jsonc` under `soft` and folded
  * into check A — declaring them is the only way they can be seen at all.

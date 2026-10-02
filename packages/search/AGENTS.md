@@ -23,12 +23,12 @@ workspace deps (`allow: []`).
 
 <!-- generated:deps -->
 
-| Direction                                      | Packages                                 |
-| :--------------------------------------------- | :--------------------------------------- |
-| Imports (static)                               | —                                        |
-| Imports (soft, via `tryImportOptionalPackage`) | —                                        |
-| Imported by                                    | —                                        |
-| **Must never import**                          | nothing — no package depends on this one |
+| Direction                                 | Packages                                 |
+| :---------------------------------------- | :--------------------------------------- |
+| Imports (static)                          | —                                        |
+| Imports (soft, loaded at runtime by name) | —                                        |
+| Imported by                               | —                                        |
+| **Must never import**                     | nothing — no package depends on this one |
 
 Enforced by `deno task deps:analyze` against `deps.policy.jsonc`. A soft edge is
 deliberately **not** declared in this package's `deno.json`: the consuming

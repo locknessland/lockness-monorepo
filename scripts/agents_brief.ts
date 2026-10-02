@@ -244,9 +244,7 @@ async function renderBlocks(name: string, graph: Graph): Promise<Blocks> {
         '| Direction | Packages |',
         '| :-------- | :------- |',
         `| Imports (static) | ${fmt(staticDeps)} |`,
-        `| Imports (soft, via \`tryImportOptionalPackage\`) | ${
-            fmt(softDeps)
-        } |`,
+        `| Imports (soft, loaded at runtime by name) | ${fmt(softDeps)} |`,
         `| Imported by | ${fmt(importedBy)} |`,
         `| **Must never import** | ${
             forbidden.length === 0

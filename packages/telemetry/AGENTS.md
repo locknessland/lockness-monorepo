@@ -25,12 +25,12 @@ vendor-neutral OTel API).
 
 <!-- generated:deps -->
 
-| Direction                                      | Packages                                                                    |
-| :--------------------------------------------- | :-------------------------------------------------------------------------- |
-| Imports (static)                               | `contract`, `hono` _(type-only)_                                            |
-| Imports (soft, via `tryImportOptionalPackage`) | —                                                                           |
-| Imported by                                    | `core`                                                                      |
-| **Must never import**                          | `core` — each already reaches this package, so importing one closes a cycle |
+| Direction                                 | Packages                                                                    |
+| :---------------------------------------- | :-------------------------------------------------------------------------- |
+| Imports (static)                          | `contract`, `hono` _(type-only)_                                            |
+| Imports (soft, loaded at runtime by name) | —                                                                           |
+| Imported by                               | `core`                                                                      |
+| **Must never import**                     | `core` — each already reaches this package, so importing one closes a cycle |
 
 Enforced by `deno task deps:analyze` against `deps.policy.jsonc`. A soft edge is
 deliberately **not** declared in this package's `deno.json`: the consuming
