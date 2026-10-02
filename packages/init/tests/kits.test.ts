@@ -160,6 +160,31 @@ Deno.test('a kit never lists the same path twice within one tree', () => {
     }
 })
 
+Deno.test('#503 every kit defines the build task its Dockerfile runs', async () => {
+    // The shared Dockerfile stub runs `deno task build` for every kit. A kit
+    // without one fails `docker build`; a build that skips routes:generate
+    // ships whatever app/routes.ts the image context happened to hold.
+    for (const kit of KIT_NAMES) {
+        const denoJson = JSON.parse(
+            await Deno.readTextFile(
+                join(STUBS, 'kits', kit, 'deno.json.stub'),
+            ),
+        ) as { tasks?: Record<string, string> }
+        const build = denoJson.tasks?.build ?? ''
+        assertEquals(
+            build.includes('deno task routes:generate'),
+            true,
+            `${kit}: build task "${build}" does not run routes:generate`,
+        )
+        // Only web has a stylesheet to build.
+        assertEquals(
+            build.includes('deno task css:build'),
+            kit === 'web',
+            `${kit}: build task "${build}" and css:build`,
+        )
+    }
+})
+
 /** The kits whose overlay ships a migrations folder. */
 const MIGRATING_KITS = KIT_NAMES.filter((kit) =>
     KITS[kit].overlay.some((f) => f.startsWith('database/migrations/'))
