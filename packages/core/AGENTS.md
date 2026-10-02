@@ -91,7 +91,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-52 test files for 72 source files:
+53 test files for 73 source files:
 
 - `packages/core/cli/tests/kernel_file.test.ts`
 - `packages/core/cli/tests/ssg_command.test.ts`
@@ -115,6 +115,7 @@ Anything not listed is internal and free to change.
 - `packages/core/tests/declare_middleware_integration.test.ts`
 - `packages/core/tests/default_view.test.ts`
 - `packages/core/tests/environment.test.ts`
+- `packages/core/tests/environment_tripwire.test.ts`
 - `packages/core/tests/events_debug_step.test.ts`
 - `packages/core/tests/events_reachability.test.ts`
 - `packages/core/tests/health_routes.test.ts`
@@ -146,6 +147,14 @@ Anything not listed is internal and free to change.
 - `packages/core/tests/signed_url.test.ts`
 - `packages/core/tests/throttle.test.ts`
 
+1 mutation battery — **`deno test` does not run these.** Each is an executable
+that mutates a source file and re-runs the suites that should notice. Run them
+with `deno task mutate` (all of them, one at a time) or
+`deno task mutate <name>` (one); nightly CI runs the full sweep. See
+[testing.md](../../docs/testing.md#mutation-batteries).
+
+- `packages/core/tests/mutations/session_secure_504.ts`
+
 <!-- /generated:tests -->
 
 ## Before you call it done
@@ -159,7 +168,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 52 test files directly —
+Then, specific to this package: run its 53 test files directly —
 
 ```bash
 deno test -A packages/core/
