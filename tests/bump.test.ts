@@ -7,7 +7,7 @@
  * @module tests/bump_test
  */
 
-import { assertEquals } from '@std/assert'
+import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { parse as parseJsonc } from '@std/jsonc'
 import * as semver from '@std/semver'
 import {
@@ -19,6 +19,11 @@ import {
     updateRootJsonc,
     VERSION_EXTRACT_PATTERN,
 } from '../scripts/bump.ts'
+import {
+    LOCKFILE_REFRESH_ARGS,
+    lockfileRefreshFailure,
+    refreshLockfile,
+} from '../scripts/lockfile.ts'
 
 // =============================================================================
 // getErrorMessage Tests
@@ -403,12 +408,11 @@ Deno.test('the committed lockfile records the committed version', async () => {
         ),
     ].filter((spec) => spec.startsWith('jsr:@lockness/'))
 
-    const stale = specs.filter((spec) => {
-        const range = spec.slice(spec.lastIndexOf('@') + 1)
-        return !semver.satisfies(version, semver.parseRange(range))
-    })
+    const stale = specs.filter((spec) =>
+        !semver.satisfies(version, semver.parseRange(locknessRange(spec)))
+    )
 
-    assertEquals(specs.length > 0, true, 'no @lockness/* range in deno.lock')
+    assert(specs.length > 0, 'no @lockness/* range in deno.lock')
     assertEquals(
         [...new Set(stale)],
         [],
@@ -416,3 +420,284 @@ Deno.test('the committed lockfile records the committed version', async () => {
             'and commit the lockfile with the bump',
     )
 })
+
+// =============================================================================
+// Lockfile refresh — both bump paths (#429)
+// =============================================================================
+
+/**
+ * The version range a `jsr:@lockness/*` lockfile entry admits.
+ *
+ * An unversioned entry (`jsr:@lockness/foo`) admits any version. Its last `@`
+ * is the scope sigil, so slicing after the last `@` would read `lockness/foo`
+ * as the range.
+ *
+ * @param spec - A `jsr:@lockness/<name>[@<range>]` lockfile entry.
+ * @returns The range, or `*` when the entry carries none.
+ */
+function locknessRange(spec: string): string {
+    const match = spec.match(/^jsr:@lockness\/[^@]+(?:@(.+))?$/)
+    if (!match) throw new Error(`not a jsr:@lockness/* entry: ${spec}`)
+    return match[1] ?? '*'
+}
+
+Deno.test('locknessRange - reads the range, and * for an unversioned entry', () => {
+    assertEquals(locknessRange('jsr:@lockness/core@0.4'), '0.4')
+    assertEquals(locknessRange('jsr:@lockness/core@^0.4.0'), '^0.4.0')
+    assertEquals(locknessRange('jsr:@lockness/foo'), '*')
+})
+
+Deno.test('refreshLockfile - runs deno install and reports success', async () => {
+    const calls: (readonly string[])[] = []
+    const code = await refreshLockfile({
+        run: (args) => {
+            calls.push(args)
+            return Promise.resolve(0)
+        },
+    })
+    assertEquals(code, 0)
+    assertEquals(calls, [LOCKFILE_REFRESH_ARGS])
+    assertEquals(LOCKFILE_REFRESH_ARGS, ['install'])
+})
+
+Deno.test('refreshLockfile - a dry run runs nothing', async () => {
+    let ran = false
+    const code = await refreshLockfile({
+        dryRun: true,
+        run: () => {
+            ran = true
+            return Promise.resolve(0)
+        },
+    })
+    assertEquals(code, 0)
+    assertEquals(ran, false)
+})
+
+Deno.test('refreshLockfile - a failure returns its code and says how to recover', async () => {
+    const code = await refreshLockfile({ run: () => Promise.resolve(3) })
+    assertEquals(code, 3)
+    const message = lockfileRefreshFailure(3)
+    assertStringIncludes(message, 'code 3')
+    assertStringIncludes(message, 'The version bump IS applied')
+    assertStringIncludes(message, 'Do not re-run the bump')
+})
+
+/** Absolute path of a repo script, for running it from a fixture directory. */
+const scriptPath = (name: string): string =>
+    new URL(`../scripts/${name}`, import.meta.url).pathname
+
+/** Absolute path of the repo's root config, so script imports resolve. */
+const REPO_CONFIG = new URL('../deno.jsonc', import.meta.url).pathname
+
+/**
+ * Run `deno` in `cwd` and capture its output.
+ *
+ * @param args - Arguments passed to the `deno` executable.
+ * @param cwd - The working directory.
+ * @returns The exit code and the decoded stdout + stderr.
+ */
+async function deno(
+    args: string[],
+    cwd: string,
+): Promise<{ code: number; output: string }> {
+    const { code, stdout, stderr } = await new Deno.Command(Deno.execPath(), {
+        args,
+        cwd,
+        env: { NO_COLOR: '1' },
+    }).output()
+    const decode = (bytes: Uint8Array) => new TextDecoder().decode(bytes)
+    return { code, output: decode(stdout) + decode(stderr) }
+}
+
+/**
+ * Build a two-member workspace at 0.1.0 where `@lockness/b` pins
+ * `@lockness/a@^0.1.0`, and let `deno install` write its lockfile.
+ *
+ * The `@std/semver` import exists only so deno writes a lockfile at all: it
+ * writes none for a graph with no remote package.
+ *
+ * @returns The fixture directory.
+ */
+async function lockfileFixture(): Promise<string> {
+    const dir = await Deno.makeTempDir({ prefix: 'lockness-bump-' })
+    await Deno.mkdir(`${dir}/packages/a`, { recursive: true })
+    await Deno.mkdir(`${dir}/packages/b`, { recursive: true })
+    await Deno.writeTextFile(
+        `${dir}/deno.jsonc`,
+        '{\n    // bump fixture\n    "version": "0.1.0",\n' +
+            '    "workspace": ["./packages/a", "./packages/b"]\n}\n',
+    )
+    const member = (name: string, imports: Record<string, string>) =>
+        JSON.stringify(
+            { name, version: '0.1.0', exports: './mod.ts', imports },
+            null,
+            4,
+        ) + '\n'
+    await Deno.writeTextFile(
+        `${dir}/packages/a/deno.json`,
+        member('@lockness/a', { '@std/semver': 'jsr:@std/semver@1' }),
+    )
+    await Deno.writeTextFile(
+        `${dir}/packages/a/mod.ts`,
+        "export { parse } from '@std/semver'\n",
+    )
+    await Deno.writeTextFile(
+        `${dir}/packages/b/deno.json`,
+        member('@lockness/b', { '@lockness/a': 'jsr:@lockness/a@^0.1.0' }),
+    )
+    await Deno.writeTextFile(
+        `${dir}/packages/b/mod.ts`,
+        "export { parse } from '@lockness/a'\n",
+    )
+    const install = await deno(['install'], dir)
+    assertEquals(
+        install.code,
+        0,
+        `fixture deno install failed:\n${install.output}`,
+    )
+    return dir
+}
+
+/**
+ * The `jsr:@lockness/*` entries of a lockfile, and those that do not admit
+ * `version`.
+ *
+ * @param lockText - The `deno.lock` text.
+ * @param version - The version every entry should admit.
+ * @returns The entries, and the stale ones among them.
+ */
+function lockEntries(
+    lockText: string,
+    version: string,
+): { specs: string[]; stale: string[] } {
+    const lock = JSON.parse(lockText) as {
+        workspace?: {
+            dependencies?: string[]
+            members?: Record<string, { dependencies?: string[] }>
+        }
+    }
+    const specs = [
+        ...(lock.workspace?.dependencies ?? []),
+        ...Object.values(lock.workspace?.members ?? {}).flatMap((m) =>
+            m.dependencies ?? []
+        ),
+    ].filter((spec) => spec.startsWith('jsr:@lockness/'))
+    const parsed = semver.parse(version)
+    const stale = specs.filter((spec) =>
+        !semver.satisfies(parsed, semver.parseRange(locknessRange(spec)))
+    )
+    return { specs, stale }
+}
+
+/** One bump path, run the way a maintainer or `tag.sh` runs it. */
+interface BumpPath {
+    /** The `deno task` name. */
+    readonly task: string
+    /** The script under `scripts/` the task runs. */
+    readonly script: string
+    /** The bump arguments. */
+    readonly args: string[]
+    /** The version the fixture should end at. */
+    readonly target: string
+}
+
+const BUMP_PATHS: readonly BumpPath[] = [
+    // The legacy path is the one that skipped the refresh (#429). The
+    // arbitrary jump is why it still exists: 0.1.0 -> 0.5.0 is not one semver
+    // step, so `deno task bump` refuses it and points here.
+    {
+        task: 'bump:legacy',
+        script: 'bump.ts',
+        args: ['0.5.0'],
+        target: '0.5.0',
+    },
+    {
+        task: 'bump',
+        script: 'bump-native.ts',
+        args: ['--minor'],
+        target: '0.2.0',
+    },
+]
+
+for (const path of BUMP_PATHS) {
+    Deno.test(`deno task ${path.task} leaves a deno.lock that admits the new version`, async () => {
+        // Every supported bump path must leave a tree `deno publish` accepts.
+        // The HEAD-based test above sees a stale lockfile only once the
+        // release commit and tag exist; this runs the bump itself.
+        const dir = await lockfileFixture()
+        try {
+            const before = lockEntries(
+                await Deno.readTextFile(`${dir}/deno.lock`),
+                path.target,
+            )
+            // The fixture can fail: its fresh lockfile names 0.1.
+            assert(before.stale.length > 0, 'fixture lockfile is not stale')
+
+            const run = await deno(
+                [
+                    'run',
+                    '-A',
+                    '--config',
+                    REPO_CONFIG,
+                    scriptPath(path.script),
+                    ...path.args,
+                ],
+                dir,
+            )
+            assertEquals(run.code, 0, run.output)
+
+            const root = parseJsonc(
+                await Deno.readTextFile(`${dir}/deno.jsonc`),
+            ) as { version: string }
+            assertEquals(root.version, path.target)
+
+            const after = lockEntries(
+                await Deno.readTextFile(`${dir}/deno.lock`),
+                path.target,
+            )
+            assert(after.specs.length > 0, 'no @lockness/* range in deno.lock')
+            assertEquals(
+                after.stale,
+                [],
+                `deno task ${path.task} left deno.lock naming the previous ` +
+                    'version; the release commit could not be published',
+            )
+            assertStringIncludes(run.output, 'deno.lock refreshed')
+        } finally {
+            await Deno.remove(dir, { recursive: true })
+        }
+    })
+
+    Deno.test(`deno task ${path.task} --dry-run writes nothing and names the lockfile refresh`, async () => {
+        const dir = await lockfileFixture()
+        try {
+            const files = [
+                'deno.jsonc',
+                'deno.lock',
+                'packages/a/deno.json',
+                'packages/b/deno.json',
+            ]
+            const read = () =>
+                Promise.all(files.map((f) => Deno.readTextFile(`${dir}/${f}`)))
+            const before = await read()
+
+            const run = await deno(
+                [
+                    'run',
+                    '-A',
+                    '--config',
+                    REPO_CONFIG,
+                    scriptPath(path.script),
+                    ...path.args,
+                    '--dry-run',
+                ],
+                dir,
+            )
+            assertEquals(run.code, 0, run.output)
+            assertEquals(await read(), before, 'a dry run wrote a file')
+            assertStringIncludes(run.output, 'deno.lock would be refreshed')
+        } finally {
+            await Deno.remove(dir, { recursive: true })
+        }
+    })
+}
