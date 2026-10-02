@@ -22,6 +22,7 @@ import { FakeTime } from '@std/testing/time'
 import { RedisSubscribeConnection } from '../subscriber.ts'
 import { encodeCommand, RespFramingError } from '../resp.ts'
 import { type FakeServer, startFakeServer } from './fake_server.ts'
+import { pinRandom, TOP_DRAW } from './pinned_random.ts'
 
 /**
  * Poll `cond` until it holds or the deadline passes (a fake-socket race gate).
@@ -1657,6 +1658,13 @@ Deno.test('FR-004: a socket that faults IMMEDIATELY after subscribing backs off 
     // then drops — a Redis ACL denial, `maxclients`, a broker shedding load —
     // put the client in a hot reconnect loop. Reproduced at ~12 900 connects per
     // second, in the default no-password config, with no attacker involved.
+    //
+    // THE DRAW IS PINNED TO THE MEDIAN (#498). At the minimum draw every retry
+    // is 1ms — full jitter permits that by design — and a second of 1ms
+    // retries is indistinguishable from the hot loop this test exists to
+    // catch. The bound is a property of the curve at a typical draw, so the
+    // test now names that draw instead of sampling it: 20, 40, 80, then 100ms.
+    using _random = pinRandom(0.5)
     const server = await startFakeServer()
     server.closeAfter('PSUBSCRIBE')
     const sub = new RedisSubscribeConnection({
@@ -1892,6 +1900,14 @@ Deno.test('FR-015: the backoff carries full jitter and respects its cap', async 
     // recovering broker in the state that caused the herd. The per-instance rate
     // is trivial; the synchronisation is the defect, and it is invisible to any
     // test that only checks "a retry eventually happened".
+    //
+    // DRIVEN BY A FIXED, ALTERNATING SOURCE rather than the real one (#498).
+    // "Not all identical" over eight real draws in 1..60 fails about once in
+    // 10^13 runs — a verdict that is a lottery, however long the odds. Under
+    // this source the jitter must yield two distinct delays, and anything
+    // that ignores `Math.random` — a fixed or purely exponential schedule —
+    // still yields identical ones and still fails.
+    using random = pinRandom(0.1, 0.9)
     const server = await startFakeServer()
     server.unreachable()
     const CEILING = 60
@@ -1920,6 +1936,7 @@ Deno.test('FR-015: the backoff carries full jitter and respects its cap', async 
             .map((m) => /retrying in (\d+)ms/.exec(m)?.[1])
             .filter((d): d is string => d !== undefined)
             .map(Number)
+        assert(random.calls() > 0, 'the retry delay was never drawn')
 
         for (const delay of delays) {
             assert(
@@ -2300,6 +2317,12 @@ Deno.test('#286: a write queued against a socket that is then discarded REJECTS,
         retryBaseMs: 60_000, // no re-dial: the point is the ABANDONED write
         retryMaxMs: 60_000,
     })
+    // "No re-dial" holds only at the top of the jitter window (#498). The
+    // delay is uniform on 1..60000ms, and the virtual clock below runs ~200ms
+    // to land PING #1 — so roughly one draw in 300 re-dialled the same
+    // scripted socket mid-test and failed it with nothing wrong in the
+    // subject. Measured: a fixed 150ms delay fails, 250ms passes.
+    using _random = pinRandom(TOP_DRAW)
     using warn = liveWarnings()
     const messages = warn.messages
     using time = new FakeTime()
