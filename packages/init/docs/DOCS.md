@@ -594,9 +594,9 @@ Verify `DATABASE_URL` in `.env` and ensure PostgreSQL is running:
 
 ## Upgrading to v0.5.0
 
-Two items. The first is for `web` and `api` apps scaffolded from v0.4.0; `slim`
-has no database and is not affected by it. The second is for every app, of any
-kit, scaffolded before v0.5.0.
+Three items. The first and third are for `web` and `api` apps scaffolded from
+v0.4.x; `slim` has no database and is not affected by them. The second is for
+every app, of any kit, scaffolded before v0.5.0.
 
 For item 1, **migration step:** add the drizzle wiring to `deno.json` and
 `drizzle.config.ts`, then regenerate the migrations (database never migrated) or
@@ -850,6 +850,48 @@ every boot. It touches no dependency and always answers `200`. In your
 `Dockerfile`, change the `HEALTHCHECK` URL from `http://localhost:8888/` to
 `http://localhost:8888/health`. Do not point it at `/ready`: that probes the
 database, so a database outage would mark a healthy process unhealthy.
+
+### 3. web and api apps from v0.4.x: hand `createUserProvider` the `Database` service
+
+Every `@lockness/auth-provider` provider now takes `db` as a function it calls
+on each lookup; see
+[`@lockness/auth-provider`'s v0.5.0 item 2](../../auth-provider/docs/DOCS.md#2-every-provider-takes-db-as-a-function-called-per-lookup).
+The guard builds its provider on every request, and since v0.5.0 `Database.db`
+throws while no database is connected, so a provider that reads it at
+construction fails every page, `/auth/login` included. Until the changes below
+are made, `deno check main.ts` fails with TS2322.
+
+In `app/auth/user_provider.ts`, take the service and read its handle per lookup:
+
+```diff
+ import { verifyPassword } from '@lockness/auth'
++import type { Database } from '@lockness/drizzle'
+ ...
+-export function createUserProvider(db: Db): DrizzleSessionProvider<WebUser> {
++export function createUserProvider(
++    database: Database,
++): DrizzleSessionProvider<WebUser> {
+     return new DrizzleSessionProvider<WebUser>({
+-        db,
++        db: (): Db => database.db,
+```
+
+An `api` app makes the same change with `DrizzleTokenProvider<ApiUser>`. The two
+lookup callbacks are unchanged: they still receive the Drizzle instance.
+
+Then pass the service, not its handle, at each call site: `createWebGuard` in
+`app/auth/guards.ts` (web), `createApiGuard` in the same file and the `token`
+handler in `app/controller/token_controller.ts` (api):
+
+```diff
+-    const db = container.get<Database>(Database)
+-    return new SessionGuard('web', ctx, createUserProvider(db.db))
++    return new SessionGuard(
++        'web',
++        ctx,
++        createUserProvider(container.get<Database>(Database)),
++    )
+```
 
 ## See Also
 

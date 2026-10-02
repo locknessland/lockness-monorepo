@@ -43,7 +43,7 @@ import { DrizzleSessionProvider } from '@lockness/auth-provider/drizzle'
 import { SessionGuard } from '@lockness/auth'
 
 const sessionProvider = new DrizzleSessionProvider({
-    db,
+    db: () => database.db,
     findUserById: async (db, id) => {
         return await db.query.users.findFirst({
             where: (u, { eq }) => eq(u.id, id),
@@ -72,7 +72,7 @@ import { TokenGuard } from '@lockness/auth'
 import { accessTokens } from './schema.ts'
 
 const tokenProvider = new DrizzleTokenProvider({
-    db,
+    db: () => database.db,
     // The Drizzle table OBJECT (see "Access Tokens Table"), not its name.
     tokensTable: accessTokens,
     findUserById: async (db, id) => {
@@ -109,7 +109,7 @@ import { KyselySessionProvider } from '@lockness/auth-provider/kysely'
 import { SessionGuard } from '@lockness/auth'
 
 const sessionProvider = new KyselySessionProvider({
-    db,
+    db: () => db,
     findUserById: async (db, id) => {
         return await db.selectFrom('users')
             .selectAll()
@@ -253,7 +253,7 @@ Override password verification with your hashing library:
 import bcrypt from 'bcrypt'
 
 const provider = new DrizzleSessionProvider({
-  db,
+  db: () => database.db,
   findUserById: ...,
   findUserByCredentials: ...,
   verifyPassword: async (plain, hash) => {

@@ -347,7 +347,7 @@ We provide optional Drizzle helpers:
 import { DrizzleSessionProvider } from '@lockness/auth'
 
 const provider = new DrizzleSessionProvider({
-    db,
+    db: () => database.db,
     findUserById: async (db, id) => {
         return await db.query.users.findFirst({
             where: (users, { eq }) => eq(users.id, id),

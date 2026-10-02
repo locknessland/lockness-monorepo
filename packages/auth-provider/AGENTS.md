@@ -85,6 +85,13 @@ Anything not listed is internal and free to change.
   The `db` handle is viewed through one `unknown` cast to the builder subset pg,
   mysql and sqlite share — mysql and sqlite are type-checked, never executed
   live.
+- `db` is a resolver (`db: () => database.db`), called on every lookup and
+  **never in a constructor** — not even to cache it. Guards build a provider per
+  request, and `Database.db` throws while no database is connected, so an eager
+  read takes down every page, including those needing no user (the #427
+  starter-kit regression). `assertDbResolver` (internal, `base/`) refuses a
+  non-function at construction; `tests/lazy_db.test.ts` pins the contract for
+  all four providers.
 - The token lifecycle is unit-tested through the in-memory binding in
   `tests/memory_token_provider.ts`; the Drizzle queries only run in the live
   suite (`deno task test:postgres`), which the local gate does not run.
@@ -93,10 +100,11 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-4 test files for 14 source files:
+5 test files for 15 source files:
 
 - `packages/auth-provider/tests/deny_paths.test.ts`
 - `packages/auth-provider/tests/drizzle_multidialect.test.ts`
+- `packages/auth-provider/tests/lazy_db.test.ts`
 - `packages/auth-provider/tests/remember_preservation.test.ts`
 - `packages/auth-provider/tests/token_provider_base.test.ts`
 
@@ -113,7 +121,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 4 test files directly —
+Then, specific to this package: run its 5 test files directly —
 
 ```bash
 deno test -A packages/auth-provider/

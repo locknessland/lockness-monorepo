@@ -114,7 +114,7 @@ import { SessionGuard } from '@lockness/auth'
 import * as bcrypt from 'bcrypt'
 
 const sessionProvider = new DrizzleSessionProvider({
-    db,
+    db: () => database.db,
     findUserById: async (db, id) => {
         return await db.query.users.findFirst({
             where: (u, { eq }) => eq(u.id, id),
@@ -146,7 +146,7 @@ import { TokenGuard } from '@lockness/auth'
 import { accessTokens } from './schema.ts'
 
 const tokenProvider = new DrizzleTokenProvider({
-    db,
+    db: () => database.db,
     // The Drizzle table OBJECT (see "Access Tokens Table"), not its name.
     tokensTable: accessTokens,
     findUserById: async (db, id) => {
@@ -175,7 +175,7 @@ import { DrizzleBasicAuthProvider } from '@lockness/auth-provider/drizzle'
 import { BasicAuthGuard } from '@lockness/auth'
 
 const basicAuthProvider = new DrizzleBasicAuthProvider({
-    db,
+    db: () => database.db,
     findUserById: async (db, id) => {
         return await db.query.users.findFirst({
             where: (u, { eq }) => eq(u.id, id),
@@ -204,7 +204,7 @@ import { KyselySessionProvider } from '@lockness/auth-provider/kysely'
 import { SessionGuard } from '@lockness/auth'
 
 const sessionProvider = new KyselySessionProvider({
-    db,
+    db: () => db,
     findUserById: async (db, id) => {
         return await db.selectFrom('users')
             .selectAll()
@@ -314,7 +314,7 @@ Always override with a proper hashing library:
 import * as bcrypt from 'bcrypt'
 
 const provider = new DrizzleSessionProvider({
-    db,
+    db: () => database.db,
     findUserById: /* ... */,
     findUserByCredentials: /* ... */,
     verifyPassword: async (plain, hash) => {
@@ -449,7 +449,7 @@ import {
     DrizzleTokenProvider,
 } from '@lockness/auth-provider/drizzle'
 import { sessionMiddleware } from '@lockness/session'
-import { db } from './database.ts'
+import { database } from './database.ts'
 import { accessTokens } from './schema.ts'
 import * as bcrypt from 'bcrypt'
 
@@ -457,7 +457,7 @@ const app = createApp()
 
 // Session provider for web routes
 const sessionProvider = new DrizzleSessionProvider({
-    db,
+    db: () => database.db,
     findUserById: async (db, id) => {
         return await db.query.users.findFirst({
             where: (u, { eq }) => eq(u.id, id),
@@ -478,7 +478,7 @@ const sessionProvider = new DrizzleSessionProvider({
 
 // Token provider for API routes
 const tokenProvider = new DrizzleTokenProvider({
-    db,
+    db: () => database.db,
     // The Drizzle table OBJECT (see "Access Tokens Table"), not its name.
     tokensTable: accessTokens,
     findUserById: async (db, id) => {
@@ -542,9 +542,10 @@ app.use(
 
 ## Upgrading to v0.5.0
 
-One item, breaking at compile time. **Migration step:** pass your Drizzle
+Two items, both breaking at compile time. **Migration steps:** pass your Drizzle
 `access_tokens` table object as `tokensTable`, and reshape the table to the
-seven-property contract before you regenerate migrations.
+seven-property contract before you regenerate migrations; then wrap every
+provider's `db` option in a function.
 
 ### 1. `DrizzleTokenProvider` takes `tokensTable` as a Drizzle table, and `access_tokens` is reshaped
 
@@ -585,6 +586,38 @@ For an app scaffolded from the v0.4.0 `api` kit, the whole procedure (the exact
 schema, the provider change, regenerated migrations, and the SQL for a database
 that already holds data) is step 3 onwards of
 [`@lockness/init`'s v0.5.0 item](../../init/docs/DOCS.md#upgrading-to-v050).
+
+### 2. Every provider takes `db` as a function, called per lookup
+
+Before, `db` was the database instance itself, read once when the provider was
+built. Since `@lockness/drizzle` v0.5.0, reading `Database.db` throws while no
+database is connected, and a guard builds its provider on every request, so a
+page that needs no user failed before any lookup ran (#427). Now
+`DrizzleSessionProvider`, `DrizzleTokenProvider`, `DrizzleBasicAuthProvider` and
+`KyselySessionProvider` take a function returning the instance, and call it on
+every lookup, never at construction. A provider built without a connection
+touches nothing until a lookup runs, and follows a reconnect instead of holding
+a closed client.
+
+```diff
+ new DrizzleSessionProvider({
+-    db: database.db,
++    db: () => database.db,
+     findUserById: async (db, id) => { /* unchanged */ },
+```
+
+- **The instance form is a compile error:** TS2322,
+  `Type 'PostgresJsDatabase<...>' is not assignable to type '() => ...'`. From
+  JavaScript, construction throws a `TypeError`:
+  `` `db` must be a function returning the database instance, e.g. db: () => database.db ``.
+- **The callbacks are unchanged.** `findUserById` and `findUserByCredentials`
+  still receive the resolved instance as their first argument.
+- **A lookup without a connection rejects** with the error `Database.db` throws;
+  it never resolves `null`, so an outage is not mistaken for a wrong password.
+
+For an app scaffolded from a v0.4.x `web` or `api` kit, the exact changes to
+`createUserProvider` and its call sites are item 3 of
+[`@lockness/init`'s v0.5.0 notes](../../init/docs/DOCS.md#upgrading-to-v050).
 
 ## Contributing
 
