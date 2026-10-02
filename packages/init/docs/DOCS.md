@@ -594,11 +594,14 @@ Verify `DATABASE_URL` in `.env` and ensure PostgreSQL is running:
 
 ## Upgrading to v0.5.0
 
-One item, for `web` and `api` apps scaffolded from v0.4.0; `slim` has no
-database and is not affected. **Migration step:** add the drizzle wiring to
-`deno.json` and `drizzle.config.ts`, then regenerate the migrations (database
-never migrated) or baseline them (database already populated). An `api` app
-first replaces its `access_tokens` schema.
+Two items. The first is for `web` and `api` apps scaffolded from v0.4.0; `slim`
+has no database and is not affected by it. The second is for every app, of any
+kit, scaffolded before v0.5.0.
+
+For item 1, **migration step:** add the drizzle wiring to `deno.json` and
+`drizzle.config.ts`, then regenerate the migrations (database never migrated) or
+baseline them (database already populated). An `api` app first replaces its
+`access_tokens` schema.
 
 ### 1. web and api apps from v0.4.0: wire up the `db:*` commands and adopt generated migrations
 
@@ -837,6 +840,16 @@ COMMIT;
 - The resulting schema matches a database built fresh by v0.5.0's migration,
   except that `last_used_at` comes after `created_at`. Column order is cosmetic.
 - Deleting a user still cascades to their tokens.
+
+### 2. Every app scaffolded before v0.5.0: point the `Dockerfile` `HEALTHCHECK` at `/health`
+
+The generated `Dockerfile` polled `/`, an application route, so a home page that
+redirects, needs a session or is slow made the container report unhealthy
+(#424). New apps poll `/health`, the liveness route the framework registers on
+every boot. It touches no dependency and always answers `200`. In your
+`Dockerfile`, change the `HEALTHCHECK` URL from `http://localhost:8888/` to
+`http://localhost:8888/health`. Do not point it at `/ready`: that probes the
+database, so a database outage would mark a healthy process unhealthy.
 
 ## See Also
 
