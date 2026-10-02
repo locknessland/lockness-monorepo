@@ -63,14 +63,14 @@ import { eq } from 'drizzle-orm'
 @Service()
 export class PostRepository {
     @Inject(Database)
-    accessor db!: Database
+    accessor database!: Database
 
     async findAll(): Promise<Post[]> {
-        return await this.db.instance.select().from(posts)
+        return await this.database.db.select().from(posts)
     }
 
     async findById(id: number): Promise<Post | undefined> {
-        const result = await this.db.instance
+        const result = await this.database.db
             .select()
             .from(posts)
             .where(eq(posts.id, id))
@@ -78,7 +78,7 @@ export class PostRepository {
     }
 
     async create(data: NewPost): Promise<Post> {
-        const result = await this.db.instance
+        const result = await this.database.db
             .insert(posts)
             .values(data)
             .returning()
@@ -86,7 +86,7 @@ export class PostRepository {
     }
 
     async update(id: number, data: Partial<NewPost>): Promise<Post> {
-        const result = await this.db.instance
+        const result = await this.database.db
             .update(posts)
             .set(data)
             .where(eq(posts.id, id))
@@ -95,7 +95,7 @@ export class PostRepository {
     }
 
     async delete(id: number): Promise<void> {
-        await this.db.instance.delete(posts).where(eq(posts.id, id))
+        await this.database.db.delete(posts).where(eq(posts.id, id))
     }
 }
 ```
@@ -138,8 +138,8 @@ import { Database } from '@lockness/drizzle'
 import { posts } from '../model/post.ts'
 
 export class PostSeeder {
-    async run(db: Database) {
-        await db.instance.insert(posts).values([
+    async run(database: Database) {
+        await database.db.insert(posts).values([
             {
                 title: 'First Post',
                 content: 'This is the content of the first post',
@@ -196,7 +196,7 @@ export const postsRelations = relations(posts, ({ one }) => ({
 Query with relations:
 
 ```typescript
-const postsWithAuthors = await db.instance.query.posts.findMany({
+const postsWithAuthors = await database.db.query.posts.findMany({
     with: {
         author: true,
     },
@@ -211,7 +211,7 @@ Use Drizzle's query builder for complex queries:
 import { and, desc, eq, like } from 'drizzle-orm'
 
 // Find published posts by author
-const publishedPosts = await db.instance
+const publishedPosts = await database.db
     .select()
     .from(posts)
     .where(and(
@@ -221,7 +221,7 @@ const publishedPosts = await db.instance
     .orderBy(desc(posts.createdAt))
 
 // Search posts by title
-const searchResults = await db.instance
+const searchResults = await database.db
     .select()
     .from(posts)
     .where(like(posts.title, `%${query}%`))

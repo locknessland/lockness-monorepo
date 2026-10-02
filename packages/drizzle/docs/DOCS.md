@@ -232,10 +232,10 @@ import { Database } from '@lockness/drizzle'
 @Service()
 export class UserService {
     @Inject(Database)
-    accessor db!: Database
+    accessor database!: Database
 
     async getAllUsers() {
-        return await this.db.instance.select().from(users)
+        return await this.database.db.select().from(users)
     }
 }
 ```
@@ -250,11 +250,11 @@ import { users } from '../model/user.ts'
 @Controller('/users')
 export class UserController {
     @Inject(Database)
-    accessor db!: Database
+    accessor database!: Database
 
     @Get('/')
     async index(c: Context) {
-        const allUsers = await this.db.instance.select().from(users)
+        const allUsers = await this.database.db.select().from(users)
         return c.json({ users: allUsers })
     }
 }
@@ -330,14 +330,14 @@ Query with relations:
 
 ```typescript
 // Get users with their posts
-const usersWithPosts = await db.instance.query.users.findMany({
+const usersWithPosts = await database.db.query.users.findMany({
     with: {
         posts: true,
     },
 })
 
 // Get post with author
-const postWithAuthor = await db.instance.query.posts.findFirst({
+const postWithAuthor = await database.db.query.posts.findFirst({
     where: eq(posts.id, 1),
     with: {
         author: true,
@@ -359,14 +359,14 @@ import { type NewUser, type User, users } from '../model/user.ts'
 @Service()
 export class UserRepository {
     @Inject(Database)
-    accessor db!: Database
+    accessor database!: Database
 
     async findAll(): Promise<User[]> {
-        return await this.db.instance.select().from(users)
+        return await this.database.db.select().from(users)
     }
 
     async findById(id: number): Promise<User | undefined> {
-        const result = await this.db.instance
+        const result = await this.database.db
             .select()
             .from(users)
             .where(eq(users.id, id))
@@ -374,7 +374,7 @@ export class UserRepository {
     }
 
     async findByEmail(email: string): Promise<User | undefined> {
-        const result = await this.db.instance
+        const result = await this.database.db
             .select()
             .from(users)
             .where(eq(users.email, email))
@@ -382,7 +382,7 @@ export class UserRepository {
     }
 
     async create(data: NewUser): Promise<User> {
-        const result = await this.db.instance
+        const result = await this.database.db
             .insert(users)
             .values(data)
             .returning()
@@ -390,7 +390,7 @@ export class UserRepository {
     }
 
     async update(id: number, data: Partial<NewUser>): Promise<User> {
-        const result = await this.db.instance
+        const result = await this.database.db
             .update(users)
             .set({ ...data, updatedAt: new Date() })
             .where(eq(users.id, id))
@@ -399,7 +399,7 @@ export class UserRepository {
     }
 
     async delete(id: number): Promise<void> {
-        await this.db.instance.delete(users).where(eq(users.id, id))
+        await this.database.db.delete(users).where(eq(users.id, id))
     }
 }
 ```
@@ -628,13 +628,13 @@ A failure is printed once on stderr as `❌ <message>`; for the commands that ru
 import { and, eq, gt, gte, ilike, like, lt, lte, ne, or } from 'drizzle-orm'
 
 // Single condition
-const activeUsers = await db.instance
+const activeUsers = await database.db
     .select()
     .from(users)
     .where(eq(users.emailVerified, true))
 
 // Multiple conditions (AND)
-const recentActiveUsers = await db.instance
+const recentActiveUsers = await database.db
     .select()
     .from(users)
     .where(and(
@@ -643,7 +643,7 @@ const recentActiveUsers = await db.instance
     ))
 
 // OR conditions
-const specialUsers = await db.instance
+const specialUsers = await database.db
     .select()
     .from(users)
     .where(or(
@@ -652,7 +652,7 @@ const specialUsers = await db.instance
     ))
 
 // Pattern matching
-const searchResults = await db.instance
+const searchResults = await database.db
     .select()
     .from(users)
     .where(ilike(users.name, `%${query}%`))
@@ -664,7 +664,7 @@ const searchResults = await db.instance
 import { asc, desc } from 'drizzle-orm'
 
 // Sort by creation date (newest first)
-const users = await db.instance
+const users = await database.db
     .select()
     .from(users)
     .orderBy(desc(users.createdAt))
@@ -672,7 +672,7 @@ const users = await db.instance
 // Pagination
 const page = 2
 const perPage = 20
-const paginatedUsers = await db.instance
+const paginatedUsers = await database.db
     .select()
     .from(users)
     .limit(perPage)
@@ -683,7 +683,7 @@ const paginatedUsers = await db.instance
 
 ```typescript
 // Left join
-const postsWithAuthors = await db.instance
+const postsWithAuthors = await database.db
     .select({
         postId: posts.id,
         postTitle: posts.title,
@@ -694,7 +694,7 @@ const postsWithAuthors = await db.instance
     .leftJoin(users, eq(posts.authorId, users.id))
 
 // Inner join
-const publishedPostsWithAuthors = await db.instance
+const publishedPostsWithAuthors = await database.db
     .select()
     .from(posts)
     .innerJoin(users, eq(posts.authorId, users.id))
@@ -707,12 +707,12 @@ const publishedPostsWithAuthors = await db.instance
 import { avg, count, max, min, sum } from 'drizzle-orm'
 
 // Count users
-const [{ value: userCount }] = await db.instance
+const [{ value: userCount }] = await database.db
     .select({ value: count() })
     .from(users)
 
 // Group by and count
-const postsByAuthor = await db.instance
+const postsByAuthor = await database.db
     .select({
         authorId: posts.authorId,
         postCount: count(),
@@ -726,7 +726,7 @@ const postsByAuthor = await db.instance
 Execute multiple operations atomically:
 
 ```typescript
-await db.instance.transaction(async (tx) => {
+await database.db.transaction(async (tx) => {
     // Create user
     const [user] = await tx.insert(users).values({
         email: 'new@example.com',
@@ -755,10 +755,10 @@ import { users } from '../../app/model/user.ts'
 import * as bcrypt from 'bcrypt'
 
 export class UserSeeder {
-    async run(db: Database) {
+    async run(database: Database) {
         const hashedPassword = await bcrypt.hash('password123', 10)
 
-        await db.instance.insert(users).values([
+        await database.db.insert(users).values([
             {
                 email: 'alice@example.com',
                 name: 'Alice Smith',
@@ -853,13 +853,13 @@ export const posts = pgTable('posts', {
 })
 
 // Soft delete
-await db.instance
+await database.db
     .update(posts)
     .set({ deletedAt: new Date() })
     .where(eq(posts.id, id))
 
 // Query non-deleted
-const activePosts = await db.instance
+const activePosts = await database.db
     .select()
     .from(posts)
     .where(isNull(posts.deletedAt))
@@ -876,7 +876,7 @@ export const posts = pgTable('posts', {
 })
 
 // Update with timestamp
-await db.instance
+await database.db
     .update(posts)
     .set({
         title: 'New Title',
@@ -941,24 +941,24 @@ import { type NewPost, type Post, posts } from '../model/post.ts'
 @Service()
 export class PostRepository {
     @Inject(Database)
-    accessor db!: Database
+    accessor database!: Database
 
     async findPublished(): Promise<Post[]> {
-        return await this.db.instance
+        return await this.database.db
             .select()
             .from(posts)
             .where(eq(posts.published, true))
     }
 
     async findByIdWithAuthor(id: number) {
-        return await this.db.instance.query.posts.findFirst({
+        return await this.database.db.query.posts.findFirst({
             where: eq(posts.id, id),
             with: { author: true },
         })
     }
 
     async create(data: NewPost): Promise<Post> {
-        const [post] = await this.db.instance
+        const [post] = await this.database.db
             .insert(posts)
             .values(data)
             .returning()

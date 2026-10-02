@@ -77,8 +77,8 @@ const app = createApp()
 
 // Database instance is available via dependency injection
 app.get('/users', async (c) => {
-    const db = c.get('container').resolve(Database)
-    const users = await db.instance.select().from(usersTable)
+    const database = c.get('container').resolve(Database)
+    const users = await database.db.select().from(usersTable)
     return c.json(users)
 })
 ```
@@ -275,14 +275,14 @@ import { type NewUser, type User, users } from '../model/user.ts'
 @Service()
 export class UserRepository {
     @Inject(Database)
-    accessor db!: Database
+    accessor database!: Database
 
     async findAll(): Promise<User[]> {
-        return await this.db.instance.select().from(users)
+        return await this.database.db.select().from(users)
     }
 
     async findById(id: number): Promise<User | undefined> {
-        const result = await this.db.instance
+        const result = await this.database.db
             .select()
             .from(users)
             .where(eq(users.id, id))
@@ -290,7 +290,7 @@ export class UserRepository {
     }
 
     async create(data: NewUser): Promise<User> {
-        const result = await this.db.instance
+        const result = await this.database.db
             .insert(users)
             .values(data)
             .returning()
@@ -298,7 +298,7 @@ export class UserRepository {
     }
 
     async update(id: number, data: Partial<NewUser>): Promise<User> {
-        const result = await this.db.instance
+        const result = await this.database.db
             .update(users)
             .set({ ...data, updatedAt: new Date() })
             .where(eq(users.id, id))
@@ -307,7 +307,7 @@ export class UserRepository {
     }
 
     async delete(id: number): Promise<void> {
-        await this.db.instance.delete(users).where(eq(users.id, id))
+        await this.database.db.delete(users).where(eq(users.id, id))
     }
 }
 ```
@@ -322,8 +322,8 @@ import { Database } from '@lockness/drizzle'
 import { users } from '../../app/model/user.ts'
 
 export class UserSeeder {
-    async run(db: Database) {
-        await db.instance.insert(users).values([
+    async run(database: Database) {
+        await database.db.insert(users).values([
             {
                 email: 'alice@example.com',
                 name: 'Alice Smith',
@@ -382,7 +382,7 @@ export const postsRelations = relations(posts, ({ one }) => ({
 Query with relations:
 
 ```typescript
-const usersWithPosts = await db.instance.query.users.findMany({
+const usersWithPosts = await database.db.query.users.findMany({
     with: {
         posts: true,
     },
@@ -397,7 +397,7 @@ Use Drizzle's powerful query builder:
 import { and, desc, eq, gt, like } from 'drizzle-orm'
 
 // Complex filtering
-const activeUsers = await db.instance
+const activeUsers = await database.db
     .select()
     .from(users)
     .where(and(
@@ -408,13 +408,13 @@ const activeUsers = await db.instance
     .limit(10)
 
 // Search with pattern matching
-const searchResults = await db.instance
+const searchResults = await database.db
     .select()
     .from(users)
     .where(like(users.name, `%${query}%`))
 
 // Joins
-const postsWithAuthors = await db.instance
+const postsWithAuthors = await database.db
     .select({
         postId: posts.id,
         postTitle: posts.title,
@@ -429,7 +429,7 @@ const postsWithAuthors = await db.instance
 Execute multiple operations atomically:
 
 ```typescript
-await db.instance.transaction(async (tx) => {
+await database.db.transaction(async (tx) => {
     const [user] = await tx.insert(users).values({
         email: 'new@example.com',
         name: 'New User',
