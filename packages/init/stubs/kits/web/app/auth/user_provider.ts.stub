@@ -14,6 +14,7 @@ import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 // ORM-agnostic bases, so that a Kysely project never loads Drizzle.
 import { DrizzleSessionProvider } from '@lockness/auth-provider/drizzle'
 import { verifyPassword } from '@lockness/auth'
+import type { Database } from '@lockness/drizzle'
 import { users } from '@model/user.ts'
 
 /** The user shape handed to a controller and a view. */
@@ -28,25 +29,31 @@ type Db = PostgresJsDatabase<Record<string, unknown>>
 /**
  * Build the provider the `web` guard authenticates against.
  *
- * @param db - The Drizzle instance from the container.
+ * @param database - The `Database` service from the container. Its handle
+ * is read on each lookup, not here: a guard builds this provider on every
+ * request, and `database.db` throws while no database is connected.
  * @returns A provider bound to this application's `users` table.
  */
-export function createUserProvider(db: Db): DrizzleSessionProvider<WebUser> {
+export function createUserProvider(
+    database: Database,
+): DrizzleSessionProvider<WebUser> {
     return new DrizzleSessionProvider<WebUser>({
-        db,
+        // A function, called per lookup: building the provider touches no
+        // database, so a page that needs no user renders without one.
+        db: (): Db => database.db,
 
-        findUserById: async (database: Db, id: string | number) => {
-            const rows = await database.select().from(users)
+        findUserById: async (db: Db, id: string | number) => {
+            const rows = await db.select().from(users)
                 .where(eq(users.id, Number(id))).limit(1)
             return rows.length > 0 ? toWebUser(rows[0]) : null
         },
 
         findUserByCredentials: async (
-            database: Db,
+            db: Db,
             email: string,
             password: string,
         ) => {
-            const rows = await database.select().from(users)
+            const rows = await db.select().from(users)
                 .where(eq(users.email, email)).limit(1)
             if (rows.length === 0) return null
 

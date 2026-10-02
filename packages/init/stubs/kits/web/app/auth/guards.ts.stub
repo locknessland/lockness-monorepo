@@ -21,8 +21,11 @@ import { createUserProvider } from './user_provider.ts'
  * @returns A guard backed by the session cookie.
  */
 export function createWebGuard(ctx: Context) {
-    const db = container.get<Database>(Database)
-    return new SessionGuard('web', ctx, createUserProvider(db.db))
+    return new SessionGuard(
+        'web',
+        ctx,
+        createUserProvider(container.get<Database>(Database)),
+    )
 }
 
 /**

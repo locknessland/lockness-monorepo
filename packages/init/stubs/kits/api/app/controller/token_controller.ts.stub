@@ -50,8 +50,7 @@ export class TokenController {
             )
         }
 
-        const db = container.get<Database>(Database)
-        const provider = createUserProvider(db.db)
+        const provider = createUserProvider(container.get<Database>(Database))
         const user = await provider.findByCredentials(email, password)
 
         if (!user) {

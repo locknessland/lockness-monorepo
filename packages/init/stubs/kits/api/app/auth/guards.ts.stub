@@ -21,8 +21,11 @@ import { createUserProvider } from './user_provider.ts'
  * @returns A guard that reads `Authorization: Bearer <token>`.
  */
 export function createApiGuard(ctx: Context) {
-    const db = container.get<Database>(Database)
-    return new TokenGuard('api', ctx, createUserProvider(db.db))
+    return new TokenGuard(
+        'api',
+        ctx,
+        createUserProvider(container.get<Database>(Database)),
+    )
 }
 
 /**

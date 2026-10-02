@@ -123,7 +123,7 @@ Deno.test({
                 assertEquals((await me(expiring)).status, 401)
             })
 
-            const provider = createUserProvider(db)
+            const provider = createUserProvider(database)
             const youUser = await provider.findById(you.id)
             const otherUser = await provider.findById(other.id)
             assert(youUser && otherUser)

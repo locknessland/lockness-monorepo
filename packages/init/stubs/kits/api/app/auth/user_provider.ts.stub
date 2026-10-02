@@ -15,6 +15,7 @@ import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 // the ORM-agnostic bases, so that a Kysely project never loads Drizzle.
 import { DrizzleTokenProvider } from '@lockness/auth-provider/drizzle'
 import { verifyPassword } from '@lockness/auth'
+import type { Database } from '@lockness/drizzle'
 import { accessTokens, users } from '@model/user.ts'
 
 /** The user shape the guard hands back to a controller. */
@@ -29,34 +30,40 @@ type Db = PostgresJsDatabase<Record<string, unknown>>
 /**
  * Build the provider the `api` guard authenticates against.
  *
- * @param db - The Drizzle instance from the container.
+ * @param database - The `Database` service from the container. Its handle
+ * is read on each lookup, not here: a guard builds this provider on every
+ * request, and `database.db` throws while no database is connected.
  * @returns A provider bound to this application's `users` and
  * `access_tokens` tables.
  *
  * @example
  * ```ts
- * const provider = createUserProvider(container.get(Database).drizzle)
+ * const provider = createUserProvider(container.get<Database>(Database))
  * ```
  */
-export function createUserProvider(db: Db): DrizzleTokenProvider<ApiUser> {
+export function createUserProvider(
+    database: Database,
+): DrizzleTokenProvider<ApiUser> {
     return new DrizzleTokenProvider<ApiUser>({
-        db,
+        // A function, called per lookup: building the provider touches no
+        // database, so a page that needs no user renders without one.
+        db: (): Db => database.db,
         // The table OBJECT, not its name: the provider builds its queries
         // from these columns, and refuses a table that lacks one.
         tokensTable: accessTokens,
 
-        findUserById: async (database: Db, id: string | number) => {
-            const rows = await database.select().from(users)
+        findUserById: async (db: Db, id: string | number) => {
+            const rows = await db.select().from(users)
                 .where(eq(users.id, Number(id))).limit(1)
             return rows.length > 0 ? toApiUser(rows[0]) : null
         },
 
         findUserByCredentials: async (
-            database: Db,
+            db: Db,
             email: string,
             password: string,
         ) => {
-            const rows = await database.select().from(users)
+            const rows = await db.select().from(users)
                 .where(eq(users.email, email)).limit(1)
             if (rows.length === 0) return null
 
