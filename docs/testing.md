@@ -58,6 +58,21 @@ This test completes in milliseconds with no race conditions.
 - Deterministic test execution
 - Parallel-safe (no timer conflicts)
 
+### When the real timer is the subject: assert order, not elapsed time
+
+FakeTime cannot help when the test pins a fact about the runtime's own timer,
+for example that `setTimeout(NaN)` is clamped to about 1 ms. Do not assert
+`elapsed < N` on the wall clock. That measures the machine's scheduling latency
+as well, and under load it has no ceiling. In #455 a 50 ms bound failed at 89 to
+121 ms in a few runs out of every few dozen, while another heavy job ran beside
+the suite.
+
+Instead, race the timer under test against a reference timer with a valid delay,
+scheduled **after** it, and assert which one fires first. Timers in the same
+queue fire in deadline order, so a stall delays both and cannot swap them. A
+regression still flips the result. See
+`packages/core/tests/shutdown_deno_behaviour.test.ts`.
+
 ## In-Memory Storage Mocks
 
 ### The Problem
