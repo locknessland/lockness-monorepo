@@ -51,7 +51,7 @@ function fakeKyselySelect(row: unknown) {
 Deno.test('basic-auth (drizzle) - unknown user and bad credentials resolve to null', async () => {
     const provider = new DrizzleBasicAuthProvider<Authenticatable>({
         // deno-lint-ignore no-explicit-any -- deny lookups never touch db
-        db: null as any,
+        db: () => null as any,
         ...denying,
     })
     assertEquals(await provider.findById(999), null)
@@ -64,7 +64,7 @@ Deno.test('basic-auth (drizzle) - unknown user and bad credentials resolve to nu
 Deno.test('basic-auth (drizzle) - insecure default verifyPassword only ever denies a mismatch', async () => {
     const provider = new DrizzleBasicAuthProvider<Authenticatable>({
         // deno-lint-ignore no-explicit-any
-        db: null as any,
+        db: () => null as any,
         ...denying,
         // No verifyPassword → the `plain === hash` default, labelled not-for-production.
     })
@@ -77,7 +77,7 @@ Deno.test('basic-auth (drizzle) - a custom verifyPassword overrides the default'
     const seen: Array<[string, string]> = []
     const provider = new DrizzleBasicAuthProvider<Authenticatable>({
         // deno-lint-ignore no-explicit-any
-        db: null as any,
+        db: () => null as any,
         ...denying,
         verifyPassword: (plain, hash) => {
             seen.push([plain, hash])
@@ -127,7 +127,7 @@ Deno.test('token (drizzle) - a table name or an incomplete table is refused at c
     const construct = (tokensTable: unknown) =>
         new DrizzleTokenProvider<Authenticatable>({
             // deno-lint-ignore no-explicit-any -- construction never touches db
-            db: null as any,
+            db: () => null as any,
             ...denying,
             tokensTable: tokensTable as DrizzleAccessTokensTable,
         })
@@ -163,7 +163,7 @@ Deno.test('token (drizzle) - a table name or an incomplete table is refused at c
 Deno.test('session (drizzle) - unknown user resolves to null', async () => {
     const provider = new DrizzleSessionProvider<Authenticatable>({
         // deno-lint-ignore no-explicit-any
-        db: null as any,
+        db: () => null as any,
         ...denying,
     })
     assertEquals(await provider.findById(999), null)
@@ -176,7 +176,7 @@ Deno.test('session (drizzle) - unknown user resolves to null', async () => {
 Deno.test('session (drizzle) - verifyRememberToken is fail-closed', async () => {
     const provider = new DrizzleSessionProvider<Authenticatable>({
         // deno-lint-ignore no-explicit-any
-        db: null as any,
+        db: () => null as any,
         ...denying,
         enableRememberTokens: true,
     })
@@ -189,7 +189,7 @@ Deno.test('session (drizzle) - verifyRememberToken is fail-closed', async () => 
 
 Deno.test('session (kysely) - unknown user resolves to null', async () => {
     const provider = new KyselySessionProvider<Authenticatable>({
-        db: fakeKyselySelect(undefined),
+        db: () => fakeKyselySelect(undefined),
         ...denying,
     })
     assertEquals(await provider.findById(999), null)
@@ -197,7 +197,7 @@ Deno.test('session (kysely) - unknown user resolves to null', async () => {
 
 Deno.test('session (kysely) - default verifyPassword denies a mismatch', async () => {
     const provider = new KyselySessionProvider<Authenticatable>({
-        db: fakeKyselySelect(undefined),
+        db: () => fakeKyselySelect(undefined),
         ...denying,
     })
     assertEquals(await provider.verifyPassword('a', 'b'), false)
@@ -205,7 +205,7 @@ Deno.test('session (kysely) - default verifyPassword denies a mismatch', async (
 
 Deno.test('session (kysely) - remember token denied when the feature is disabled', async () => {
     const provider = new KyselySessionProvider<Authenticatable>({
-        db: fakeKyselySelect(undefined),
+        db: () => fakeKyselySelect(undefined),
         ...denying,
         enableRememberTokens: false,
     })
@@ -216,7 +216,7 @@ Deno.test('session (kysely) - remember token denied when the row is absent (unkn
     const provider = new KyselySessionProvider<Authenticatable>({
         // The query filters on `expires_at > now`, so an unknown OR expired
         // token both surface here as "no row" → undefined.
-        db: fakeKyselySelect(undefined),
+        db: () => fakeKyselySelect(undefined),
         findUserById: () => Promise.resolve(fakeUser({ id: 1 })),
         findUserByCredentials: () =>
             Promise.resolve<Authenticatable | null>(
@@ -235,7 +235,7 @@ Deno.test('session (kysely) - remember token denied when the user is gone (orpha
         created_at: new Date(),
     }
     const provider = new KyselySessionProvider<Authenticatable>({
-        db: fakeKyselySelect(orphanRow), // a live token row exists…
+        db: () => fakeKyselySelect(orphanRow), // a live token row exists…
         findUserById: () => Promise.resolve<Authenticatable | null>(null), // …but the user is gone
         findUserByCredentials: () =>
             Promise.resolve<Authenticatable | null>(

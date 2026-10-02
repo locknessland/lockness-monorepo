@@ -79,7 +79,7 @@ function sessionProviderFor<D extends DrizzleDialect>(
     db: DrizzleDatabase<D>,
 ): DrizzleSessionProvider<DemoUser, D> {
     return new DrizzleSessionProvider<DemoUser, D>({
-        db,
+        db: () => db,
         findUserById: (handle: DrizzleDatabase<D>, _id) => {
             // The handle round-trips at the dialect's precise type.
             const _typed: DrizzleDatabase<D> = handle
@@ -97,7 +97,7 @@ Deno.test('drizzle providers accept a mysql handle (#259)', () => {
 
     const session = sessionProviderFor<'mysql'>(mysqlDb)
     const token = new DrizzleTokenProvider<DemoUser, 'mysql'>({
-        db: mysqlDb,
+        db: () => mysqlDb,
         tokensTable: mysqlTokens,
         findUserById: (_db: DrizzleDatabase<'mysql'>, _id) =>
             Promise.resolve(null),
@@ -105,7 +105,7 @@ Deno.test('drizzle providers accept a mysql handle (#259)', () => {
             Promise.resolve(null),
     })
     const basic = new DrizzleBasicAuthProvider<DemoUser, 'mysql'>({
-        db: mysqlDb,
+        db: () => mysqlDb,
         findUserById: (_db: DrizzleDatabase<'mysql'>, _id) =>
             Promise.resolve(null),
         findUserByCredentials: (_db: DrizzleDatabase<'mysql'>, _e, _p) =>
@@ -122,7 +122,7 @@ Deno.test('drizzle providers accept a sqlite handle (#259)', () => {
 
     const session = sessionProviderFor<'sqlite'>(sqliteDb)
     const token = new DrizzleTokenProvider<DemoUser, 'sqlite'>({
-        db: sqliteDb,
+        db: () => sqliteDb,
         tokensTable: sqliteTokens,
         findUserById: (_db: DrizzleDatabase<'sqlite'>, _id) =>
             Promise.resolve(null),
@@ -130,7 +130,7 @@ Deno.test('drizzle providers accept a sqlite handle (#259)', () => {
             Promise.resolve(null),
     })
     const basic = new DrizzleBasicAuthProvider<DemoUser, 'sqlite'>({
-        db: sqliteDb,
+        db: () => sqliteDb,
         findUserById: (_db: DrizzleDatabase<'sqlite'>, _id) =>
             Promise.resolve(null),
         findUserByCredentials: (_db: DrizzleDatabase<'sqlite'>, _e, _p) =>
@@ -147,14 +147,14 @@ Deno.test('the default (unparameterised) instantiation stays Postgres — no bre
     // the Postgres handle, so existing PG consumers are untouched.
     const pgDb = {} as DrizzleDatabase
     const provider = new DrizzleSessionProvider<DemoUser>({
-        db: pgDb,
+        db: () => pgDb,
         findUserById: () => Promise.resolve(null),
         findUserByCredentials: () => Promise.resolve(null),
     })
     assert(provider instanceof DrizzleSessionProvider)
 
     const token = new DrizzleTokenProvider<DemoUser>({
-        db: pgDb,
+        db: () => pgDb,
         tokensTable: pgTokens,
         findUserById: () => Promise.resolve(null),
         findUserByCredentials: () => Promise.resolve(null),

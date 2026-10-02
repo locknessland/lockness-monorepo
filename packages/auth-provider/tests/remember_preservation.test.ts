@@ -33,7 +33,7 @@ Deno.test('drizzle recycle bare-copies firstIssuedAt, not a fresh clock (#146)',
     const provider = new DrizzleSessionProvider({
         // The remember-token stubs never touch the db; a null handle is fine here.
         // deno-lint-ignore no-explicit-any
-        db: null as any,
+        db: () => null as any,
         findUserById: () => Promise.resolve(null),
         findUserByCredentials: () => Promise.resolve(null),
         enableRememberTokens: true,
@@ -75,7 +75,7 @@ Deno.test('drizzle recycle bare-copies an ABSENT origin as-is (no ?? in the prov
     // invent a createdAt fallback of its own.
     const provider = new DrizzleSessionProvider({
         // deno-lint-ignore no-explicit-any
-        db: null as any,
+        db: () => null as any,
         findUserById: () => Promise.resolve(null),
         findUserByCredentials: () => Promise.resolve(null),
         enableRememberTokens: true,
@@ -105,7 +105,7 @@ Deno.test('drizzle recycle bare-copies an ABSENT origin as-is (no ?? in the prov
 Deno.test('kysely recycle bare-copies firstIssuedAt, not a fresh clock (#146)', async () => {
     const provider = new KyselySessionProvider({
         // deno-lint-ignore no-explicit-any
-        db: fakeKyselyDb() as any,
+        db: () => fakeKyselyDb() as any,
         findUserById: () => Promise.resolve(null),
         findUserByCredentials: () => Promise.resolve(null),
         enableRememberTokens: true,
@@ -143,7 +143,7 @@ Deno.test('kysely recycle bare-copies firstIssuedAt, not a fresh clock (#146)', 
 Deno.test('drizzle create stamps firstIssuedAt at creation (#146)', async () => {
     const provider = new DrizzleSessionProvider({
         // deno-lint-ignore no-explicit-any
-        db: null as any,
+        db: () => null as any,
         findUserById: () => Promise.resolve(null),
         findUserByCredentials: () => Promise.resolve(null),
         enableRememberTokens: true,
@@ -186,7 +186,7 @@ Deno.test('kysely deleteAllRememberTokens targets the user rows (#147)', async (
     }
     const provider = new KyselySessionProvider({
         // deno-lint-ignore no-explicit-any
-        db: db as any,
+        db: () => db as any,
         findUserById: () => Promise.resolve(null),
         findUserByCredentials: () => Promise.resolve(null),
         enableRememberTokens: true,
