@@ -239,9 +239,14 @@
                 "hono",
                 "scheduler"
             ],
+            // `soft` lists what core loads through `optional_packages.ts` —
+            // the OPTIONAL_FEATURES packages plus `redis` (the scheduler lock)
+            // — and nothing it imports statically: `events` left with #505.
+            // `scripts/core_soft_policy_test.ts` holds the two in agreement.
+            //
             // `deprecation-contracts` is declared here, not detected: its jsr
             // specifier has sat in core/deno.json since 0.1.30, but no
-            // `tryImportOptionalPackage` call site loads it yet (#392 review).
+            // optional-package call site loads it yet (#392 review).
             // Declared so the dependency `core`'s own manifest already claims
             // is not invisible to `deprecation-contracts`'s "Imported by" row;
             // wiring the actual soft-load (or removing the stale specifier) is
@@ -252,7 +257,6 @@
                 "deprecation-contracts",
                 "devtools",
                 "drizzle",
-                "events",
                 "i18n",
                 "logger",
                 "redis",
@@ -260,9 +264,9 @@
                 "telemetry"
             ],
             "runtimeImports": {
-                "kernel/bootstrap/helpers.ts": {
+                "kernel/bootstrap/optional_packages.ts": {
                     "sites": 1,
-                    "reason": "tryImportOptionalPackage loads the soft-edge packages listed under soft; the name is an argument"
+                    "reason": "defaultImportModule loads the soft-edge packages listed under soft, only when the kernel configures them; the name is an argument resolved against the app's import map"
                 }
             }
         }
