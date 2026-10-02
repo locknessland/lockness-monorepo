@@ -71,9 +71,11 @@ const ANSI = /\x1b\[[0-9;]*m/g
  *
  * Fires when the message holds an excerpt gutter line, OR when it ends with a
  * location ` at <scheme>://…:L:C` AND is a compile error: its kind is
- * `SyntaxError`, or it holds a measured V8 compile phrase. The phrase leg is
- * what catches a V8 compile error an application wrapped
- * (`new Error('load failed: ' + e.message)`), whose own name says nothing.
+ * `SyntaxError`, it holds `SyntaxError: ` anywhere, or it holds a measured
+ * V8 compile phrase. The last two legs are what catch a compile error an
+ * application wrapped (`new Error('load failed: ' + e.message)`), whose own
+ * name says nothing — including one whose newlines were flattened, which
+ * takes the excerpt gutter with them.
  * A location alone is not enough: "Module not found … at file:///a.ts:1:8"
  * names the missing module, and a message that happens to end in a URL would
  * otherwise be blanked by anyone who can shape its tail. An application
@@ -107,6 +109,13 @@ export function readCompileDiagnostic(
     if (shape.kind !== 'SyntaxError' && !shape.compilePhrase) return undefined
     return { kind: shape.kind, ...shape.location }
 }
+
+/**
+ * A parse failure's kind as it appears inside a message, wherever it sits: an
+ * application that wraps the failure (`'load failed: ' + e.message`) moves it
+ * off the start, where {@link KIND_PREFIX} reads it.
+ */
+const SYNTAX_ERROR_SIGNAL = 'SyntaxError: '
 
 /**
  * The phrases V8 puts in a compile error that quotes source, measured on Deno
@@ -149,7 +158,7 @@ interface Shape {
     readonly excerpt: boolean
     /** The trailing location, when there is one. */
     readonly location: { url: string; line: number; column: number } | undefined
-    /** Whether the text holds a measured V8 compile-error phrase. */
+    /** Whether the text holds `SyntaxError: ` or a measured V8 compile phrase. */
     readonly compilePhrase: boolean
 }
 
@@ -166,9 +175,8 @@ function readShape(name: string, message: string): Shape {
         kind: KIND_PREFIX.exec(text)?.[1] ?? name,
         excerpt: EXCERPT_LINE.test(text),
         location: readLocation(text),
-        compilePhrase: V8_COMPILE_PHRASES.some((phrase) =>
-            text.includes(phrase)
-        ),
+        compilePhrase: text.includes(SYNTAX_ERROR_SIGNAL) ||
+            V8_COMPILE_PHRASES.some((phrase) => text.includes(phrase)),
     }
 }
 

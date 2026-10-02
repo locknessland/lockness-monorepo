@@ -359,6 +359,34 @@ Deno.test('#478 a missing import with a trailing location renders unchanged', as
     })
 })
 
+Deno.test('#494 a wrapped parse error with its newlines flattened is withheld', async () => {
+    await withFiles(BROKEN, async (dir) => {
+        for (const name of ['excerpt.ts', 'string_headline.ts']) {
+            const raw = await rawFailure(join(dir, name))
+            const flat = raw.message.replaceAll('\n', ' ')
+            assertStringIncludes(flat, M)
+            const out = renderError(new Error(`load failed: ${flat}`))
+            const [line, column] = LOCATION[name]
+            assertNoMarker(out, name)
+            assert(
+                out.endsWith(
+                    `/${name}:${line}:${column} [source excerpt withheld]`,
+                ),
+                out,
+            )
+        }
+    })
+})
+
+Deno.test('#494 a missing module still renders unchanged beside the SyntaxError signal', () => {
+    // Hand-written on purpose: the real-file shape is pinned above; this pins
+    // that the `SyntaxError: ` signal does not reach a message without it.
+    const message =
+        'Module not found "file:///a/nope.ts". at file:///a/b.ts:1:8'
+    assertEquals(readCompileDiagnostic('TypeError', message), undefined)
+    assertEquals(renderError(new TypeError(message)), `TypeError: ${message}`)
+})
+
 Deno.test('#478 a message that merely ends in a URL location is not withheld', () => {
     const error = new Error('request failed at http://a:1:1')
     assertEquals(renderError(error), 'Error: request failed at http://a:1:1')
