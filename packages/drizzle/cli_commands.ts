@@ -201,6 +201,10 @@ const STUBS_PATH: string = import.meta.url.startsWith('file://')
  * configuration is broken. It is turned into a throw here: a command that goes
  * on regardless would run every seeder against a client that was never built.
  *
+ * Silent (#427): the command reports the failure once, through the
+ * `CommandFailedError` it throws, and a `✅ Database configured` line would be
+ * a false claim just before a probe that fails.
+ *
  * @returns The configured Database instance.
  * @throws {Error} When the client could not be configured; the message is the
  *   redacted `ConnectionResult.error`.
@@ -209,6 +213,7 @@ async function initDatabase(): Promise<Database> {
     const db = container.get<Database>(Database)
     const result = await db.connect(
         Deno.env.get('DATABASE_URL') || 'postgres://localhost:5432/lockness',
+        { silent: true },
     )
     if (!result.success) {
         throw new Error(

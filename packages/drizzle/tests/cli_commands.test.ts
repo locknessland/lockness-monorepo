@@ -324,6 +324,92 @@ Deno.test('db:check - a connect() that rejects is a CommandFailedError', async (
 })
 
 // -----------------------------------------------------------------------------
+// db:check — through the real connection port (#427)
+// -----------------------------------------------------------------------------
+
+/**
+ * Run `fn` against a fresh container `Database` singleton whose postgres
+ * driver is `factory`, with `DATABASE_URL` set — the default connection port
+ * (`initDatabase`) with only the client faked. Resets the singleton and the
+ * variable before and after.
+ */
+async function withDefaultPort(
+    factory: Parameters<Database['setDriverFactory']>[1],
+    fn: () => Promise<void>,
+): Promise<void> {
+    const prevUrl = Deno.env.get('DATABASE_URL')
+    Deno.env.set('DATABASE_URL', 'postgres://u:p@h:5432/app')
+    container.delete(Database)
+    try {
+        container.get(Database).setDriverFactory('postgres', factory)
+        await fn()
+    } finally {
+        await container.get(Database).close()
+        container.delete(Database)
+        if (prevUrl === undefined) Deno.env.delete('DATABASE_URL')
+        else Deno.env.set('DATABASE_URL', prevUrl)
+    }
+}
+
+Deno.test('#427 T11 db:check makes exactly one round trip and never claims "configured"', async () => {
+    const counts = { built: 0, probes: 0, closes: 0 }
+    await withDefaultPort(() => {
+        counts.built++
+        return Promise.resolve({
+            db: {},
+            probe: () => {
+                counts.probes++
+                return Promise.resolve()
+            },
+            close: () => {
+                counts.closes++
+                return Promise.resolve()
+            },
+        })
+    }, async () => {
+        const cli = new FakeCli()
+        registerDrizzleCommands(cli, {})
+
+        const { lines, error } = await capture(() => cli.run('db:check'))
+
+        assertEquals(error, undefined)
+        assertEquals(counts, { built: 1, probes: 1, closes: 1 })
+        assertEquals(lines, [
+            '🔍 Checking database connection...',
+            '✅ Database connection successful',
+        ])
+    })
+})
+
+Deno.test('#427 T12 a real Cli prints a failed db:check once and exits 1', async () => {
+    await withDefaultPort(() => {
+        throw new Error('Cannot find module postgres')
+    }, async () => {
+        const errors: unknown[][] = []
+        const { log, error } = console
+        console.log = () => {}
+        console.error = (...args: unknown[]) => void errors.push(args)
+        try {
+            const cli = new Cli()
+            registerDrizzleCommands(cli, {})
+
+            const status = await cli.dispatch(['db:check'])
+
+            assertEquals(status, 1)
+            assertEquals(errors, [[
+                '❌ Database connection failed: Database not configured: ' +
+                "The 'postgres' driver could not be configured (Error); its " +
+                'message is withheld because it may contain the DSN\n' +
+                '💡 Check your DATABASE_URL in .env',
+            ]])
+        } finally {
+            console.log = log
+            console.error = error
+        }
+    })
+})
+
+// -----------------------------------------------------------------------------
 // db:seed — seeder-loader port only, no dynamic import
 // -----------------------------------------------------------------------------
 
