@@ -58,14 +58,32 @@ async function probeFailure(
     return rejected instanceof Error ? rejected.message : String(rejected)
 }
 
-Deno.test('#438 inspectDsn holds an authToken in all four forms', () => {
-    // As written, percent-decoded, decoded the form way (`+` is a space), and
-    // as WHATWG serialises the query (`"` becomes `%22`).
+Deno.test('#438 inspectDsn holds an authToken in every form a driver may echo', () => {
+    // As written, percent-decoded, re-encoded by encodeURIComponent, decoded
+    // the form way (`+` is a space), and as WHATWG serialises the query (`"`
+    // becomes `%22`).
     const dsn = `libsql://db.example.com?authToken=${M}%2B+"&tls=1`
     assertEquals(inspectDsn(dsn), {
         ok: true,
-        secrets: [`${M}%2B+"`, `${M}++"`, `${M}+ "`, `${M}%2B+%22`],
+        secrets: [
+            `${M}%2B+"`,
+            `${M}++"`,
+            `${M}%2B%2B%22`,
+            `${M}+ "`,
+            `${M}%2B+%22`,
+        ],
     })
+})
+
+Deno.test('#438 a held form is matched whatever the case of its hex escapes', async () => {
+    // A driver that re-encodes `+` may write `%2b` where the DSN had `%2B`.
+    const out = await probeFailure(
+        'sqlite',
+        `libsql://db.example.com?authToken=${M}%2Bx`,
+        new Error(`rejected ${M}%2bx`),
+    )
+    assertEquals(out, WITHHELD)
+    assertNoMarker(out)
 })
 
 Deno.test('#438 the userinfo password and query credentials are both held', () => {

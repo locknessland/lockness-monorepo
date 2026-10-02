@@ -39,6 +39,10 @@ export function shownName(
 /**
  * Whether a text holds any known form of any credential.
  *
+ * Percent-hex escapes compare case-insensitively: a driver that re-encodes a
+ * value may write `%2b` where the DSN had `%2B`, and both name the same byte.
+ * Everything else compares exactly.
+ *
  * @param text - Driver text: a name, or a piece of a message.
  * @param secrets - Every known form of every credential, none empty.
  * @returns True when any of them occurs in `text`.
@@ -47,7 +51,23 @@ export function holdsSecret(
     text: string,
     secrets: readonly string[],
 ): boolean {
-    return secrets.some((secret) => text.includes(secret))
+    if (secrets.length === 0) return false
+    const haystack = upperHexEscapes(text)
+    return secrets.some((secret) => haystack.includes(upperHexEscapes(secret)))
+}
+
+/** A `%XX` percent-hex escape. */
+const HEX_ESCAPE = /%[0-9a-fA-F]{2}/g
+
+/**
+ * Uppercase the hex digits of every `%XX` escape, leaving the rest alone.
+ *
+ * @param text - Any text.
+ * @returns The text with its escapes in one canonical case.
+ */
+function upperHexEscapes(text: string): string {
+    if (!text.includes('%')) return text
+    return text.replace(HEX_ESCAPE, (escape) => escape.toUpperCase())
 }
 
 /**

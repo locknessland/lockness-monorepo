@@ -106,16 +106,22 @@ const NO_SECRETS: DsnInspection = { ok: true, secrets: [] }
  *   the first match of its decoded form anywhere in the DSN, so it would
  *   rewrite the password instead.
  *
- * @param url - The DSN passed to `Database.connect()`.
  * Accepted, it also holds the value of every query parameter whose name
  * `isCredentialParamName` marks as a credential (#438) — libsql's
  * `authToken`, a `?password=`, an `sslpassword`. The rule is the contract's,
  * shared with `renderError`, so the two never disagree on a name. No new
  * refusal comes with it: a query value cannot move the password boundary.
  *
+ * **A partial echo cannot be detected.** A driver that prints only part of a
+ * credential, or truncates it, matches no held form, and #425 forbids the
+ * alternative — editing driver text around a value — because replacement by
+ * value turns into a detector. What is held is every WHOLE form a driver is
+ * known to print.
+ *
+ * @param url - The DSN passed to `Database.connect()`.
  * @returns `{ ok: false }` when a driver could misparse the DSN; otherwise
  *   `{ ok: true, secrets }` — the password as written, decoded, and
- *   re-encoded by WHATWG, then each credential query value in its four forms.
+ *   re-encoded by WHATWG, then each credential query value in its forms.
  *   A `file:` or `sqlite:` path, and a DSN with no scheme, are accepted with
  *   no secrets.
  *
@@ -124,7 +130,7 @@ const NO_SECRETS: DsnInspection = { ok: true, secrets: [] }
  * inspectDsn('postgres://u:p%40ss@h1:5432,h2:5433/db')
  * // { ok: true, secrets: ['p%40ss', 'p@ss'] }
  * inspectDsn('libsql://db.example.com?authToken=a%2Bb')
- * // { ok: true, secrets: ['a%2Bb', 'a+b'] }
+ * // { ok: true, secrets: ['a%2Bb', 'a+b', 'a b'] }
  * inspectDsn('postgres://u:2024/Spring@h/db') // { ok: false }
  * inspectDsn('postgres:u:pw@h/db') // { ok: false }
  * ```
@@ -206,8 +212,9 @@ export function inspectDsn(url: string): DsnInspection {
 /**
  * Every form of every credential-named query parameter's value.
  *
- * A driver may echo a value as written, decoded, decoded the form way (`+` as
- * a space), or as WHATWG serialised the URL it rebuilt — and #425 withholds on
+ * A driver may echo a value as written, decoded, decoded and re-encoded by
+ * `encodeURIComponent`, decoded the form way (`+` as a space), or as WHATWG
+ * serialised the URL it rebuilt — and #425 withholds on
  * any form it holds, so each one is collected. Every value of a repeated name
  * is held. Empty values are dropped by the caller.
  *
@@ -223,7 +230,11 @@ function queryCredentials(tail: string, serialised: string): string[] {
         if (!isCredentialParamName(name)) return
         forms.push(value)
         const plain = decoded(value)
-        if (plain !== undefined) forms.push(plain)
+        if (plain !== undefined) {
+            forms.push(plain)
+            // A driver that decodes and re-encodes writes it this way.
+            forms.push(encodeURIComponent(plain))
+        }
         for (const form of new URLSearchParams(`x=${value}`).values()) {
             forms.push(form)
         }
