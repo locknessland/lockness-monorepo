@@ -227,11 +227,10 @@ function redactPairs(text: string): string {
             i += equalsLength
             continue
         }
-        // Blanks after `=` belong to the value only in the symmetric
-        // `name = value` spelling; `token= in header` has an empty value.
-        const valueStart = nameEnd < i
-            ? skipBlanksRight(text, i + equalsLength)
-            : i + equalsLength
+        // Blanks after `=` are skipped whatever precedes it: `password= …` is
+        // what `util.format('password=', v)` prints. The cost is that an
+        // empty value takes the next word (`token= *** header`).
+        const valueStart = skipBlanksRight(text, i + equalsLength)
         if (
             text[valueStart] === '\\' && QUOTES.has(text[valueStart + 1])
         ) {

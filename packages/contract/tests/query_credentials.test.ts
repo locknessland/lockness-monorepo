@@ -344,13 +344,30 @@ Deno.test('#478 a bare `code` outside a URL is a diagnostic, not an OAuth code',
     )
 })
 
-Deno.test('#478 an empty value right after `=` does not swallow the next word', () => {
+Deno.test('#494 blanks after `=` are skipped even with none before it', () => {
+    // `util.format('k=', v)`, Python's `print('k=', v)`, Go's `fmt.Println`
+    // and dotenv's `KEY= value` all put a blank after a bare `=`.
+    for (
+        const text of [
+            `password= ${M}`,
+            `password=\t${M}`,
+            ['connect failed', 'password=', M].join(' '),
+            `password= "${M} x"`,
+        ]
+    ) {
+        assertNoMarker(render(text), JSON.stringify(text))
+    }
     assertEquals(
-        redactQueryCredentials('token= in header'),
-        'token= in header',
+        redactQueryCredentials(`password= ${M} dbname=app`),
+        'password= *** dbname=app',
     )
     // Blanks on both sides are still the libpq `name = value` spelling.
     assertEquals(redactQueryCredentials(`token = ${M}`), 'token = ***')
+    // The accepted cost: an empty value right after `=` takes the next word.
+    assertEquals(
+        redactQueryCredentials('token= in header'),
+        'token= *** header',
+    )
 })
 
 Deno.test('#478 a plural stem with an all-digit value is a count, not a secret', () => {
