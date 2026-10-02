@@ -78,15 +78,15 @@ const MUTATIONS: Mutation[] = [
     {
         label: "quoted values lose their handling — `password='M'` leaks",
         file: CREDENTIALS,
-        edits: [['if (QUOTES.has(quote)) {', 'if (false) {']],
+        edits: [['if (QUOTES.has(text[valueStart])) {', 'if (false) {']],
         killedBy: 'a quoted value is redacted up to its closing quote',
     },
     {
         label: 'every value ends at URL separators — `--password=ab&M` leaks',
         file: CREDENTIALS,
         edits: [[
-            'inUrl(text, start) ? URL_VALUE_END : RAW_VALUE_END',
-            'URL_VALUE_END',
+            'const ends = url ? URL_VALUE_END : RAW_VALUE_END',
+            'const ends = URL_VALUE_END',
         ]],
         killedBy:
             'outside a URL, a raw value ends only at whitespace or a quote',
@@ -95,8 +95,8 @@ const MUTATIONS: Mutation[] = [
         label: 'no value ends at `&` — a URL query loses its neighbours',
         file: CREDENTIALS,
         edits: [[
-            'inUrl(text, start) ? URL_VALUE_END : RAW_VALUE_END',
-            'RAW_VALUE_END',
+            'const ends = url ? URL_VALUE_END : RAW_VALUE_END',
+            'const ends = RAW_VALUE_END',
         ]],
         killedBy: 'inside a URL query, `&` and `#` still end a value',
     },
@@ -126,11 +126,52 @@ const MUTATIONS: Mutation[] = [
         label: 'plural stems dropped — `tokens` is no credential',
         file: CREDENTIALS,
         edits: [[
-            'normalised.endsWith(stem) || normalised.endsWith(`${stem}s`)',
-            'normalised.endsWith(stem)',
+            'CREDENTIAL_STEMS.some((stem) => normalised.endsWith(`${stem}s`))',
+            'false',
         ]],
         killedBy:
             'trailing digits, a confirmation suffix and a plural still match',
+    },
+    {
+        label: 'an escaped opener read as raw — `--password=\\"M\\"` leaks',
+        file: CREDENTIALS,
+        edits: [[
+            "text[valueStart] === '\\\\' && QUOTES.has(text[valueStart + 1])",
+            'false',
+        ]],
+        killedBy:
+            'a backslash-escaped quote opens a value that closes at its escaped twin',
+    },
+    {
+        label: 'an escaped quote ends a quoted value — its tail leaks',
+        file: CREDENTIALS,
+        edits: [["if (text[j] === '\\\\') {", 'if (false) {']],
+        killedBy: 'an escaped quote inside a quoted value does not end it',
+    },
+    {
+        label: 'a bare `code` masked everywhere — `code=23505` is lost',
+        file: CREDENTIALS,
+        edits: [["(match === 'exact' && !url)", 'false']],
+        killedBy:
+            'a bare `code` outside a URL is a diagnostic, not an OAuth code',
+    },
+    {
+        label:
+            'blanks after `=` always skipped — `token= in header` loses `in`',
+        file: CREDENTIALS,
+        edits: [['const valueStart = nameEnd < i', 'const valueStart = true']],
+        killedBy:
+            'an empty value right after `=` does not swallow the next word',
+    },
+    {
+        label: 'a plural count masked — `max_tokens=4096` is lost',
+        file: CREDENTIALS,
+        edits: [[
+            "match === 'plural' && isDigits(text, valueStart, end)",
+            'false',
+        ]],
+        killedBy:
+            'a plural stem with an all-digit value is a count, not a secret',
     },
     // ---- renderOne's order ----------------------------------------------------
     {
@@ -190,8 +231,28 @@ const MUTATIONS: Mutation[] = [
             "the net's location-alone trigger removed — a wrapped V8 error leaks",
         file: DIAGNOSTIC,
         edits: [[
-            'if (!shape.excerpt && shape.location === undefined) return undefined',
-            'if (!shape.excerpt) return undefined',
+            '...shape.location }\n    if (shape.location === undefined) return undefined',
+            '...shape.location }\n    return undefined',
+        ]],
+        killedBy:
+            'renderError withholds a V8 compile error wrapped in a plain Error',
+    },
+    {
+        label:
+            "the net's location narrowing removed — Module not found is relabelled",
+        file: DIAGNOSTIC,
+        edits: [[
+            "if (shape.kind !== 'SyntaxError' && !shape.compilePhrase) return undefined",
+            '',
+        ]],
+        killedBy: 'a missing import with a trailing location renders unchanged',
+    },
+    {
+        label: "the net's V8-phrase leg removed — a wrapped regex error leaks",
+        file: DIAGNOSTIC,
+        edits: [[
+            "if (shape.kind !== 'SyntaxError' && !shape.compilePhrase)",
+            "if (shape.kind !== 'SyntaxError')",
         ]],
         killedBy:
             'renderError withholds a V8 compile error wrapped in a plain Error',
@@ -201,8 +262,8 @@ const MUTATIONS: Mutation[] = [
             'the translation stops requiring a location — a gutter-shaped throw is replaced',
         file: DIAGNOSTIC,
         edits: [[
-            'if (shape.location === undefined) return undefined\n',
-            '\n',
+            'if (shape.location === undefined) return undefined\n    if (!shape.excerpt',
+            'if (!shape.excerpt',
         ]],
         killedBy:
             'importAppFile rethrows a runtime throw that only looks like an excerpt',
