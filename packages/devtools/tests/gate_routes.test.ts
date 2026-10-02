@@ -35,13 +35,11 @@ const ROUTES: ReadonlyArray<{ method: string; path: string }> = [
 /** Run `fn` with devtools explicitly active, restoring env after. */
 async function withActiveDevtools(fn: () => Promise<void>): Promise<void> {
     const keys = [
-        'DENO_ENV',
         'APP_ENV',
         'LOCKNESS_DEVTOOLS',
         'LOCKNESS_DEVTOOLS_TOKEN',
     ]
     const prev = Object.fromEntries(keys.map((k) => [k, Deno.env.get(k)]))
-    Deno.env.delete('DENO_ENV')
     Deno.env.delete('APP_ENV')
     Deno.env.delete('LOCKNESS_DEVTOOLS_TOKEN')
     Deno.env.set('LOCKNESS_DEVTOOLS', '1')

@@ -1,9 +1,9 @@
 /**
- * Tests for the consolidated environment-name resolution (#144).
+ * Tests for the consolidated environment-name resolution (#144, #504).
  *
- * Every converted site must honour BOTH `DENO_ENV` (first) and `APP_ENV`
- * (second), default to `development`, never throw without `--allow-env`, and
- * fail closed for the error-detail gates.
+ * Every converted site reads `APP_ENV` alone (`DENO_ENV` is no longer an
+ * environment signal), defaults to `development`, never throws without
+ * `--allow-env`, and fails closed for the error-detail gates.
  *
  * @module @lockness/core/tests/environment
  */
@@ -42,9 +42,9 @@ function withEnv(
 
 // --- resolveEnvName: the four combinations -------------------------------
 
-Deno.test('resolveEnvName - DENO_ENV alone is honoured', () => {
+Deno.test('resolveEnvName - DENO_ENV alone is not read (#504)', () => {
     withEnv({ DENO_ENV: 'production' }, () => {
-        assertEquals(resolveEnvName(), 'production')
+        assertEquals(resolveEnvName(), 'development')
     })
 })
 
@@ -54,9 +54,9 @@ Deno.test('resolveEnvName - APP_ENV alone is honoured', () => {
     })
 })
 
-Deno.test('resolveEnvName - DENO_ENV wins when both are set', () => {
+Deno.test('resolveEnvName - APP_ENV decides when both are set (#504)', () => {
     withEnv({ DENO_ENV: 'production', APP_ENV: 'development' }, () => {
-        assertEquals(resolveEnvName(), 'production')
+        assertEquals(resolveEnvName(), 'development')
     })
 })
 
@@ -67,7 +67,7 @@ Deno.test('resolveEnvName - neither set defaults to development', () => {
 })
 
 Deno.test('isProduction / isDevelopment are built on resolveEnvName', () => {
-    withEnv({ DENO_ENV: 'production' }, () => {
+    withEnv({ APP_ENV: 'production' }, () => {
         assert(isProduction())
         assert(!isDevelopment())
     })
@@ -103,10 +103,13 @@ Deno.test('resolveEnvName - a NotCapable read resolves to development, never thr
 
 Deno.test('App.isProduction / isDevelopment reflect the resolved env', () => {
     const app = new App()
-    withEnv({ DENO_ENV: 'production' }, () => {
-        // DENO_ENV alone now flips App.isProduction (was blind to it pre-#144).
+    withEnv({ APP_ENV: 'production' }, () => {
         assert(app.isProduction)
         assert(!app.isDevelopment)
+    })
+    withEnv({ DENO_ENV: 'production' }, () => {
+        // DENO_ENV is not read since #504: alone, it is not production.
+        assert(!app.isProduction)
     })
     withEnv({ APP_ENV: 'development' }, () => {
         assert(app.isDevelopment)
@@ -129,8 +132,7 @@ Deno.test('formatErrorForConsole - production hides the verbose stack dump (site
     console.error = (...a: unknown[]) => void errs.push(a.join(' '))
     try {
         const err = new Error('BOOM-SECRET')
-        // DENO_ENV=production, APP_ENV unset — the fail-closed combo.
-        withEnv({ DENO_ENV: 'production' }, () => {
+        withEnv({ APP_ENV: 'production' }, () => {
             formatErrorForConsole(err, 500, '/x')
         })
         assert(
@@ -176,7 +178,7 @@ async function bodyForEnv(
 }
 
 Deno.test('defaultErrorHandler - production 500 leaks no stack detail (site 4)', async () => {
-    const prod = await bodyForEnv({ DENO_ENV: 'production' })
+    const prod = await bodyForEnv({ APP_ENV: 'production' })
     assert(
         !prod.includes('STACK-MARKER-SHOULD-NOT-LEAK'),
         'production must not expose the error detail',
@@ -189,7 +191,7 @@ Deno.test('defaultErrorHandler - production 500 leaks no stack detail (site 4)',
 
 Deno.test('defaultErrorHandler - an unset/ambiguous environment fails closed (H1 regression #165)', async () => {
     // The security-critical case the production/development pair above never
-    // exercised: neither DENO_ENV nor APP_ENV set. The 500 detail gate must
+    // exercised: APP_ENV unset. The 500 detail gate must
     // fail CLOSED here — an unset environment is the default state of a freshly
     // deployed app and of a `deno compile` binary launched without --allow-env,
     // and leaking stack traces to every client by default is the H1 finding.

@@ -18,6 +18,8 @@ async function withAppEnv(
     fn: () => Promise<void>,
 ): Promise<void> {
     const prev = Deno.env.get('APP_ENV')
+    // Not a signal since #504, but a stray DENO_ENV trips the tripwire inside
+    // assertNotProduction, so it is cleared for the duration.
     const prevDeno = Deno.env.get('DENO_ENV')
     Deno.env.delete('DENO_ENV')
     if (value === undefined) Deno.env.delete('APP_ENV')

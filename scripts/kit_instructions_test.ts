@@ -65,7 +65,8 @@ const TEXT_FILE = /(\.(md|ts|tsx|json|css|sh)|^\.env.*)$/
 /**
  * Run `deno` inside the app with no database configured.
  *
- * `DATABASE_URL`, `APP_ENV` and `DENO_ENV` are withheld so the app's own
+ * `DATABASE_URL`, `APP_ENV` and `DENO_ENV` (whose stray value would trip the
+ * #504 boot tripwire) are withheld so the app's own
  * `.env` decides them, and libpq's `PG*` defaults name a closed loopback port
  * and a database nobody has — so a driver that fell back to its defaults
  * would fail to connect rather than reach a real server.

@@ -20,7 +20,7 @@ const PAYLOAD = '<script>alert("pwned")</script>'
 
 /**
  * Render the default error page for an error thrown with `status`, under the
- * given `DENO_ENV`, with console output silenced (the handler logs every
+ * given `APP_ENV` (and no `DENO_ENV`), with console output silenced (the handler logs every
  * error through `formatErrorForConsole`). A `null` stack removes it.
  */
 async function render(
@@ -42,8 +42,8 @@ async function render(
     const prevApp = Deno.env.get('APP_ENV')
     const origErr = console.error
     const origLog = console.log
-    Deno.env.set('DENO_ENV', env)
-    Deno.env.delete('APP_ENV')
+    Deno.env.set('APP_ENV', env)
+    Deno.env.delete('DENO_ENV')
     console.error = () => {}
     console.log = () => {}
     try {
@@ -58,7 +58,8 @@ async function render(
         console.log = origLog
         if (prevDeno === undefined) Deno.env.delete('DENO_ENV')
         else Deno.env.set('DENO_ENV', prevDeno)
-        if (prevApp !== undefined) Deno.env.set('APP_ENV', prevApp)
+        if (prevApp === undefined) Deno.env.delete('APP_ENV')
+        else Deno.env.set('APP_ENV', prevApp)
     }
 }
 

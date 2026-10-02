@@ -25,7 +25,8 @@ export interface AppCommandResult {
 /**
  * Run a `deno` command inside the app, the way its user would.
  *
- * `DATABASE_URL`, `APP_ENV` and `DENO_ENV` are withheld so the app's own
+ * `DATABASE_URL`, `APP_ENV` and `DENO_ENV` (whose stray value would trip the
+ * #504 boot tripwire) are withheld so the app's own
  * `.env` decides them — that file is what the README tells the user to edit.
  *
  * @param dir - The app.

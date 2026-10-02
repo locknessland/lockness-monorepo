@@ -132,12 +132,13 @@ Deno.test('redactValue - deep and cyclic input terminate, no throw (#149, FR-012
 Deno.test('devtoolsActive - fails closed unless explicitly dev or opted in', async () => {
     await withEnv({}, () => assert(!devtoolsActive(), 'no env -> off'))
     await withEnv(
-        { DENO_ENV: 'production' },
+        { APP_ENV: 'production' },
         () => assert(!devtoolsActive(), 'production -> off'),
     )
     await withEnv(
         { DENO_ENV: 'development' },
-        () => assert(devtoolsActive(), 'explicit dev -> on'),
+        () =>
+            assert(!devtoolsActive(), 'DENO_ENV is not a signal (#504) -> off'),
     )
     await withEnv(
         { APP_ENV: 'development' },
@@ -315,7 +316,7 @@ Deno.test('request capture - headers/query/body redacted at capture (#149, US1)'
 // --- Fail-closed at the integration boundaries (HIGH: S1 mount / S2 collect) --
 
 Deno.test('production - enableDevtools mounts no route and the middleware collects nothing', async () => {
-    await withEnv({ DENO_ENV: 'production' }, async () => {
+    await withEnv({ APP_ENV: 'production' }, async () => {
         // Mount refusal (S1): no dashboard/api route is registered.
         const app = new Hono()
         enableDevtools(app)

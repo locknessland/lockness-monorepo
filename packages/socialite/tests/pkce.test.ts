@@ -221,7 +221,7 @@ describe('OAuth PKCE (#243)', () => {
     })
 
     it('in explicit development the verifier cookie is unprefixed and not Secure', () => {
-        withEnv({ DENO_ENV: 'development', APP_ENV: undefined }, () => {
+        withEnv({ DENO_ENV: undefined, APP_ENV: 'development' }, () => {
             const raw = new PkceDriver(config).redirect().headers.getSetCookie()
                 .find((c) => /pkce_verifier=/.test(c)) ?? ''
             expect(raw.startsWith('lockness_pkce_verifier=')).toBe(true)

@@ -170,7 +170,8 @@ Deno.test('eventsDebugStep - is actually wired into the bootstrap registry', () 
     assertEquals(step !== undefined, true, 'the step is registered')
     assertEquals(step?.order, 10)
 
-    // And it runs before anything can emit: nothing with a lower order exists.
+    // And it runs before anything can emit. The one earlier step is the #504
+    // DENO_ENV tripwire, which emits nothing — it only throws or warns.
     const earlier = steps.filter((s) => s.order < 10).map((s) => s.id)
-    assertEquals(earlier, [], 'no step precedes the debug switch')
+    assertEquals(earlier, ['environment'], 'only the tripwire precedes it')
 })

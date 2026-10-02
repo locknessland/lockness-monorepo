@@ -20,9 +20,7 @@ Deno.test('SC-006: a known-placeholder key is rejected (non-dev env fails closed
     // Pin a non-development environment so the ephemeral fallback is NOT taken;
     // restore afterwards so no other test is affected.
     const priorApp = Deno.env.get('APP_ENV')
-    const priorDeno = Deno.env.get('DENO_ENV')
     Deno.env.set('APP_ENV', 'production')
-    Deno.env.delete('DENO_ENV')
     try {
         const err = assertThrows(
             () => resolveAppKey('change-me-in-production'),
@@ -32,19 +30,16 @@ Deno.test('SC-006: a known-placeholder key is rejected (non-dev env fails closed
     } finally {
         if (priorApp === undefined) Deno.env.delete('APP_ENV')
         else Deno.env.set('APP_ENV', priorApp)
-        if (priorDeno !== undefined) Deno.env.set('DENO_ENV', priorDeno)
     }
 })
 
 Deno.test('an explicit development env yields a stable 32-byte ephemeral key when APP_KEY is unset', () => {
     // Exercise the ephemeral dev-key branch: no APP_KEY set, environment
-    // EXPLICITLY development. Save/restore all three env vars so no leaked
+    // EXPLICITLY development. Save/restore both env vars so no leaked
     // state reaches sibling tests.
     const priorKey = Deno.env.get('APP_KEY')
     const priorApp = Deno.env.get('APP_ENV')
-    const priorDeno = Deno.env.get('DENO_ENV')
     Deno.env.delete('APP_KEY')
-    Deno.env.delete('DENO_ENV')
     Deno.env.set('APP_ENV', 'development')
     try {
         const key = resolveAppKey()
@@ -57,8 +52,6 @@ Deno.test('an explicit development env yields a stable 32-byte ephemeral key whe
         else Deno.env.set('APP_KEY', priorKey)
         if (priorApp === undefined) Deno.env.delete('APP_ENV')
         else Deno.env.set('APP_ENV', priorApp)
-        if (priorDeno === undefined) Deno.env.delete('DENO_ENV')
-        else Deno.env.set('DENO_ENV', priorDeno)
     }
 })
 
