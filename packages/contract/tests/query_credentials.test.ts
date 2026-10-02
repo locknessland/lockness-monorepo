@@ -120,7 +120,11 @@ Deno.test('#478 any `name=value` matches, not only a URL query', () => {
 
 Deno.test('#478 an empty credential value is left alone', () => {
     assertEquals(render('/x?token=&page=1'), 'Error: /x?token=&page=1')
-    assertEquals(redactQueryCredentials('token=&page=1'), 'token=&page=1')
+    assertEquals(redactQueryCredentials('?token=&page=1'), '?token=&page=1')
+    assertEquals(redactQueryCredentials("token=''"), "token=''")
+    // Outside a URL `&` is content, so a bare `token=&x` is eaten: the
+    // over-redacting direction, chosen on purpose.
+    assertEquals(redactQueryCredentials('token=&page=1'), 'token=***')
 })
 
 Deno.test('#478 names that only resemble a credential survive', () => {
@@ -190,4 +194,115 @@ Deno.test('#478 isCredentialParamName normalises before it matches', () => {
     assertEquals(isCredentialParamName('statuscode'), false)
     assertEquals(isCredentialParamName(''), false)
     assertEquals(isCredentialParamName('---'), false)
+})
+
+// ============================================================================
+// Review fold-in: quoted values, raw-value terminators, spacing, ANSI, names
+// ============================================================================
+
+Deno.test('#478 a quoted value is redacted up to its closing quote', () => {
+    const cases: Record<string, [string, string]> = {
+        'single quotes': [`password='${M}' next=1`, "password='***' next=1"],
+        'double quotes': [`password="${M}" next=1`, 'password="***" next=1'],
+        'libpq quoted, with a space': [
+            `host=db password='${M} x' dbname=app`,
+            "host=db password='***' dbname=app",
+        ],
+        'env double-quoted': [
+            `AWS_SECRET_ACCESS_KEY="${M}"`,
+            'AWS_SECRET_ACCESS_KEY="***"',
+        ],
+        'cli double-quoted': [`--password="${M}" -v`, '--password="***" -v'],
+    }
+    for (const [label, [text, expected]] of Object.entries(cases)) {
+        assertEquals(redactQueryCredentials(text), expected, label)
+        assertNoMarker(render(text), label)
+    }
+})
+
+Deno.test('#478 an unclosed quote redacts to the end of the text', () => {
+    assertEquals(
+        redactQueryCredentials(`password="${M} and more`),
+        'password="***',
+    )
+})
+
+Deno.test('#478 outside a URL, a raw value ends only at whitespace or a quote', () => {
+    for (const separator of ['&', '#', '<', '>', ';']) {
+        const text = `--password=ab${separator}${M} -v`
+        assertEquals(
+            redactQueryCredentials(text),
+            '--password=*** -v',
+            separator,
+        )
+    }
+})
+
+Deno.test('#478 inside a URL query, `&` and `#` still end a value', () => {
+    assertEquals(
+        redactQueryCredentials(`/x?token=${M}&page=2#top`),
+        '/x?token=***&page=2#top',
+    )
+    assertEquals(
+        redactQueryCredentials(`/x?a=1&token=${M}#top`),
+        '/x?a=1&token=***#top',
+    )
+})
+
+Deno.test('#478 a vertical tab does not end a value', () => {
+    assertNoMarker(render(`--password=ab\v${M}`))
+})
+
+Deno.test('#478 spaces or tabs around `=` still mark a pair', () => {
+    for (const text of [`token =${M}`, `password = ${M}`, `pwd\t=\t${M}`]) {
+        assertNoMarker(render(text), JSON.stringify(text))
+    }
+    assertEquals(
+        redactQueryCredentials(`host=db password = ${M} dbname=app`),
+        'host=db password = *** dbname=app',
+    )
+})
+
+Deno.test('#478 an ANSI escape inside a name does not hide the pair', () => {
+    const out = render(`\x1b[1mpassword\x1b[0m=${M}`)
+    assertNoMarker(out)
+    assertStringIncludes(out, 'password=***')
+})
+
+Deno.test('#478 an ANSI escape with no credential is still shown escaped', () => {
+    assertEquals(render('\x1b[31mred\x1b[0m'), 'Error: \\x1b[31mred\\x1b[0m')
+})
+
+Deno.test('#478 trailing digits, a confirmation suffix and a plural still match', () => {
+    for (
+        const name of [
+            'password2',
+            'password_confirmation',
+            'passwordConfirmation',
+            'tokens',
+            'api_keys',
+            'passphrase',
+            'client_assertion',
+            'code_verifier',
+        ]
+    ) {
+        assert(isCredentialParamName(name), name)
+        assertNoMarker(render(`/x?${name}=${M}`), name)
+    }
+})
+
+Deno.test('#478 tokenType and key_id still survive', () => {
+    assertEquals(isCredentialParamName('tokenType'), false)
+    assertEquals(isCredentialParamName('key_id'), false)
+    assertEquals(isCredentialParamName('confirmation'), false)
+    assertEquals(isCredentialParamName('2'), false)
+})
+
+Deno.test('#478 userinfo runs before the query pass: a `=` in a password cannot shield it', () => {
+    // Query first would eat `M@h/db` as the value of `mytoken` and leave the
+    // userinfo net nothing to find, leaking `u` and `mytoken`.
+    assertEquals(
+        render(`connect failed: postgres://u:mytoken=${M}@h/db`),
+        'Error: connect failed: postgres://***:***@h/db',
+    )
 })

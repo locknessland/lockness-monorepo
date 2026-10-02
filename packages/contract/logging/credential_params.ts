@@ -17,17 +17,20 @@
 
 /**
  * The credential stems. A parameter name whose normalised form ENDS WITH one
- * of these is a credential.
+ * of these, or with one of these plus a plural `s`, is a credential.
  *
  * **Ends-with, not an exact list**, because vendors compound: `api_key`,
  * `access_token`, `client_secret`, `sslpassword`, `X-Amz-Signature`,
- * `X-Amz-Credential`, `authToken`. An exact list leaks the first compound
- * nobody wrote down. The cost is a pinned over-match — `monkey=` is masked —
- * which is the safe direction for a redaction rule.
+ * `X-Amz-Credential`, `authToken`, `passphrase`, `client_assertion`,
+ * `code_verifier`. An exact list leaks the first compound nobody wrote down.
+ * The cost is a pinned over-match — `monkey=` is masked — which is the safe
+ * direction for a redaction rule.
  *
  * A name is normalised first: percent-decoded, lowercased, and stripped of
  * `.`, `_`, `~` and `-`. Stripping is what keeps `key_id` and `token_type` out
  * (they end in `id` and `type`) while `api_key` and `api-key` both match.
+ * Then trailing digits (`password2`) and a trailing `confirmation`
+ * (`password_confirmation`, the form-field idiom) are dropped.
  */
 const CREDENTIAL_STEMS: readonly string[] = [
     'token',
@@ -42,6 +45,9 @@ const CREDENTIAL_STEMS: readonly string[] = [
     'credential',
     'auth',
     'jwt',
+    'phrase',
+    'assertion',
+    'verifier',
 ]
 
 /**
@@ -50,6 +56,9 @@ const CREDENTIAL_STEMS: readonly string[] = [
  * `errorcode`, which are exactly what an error message needs to keep.
  */
 const CREDENTIAL_NAMES: ReadonlySet<string> = new Set(['code'])
+
+/** The suffix a confirmation field adds to a credential name. */
+const CONFIRMATION = 'confirmation'
 
 /** The characters a normalised name drops. */
 const STRIPPED: ReadonlySet<string> = new Set(['.', '_', '~', '-'])
@@ -61,12 +70,13 @@ const STRIPPED: ReadonlySet<string> = new Set(['.', '_', '~', '-'])
  * `api%5Fkey` all match. A sequence that is not `%XX` is kept as written.
  *
  * @param name - The parameter name, as written or already decoded.
- * @returns True when the name ends with a credential stem, or is `code`.
+ * @returns True when the name ends with a credential stem (or its plural),
+ *   or is `code`, once trailing digits and `confirmation` are dropped.
  *
  * @example
  * ```typescript
  * isCredentialParamName('access_token') // true
- * isCredentialParamName('X-Amz-Signature') // true
+ * isCredentialParamName('password_confirmation') // true
  * isCredentialParamName('token_type') // false
  * isCredentialParamName('statuscode') // false
  * ```
@@ -76,9 +86,18 @@ export function isCredentialParamName(name: string): boolean {
     for (const char of decodeAsciiEscapes(name).toLowerCase()) {
         if (!STRIPPED.has(char)) normalised += char
     }
+    normalised = withoutTrailingDigits(normalised)
+    if (
+        normalised.length > CONFIRMATION.length &&
+        normalised.endsWith(CONFIRMATION)
+    ) {
+        normalised = normalised.slice(0, -CONFIRMATION.length)
+    }
     if (normalised === '') return false
     if (CREDENTIAL_NAMES.has(normalised)) return true
-    return CREDENTIAL_STEMS.some((stem) => normalised.endsWith(stem))
+    return CREDENTIAL_STEMS.some((stem) =>
+        normalised.endsWith(stem) || normalised.endsWith(`${stem}s`)
+    )
 }
 
 /**
@@ -99,12 +118,31 @@ export function isCredentialParamName(name: string): boolean {
  *
  * The walk crosses `%XX` only when it decodes to a name character, so an
  * encoded separator (`%3F`, `%26`) ends a name the way a raw one does — which
- * is what finds `token` in `next=%2Fcb%3Ftoken%3D…`.
+ * is what finds `token` in `next=%2Fcb%3Ftoken%3D…`. Spaces or tabs may
+ * surround the `=` (`password = …`, libpq's spelling), and ANSI escapes are
+ * removed before the scan, so `\x1b[1mpassword\x1b[0m=…` still names a
+ * credential; a text that holds none keeps its escapes.
  *
- * A value ends at the first `&`, `#`, ASCII whitespace, `"`, `'`, `<`, `>` or
- * backtick. `;` and `%26` do NOT end it: an ODBC tail after `Pwd=` is eaten,
- * and eating more is the safe direction. An empty value is left alone, so
- * `token=&page=1` stays diagnostic.
+ * **Where a value ends depends on where the pair is.**
+ *
+ * - A value that opens with `"`, `'` or a backtick runs to the matching
+ *   closing quote, or to the end of the text when there is none — so
+ *   `password='a b'` and `AWS_SECRET_ACCESS_KEY="…"` are covered whole.
+ * - Inside a URL query or fragment (the name follows `?`, `&` or `#`, raw or
+ *   percent-encoded) a value also ends at `&`, `#`, `<` or `>`, so the
+ *   neighbouring parameters stay readable.
+ * - Anywhere else it ends only at ASCII whitespace or a quote. A CLI
+ *   `--password=ab&cd` holds its `&` as content; ending there would leak the
+ *   rest. `;` and `%26` never end a value: an ODBC tail after `Pwd=` is
+ *   eaten, and eating more is the safe direction.
+ *
+ * An empty value is left alone, so `token=&page=1` stays diagnostic.
+ *
+ * **Not seen.** This net is a shape rule for `name=value`. It does not see a
+ * JSON `"token":"…"`, a header- or YAML-style `name: value`, an
+ * `Authorization: Bearer …` header, a bare token with no name, a doubly
+ * encoded separator (`%253D`), or a session id under a name it does not
+ * know. Those need a source-side fix where the value is known.
  *
  * @param text - Text that may carry credential pairs.
  * @returns The text with each credential value replaced by `***`.
@@ -113,11 +151,28 @@ export function isCredentialParamName(name: string): boolean {
  * ```typescript
  * redactQueryCredentials('GET /cb?code=abc&state=1')
  * // 'GET /cb?code=***&state=1'
- * redactQueryCredentials('host=db password=hunter2 dbname=app')
- * // 'host=db password=*** dbname=app'
+ * redactQueryCredentials("host=db password='a b' dbname=app")
+ * // "host=db password='***' dbname=app"
  * ```
  */
 export function redactQueryCredentials(text: string): string {
+    if (!text.includes('\x1b')) return redactPairs(text)
+    const plain = text.replace(ANSI, '')
+    const redacted = redactPairs(plain)
+    return redacted === plain ? text : redacted
+}
+
+/** ANSI CSI sequences (colours, cursor moves), removed before the scan. */
+// deno-lint-ignore no-control-regex
+const ANSI = /\x1b\[[0-9;]*[A-Za-z]/g
+
+/**
+ * The scan behind {@link redactQueryCredentials}, on ANSI-free text.
+ *
+ * @param text - Text that may carry credential pairs.
+ * @returns The text with each credential value replaced by `***`.
+ */
+function redactPairs(text: string): string {
     let out = ''
     let copied = 0
     let i = 0
@@ -127,39 +182,114 @@ export function redactQueryCredentials(text: string): string {
             i++
             continue
         }
-        const start = nameStart(text, i, copied)
-        const valueStart = i + equalsLength
-        if (start === i || !isCredentialParamName(text.slice(start, i))) {
-            i = valueStart
+        const nameEnd = skipBlanksLeft(text, i, copied)
+        const start = nameStart(text, nameEnd, copied)
+        if (
+            start === nameEnd ||
+            !isCredentialParamName(text.slice(start, nameEnd))
+        ) {
+            i += equalsLength
             continue
         }
+        const valueStart = skipBlanksRight(text, i + equalsLength)
+        const quote = text[valueStart]
+        if (QUOTES.has(quote)) {
+            const close = text.indexOf(quote, valueStart + 1)
+            const valueEnd = close < 0 ? text.length : close
+            if (valueEnd > valueStart + 1) {
+                out += `${text.slice(copied, valueStart + 1)}***`
+                copied = valueEnd
+            }
+            i = valueEnd + 1
+            continue
+        }
+        const ends = inUrl(text, start) ? URL_VALUE_END : RAW_VALUE_END
         let end = valueStart
-        while (end < text.length && !VALUE_END.has(text[end])) end++
+        while (end < text.length && !ends.has(text[end])) end++
         if (end > valueStart) {
             out += `${text.slice(copied, valueStart)}***`
             copied = end
         }
-        i = end
+        i = Math.max(end, i + equalsLength)
     }
     return copied === 0 ? text : out + text.slice(copied)
 }
 
-/** The characters that end a credential value. */
-const VALUE_END: ReadonlySet<string> = new Set([
-    '&',
-    '#',
+/** The quotes that open a quoted value. */
+const QUOTES: ReadonlySet<string | undefined> = new Set(['"', "'", '`'])
+
+/**
+ * What ends a raw value outside a URL: ASCII whitespace and quotes. Not `\v`,
+ * which no shell or connection string uses as a separator.
+ */
+const RAW_VALUE_END: ReadonlySet<string> = new Set([
     ' ',
     '\t',
     '\n',
     '\r',
     '\f',
-    '\v',
     '"',
     "'",
-    '<',
-    '>',
     '`',
 ])
+
+/** What ends a value inside a URL query: also `&`, `#`, `<` and `>`. */
+const URL_VALUE_END: ReadonlySet<string> = new Set([
+    ...RAW_VALUE_END,
+    '&',
+    '#',
+    '<',
+    '>',
+])
+
+/** The separators that put the name after them inside a URL query. */
+const URL_SEPARATORS: ReadonlySet<string | undefined> = new Set([
+    '?',
+    '&',
+    '#',
+])
+
+/**
+ * Whether the name starting at `start` sits in a URL query or fragment: it
+ * follows `?`, `&` or `#`, raw or percent-encoded.
+ *
+ * @param text - The text being scanned.
+ * @param start - The index of the name's first character.
+ * @returns True inside a URL query.
+ */
+function inUrl(text: string, start: number): boolean {
+    if (URL_SEPARATORS.has(text[start - 1])) return true
+    if (start < 3 || text[start - 3] !== '%') return false
+    const escaped = text.slice(start - 2, start).toUpperCase()
+    return escaped === '3F' || escaped === '26' || escaped === '23'
+}
+
+/**
+ * Step left from `i` over spaces and tabs.
+ *
+ * @param text - The text being scanned.
+ * @param i - The index of the equals sign.
+ * @param floor - Never step before this index.
+ * @returns The index just after the name.
+ */
+function skipBlanksLeft(text: string, i: number, floor: number): number {
+    let j = i
+    while (j > floor && (text[j - 1] === ' ' || text[j - 1] === '\t')) j--
+    return j
+}
+
+/**
+ * Step right from `i` over spaces and tabs.
+ *
+ * @param text - The text being scanned.
+ * @param i - The index just after the equals sign.
+ * @returns The index where the value starts.
+ */
+function skipBlanksRight(text: string, i: number): number {
+    let j = i
+    while (j < text.length && (text[j] === ' ' || text[j] === '\t')) j++
+    return j
+}
 
 /**
  * The length of the equals sign at `i`: 1 for `=`, 3 for `%3D`, 0 for none.
@@ -183,7 +313,7 @@ function equalsAt(text: string, i: number): number {
  * Walk left from `end` over a parameter name and return where it starts.
  *
  * @param text - The text being scanned.
- * @param end - The index of the equals sign.
+ * @param end - The index just after the name.
  * @param floor - Never walk before this index (text already rewritten).
  * @returns The index of the name's first character; `end` when there is none.
  */
@@ -206,6 +336,23 @@ function nameStart(text: string, end: number, floor: number): number {
         j--
     }
     return j
+}
+
+/**
+ * Drop a run of ASCII digits from the end of a string, by hand: a regular
+ * expression anchored at the end restarts at every digit of a long run.
+ *
+ * @param text - A normalised name.
+ * @returns The name without its trailing digits.
+ */
+function withoutTrailingDigits(text: string): string {
+    let end = text.length
+    while (end > 0) {
+        const code = text.charCodeAt(end - 1)
+        if (code < 0x30 || code > 0x39) break
+        end--
+    }
+    return text.slice(0, end)
 }
 
 /**
