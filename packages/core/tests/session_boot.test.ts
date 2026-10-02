@@ -150,11 +150,11 @@ Deno.test('session boot - normalizeSessionConfig never substitutes a literal', a
 })
 
 Deno.test('session boot - DENO_ENV=production refuses to start, not just APP_ENV', async () => {
-    // The framework's own container sets DENO_ENV, not APP_ENV
-    // (packages/init/stubs/init/Dockerfile.stub), and http/server.ts already
-    // read `DENO_ENV || APP_ENV`. A gate consulting only APP_ENV is therefore
-    // inert in the exact image it exists to protect — the feature would have
-    // shipped looking correct and doing nothing in production.
+    // A host may set DENO_ENV rather than APP_ENV (the framework's own image
+    // set DENO_ENV until #503), and http/server.ts reads `DENO_ENV || APP_ENV`.
+    // A gate consulting only APP_ENV would be inert wherever DENO_ENV is the
+    // one set — the feature would ship looking correct and doing nothing in
+    // production.
     await withEnv(
         { DENO_ENV: 'production', APP_ENV: undefined, APP_KEY: undefined },
         async () => {

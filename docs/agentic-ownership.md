@@ -21,26 +21,26 @@ than package-shaped, or crosses several packages.
 
 ## Area → agent → skill
 
-| Code area                                                              | Owning agent                                                 | Driving skill / workflow                                   |
-| :--------------------------------------------------------------------- | :----------------------------------------------------------- | :--------------------------------------------------------- |
-| `packages/<pkg>/` source (one package)                                 | `package-expert` (name the package)                          | `/specnaut implement` · `/orchestrate`                     |
-| Cross-package feature / new package                                    | `developer` + `architect`                                    | `/specnaut plan → … → merge`                               |
-| `app/` template (controllers, services, models, kernel)                | `developer`                                                  | `/specnaut implement`                                      |
-| Architecture / dependency-graph decisions                              | `architect` (design) · `architect-expert` (review/audit)     | `/specnaut plan` · `/specnaut audit architecture`          |
-| Security-sensitive code (auth, session, socialite, storage, validator) | `security-expert`                                            | `/specnaut review` · `/specnaut audit security`            |
-| Performance-sensitive paths                                            | `performance-expert`                                         | `/specnaut audit performance`                              |
-| Tests (unit)                                                           | `developer` (writes) · `test-reviewer` (reviews)             | `/specnaut implement` · `/specnaut review`                 |
-| Integration / e2e / acceptance validation                              | `qa-tester`                                                  | `/orchestrate` · `/specnaut implement`                     |
-| `docs/`, `packages/*/docs/`, `packages/*/README.md`, `STUBS.md`        | `docs-writer`                                                | invoked alongside the code change                          |
-| `.github/workflows/`, `scripts/bump*.ts`, `Dockerfile`, release/deploy | `devops-sre`                                                 | `/ship` (tag and release phases in `ship/phases/`)         |
-| Dependency manifests (`deno.json`, `deps.policy.jsonc`)                | `dependency-expert`                                          | `/specnaut audit dependencies`                             |
-| UI components (`packages/ui/`), JSX surfaces                           | `developer` + `ui-ux-designer` (design system)               | `/specnaut implement` (UI follows `mobile-first-contract`) |
-| Front-end accessibility                                                | `accessibility-expert`                                       | `/specnaut audit accessibility`                            |
-| Backlog (GitHub Project #2)                                            | `product-owner`                                              | `/board`                                                   |
-| Multi-agent delivery of a backlog item                                 | `workflow-manager`                                           | `/orchestrate`                                             |
-| Pre-merge quality gate                                                 | `review-coordinator` (fans out code/security/test reviewers) | `/specnaut review`                                         |
-| Git operations (commit split, push, gate)                              | —                                                            | `/git`                                                     |
-| Questions about Specnaut itself                                        | `specnaut-guide`                                             | —                                                          |
+| Code area                                                                                            | Owning agent                                                 | Driving skill / workflow                                   |
+| :--------------------------------------------------------------------------------------------------- | :----------------------------------------------------------- | :--------------------------------------------------------- |
+| `packages/<pkg>/` source (one package)                                                               | `package-expert` (name the package)                          | `/specnaut implement` · `/orchestrate`                     |
+| Cross-package feature / new package                                                                  | `developer` + `architect`                                    | `/specnaut plan → … → merge`                               |
+| `app/` template (controllers, services, models, kernel)                                              | `developer`                                                  | `/specnaut implement`                                      |
+| Architecture / dependency-graph decisions                                                            | `architect` (design) · `architect-expert` (review/audit)     | `/specnaut plan` · `/specnaut audit architecture`          |
+| Security-sensitive code (auth, session, socialite, storage, validator)                               | `security-expert`                                            | `/specnaut review` · `/specnaut audit security`            |
+| Performance-sensitive paths                                                                          | `performance-expert`                                         | `/specnaut audit performance`                              |
+| Tests (unit)                                                                                         | `developer` (writes) · `test-reviewer` (reviews)             | `/specnaut implement` · `/specnaut review`                 |
+| Integration / e2e / acceptance validation                                                            | `qa-tester`                                                  | `/orchestrate` · `/specnaut implement`                     |
+| `docs/`, `packages/*/docs/`, `packages/*/README.md`, `STUBS.md`                                      | `docs-writer`                                                | invoked alongside the code change                          |
+| `.github/workflows/`, `scripts/bump*.ts`, `packages/init/stubs/init/Dockerfile.stub`, release/deploy | `devops-sre`                                                 | `/ship` (tag and release phases in `ship/phases/`)         |
+| Dependency manifests (`deno.json`, `deps.policy.jsonc`)                                              | `dependency-expert`                                          | `/specnaut audit dependencies`                             |
+| UI components (`packages/ui/`), JSX surfaces                                                         | `developer` + `ui-ux-designer` (design system)               | `/specnaut implement` (UI follows `mobile-first-contract`) |
+| Front-end accessibility                                                                              | `accessibility-expert`                                       | `/specnaut audit accessibility`                            |
+| Backlog (GitHub Project #2)                                                                          | `product-owner`                                              | `/board`                                                   |
+| Multi-agent delivery of a backlog item                                                               | `workflow-manager`                                           | `/orchestrate`                                             |
+| Pre-merge quality gate                                                                               | `review-coordinator` (fans out code/security/test reviewers) | `/specnaut review`                                         |
+| Git operations (commit split, push, gate)                                                            | —                                                            | `/git`                                                     |
+| Questions about Specnaut itself                                                                      | `specnaut-guide`                                             | —                                                          |
 
 ## Cross-cutting skills (every area)
 

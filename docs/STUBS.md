@@ -47,6 +47,13 @@ project.
 | `app/view/layouts/main_layout.tsx`  | `packages/init/stubs/init/app/view/layouts/main_layout.tsx.stub`  | ✅    |
 | `app/view/pages/home.tsx`           | `packages/init/stubs/init/app/view/pages/home.tsx.stub`           | ✅    |
 
+The Dockerfile has no root twin; the monorepo root is not a container target.
+`packages/init/stubs/init/Dockerfile.stub` (with `.dockerignore.stub`) is shared
+by every kit, and no kit overrides it. `scripts/dockerfile_healthcheck_test.ts`
+fails the suite when any tracked `Dockerfile*` drifts from its health-check
+block, or when the stub copies a file, runs a task or starts an entrypoint a kit
+does not scaffold.
+
 `drizzle.config.ts` above is the web and api kits' copy (no URL fallback);
 `packages/drizzle/stubs/drizzle.config.ts.stub` is what `@lockness/drizzle`'s
 installer writes into an existing project.

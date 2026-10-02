@@ -202,7 +202,7 @@ Workspace configuration with:
 {
     "tasks": {
         "dev": "deno run --allow-all --watch main.ts",
-        "build": "deno compile --allow-all --output=./bin/app main.ts",
+        "build": "deno task routes:generate",
         "test": "deno test --allow-all"
     },
     "imports": {
@@ -485,7 +485,7 @@ Available tasks in `deno.json`:
 {
     "tasks": {
         "dev": "deno run --allow-all --watch main.ts",
-        "build": "deno compile --allow-all --output=./bin/app main.ts",
+        "build": "deno task routes:generate",
         "test": "deno test --allow-all",
         "lint": "deno lint",
         "fmt": "deno fmt",
@@ -504,13 +504,16 @@ deno task lint
 
 ## Deployment
 
-### Build Executable
+### Build
 
 ```bash
 deno task build
 ```
 
-Generates standalone binary in `./bin/app`
+Prepares the app to run: it regenerates `app/routes.ts` from your controllers,
+and in the `web` kit also builds `public/css/app.css`. It compiles nothing. For
+a standalone binary, run `deno task cli compile`; see
+[compilation.md](../../../docs/compilation.md).
 
 ### Environment Variables
 
@@ -525,21 +528,18 @@ DATABASE_URL=postgres://user:pass@db.example.com:5432/prod
 
 ### Docker Deployment
 
-Example `Dockerfile`:
+Every kit scaffolds a `Dockerfile` and a `.dockerignore`. Build and run:
 
-```dockerfile
-FROM denoland/deno:alpine
-
-WORKDIR /app
-
-COPY . .
-
-RUN deno cache main.ts
-
-EXPOSE 8000
-
-CMD ["deno", "run", "--allow-all", "main.ts"]
+```bash
+docker build -t my-app .
+docker run -p 8888:8888 --env-file .env.production.local my-app
 ```
+
+The image runs `deno task build`, caches every module, and starts the server
+with `--cached-only` as the non-root `deno` user, with `APP_ENV=production` and
+a health check on `/health`. Commit `deno.lock` so the image resolves the
+versions you tested. See
+[deployment.md](../../../docs/deployment.md#-docker-deployment) for the options.
 
 ### Deno Deploy
 
@@ -594,9 +594,10 @@ Verify `DATABASE_URL` in `.env` and ensure PostgreSQL is running:
 
 ## Upgrading to v0.5.0
 
-Three items. The first and third are for `web` and `api` apps scaffolded from
-v0.4.x; `slim` has no database and is not affected by them. The second is for
-every app, of any kit, scaffolded before v0.5.0.
+Four items. The first and third are for `web` and `api` apps scaffolded from
+v0.4.x; `slim` has no database and is not affected by them. The second and
+fourth are for every app, of any kit, scaffolded before v0.5.0. If you take item
+4, which replaces the `Dockerfile`, item 2 is already done.
 
 For item 1, **migration step:** add the drizzle wiring to `deno.json` and
 `drizzle.config.ts`, then regenerate the migrations (database never migrated) or
@@ -892,6 +893,30 @@ handler in `app/controller/token_controller.ts` (api):
 +        createUserProvider(container.get<Database>(Database)),
 +    )
 ```
+
+### 4. Every app scaffolded before v0.5.0: replace the `Dockerfile` and add a `build` task
+
+The generated `Dockerfile` never built (#503): it copied a `vite.config.ts` no
+kit has, ran a Vite build no kit uses, and started a `dist/server.js` nothing
+produces. Behind that, it ran as a user that could not read the module cache it
+needed, and set `DENO_ENV` while the kit's `config/` reads `APP_ENV`, so the
+session cookie would not have been marked secure.
+
+Replace `Dockerfile` with the one a v0.5.0 scaffold writes (scaffold a throwaway
+app of the same kit and copy it), and add `_dist/` and `.compiled/` to
+`.dockerignore`. The new image runs `deno task build`, so add that task to
+`deno.json`:
+
+```json
+{
+    "tasks": {
+        "build": "deno task routes:generate"
+    }
+}
+```
+
+A `web` app already has a `build` task that runs only `css:build`; change it to
+`deno task routes:generate && deno task css:build`. Then commit `deno.lock`.
 
 ## See Also
 

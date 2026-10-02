@@ -21,7 +21,8 @@ setup.
 
 1. Connect your GitHub repository to Deno Deploy
 2. Configure the project with **Entry Point**: `main.ts` and **Build Command**:
-   `deno task routes:generate && deno task css:build`
+   `deno task build` (every kit defines it: the route registry, plus the CSS in
+   the web kit)
 3. Set environment variables (see below)
 
 ```
@@ -42,7 +43,6 @@ Compile your application to a self-contained executable for traditional hosting.
 - Deploying to VPS (DigitalOcean, Linode, etc.)
 - Self-hosted infrastructure
 - Air-gapped environments
-- Docker containers
 
 **Create the binary:**
 
@@ -155,26 +155,51 @@ for the full contract.
 
 ## 🐳 Docker Deployment
 
-Lockness includes a production-ready Dockerfile:
+Every starter kit ships a `Dockerfile` (the same one for web, api and slim):
 
 ```bash
 # Build image
 docker build -t my-lockness-app .
 
-# Run container
-docker run -p 8888:8888 --env-file .env.production my-lockness-app
+# Run container — `init` created .env.production.local with its own APP_KEY
+docker run -p 8888:8888 --env-file .env.production.local my-lockness-app
 
-# Custom Deno version
-docker build --build-arg DENO_VERSION=2.7.0 -t my-app .
+# Another port: the health check follows PORT
+docker run -p 9000:9000 -e PORT=9000 --env-file .env.production.local my-lockness-app
+
+# Custom Deno version (the default is the version CI tests against)
+docker build --build-arg DENO_VERSION=2.9.6 -t my-app .
+
+# Resolve jsr: packages from a mirror
+docker build --build-arg JSR_URL=https://<mirror> -t my-app .
 ```
 
 The Dockerfile:
 
-- Uses multi-stage build for optimized image size
-- Runs as non-root user for security
-- Includes a liveness health check that polls `/health` (never `/ready`; see
-  [Health Checks](#health-checks))
-- Properly handles signals for graceful shutdown
+- Is a **single stage**: the app runs with `deno run`, so the final image needs
+  Deno anyway, and copying a module cache between stages is where ownership
+  breaks.
+- Runs your kit's `deno task build`, then caches every module `main.ts` loads,
+  and starts the server with `--cached-only`: the running container fetches
+  nothing. It keeps `JSR_URL` from the build, because Deno keys its module cache
+  by registry origin.
+- Runs as the base image's non-root `deno` user. The app files stay owned by
+  root, so the process cannot rewrite its own code.
+- Sets `APP_ENV=production` (after the build steps, so the build itself runs in
+  development mode). Both your `config/` and the framework read it; the
+  framework also honours `DENO_ENV`.
+- Includes a liveness health check that polls `/health` on `$PORT` (never
+  `/ready`; see [Health Checks](#health-checks)).
+- Keeps the base image's `tini` entrypoint, which forwards signals to Deno for a
+  graceful shutdown.
+
+**Commit `deno.lock`.** A fresh scaffold has none, and the first build writes
+one inside the image. Without a committed lock every build resolves afresh, and
+Deno's minimum dependency age can pick the previous release of a package rather
+than the one you tested.
+
+`deno task kits:smoke --registry --docker` builds every kit's image and runs it
+until Docker reports it healthy; CI runs it on every push.
 
 ## Monitoring
 
@@ -194,6 +219,12 @@ is cached per process, or per isolate on a serverless host), so a monitor
 polling it keeps a scale-to-zero database awake and billed around the clock. Use
 `/ready` only where readiness is the question, such as a load balancer deciding
 whether to send traffic to an instance.
+
+The Docker `HEALTHCHECK` reports; it does not restart. Plain Docker and Compose
+only mark an unhealthy container `unhealthy` (a restart policy reacts to the
+process exiting, not to the health status); Swarm replaces it; Kubernetes
+ignores `HEALTHCHECK` entirely, so point its `livenessProbe` at `/health` and
+its `readinessProbe` at `/ready` yourself.
 
 ### Logging
 

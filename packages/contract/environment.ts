@@ -7,10 +7,11 @@
  * without importing `@lockness/core` and inverting the dependency graph.
  * `@lockness/core` re-exports it, so its public API is unchanged.
  *
- * The framework ships artefacts that set **different** variable names: the
- * generated Docker image sets `DENO_ENV=production`, while the scaffolded `.env`
- * sets `APP_ENV`. A site that consults only one is inert under the other — so
- * resolution lives in one place and honours **both**, `DENO_ENV` first.
+ * Two variable names are in use: the scaffolded `.env` and the generated Docker
+ * image set `APP_ENV` (the image sets `APP_ENV=production`, since #503), while
+ * `DENO_ENV` is the Deno-ecosystem convention a host may set instead. A site
+ * that consults only one is inert under the other — so resolution lives in one
+ * place and honours **both**, `DENO_ENV` first.
  *
  * Invariants:
  * - **One reader.** Callers use these functions, never a raw `Deno.env` read.
