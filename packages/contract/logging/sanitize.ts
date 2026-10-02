@@ -334,48 +334,6 @@ function redactDsnCredentials(message: string): string {
 }
 
 /**
- * Render a caught error for a log line.
- *
- * `name` plus a **redacted, truncated, encoded** message — never the object,
- * never the stack. `console.error('...', error)` prints both, and teardown is
- * exactly where credential-bearing errors are produced: a Postgres driver
- * failure carries `postgres://user:password@host/db`, a `fetch` rejection
- * carries a URL with its token in the query string. Log stores routinely have
- * broader access than the database those credentials open.
- *
- * The DSN userinfo and every credential-named `name=value` pair (see
- * `redactQueryCredentials`) are redacted **before** truncation and encoding, so
- * the cleartext secret can never reach the sink — it is gone before the string
- * is bounded or escaped, not merely hidden past the truncation boundary.
- *
- * **A module that failed to compile or link renders as its kind and location
- * only** (#478): `TypeError: SyntaxError at file:///…/broken.ts:2:19 [source
- * excerpt withheld]`. The runtime's message quotes the failing source line, in
- * its excerpt and in its headline, and that line can hold a credential
- * literal. `importAppFile` translates the same failure earlier, with the path
- * relative to the app root; this is the backstop for an import that bypassed
- * it.
- *
- * The encoding half is not theoretical either:
- * `packages/session/drivers/redis.ts:104` throws a Redis server's error reply
- * verbatim, on the path `close()` takes.
- *
- * **It lives here, in the foundation, for the same reason `safeForLog` does.**
- * The disposables drain has to render a teardown failure, and
- * `@lockness/contract` cannot import `@lockness/core` — so leaving it in core
- * would force a second renderer here, and two spellings of one rule diverge on
- * the first escape sequence somebody remembers in only one of them.
- * `@lockness/core` re-exports it, so no caller changed.
- *
- * @param error - Whatever was thrown.
- * @returns One safe, bounded line.
- *
- * @example
- * ```typescript
- * renderError(new Error('boom'))  // 'Error: boom'
- * ```
- */
-/**
  * Caps a string at `max` **code points**, never UTF-16 units.
  *
  * `slice(0, 200)` charges an astral character two units and an ASCII one, so a
@@ -510,7 +468,12 @@ function renderHead(
     }: ${shown}`
 }
 
-/** How a sink wants an error rendered. */
+/**
+ * How a sink wants an error rendered.
+ *
+ * A vetted `code` is shown on every rendered link whatever these options say:
+ * it is checked by spelling and is narrower than the name every sink carries.
+ */
 export interface RenderErrorOptions {
     /**
      * Follow `error.cause`. Defaults to `true`.
@@ -531,6 +494,63 @@ export interface RenderErrorOptions {
     followCause?: boolean
 }
 
+/**
+ * Render a caught error for a log line.
+ *
+ * The name, its code when spelled like a runtime or driver code, and the
+ * **redacted, truncated, encoded** message; no other property, ever, and never
+ * the stack. `console.error('...', error)` prints the whole object and its
+ * stack, and teardown is exactly where credential-bearing errors are produced: a Postgres driver
+ * failure carries `postgres://user:password@host/db`, a `fetch` rejection
+ * carries a URL with its token in the query string. Log stores routinely have
+ * broader access than the database those credentials open.
+ *
+ * The DSN userinfo and every credential-named `name=value` pair (see
+ * `redactQueryCredentials`) are redacted **before** truncation and encoding, so
+ * the cleartext secret can never reach the sink — it is gone before the string
+ * is bounded or escaped, not merely hidden past the truncation boundary.
+ *
+ * **A module that failed to compile or link renders as its kind and location
+ * only** (#478): `TypeError: SyntaxError at file:///…/broken.ts:2:19 [source
+ * excerpt withheld]`. The runtime's message quotes the failing source line, in
+ * its excerpt and in its headline, and that line can hold a credential
+ * literal. `importAppFile` translates the same failure earlier, with the path
+ * relative to the app root; this is the backstop for an import that bypassed
+ * it.
+ *
+ * **The code renders as `Name [CODE]: message`** (#491), on the head and on
+ * every cause link rendered, so the SQLSTATE, errno or `ERR_*` that says what
+ * failed reaches the operator. It is shown only when `isShowableErrorCode`
+ * accepts its spelling: SQLSTATE, POSIX errno, or upper-snake with an
+ * underscore, at most 48 characters. **That check limits the code's shape, not
+ * its secrecy** — it turns away the shapes randomness takes, but a
+ * five-character PIN would still pass. `detail`, `hint` and every other
+ * property are never rendered: they carry row data no redaction recognises. A
+ * compile failure shows no code, because Deno labels a parse failure
+ * `ERR_MODULE_NOT_FOUND`.
+ *
+ * The encoding half is not theoretical either:
+ * `packages/session/drivers/redis.ts:104` throws a Redis server's error reply
+ * verbatim, on the path `close()` takes.
+ *
+ * **It lives here, in the foundation, for the same reason `safeForLog` does.**
+ * The disposables drain has to render a teardown failure, and
+ * `@lockness/contract` cannot import `@lockness/core` — so leaving it in core
+ * would force a second renderer here, and two spellings of one rule diverge on
+ * the first escape sequence somebody remembers in only one of them.
+ * `@lockness/core` re-exports it, so no caller changed.
+ *
+ * @param error - Whatever was thrown.
+ * @param options - How much of the cause chain this sink carries.
+ * @returns One safe, bounded line.
+ *
+ * @example
+ * ```typescript
+ * renderError(new Error('boom'))  // 'Error: boom'
+ * renderError(Object.assign(new Error('duplicate key'), { code: '23505' }))
+ * // 'Error [23505]: duplicate key'
+ * ```
+ */
 export function renderError(
     error: unknown,
     options: RenderErrorOptions = {},

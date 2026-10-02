@@ -115,6 +115,14 @@ Anything not listed is internal and free to change.
   `tests/compile_diagnostic.test.ts` are what notice. The V8 phrases the net
   also keys on (`V8_COMPILE_PHRASES`) were measured on Deno 2.9.6 and are V8's
   wording, not a contract: re-measure them on every Deno upgrade.
+- **`code` is the one property `renderError` shows besides `name` and
+  `message`** (#491), as `Name [CODE]: message` on every rendered link, and only
+  when `isShowableErrorCode` (`logging/error_code.ts`) accepts its spelling:
+  SQLSTATE, POSIX errno, or upper-snake with an underscore, at most 48
+  characters. That check limits the code's shape, not its secrecy. Never render
+  `detail`, `hint` or any other property here: they carry row data no redaction
+  recognises. Widening the pattern needs a measured real code it misses, and its
+  rejected list in `tests/error_code_491.test.ts` must still fail.
 - It has tests (`tests/`) but no `docs/` — JSDoc is the documentation, so it is
   not optional on any exported symbol.
 - Renaming an exported type here is a breaking change for eight packages at
@@ -124,13 +132,14 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-11 test files for 30 source files:
+12 test files for 31 source files:
 
 - `packages/contract/tests/app_file.test.ts`
 - `packages/contract/tests/compile_diagnostic.test.ts`
 - `packages/contract/tests/crypto_key.test.ts`
 - `packages/contract/tests/disposables.test.ts`
 - `packages/contract/tests/environment.test.ts`
+- `packages/contract/tests/error_code_491.test.ts`
 - `packages/contract/tests/health.test.ts`
 - `packages/contract/tests/log_sanitize.test.ts`
 - `packages/contract/tests/pagination.test.ts`
@@ -138,7 +147,7 @@ Anything not listed is internal and free to change.
 - `packages/contract/tests/resource_derive.test.ts`
 - `packages/contract/tests/static_decorator.test.ts`
 
-3 mutation batteries — **`deno test` does not run these.** Each is an executable
+4 mutation batteries — **`deno test` does not run these.** Each is an executable
 that mutates a source file and re-runs the suites that should notice. Run them
 with `deno task mutate` (all of them, one at a time) or
 `deno task mutate <name>` (one); nightly CI runs the full sweep. See
@@ -146,6 +155,7 @@ with `deno task mutate` (all of them, one at a time) or
 
 - `packages/contract/tests/mutations/bidi_292.ts`
 - `packages/contract/tests/mutations/dsn_redaction_301_303.ts`
+- `packages/contract/tests/mutations/error_code_491.ts`
 - `packages/contract/tests/mutations/query_credentials_478.ts`
 
 <!-- /generated:tests -->
@@ -161,7 +171,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 11 test files directly —
+Then, specific to this package: run its 12 test files directly —
 
 ```bash
 deno test -A packages/contract/
