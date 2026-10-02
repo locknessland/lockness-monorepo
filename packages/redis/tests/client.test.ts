@@ -21,7 +21,7 @@ import {
     RespFramingError,
 } from '../resp.ts'
 import { startFakeServer } from './fake_server.ts'
-import { pinRandom } from './pinned_random.ts'
+import { pinRandom, TOP_DRAW } from './pinned_random.ts'
 
 /**
  * Run `body` with `console.warn` captured, and return the messages it emitted.
@@ -681,6 +681,14 @@ Deno.test('#299: a refused command REJECTS rather than waiting out the window', 
     // The one place this must differ from the subscribe path. There, a retry is
     // scheduled and nobody is waiting; here a caller holds the promise, and
     // parking it would turn a fast failure back into a slow one.
+    //
+    // THE DRAW IS PINNED TO THE TOP (#498). `retryBaseMs: 5000` reads like a
+    // five-second window, but full jitter makes it anywhere in 1..5000ms. A
+    // draw short enough to expire before the third command lets that command
+    // dial instead of being refused, and the test fails asserting a refusal
+    // the design never owed it. The long window is also what makes "it slept"
+    // detectable below: against a 1ms window, sleeping it out is not visible.
+    using _random = pinRandom(TOP_DRAW)
     const real = Deno.connect
     Object.defineProperty(Deno, 'connect', {
         value: () => Promise.resolve(faultingConn()),
@@ -732,6 +740,13 @@ Deno.test('#299: a peer answering one command per cycle cannot pin the ceiling',
     //
     // The fix is survival, not arrival: the socket must have been live longer
     // than the delay that produced it.
+    //
+    // The draw is pinned to the top of its 1..10ms range (#498). The bound
+    // below is THROTTLED vs HOT, and how many windows close during the refused
+    // commands depends on how long each window is — so on the draw, which the
+    // test did not control. The defect produces ~15 dials at ANY draw, since
+    // it never opens a window at all, so the pin costs no discrimination.
+    using _random = pinRandom(TOP_DRAW)
     let opens = 0
     let answered = 0
     const real = Deno.connect
@@ -954,6 +969,13 @@ Deno.test('#299: two FAST exchanges on a YOUNG socket do not clear the streak', 
     // age check the streak survives, so the NEXT fault opens a window and the
     // command after it is refused. Without it the streak zeroes and that
     // command dials instead.
+    //
+    // The draw is pinned to the top of its 1..400ms range (#498). The final
+    // assertion needs the window opened by the third fault to still be open
+    // one command later; a low draw closes it first, the command dials, and
+    // the test reads that as the streak having been cleared. The 420ms sleep
+    // below still clears the first window, which the pin makes 399ms.
+    using _random = pinRandom(TOP_DRAW)
     let opens = 0
     let mode: 'fault' | 'fast' = 'fault'
     const real = Deno.connect
