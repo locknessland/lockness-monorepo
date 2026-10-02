@@ -280,5 +280,15 @@ jobs:
             # 404. The step above passed while v0.4.0's api kit could not
             # start. About 20s locally. No secret and no network listener
             # beyond 127.0.0.1.
-            - name: Boot every kit from a local deno publish
-              run: deno task kits:smoke --registry
+            #
+            # `--docker` (#503) then builds each kit's image from a fresh
+            # scaffold — the Dockerfile `init` ships, with JSR_URL pointed at
+            # the same localhost registry — and runs it with `--network none`
+            # until Docker reports it healthy (90s timeout). It is the only
+            # place a kit boots with APP_ENV=production, as the non-root user,
+            # from the module cache alone. Ubuntu only: the build reaches the
+            # loopback registry through the host network. Every container and
+            # image it creates is removed, on failure too. About 1.5-2.5 min:
+            # the base image pull, then the three kits in parallel.
+            - name: Boot every kit from a local deno publish, and in Docker
+              run: deno task kits:smoke --registry --docker
