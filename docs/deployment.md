@@ -172,7 +172,8 @@ The Dockerfile:
 
 - Uses multi-stage build for optimized image size
 - Runs as non-root user for security
-- Includes health checks
+- Includes a liveness health check that polls `/health` (never `/ready`; see
+  [Health Checks](#health-checks))
 - Properly handles signals for graceful shutdown
 
 ## Monitoring
