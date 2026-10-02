@@ -61,8 +61,9 @@ Anything not listed is internal and free to change.
 
 ## Pitfalls
 
-- Everything here must be gated on `APP_ENV !== 'production'`. A panel that
-  leaks into production exposes request internals.
+- Everything here must be gated on `devtoolsActive()`, which holds only under an
+  explicit `APP_ENV=development` or `LOCKNESS_DEVTOOLS=1`. A panel that leaks
+  into production exposes request internals.
 - The collector routes are **authorization-gated** (#161): `authorizeDevtools`
   in `gate.ts` is the single decider
   (`authorize › token › default loopback

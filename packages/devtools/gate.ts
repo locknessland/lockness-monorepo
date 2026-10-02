@@ -26,7 +26,7 @@ import type { DevtoolsConfig } from './types.ts'
  * Whether devtools may mount and collect.
  *
  * `true` only when the environment is **explicitly** development
- * (`DENO_ENV`/`APP_ENV === 'development'`) or the operator opts in with
+ * (`APP_ENV` is `development`) or the operator opts in with
  * `LOCKNESS_DEVTOOLS=1`. Ambiguous, unset, production, and no-`--allow-env`
  * states all resolve to `false` (fail closed). Never throws.
  *

@@ -21,7 +21,7 @@ Inspired by Symfony Web Debug Toolbar.
 import { enableDevtools } from '@lockness/devtools'
 
 // In your kernel.ts (development only!)
-if (Deno.env.get('APP_ENV') === 'development') {
+if (isExplicitlyDevelopment()) {
     enableDevtools(app.getHono())
 }
 ```
@@ -334,7 +334,7 @@ collector.clear()
 
 ```typescript
 // ✅ Recommended
-if (Deno.env.get('APP_ENV') === 'development') {
+if (isExplicitlyDevelopment()) {
     enableDevtools(app.getHono())
 }
 
@@ -373,7 +373,7 @@ information.
 Always wrap with environment check:
 
 ```typescript
-if (Deno.env.get('APP_ENV') === 'development') {
+if (isExplicitlyDevelopment()) {
     enableDevtools(app)
 }
 ````

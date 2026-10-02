@@ -27,7 +27,7 @@ in your `app/kernel.ts`.
 ```typescript
 import { enableDevtools, collectAppRoutes } from '@lockness/devtools'
 
-const isDevelopment = Deno.env.get('APP_ENV') === 'development'
+const isDevelopment = isExplicitlyDevelopment()
 
 if (isDevelopment) {
     // 1. Enable interception and dashboard
@@ -195,13 +195,13 @@ Each panel renders a graceful empty state when it has no data.
 
 ### Activation is fail-closed
 
-Devtools mounts and collects **only when explicitly development** — an
-explicitly-set `DENO_ENV`/`APP_ENV === 'development'`, or `LOCKNESS_DEVTOOLS=1`.
-A no-env deployment and a `deno compile` binary without `--allow-env` both
-resolve the environment name to `development` by default, so a plain
-`isDevelopment()` check would fail **open**; the gate requires a positive,
-explicit signal instead, and the same guard sits on the collection boundary so
-wiring `devtoolsMiddleware` directly cannot collect in production either.
+Devtools mounts and collects **only when explicitly development** — an `APP_ENV`
+explicitly set to `development`, or `LOCKNESS_DEVTOOLS=1`. A no-env deployment
+and a `deno compile` binary without `--allow-env` both resolve the environment
+name to `development` by default, so a plain `isDevelopment()` check would fail
+**open**; the gate requires a positive, explicit signal instead, and the same
+guard sits on the collection boundary so wiring `devtoolsMiddleware` directly
+cannot collect in production either.
 
 ### The `/_debug` route
 

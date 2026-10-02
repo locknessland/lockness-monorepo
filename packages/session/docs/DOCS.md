@@ -59,9 +59,9 @@ configureSession({
     lifetime: 7200, // 2 hours — the IDLE window, refreshed on every write
     absoluteLifetime: 604800, // 7 days — the hard ceiling (optional; see below)
     revocation: true, // optional; requires absoluteLifetime (cookie driver)
-    // `secure` is optional: it defaults to true unless DENO_ENV/APP_ENV is
-    // explicitly 'development' (fail-closed). Set it only to override that —
-    // e.g. `secure: false` for a plaintext-localhost setup without the env var.
+    // `secure` is optional: it defaults to true unless APP_ENV is explicitly
+    // 'development' (fail-closed). Set it only to override that — e.g.
+    // `secure: false` for a plaintext-localhost setup without the env var.
 })
 ```
 
@@ -254,3 +254,25 @@ dependency. Two behaviours worth knowing:
   the framework's shutdown drain. Two configs on the same host with **different
   passwords** never share a socket: the memo key carries a SHA-256 digest of the
   password (never the cleartext), so the credential also stays out of logs.
+
+## Upgrading to v0.5.0
+
+One item. **Migration step:** none, unless you serve plain HTTP outside
+`APP_ENV=development`. In that case set `secure: false` explicitly.
+
+### 1. A session config without `secure` is now `Secure` unless `APP_ENV=development`
+
+`@lockness/core` used to fill in `secure: isProduction()` for
+`@Kernel({ session })`. That is `false` whenever `APP_ENV` is unset, and the
+explicit value overrode this package's fail-closed default (#504). Core now
+passes `secure` through only when your config sets it, and `configureSession()`
+treats `secure: undefined` as not set. A session config with no `secure` now
+sets the `Secure` flag unless `APP_ENV` is explicitly `development`, including
+when `APP_ENV` is unset.
+
+- **What changes:** a deployment with `APP_ENV` unset (or `staging`, `testing`,
+  …) now sends `Secure` cookies. Behind TLS nothing visible changes. Over plain
+  HTTP the browser stops returning the cookie, so sessions do not persist.
+- **The fix, if you really serve plain HTTP:** set `secure: false` in the
+  session config. It is honoured, with one warning at boot outside
+  `APP_ENV=development`.

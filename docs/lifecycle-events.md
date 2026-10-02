@@ -498,10 +498,10 @@ possible deadline instead of none.
 
 The shutdown path itself needs **no** permission: `Deno.addSignalListener`,
 `Deno.build.os` and `Deno.exit` all run with zero `--allow-*` flags. That is not
-the same as saying `listen()` needs none — it reads `DENO_ENV`/`APP_ENV` for the
-startup banner, so `--allow-env` still gives you the right environment label.
-The read is guarded, so a binary compiled without it boots and shuts down
-correctly; the banner just says `development`.
+the same as saying `listen()` needs none — it reads `APP_ENV` for the startup
+banner, so `--allow-env` still gives you the right environment label. The read
+is guarded, so a binary compiled without it boots and shuts down correctly; the
+banner just says `development`.
 
 ### Guarantees
 

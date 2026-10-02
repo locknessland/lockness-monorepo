@@ -41,7 +41,7 @@ export interface FactoryCreateOptions {
     /**
      * Explicitly permit the insert to run against a production environment.
      * Off by default: `create()`/`createMany()` refuse to write when
-     * `DENO_ENV`/`APP_ENV` is `'production'` unless this is `true`. Read-only
+     * `APP_ENV` is `'production'` unless this is `true`. Read-only
      * `make()`/`makeMany()` are never gated.
      */
     readonly allowProduction?: boolean

@@ -325,7 +325,7 @@ Show different error details based on environment:
 ```typescript
 export function errorHandler(error: Error, c: Context) {
     const status = error instanceof HTTPException ? error.status : 500
-    const isDev = Deno.env.get('APP_ENV') === 'development'
+    const isDev = isExplicitlyDevelopment()
 
     formatErrorForConsole(error, status, c.req.path)
 
@@ -425,7 +425,7 @@ app/view/pages/errors/error_handler.tsx
 
 ```typescript
 formatErrorForConsole(error, status, path, {
-    showStackTrace: status >= 500 && Deno.env.get('APP_ENV') === 'development',
+    showStackTrace: status >= 500 && isExplicitlyDevelopment(),
 })
 ```
 

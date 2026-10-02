@@ -531,8 +531,9 @@ bookkeeping table is always dropped first, listed or not. The migrator still
 runs unqualified on the pool.
 
 **Guard.** Like `db:seed`, `db:fresh` refuses a production environment
-(`DENO_ENV`/`APP_ENV` is `production`) unless `--allow-production` is passed,
-before it reads the config or connects.
+(`APP_ENV` is `production`) unless `--allow-production` is passed, and a
+`DENO_ENV` that disagrees with `APP_ENV` is refused even with the flag, before
+it reads the config or connects.
 
 **Refusals.** Each one happens before anything is dropped, and each ends with
 "Nothing was dropped.":

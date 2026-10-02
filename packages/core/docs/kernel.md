@@ -466,7 +466,7 @@ async connectDatabase(app: App) {
 ```typescript
 @OnBoot({ priority: 50 })
 async conditionalSetup(app: App) {
-    const env = Deno.env.get('APP_ENV')
+    const env = resolveEnvName() // from @lockness/core
 
     if (env === 'development') {
         await this.devSetup(app)

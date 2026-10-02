@@ -594,10 +594,10 @@ Verify `DATABASE_URL` in `.env` and ensure PostgreSQL is running:
 
 ## Upgrading to v0.5.0
 
-Four items. The first and third are for `web` and `api` apps scaffolded from
-v0.4.x; `slim` has no database and is not affected by them. The second and
-fourth are for every app, of any kit, scaffolded before v0.5.0. If you take item
-4, which replaces the `Dockerfile`, item 2 is already done.
+Five items. The first and third are for `web` and `api` apps scaffolded from
+v0.4.x; `slim` has no database and is not affected by them. The second, fourth
+and fifth are for every app, of any kit, scaffolded before v0.5.0. If you take
+item 4, which replaces the `Dockerfile`, item 2 is already done.
 
 For item 1, **migration step:** add the drizzle wiring to `deno.json` and
 `drizzle.config.ts`, then regenerate the migrations (database never migrated) or
@@ -923,6 +923,61 @@ task to `deno.json`:
 
 A `web` app already has a `build` task that runs only `css:build`; change it to
 `deno task routes:generate && deno task css:build`. Then commit `deno.lock`.
+
+### 5. Every app scaffolded before v0.5.0: read the environment through `@lockness/core`
+
+The generated config read `APP_ENV` by hand while the framework resolved the
+environment its own way, and the web kit's `config/session.ts` set
+`secure: Deno.env.get('APP_ENV') === 'production'`. A deployment with `APP_ENV`
+unset therefore sent session cookies without `Secure` (#504).
+`@lockness/upgrade` only rewrites specifiers, so apply these by hand. **Deleting
+`secure` from `config/session.ts` is the security step.**
+
+`config/app.ts`:
+
+```diff
++import {
++    isDevelopment as isDevelopmentEnv,
++    isProduction as isProductionEnv,
++    resolveEnvName,
++} from '@lockness/core'
+ …
+-    env: Deno.env.get('APP_ENV') || 'development',
++    env: resolveEnvName(),
+ …
+-export const isDevelopment = appConfig.env === 'development'
++export const isDevelopment = isDevelopmentEnv()
+-export const isProduction = appConfig.env === 'production'
++export const isProduction = isProductionEnv()
+```
+
+`config/mod.ts`:
+
+```diff
+-export const isDevelopment = config.app.env === 'development'
+-export const isProduction = config.app.env === 'production'
++export { isDevelopment, isProduction } from './app.ts'
+```
+
+`app/view/pages/errors/error_handler.tsx`, if you generated it (add
+`isExplicitlyDevelopment` to its `@lockness/core` import):
+
+```diff
+-            const showDetails = Deno.env.get('APP_ENV') === 'development'
++            const showDetails = isExplicitlyDevelopment()
+```
+
+`config/session.ts`, web kit — delete the line, and the framework sets `Secure`
+unless `APP_ENV=development`:
+
+```diff
+-    secure: Deno.env.get('APP_ENV') === 'production',
+```
+
+If your `Dockerfile` sets `ENV DENO_ENV=production`, change it to
+`ENV APP_ENV=production`. Since v0.5.0 a `DENO_ENV` that disagrees with
+`APP_ENV` refuses the boot; see the
+[`@lockness/contract` upgrade note](../../contract/README.md#upgrading-to-v050).
 
 ## See Also
 

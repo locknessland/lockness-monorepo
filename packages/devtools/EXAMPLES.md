@@ -10,7 +10,7 @@ import { enableDevtools } from '@lockness/devtools'
 
 export const bootstrap = async () => {
     const app = new App()
-    const isDevelopment = Deno.env.get('APP_ENV') === 'development'
+    const isDevelopment = isExplicitlyDevelopment()
 
     // Enable devtools BEFORE app.init()
     if (isDevelopment) {
@@ -239,7 +239,7 @@ export const bootstrap = async () => {
     })
 
     // Collect all registered routes
-    if (Deno.env.get('APP_ENV') === 'development') {
+    if (isExplicitlyDevelopment()) {
         const routes = app.getRoutes() // Your method to get routes
         collectRoutes(routes.map((route) => ({
             method: route.method,
@@ -268,7 +268,7 @@ export const bootstrap = async () => {
     const app = new App()
 
     // 1. Enable devtools FIRST (before any other middleware)
-    if (Deno.env.get('APP_ENV') === 'development') {
+    if (isExplicitlyDevelopment()) {
         enableDevtools(app.getHono())
     }
 
@@ -291,7 +291,7 @@ export const bootstrap = async () => {
 
 ```typescript
 const devtoolsConfig = {
-    enabled: Deno.env.get('APP_ENV') === 'development',
+    enabled: isExplicitlyDevelopment(),
     basePath: Deno.env.get('DEVTOOLS_PATH') || '/_devtools',
     maxLogs: parseInt(Deno.env.get('DEVTOOLS_MAX_LOGS') || '1000'),
     maxQueries: parseInt(Deno.env.get('DEVTOOLS_MAX_QUERIES') || '500'),

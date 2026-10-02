@@ -62,7 +62,7 @@ export {
 } from './routing/signed_url.ts'
 export { SignedUrlMiddleware } from './http/signed_url_middleware.ts'
 
-// Environment-name resolution (DENO_ENV first, then APP_ENV) — the single home
+// Environment-name resolution (APP_ENV only, since #504) — the single home
 // of the production/development rule.
 export * from './environment.ts'
 

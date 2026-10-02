@@ -91,7 +91,7 @@ The integration happens automatically when you enable devtools in your kernel:
 ```typescript
 import { collectAppRoutes, enableDevtools } from '@lockness/devtools'
 
-const isDevelopment = Deno.env.get('APP_ENV') === 'development'
+const isDevelopment = isExplicitlyDevelopment()
 
 if (isDevelopment) {
     enableDevtools(app.getHono())

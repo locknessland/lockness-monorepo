@@ -280,9 +280,8 @@ export class App {
     /**
      * Whether the application is running in production mode.
      *
-     * Resolves the environment name via {@link isProduction} — `DENO_ENV` first,
-     * then `APP_ENV`. (Before #144 this getter read only `APP_ENV`; a deployment
-     * that sets only `DENO_ENV=production` now correctly reads `true`.)
+     * Resolves the environment via {@link isProduction}, which reads `APP_ENV`
+     * alone (#504) — the same answer the scaffolded config gets.
      *
      * @returns `true` if the resolved environment is `'production'`
      *

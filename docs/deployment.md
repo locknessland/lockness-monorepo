@@ -92,6 +92,22 @@ deno task start
 
 Before deploying, ensure:
 
+### The environment signal
+
+`APP_ENV` is the one variable Lockness reads to decide its environment, trimmed
+and case-insensitive. `DENO_ENV` is not read. Since v0.5.0 a `DENO_ENV` that
+disagrees with `APP_ENV` refuses the boot, and an equal one is ignored with a
+warning: set `APP_ENV` and remove `DENO_ENV`.
+
+| `APP_ENV`                   | Session cookie `Secure` | 500 error details | Devtools | Missing `APP_KEY` | Kit cache driver |
+| :-------------------------- | :---------------------- | :---------------- | :------- | :---------------- | :--------------- |
+| `production`                | yes                     | hidden            | off      | boot refused      | `deno-kv`        |
+| unset, `staging`, any other | yes                     | hidden            | off      | per-process key   | `memory`         |
+| `development`               | no                      | shown             | on       | per-process key   | `memory`         |
+
+An unset `APP_ENV` is never production, so the production-only refusals do not
+apply to it. Set `APP_ENV=production` on every production deployment.
+
 ### Environment Variables
 
 ```bash

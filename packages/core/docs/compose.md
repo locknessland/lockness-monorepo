@@ -242,7 +242,7 @@ const prodStack = compose([
     secureHeaders(),
 ])
 
-const appStack = Deno.env.get('APP_ENV') === 'production' ? prodStack : devStack
+const appStack = isProduction() ? prodStack : devStack
 ```
 
 ## API Reference

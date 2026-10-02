@@ -283,7 +283,7 @@ export const bootstrap = async (): Promise<App> => {
         driver: 'cookie',
         secret: Deno.env.get('APP_KEY'),
         lifetime: 7200,
-        secure: Deno.env.get('APP_ENV') === 'production',
+        // `secure` omitted: Secure unless APP_ENV=development.
     })
     
     const app = new App()
@@ -542,7 +542,7 @@ export class AppKernel {}
     database: { url: Deno.env.get('DATABASE_URL') },
     session: {
         secret: Deno.env.get('APP_KEY'),
-        secure: Deno.env.get('APP_ENV') === 'production',
+        // `secure` omitted: Secure unless APP_ENV=development.
     },
 })
 export class AppKernel {}
