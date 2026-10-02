@@ -239,10 +239,17 @@ jobs:
     kits:
         name: Starter kits
         runs-on: ubuntu-latest
+        # It builds images and runs scaffolded code: read-only token, no
+        # credential left in .git, and a ceiling on a hung build or container.
+        permissions:
+            contents: read
+        timeout-minutes: 20
 
         steps:
             - name: Checkout code
               uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+              with:
+                  persist-credentials: false
 
             - name: Setup Deno
               uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2
