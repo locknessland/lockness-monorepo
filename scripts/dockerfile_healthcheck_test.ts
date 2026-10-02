@@ -239,12 +239,46 @@ Deno.test('(d) the build context leaves out every env file but the example, and 
             import.meta.url,
         ),
     )).split('\n').map((l) => l.trim())
+    // `**/` forms: Docker matches from the context root only, so a bare
+    // `.env*` would let config/.env.production into the image.
     for (
-        const pattern of ['.env*', '!.env.exemple', '*.pem', '*.key', '*.p8']
+        const pattern of [
+            '**/.env*',
+            '!**/.env.exemple',
+            '**/*.pem',
+            '**/*.key',
+            '**/*.p8',
+            '**/*.p12',
+            '**/*.pfx',
+        ]
     ) {
         assert(ignored.includes(pattern), `.dockerignore lacks "${pattern}"`)
     }
     // The negation must come after the pattern it re-includes from.
+    assert(
+        ignored.indexOf('!**/.env.exemple') > ignored.indexOf('**/.env*'),
+        '!**/.env.exemple must follow **/.env*',
+    )
+})
+
+Deno.test('(d) git ignores every env file but the example, and key files', async () => {
+    // Git matches a slash-free pattern at any depth, so no `**/` is needed.
+    const ignored = (await Deno.readTextFile(
+        new URL('../packages/init/stubs/init/.gitignore.stub', import.meta.url),
+    )).split('\n').map((l) => l.trim())
+    for (
+        const pattern of [
+            '.env*',
+            '!.env.exemple',
+            '*.pem',
+            '*.key',
+            '*.p8',
+            '*.p12',
+            '*.pfx',
+        ]
+    ) {
+        assert(ignored.includes(pattern), `.gitignore lacks "${pattern}"`)
+    }
     assert(
         ignored.indexOf('!.env.exemple') > ignored.indexOf('.env*'),
         '!.env.exemple must follow .env*',
