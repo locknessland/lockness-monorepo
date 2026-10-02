@@ -104,10 +104,12 @@ Deno.test('deno - setTimeout clamps out-of-range delays instead of honouring the
     // under load: a wider bound would only have moved the cliff.
     //
     // Two timers in the same queue fire in deadline order, so a stall delays
-    // both and cannot swap them. Across 6,855 such races, sampled idle and under
-    // every load above, the clamped timer never lost, even to a 2ms reference. If a delay were
-    // honoured (24 days for 2**31), the 50ms reference would win and this would
-    // fail, at a cost of 50ms rather than a hang.
+    // both and cannot swap them. That is the HTML timer contract, not only an
+    // observation: a timer started earlier with an equal or shorter timeout
+    // runs first. Across 6,855 such races, sampled idle and under every load
+    // above, the clamped timer never lost, even to a 2ms reference. If a delay
+    // were honoured (24 days for 2**31), the 50ms reference would win and this
+    // would fail, at a cost of 50ms rather than a hang.
     for (const outOfRange of [NaN, Infinity, 2 ** 31]) {
         assertEquals(
             await firstToFire(outOfRange),
