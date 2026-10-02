@@ -81,13 +81,16 @@ function registeredHealthPaths(): string[] {
 
 /** Every tracked file whose name starts with `Dockerfile`, repo-relative. */
 async function trackedDockerfiles(): Promise<string[]> {
-    const { success, stdout } = await new Deno.Command('git', {
+    const { success, stdout, stderr } = await new Deno.Command('git', {
         args: ['ls-files', '--', 'Dockerfile*', '**/Dockerfile*'],
         cwd: ROOT,
         stdout: 'piped',
-        stderr: 'null',
+        stderr: 'piped',
     }).output()
-    assert(success, 'git ls-files failed')
+    assert(
+        success,
+        `git ls-files failed: ${new TextDecoder().decode(stderr).trim()}`,
+    )
     return new TextDecoder().decode(stdout).split('\n').filter((l) => l !== '')
 }
 
@@ -225,6 +228,27 @@ Deno.test('(d) the CMD entrypoint is a file every kit takes from the shared base
             `${kit} does not take ${entry} from the shared base`,
         )
     }
+})
+
+Deno.test('(d) the build context leaves out every env file but the example, and key files', async () => {
+    // `COPY . .` copies the whole project: anything not ignored here lands in
+    // an image layer, readable by whoever can pull the image.
+    const ignored = (await Deno.readTextFile(
+        new URL(
+            '../packages/init/stubs/init/.dockerignore.stub',
+            import.meta.url,
+        ),
+    )).split('\n').map((l) => l.trim())
+    for (
+        const pattern of ['.env*', '!.env.exemple', '*.pem', '*.key', '*.p8']
+    ) {
+        assert(ignored.includes(pattern), `.dockerignore lacks "${pattern}"`)
+    }
+    // The negation must come after the pattern it re-includes from.
+    assert(
+        ignored.indexOf('!.env.exemple') > ignored.indexOf('.env*'),
+        '!.env.exemple must follow .env*',
+    )
 })
 
 Deno.test('(d) the default DENO_VERSION is the floor CI pins', async () => {
