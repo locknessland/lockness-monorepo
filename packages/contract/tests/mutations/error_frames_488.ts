@@ -12,6 +12,11 @@
  * frame filter, each step of the per-frame chain and its order, the cap, the
  * indent, and the two places the function stays total.
  *
+ * #508 added three groups: the header dropped by its line count before the
+ * filter, the `data:` collapse running to the frame's own position, and the
+ * CLI's raw switch, whose read must stay total and prompt-free — which is why
+ * the CLI's two suites run here too.
+ *
  * ```bash
  * deno run -A packages/contract/tests/mutations/error_frames_488.ts
  * ```
@@ -22,8 +27,13 @@
 import { type Mutation, runBattery } from '@mutations/harness.ts'
 
 const SANITIZE = new URL('../../logging/sanitize.ts', import.meta.url)
+/** The CLI's raw switch (#508): its read is the dispatcher's frame sink. */
+const RAW_ERRORS = new URL('../../../cli/raw_errors.ts', import.meta.url)
 const SUITES = [
     new URL('../error_frames_488.test.ts', import.meta.url).pathname,
+    new URL('../../../cli/tests/raw_errors.test.ts', import.meta.url).pathname,
+    new URL('../../../cli/tests/cli_dispatch.test.ts', import.meta.url)
+        .pathname,
 ]
 
 const MUTATIONS: Mutation[] = [
@@ -69,13 +79,53 @@ const MUTATIONS: Mutation[] = [
     },
     // ---- Which lines are frames ----------------------------------------------
     {
-        label: 'the frame filter removed — the header is printed twice',
+        // Since #508 the header is dropped by its line count, so without the
+        // filter it is no longer printed twice: what leaks is every other
+        // non-frame line after it.
+        label:
+            'the frame filter removed — non-frame lines after the header print',
         file: SANITIZE,
         edits: [[
             '.filter((line) => FRAME_LINE.test(line))',
             '.filter(() => true)',
         ]],
-        killedBy: 'frames: 2 on a 5-frame stack',
+        killedBy: 'only lines shaped like a frame are kept',
+    },
+    {
+        label:
+            'the header skip removed — forged message lines print as frames (#508)',
+        file: SANITIZE,
+        edits: [['.slice(headerLineCount(stack, header))', '.slice(0)']],
+        killedBy: 'forged at-lines in the message are message text',
+    },
+    {
+        label: 'the header skip one line short — the last forged line prints',
+        file: SANITIZE,
+        edits: [[
+            "return stack.startsWith(header) ? header.split('\\n').length : 0",
+            "return stack.startsWith(header) ? header.split('\\n').length - 1 : 0",
+        ]],
+        killedBy: 'forged at-lines in the message are message text',
+    },
+    {
+        label: 'a header the stack does not start with is skipped anyway',
+        file: SANITIZE,
+        edits: [['return stack.startsWith(header) ?', 'return true ?']],
+        killedBy: 'a header the stack does not start with is not skipped',
+    },
+    {
+        label:
+            'the header read moved out of the guard — a throwing name escapes',
+        file: SANITIZE,
+        edits: [
+            ['        header = Error.prototype.toString.call(error)\n', ''],
+            [
+                "    if (typeof stack !== 'string') return ''\n",
+                "    if (typeof stack !== 'string') return ''\n    header = Error.prototype.toString.call(error)\n",
+            ],
+        ],
+        killedBy:
+            'a header that cannot be built renders the stack as unreadable',
     },
     {
         label: 'the non-Error guard removed — a lookalike object gets frames',
@@ -105,11 +155,60 @@ const MUTATIONS: Mutation[] = [
     {
         label: 'the data: collapse removed — module source reaches the line',
         file: SANITIZE,
-        edits: [[
-            "withoutPairs.replace(DATA_URL, 'data:…')",
-            'withoutPairs',
-        ]],
+        edits: [['collapseDataUrl(withoutPairs)', 'withoutPairs']],
         killedBy: 'a data: URL frame collapses',
+    },
+    {
+        label:
+            'the collapse stops at the first space or ) again — source after it prints (#508)',
+        file: SANITIZE,
+        edits: [[
+            "return `${frame.slice(0, start)}data:…${position?.[0] ?? ''}`",
+            "return frame.replace(/data:[^\\s)]+/g, 'data:…')",
+        ]],
+        killedBy: 'a real unencoded data: module with a space and a )',
+    },
+    {
+        label: 'the collapse built on `.` — a CR or U+2028 ends it early',
+        file: SANITIZE,
+        edits: [[
+            "return `${frame.slice(0, start)}data:…${position?.[0] ?? ''}`",
+            "return frame.replace(/data:.*(?=:\\d+:\\d+\\)?$)|data:.*$/, 'data:…')",
+        ]],
+        killedBy: 'a data: URL collapses whatever characters its source holds',
+    },
+    {
+        label: "the frame's position dropped from a collapsed data: URL",
+        file: SANITIZE,
+        edits: [["data:…${position?.[0] ?? ''}`", 'data:…`']],
+        killedBy:
+            'a data: URL frame collapses to data:… and keeps its position',
+    },
+    {
+        label:
+            'the position not anchored to the end — a :line:col in source wins',
+        file: SANITIZE,
+        edits: [[
+            'const POSITION_SUFFIX = /:\\d+:\\d+\\)?$/',
+            'const POSITION_SUFFIX = /:\\d+:\\d+\\)?/',
+        ]],
+        killedBy:
+            'a data: URL frame collapses to data:… and keeps its position',
+    },
+    {
+        label: 'a data: URL with no position is kept whole',
+        file: SANITIZE,
+        edits: [[
+            "const position = POSITION_SUFFIX.exec(frame.slice(start + 'data:'.length))",
+            "const position = POSITION_SUFFIX.exec(frame.slice(start + 'data:'.length))\n    if (position === null) return frame",
+        ]],
+        killedBy: 'a data: URL collapses whatever characters its source holds',
+    },
+    {
+        label: 'the scheme matched case-sensitively — DATA: keeps its source',
+        file: SANITIZE,
+        edits: [['const DATA_URL = /data:/i', 'const DATA_URL = /data:/']],
+        killedBy: 'a data: URL collapses whatever characters its source holds',
     },
     {
         label: 'the cap moved before the redactions — a cut URL leaks a prefix',
@@ -156,6 +255,33 @@ const MUTATIONS: Mutation[] = [
             "throw new Error('rethrown')",
         ]],
         killedBy: 'a throwing stack getter renders a sentinel',
+    },
+    // ---- The CLI's raw switch (#508) -----------------------------------------
+    {
+        label:
+            "a value that is not valid Unicode re-thrown — the command's error is lost",
+        file: RAW_ERRORS,
+        edits: [[
+            "if (error instanceof Deno.errors.NotCapable) return { state: 'off' }",
+            "if (error instanceof Deno.errors.NotCapable) return { state: 'off' }\n        if (error instanceof Deno.errors.InvalidData) throw error",
+        ]],
+        killedBy: 'T6 a switch value that is not valid Unicode',
+    },
+    {
+        label: 'InvalidData shown as <unreadable> — the notice loses its cause',
+        file: RAW_ERRORS,
+        edits: [[
+            'placeholder: error instanceof Deno.errors.InvalidData',
+            'placeholder: false',
+        ]],
+        killedBy:
+            'a value that is not valid Unicode (InvalidData) reads as off',
+    },
+    {
+        label: 'the permission check removed — the read can prompt',
+        file: RAW_ERRORS,
+        edits: [["if (state !== 'granted') return undefined", '']],
+        killedBy: 'reads as off without touching the environment',
     },
 ]
 
