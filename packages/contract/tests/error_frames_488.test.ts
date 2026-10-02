@@ -133,6 +133,20 @@ Deno.test('#488 a throwing stack getter renders a sentinel, not a throw', () => 
     assertEquals(out, 'Error: boom\n    [unreadable stack]')
 })
 
+Deno.test('#488 without frames the stack is never read', () => {
+    let reads = 0
+    const error = new Error('boom')
+    Object.defineProperty(error, 'stack', {
+        get() {
+            reads++
+            throw new Error('stack read refused')
+        },
+    })
+    assertEquals(renderError(error), 'Error: boom')
+    assertEquals(renderError(error, { frames: 0 }), 'Error: boom')
+    assertEquals(reads, 0)
+})
+
 Deno.test('#488 a non-string stack or a non-Error head gets no frames', () => {
     const numeric = new Error('boom')
     Object.defineProperty(numeric, 'stack', { value: 42 })
