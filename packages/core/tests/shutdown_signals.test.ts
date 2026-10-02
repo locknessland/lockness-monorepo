@@ -173,18 +173,16 @@ async function probe(
 
     // Drain the rest so the pipe closes and the child can exit. A read left
     // pending by an expired deadline comes first, or its chunk would be lost.
-    try {
-        if (pending) {
-            const { value, done } = await pending
-            if (!done) chunks.push(decoder.decode(value))
-        }
-        while (true) {
-            const { value, done } = await reader.read()
-            if (done) break
-            chunks.push(decoder.decode(value))
-        }
-    } catch {
-        // Reader closed under us; what we have is enough.
+    // Nothing here cancels the stream, so a read that rejects is a real fault
+    // and surfaces rather than being mistaken for the end of output.
+    if (pending) {
+        const { value, done } = await pending
+        if (!done) chunks.push(decoder.decode(value))
+    }
+    while (true) {
+        const { value, done } = await reader.read()
+        if (done) break
+        chunks.push(decoder.decode(value))
     }
     reader.releaseLock()
 
@@ -196,7 +194,9 @@ async function probe(
         new Uint8Array(await new Response(child.stderr).arrayBuffer()),
     )
     const status = await child.status
-    await Deno.remove(file).catch(() => {})
+    // This probe wrote the file and nothing else touches it, so a failed
+    // removal is a leak worth reporting, not noise to swallow.
+    await Deno.remove(file)
 
     const out = chunks.join('') + errText
     if (!ready) {
