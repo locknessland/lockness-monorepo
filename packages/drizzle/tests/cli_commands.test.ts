@@ -344,7 +344,10 @@ async function withDefaultPort(
         container.get(Database).setDriverFactory('postgres', factory)
         await fn()
     } finally {
-        await container.get(Database).close()
+        // Only a configured client is closed: a mutant that strands the
+        // instance in `configuring` would make `close()` wait forever.
+        const db = container.get(Database)
+        if (db.isConnected()) await db.close()
         container.delete(Database)
         if (prevUrl === undefined) Deno.env.delete('DATABASE_URL')
         else Deno.env.set('DATABASE_URL', prevUrl)

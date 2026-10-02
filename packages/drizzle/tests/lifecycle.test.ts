@@ -339,7 +339,9 @@ Deno.test('#427 T10 silent silences every line connect() prints; the default pri
                 `${label}, silent: ${silent}`,
             )
             assertEquals(result.success, label === 'success', label)
-            await db.close()
+            // Only a configured client is closed: a mutant that strands the
+            // instance in `configuring` would make `close()` wait forever.
+            if (db.isConnected()) await db.close()
         }
     }
 })
