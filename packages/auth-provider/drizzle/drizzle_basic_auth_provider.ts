@@ -7,6 +7,7 @@
  */
 
 import type { Authenticatable } from '@lockness/auth'
+import { assertDbResolver } from '../base/assert_db_resolver.ts'
 import { BasicAuthProviderBase } from '../base/basic_auth_provider_base.ts'
 import type { DrizzleDatabase, DrizzleDialect } from './database.ts'
 
@@ -22,10 +23,14 @@ export interface DrizzleBasicAuthProviderOptions<
     D extends DrizzleDialect = 'pg',
 > {
     /**
-     * Drizzle database instance (from @lockness/drizzle Database service),
-     * typed by dialect `D`.
+     * Returns the Drizzle database instance (from the @lockness/drizzle
+     * `Database` service), typed by dialect `D`. Called on every lookup, never
+     * at construction: a provider built per request touches nothing until a
+     * lookup runs, and follows a reconnect instead of holding a closed client.
+     *
+     * @example db: () => container.get<Database>(Database).db
      */
-    db: DrizzleDatabase<D>
+    db: () => DrizzleDatabase<D>
 
     /**
      * Function to find user by ID
@@ -55,7 +60,7 @@ export interface DrizzleBasicAuthProviderOptions<
  *
  * @example
  * const provider = new DrizzleBasicAuthProvider({
- *   db,
+ *   db: () => database.db,
  *   findUserById: async (db, id) => {
  *     return await db.query.users.findFirst({
  *       where: (users, { eq }) => eq(users.id, id)
@@ -79,8 +84,13 @@ export class DrizzleBasicAuthProvider<
     /** @internal Provider configuration */
     readonly #options: Required<DrizzleBasicAuthProviderOptions<User, D>>
 
+    /**
+     * @param options - Provider configuration.
+     * @throws {TypeError} When `db` is not a function.
+     */
     constructor(options: DrizzleBasicAuthProviderOptions<User, D>) {
         super()
+        assertDbResolver(options.db)
         this.#options = {
             ...options,
             verifyPassword: options.verifyPassword ??
@@ -92,7 +102,7 @@ export class DrizzleBasicAuthProvider<
      * Find user by ID
      */
     async findById(id: string | number): Promise<User | null> {
-        return await this.#options.findUserById(this.#options.db, id)
+        return await this.#options.findUserById(this.#options.db(), id)
     }
 
     /**
@@ -103,7 +113,7 @@ export class DrizzleBasicAuthProvider<
         password: string,
     ): Promise<User | null> {
         return await this.#options.findUserByCredentials(
-            this.#options.db,
+            this.#options.db(),
             email,
             password,
         )

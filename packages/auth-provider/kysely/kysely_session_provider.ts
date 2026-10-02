@@ -18,7 +18,7 @@
  * })
  *
  * const provider = new KyselySessionProvider({
- *   db,
+ *   db: () => db,
  *   findUserById: async (db, id) => {
  *     return await db.selectFrom('users')
  *       .selectAll()
@@ -41,6 +41,7 @@
  */
 
 import type { Authenticatable, RememberMeToken } from '@lockness/auth'
+import { assertDbResolver } from '../base/assert_db_resolver.ts'
 import { SessionProviderBase } from '../base/session_provider_base.ts'
 
 /**
@@ -71,10 +72,14 @@ export type KyselyDatabase = any
  */
 export interface KyselySessionProviderOptions<User extends Authenticatable> {
     /**
-     * Kysely database instance.
+     * Returns the Kysely database instance. Called on every lookup, never at
+     * construction: a provider built per request touches nothing until a
+     * lookup runs, and follows a reconnect instead of holding a closed client.
      * Uses {@link KyselyDatabase} type - cast to your specific `Kysely<Database>` in callbacks.
+     *
+     * @example db: () => kysely
      */
-    db: KyselyDatabase
+    db: () => KyselyDatabase
 
     /**
      * Function to find user by ID.
@@ -124,7 +129,7 @@ export interface KyselySessionProviderOptions<User extends Authenticatable> {
  * @example
  * ```ts
  * const provider = new KyselySessionProvider<User>({
- *   db,
+ *   db: () => db,
  *   findUserById: async (db, id) => {
  *     const kysely = db as Kysely<Database>
  *     return await kysely.selectFrom('users').selectAll().where('id', '=', id).executeTakeFirst()
@@ -140,8 +145,13 @@ export class KyselySessionProvider<User extends Authenticatable>
     /** @internal Whether remember tokens are enabled */
     readonly #enableRememberTokens: boolean
 
+    /**
+     * @param options - Provider configuration.
+     * @throws {TypeError} When `db` is not a function.
+     */
     constructor(options: KyselySessionProviderOptions<User>) {
         super()
+        assertDbResolver(options.db)
         this.#options = {
             ...options,
             verifyPassword: options.verifyPassword ??
@@ -157,7 +167,7 @@ export class KyselySessionProvider<User extends Authenticatable>
      * Find user by ID
      */
     async findById(id: string | number): Promise<User | null> {
-        return await this.#options.findUserById(this.#options.db, id)
+        return await this.#options.findUserById(this.#options.db(), id)
     }
 
     /**
@@ -168,7 +178,7 @@ export class KyselySessionProvider<User extends Authenticatable>
         password: string,
     ): Promise<User | null> {
         return await this.#options.findUserByCredentials(
-            this.#options.db,
+            this.#options.db(),
             email,
             password,
         )
@@ -199,7 +209,7 @@ export class KyselySessionProvider<User extends Authenticatable>
         const now = new Date()
         const expiresAt = new Date(Date.now() + expiresIn)
 
-        const result = await this.#options.db
+        const result = await this.#options.db()
             .insertInto(this.#options.rememberTokensTable)
             .values({
                 user_id: user.id,
@@ -234,7 +244,7 @@ export class KyselySessionProvider<User extends Authenticatable>
 
         const hash = await this.hashTokenValue(tokenValue)
 
-        const token = await this.#options.db
+        const token = await this.#options.db()
             .selectFrom(this.#options.rememberTokensTable)
             .selectAll()
             .where('token_hash', '=', hash)
@@ -272,7 +282,7 @@ export class KyselySessionProvider<User extends Authenticatable>
             return
         }
 
-        await this.#options.db
+        await this.#options.db()
             .deleteFrom(this.#options.rememberTokensTable)
             .where('id', '=', tokenId)
             .where('user_id', '=', user.id)
@@ -292,7 +302,7 @@ export class KyselySessionProvider<User extends Authenticatable>
             return
         }
 
-        await this.#options.db
+        await this.#options.db()
             .deleteFrom(this.#options.rememberTokensTable)
             .where('user_id', '=', user.id)
             .execute()

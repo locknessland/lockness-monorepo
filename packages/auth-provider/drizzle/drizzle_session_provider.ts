@@ -7,6 +7,7 @@
  */
 
 import type { Authenticatable, RememberMeToken } from '@lockness/auth'
+import { assertDbResolver } from '../base/assert_db_resolver.ts'
 import { SessionProviderBase } from '../base/session_provider_base.ts'
 import type { DrizzleDatabase, DrizzleDialect } from './database.ts'
 
@@ -22,10 +23,14 @@ export interface DrizzleSessionProviderOptions<
     D extends DrizzleDialect = 'pg',
 > {
     /**
-     * Drizzle database instance (from @lockness/drizzle Database service),
-     * typed by dialect `D`.
+     * Returns the Drizzle database instance (from the @lockness/drizzle
+     * `Database` service), typed by dialect `D`. Called on every lookup, never
+     * at construction: a provider built per request touches nothing until a
+     * lookup runs, and follows a reconnect instead of holding a closed client.
+     *
+     * @example db: () => container.get<Database>(Database).db
      */
-    db: DrizzleDatabase<D>
+    db: () => DrizzleDatabase<D>
 
     /**
      * Function to find user by ID
@@ -65,7 +70,7 @@ export interface DrizzleSessionProviderOptions<
  *
  * @example
  * const provider = new DrizzleSessionProvider({
- *   db,
+ *   db: () => database.db,
  *   findUserById: async (db, id) => {
  *     return await db.query.users.findFirst({
  *       where: (users, { eq }) => eq(users.id, id)
@@ -92,8 +97,13 @@ export class DrizzleSessionProvider<
     /** @internal Whether remember tokens are enabled */
     readonly #enableRememberTokens: boolean
 
+    /**
+     * @param options - Provider configuration.
+     * @throws {TypeError} When `db` is not a function.
+     */
     constructor(options: DrizzleSessionProviderOptions<User, D>) {
         super()
+        assertDbResolver(options.db)
         this.#options = {
             ...options,
             verifyPassword: options.verifyPassword ??
@@ -109,7 +119,7 @@ export class DrizzleSessionProvider<
      * Find user by ID
      */
     async findById(id: string | number): Promise<User | null> {
-        return await this.#options.findUserById(this.#options.db, id)
+        return await this.#options.findUserById(this.#options.db(), id)
     }
 
     /**
@@ -120,7 +130,7 @@ export class DrizzleSessionProvider<
         password: string,
     ): Promise<User | null> {
         return await this.#options.findUserByCredentials(
-            this.#options.db,
+            this.#options.db(),
             email,
             password,
         )
@@ -153,7 +163,7 @@ export class DrizzleSessionProvider<
         const expiresAt = new Date(Date.now() + expiresIn)
 
         // This is a placeholder - subclasses should implement with their table schema
-        // Example: await this.#options.db.insert(rememberTokensTable).values({ ... })
+        // Example: await this.#options.db().insert(rememberTokensTable).values({ ... })
         // For now, just return the token structure
         return {
             identifier: tokenValue,
@@ -181,7 +191,7 @@ export class DrizzleSessionProvider<
         const _hash = await this.hashTokenValue(tokenValue)
 
         // This is a placeholder - subclasses should implement with their table schema
-        // Example: const token = await this.#options.db.select().from(rememberTokensTable).where(...)
+        // Example: const token = await this.#options.db().select().from(rememberTokensTable).where(...)
         // For now, return null
         return null
     }
@@ -200,7 +210,7 @@ export class DrizzleSessionProvider<
         }
 
         // This is a placeholder - subclasses should implement with their table schema
-        // Example: await this.#options.db.delete(rememberTokensTable).where(...)
+        // Example: await this.#options.db().delete(rememberTokensTable).where(...)
     }
 
     /**

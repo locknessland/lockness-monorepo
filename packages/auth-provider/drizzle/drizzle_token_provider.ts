@@ -18,6 +18,7 @@ import {
     type StoredAccessToken,
     TokenProviderBase,
 } from '../base/token_provider_base.ts'
+import { assertDbResolver } from '../base/assert_db_resolver.ts'
 import type { DrizzleDatabase, DrizzleDialect } from './database.ts'
 import {
     assertAccessTokensTable,
@@ -36,10 +37,14 @@ export interface DrizzleTokenProviderOptions<
     D extends DrizzleDialect = 'pg',
 > {
     /**
-     * Drizzle database instance (from @lockness/drizzle Database service),
-     * typed by dialect `D`.
+     * Returns the Drizzle database instance (from the @lockness/drizzle
+     * `Database` service), typed by dialect `D`. Called on every lookup, never
+     * at construction: a provider built per request touches nothing until a
+     * lookup runs, and follows a reconnect instead of holding a closed client.
+     *
+     * @example db: () => container.get<Database>(Database).db
      */
-    db: DrizzleDatabase<D>
+    db: () => DrizzleDatabase<D>
 
     /**
      * Function to find user by ID
@@ -104,7 +109,7 @@ interface TokenQueryHandle {
  * import { accessTokens, users } from '@model/user.ts'
  *
  * const provider = new DrizzleTokenProvider({
- *   db,
+ *   db: () => database.db,
  *   tokensTable: accessTokens,
  *   findUserById: async (db, id) => {
  *     const [row] = await db.select().from(users)
@@ -129,26 +134,33 @@ export class DrizzleTokenProvider<
     /** @internal The tokens table, checked at construction. */
     readonly #table: DrizzleAccessTokensTable
 
-    /** @internal The handle, seen through the builder subset it uses. */
-    readonly #query: TokenQueryHandle
-
     /**
      * @param options - Provider configuration.
-     * @throws {TypeError} When `tokensTable` is not a Drizzle table carrying
-     * every column property of {@link DrizzleAccessTokensTable}.
+     * @throws {TypeError} When `db` is not a function, or when `tokensTable`
+     * is not a Drizzle table carrying every column property of
+     * {@link DrizzleAccessTokensTable}.
      * @throws {RangeError} When `tokenLength` is below 16 bytes.
      */
     constructor(options: DrizzleTokenProviderOptions<User, D>) {
         super({ tokenLength: options.tokenLength })
+        assertDbResolver(options.db)
         assertAccessTokensTable(options.tokensTable)
         this.#options = options
         this.#table = options.tokensTable
+    }
+
+    /**
+     * @internal The handle, resolved afresh on every storage step and seen
+     * through the builder subset it uses — never cached, so a reconnect is
+     * followed and a provider built without a connection touches nothing.
+     */
+    get #query(): TokenQueryHandle {
         // The one cast in this provider. `DrizzleDatabase<D>` is a deferred
         // conditional type, and the union of the three dialect builders it
         // resolves to has no callable `insert`/`select` — TypeScript cannot
         // unify their overloads. Every builder implements the subset above,
-        // so the handle is viewed through it once, here.
-        this.#query = options.db as unknown as TokenQueryHandle
+        // so the handle is viewed through it, here and nowhere else.
+        return this.#options.db() as unknown as TokenQueryHandle
     }
 
     /**
@@ -158,7 +170,7 @@ export class DrizzleTokenProvider<
      * @returns The user, or `null`.
      */
     async findById(id: string | number): Promise<User | null> {
-        return await this.#options.findUserById(this.#options.db, id)
+        return await this.#options.findUserById(this.#options.db(), id)
     }
 
     /**
@@ -173,7 +185,7 @@ export class DrizzleTokenProvider<
         password: string,
     ): Promise<User | null> {
         return await this.#options.findUserByCredentials(
-            this.#options.db,
+            this.#options.db(),
             email,
             password,
         )

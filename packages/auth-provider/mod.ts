@@ -13,7 +13,7 @@
  * import { DrizzleSessionProvider } from '@lockness/auth-provider/drizzle'
  *
  * const provider = new DrizzleSessionProvider({
- *   db,
+ *   db: () => database.db,
  *   findUserById: async (db, id) => db.query.users.findFirst({ where: eq(users.id, id) }),
  *   findUserByCredentials: async (db, email, password) => {
  *     const user = await db.query.users.findFirst({ where: eq(users.email, email) })
