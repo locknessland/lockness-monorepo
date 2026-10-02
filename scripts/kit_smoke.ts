@@ -38,12 +38,22 @@
  * uncommitted edits. It does not type-check or test the kits: the default mode
  * does that.
  *
+ * **`--registry --docker`** then builds each kit's image from a fresh
+ * scaffold, the `Dockerfile` it ships with `JSR_URL` pointed at the same
+ * registry, and runs it with `--network none` until Docker reports it
+ * `healthy` (#503). That is the only place a kit boots with
+ * `APP_ENV=production`, as the non-root `deno` user, from the module cache
+ * alone. Every container and image is removed afterwards, on failure and on a
+ * signal too. Linux only: the build reaches the loopback registry through the
+ * host network, which Docker Desktop does not share with the host.
+ *
  * @example
  * ```bash
  * deno task kits:smoke              # all kits, against the working tree
  * deno task kits:smoke --kit slim   # one of them
  * deno task kits:smoke --keep       # leave the scaffolds on disk to poke at
  * deno task kits:smoke --registry   # all kits, from what deno publish ships
+ * deno task kits:smoke --registry --docker   # …and each kit's image, run to healthy
  * ```
  *
  * @module
@@ -52,7 +62,7 @@
 import { parseArgs } from '@std/cli'
 import { parse as parseJsonc } from '@std/jsonc'
 import { fromFileUrl, join } from '@std/path'
-import { type KitName, KITS } from '@lockness/init'
+import { generateAppKey, type KitName, KITS } from '@lockness/init'
 import { MIGRATIONS_DIR, readTree, shipsMigrations } from './kit_migrations.ts'
 import {
     assertLoopbackUrl,
@@ -880,15 +890,19 @@ export async function publishToRegistry(
 
 /**
  * Publish HEAD into a localhost registry, then scaffold and boot every
- * selected kit from it.
+ * selected kit from it — and, with `docker`, build each kit's image from a
+ * fresh scaffold and run it to `healthy`.
  *
  * @param selected - The kits.
  * @param keep - Leave the temp directory on disk.
- * @returns Whether every kit booted and served the HTML 404.
+ * @param docker - Also prove each kit's Docker image (#503).
+ * @returns Whether every kit booted and served the HTML 404 (and, with
+ * `docker`, whether every image built and became healthy).
  */
 async function smokeAgainstRegistry(
     selected: readonly KitName[],
     keep: boolean,
+    docker = false,
 ): Promise<boolean> {
     const workdir = await Deno.makeTempDir({
         prefix: 'lockness-kits-registry-',
@@ -898,13 +912,17 @@ async function smokeAgainstRegistry(
     // for requests that name the app's own files.
     const registryLog: string[] = []
     let cleaning: Promise<void> | undefined
-    // Children first, then the registry they talk to, then the files they
-    // hold open. Reached from `finally` and from a signal, whichever is first.
+    // Containers and images a `--docker` proof has not removed yet.
+    const leftovers = new DockerLeftovers()
+    // Children first, then the containers, then the registry they talk to,
+    // then the files they hold open. Reached from `finally` and from a
+    // signal, whichever is first.
     const cleanup = () =>
         cleaning ??= (async () => {
             // abort, not just kill: the kit loop may still be running, and
             // must not spawn the next child after this sweep.
             children.abort()
+            await leftovers.removeAll()
             await jsr?.shutdown()
             if (keep) {
                 console.log(`\n📂 Kept: ${workdir}`)
@@ -1049,12 +1067,26 @@ async function smokeAgainstRegistry(
             if (!kitOk) failed.push(kit)
         }
 
+        if (docker && !children.aborted) {
+            const dockerFailed = await dockerProofs(
+                selected,
+                workdir,
+                registry,
+                env,
+                init.version,
+                leftovers,
+            )
+            for (const kit of dockerFailed) {
+                if (!failed.includes(kit)) failed.push(kit)
+            }
+        }
+
         console.log(
             `\n${failed.length === 0 ? '✅' : '❌'} ${
                 selected.length - failed.length
             }/${selected.length} kit(s) booted from the registry${
-                failed.length > 0 ? ` — failed: ${failed.join(', ')}` : ''
-            }`,
+                docker ? ' and ran healthy in Docker' : ''
+            }${failed.length > 0 ? ` — failed: ${failed.join(', ')}` : ''}`,
         )
         return failed.length === 0
     } finally {
@@ -1065,11 +1097,416 @@ async function smokeAgainstRegistry(
     }
 }
 
+// ---------------------------------------------------------------------------
+// `--registry --docker`: build each kit's image and run it to healthy (#503)
+// ---------------------------------------------------------------------------
+
+/**
+ * How long a kit's container gets to report `healthy`. The stub's health
+ * check runs every 30s, so the first verdict lands about 30s after start.
+ */
+export const DOCKER_HEALTHY_TIMEOUT_MS = 90_000
+
+/**
+ * The label on every image and container a `--docker` run creates, beside the
+ * `lockness-kit-smoke-` image name prefix: what this script made can be told
+ * apart from anything else on the machine.
+ */
+export const DOCKER_LABEL = 'land.lockness.kit-smoke=1'
+
+/** How often the container's health status is read while it starts. */
+const DOCKER_POLL_INTERVAL_MS = 1_000
+
+/**
+ * The `docker inspect` template {@link parseContainerState} reads: the
+ * container's state, its health status (`none` without a `HEALTHCHECK`), and
+ * its exit code.
+ */
+export const INSPECT_FORMAT =
+    '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}} {{.State.ExitCode}}'
+
+/** What `docker inspect` says about a container, as far as the verdict needs. */
+export interface ContainerState {
+    /** `created`, `running`, `exited`, `dead`, … */
+    readonly status: string
+    /** `starting`, `healthy` or `unhealthy`; `null` when the image has no `HEALTHCHECK`. */
+    readonly health: string | null
+    /** The exit code, meaningful once the container stopped. */
+    readonly exitCode: number
+}
+
+/**
+ * Parse one line printed by `docker inspect -f INSPECT_FORMAT`.
+ *
+ * @param line - The line.
+ * @returns The state, or `undefined` when the line is not in that shape.
+ *
+ * @example
+ * ```ts
+ * parseContainerState('running starting 0')
+ * // { status: 'running', health: 'starting', exitCode: 0 }
+ * ```
+ */
+export function parseContainerState(line: string): ContainerState | undefined {
+    const match = line.trim().match(/^([a-z]+) ([a-z]+) (-?\d+)$/)
+    if (match === null) return undefined
+    return {
+        status: match[1],
+        health: match[2] === 'none' ? null : match[2],
+        exitCode: Number(match[3]),
+    }
+}
+
+/** A finished verdict, or a request to look again. */
+export type HealthVerdict =
+    | { readonly done: false }
+    | { readonly done: true; readonly result: StepResult }
+
+/**
+ * Judge one reading of a container's state.
+ *
+ * Only `healthy` passes. A container that stopped, an `unhealthy` one, and an
+ * image without a `HEALTHCHECK` fail at once: none of them can still become
+ * healthy, and waiting out the timeout would only hide which one it was.
+ *
+ * @param state - The reading.
+ * @returns Done with a verdict, or not done (still starting).
+ *
+ * @example
+ * ```ts
+ * judgeContainerHealth({ status: 'running', health: 'healthy', exitCode: 0 })
+ * // { done: true, result: { ok: true, detail: 'container healthy' } }
+ * ```
+ */
+export function judgeContainerHealth(state: ContainerState): HealthVerdict {
+    if (state.status === 'exited' || state.status === 'dead') {
+        return {
+            done: true,
+            result: {
+                ok: false,
+                detail:
+                    `container ${state.status} with code ${state.exitCode} before it was healthy`,
+            },
+        }
+    }
+    if (state.health === null) {
+        return {
+            done: true,
+            result: { ok: false, detail: 'image has no HEALTHCHECK' },
+        }
+    }
+    if (state.health === 'healthy') {
+        return {
+            done: true,
+            result: { ok: true, detail: 'container healthy' },
+        }
+    }
+    if (state.health === 'unhealthy') {
+        return {
+            done: true,
+            result: { ok: false, detail: 'container unhealthy' },
+        }
+    }
+    return { done: false }
+}
+
+/** Options for {@link pollHealthy}; the clock and the sleep are for tests. */
+export interface PollHealthyOptions {
+    /** Give up after this long (default {@link DOCKER_HEALTHY_TIMEOUT_MS}). */
+    readonly timeoutMs?: number
+    /** Wait this long between readings (default 1s). */
+    readonly intervalMs?: number
+    /** The clock, in milliseconds. */
+    readonly now?: () => number
+    /** How to wait between readings. */
+    readonly sleep?: (ms: number) => Promise<void>
+}
+
+/**
+ * Read a container's state until {@link judgeContainerHealth} is done, or the
+ * timeout passes.
+ *
+ * @param inspect - Reads the state; throws when it cannot (the failure is the
+ * verdict, with its message).
+ * @param options - Timeout, interval, clock and sleep.
+ * @returns The verdict, with how long it took; on timeout, the last health
+ * status seen.
+ *
+ * @example
+ * ```ts
+ * await pollHealthy(() => inspectContainer(id))
+ * // { ok: true, detail: 'container healthy in 31s' }
+ * ```
+ */
+export async function pollHealthy(
+    inspect: () => Promise<ContainerState>,
+    options: PollHealthyOptions = {},
+): Promise<StepResult> {
+    const timeoutMs = options.timeoutMs ?? DOCKER_HEALTHY_TIMEOUT_MS
+    const intervalMs = options.intervalMs ?? DOCKER_POLL_INTERVAL_MS
+    const now = options.now ?? Date.now
+    const sleep = options.sleep ??
+        ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)))
+    const started = now()
+    const seconds = () => `${Math.round((now() - started) / 1000)}s`
+    let last = 'never read'
+    while (true) {
+        let state: ContainerState
+        try {
+            state = await inspect()
+        } catch (error) {
+            return {
+                ok: false,
+                detail: `docker inspect failed: ${(error as Error).message}`,
+            }
+        }
+        const verdict = judgeContainerHealth(state)
+        if (verdict.done) {
+            return {
+                ok: verdict.result.ok,
+                detail: `${verdict.result.detail} in ${seconds()}`,
+            }
+        }
+        last = `${state.status}/${state.health}`
+        if (now() - started >= timeoutMs) {
+            return {
+                ok: false,
+                detail: `container still ${last} after ${timeoutMs / 1000}s`,
+            }
+        }
+        await sleep(intervalMs)
+    }
+}
+
+/**
+ * Run `docker` with no tracker, so it still runs once the tracker has been
+ * aborted — the cleanup after a signal is exactly when it must.
+ */
+async function dockerUntracked(args: string[]): Promise<void> {
+    try {
+        await new Deno.Command('docker', {
+            args,
+            stdout: 'null',
+            stderr: 'null',
+        }).output()
+    } catch {
+        // No docker binary: there is nothing of ours to remove either.
+    }
+}
+
+/**
+ * The containers and images a `--docker` run has created and not yet removed.
+ * Each proof removes its own in `finally`; the signal path sweeps what is
+ * left, because a container started with `docker run -d` is not a child of
+ * this script and would outlive it.
+ */
+export class DockerLeftovers {
+    readonly containers = new Set<string>()
+    readonly images = new Set<string>()
+
+    /** `docker rm -f` every container, then `docker image rm -f` every image. */
+    async removeAll(): Promise<void> {
+        for (const id of [...this.containers]) {
+            await dockerUntracked(['rm', '-f', id])
+            this.containers.delete(id)
+        }
+        for (const tag of [...this.images]) {
+            await dockerUntracked(['image', 'rm', '-f', tag])
+            this.images.delete(tag)
+        }
+    }
+}
+
+/**
+ * Build a scaffolded kit's image and run it until it reports `healthy`.
+ *
+ * The build reaches the localhost registry through the host network and
+ * receives it as the `JSR_URL` build argument. The container runs with
+ * `--network none` and no `JSR_URL` of its own, so it proves two things: the
+ * image needs nothing from the network at runtime, and it carries the registry
+ * origin its module cache is keyed by (without it, `--cached-only` looks under
+ * `jsr.io` and the server exits at its first import). Its `APP_KEY` is
+ * generated for this run and passed through the environment, never on the
+ * command line.
+ *
+ * The container and the image are removed in `finally`, whatever happened.
+ *
+ * @param kit - The kit.
+ * @param dir - A fresh scaffold of it, untouched by any other step.
+ * @param registry - The loopback registry origin.
+ * @param leftovers - Where the container and image are recorded until removed.
+ * @returns The lines to print, and whether the image built and became healthy.
+ */
+async function dockerProof(
+    kit: KitName,
+    dir: string,
+    registry: string,
+    leftovers: DockerLeftovers,
+): Promise<{ ok: boolean; lines: string[] }> {
+    const lines: string[] = []
+    const tag = `lockness-kit-smoke-${kit}:${crypto.randomUUID().slice(0, 8)}`
+    let container: string | undefined
+    try {
+        const buildStarted = Date.now()
+        leftovers.images.add(tag)
+        const build = await run('docker', [
+            'build',
+            '--network=host',
+            '--label',
+            DOCKER_LABEL,
+            '--build-arg',
+            `JSR_URL=${registry}`,
+            '-t',
+            tag,
+            '.',
+        ], dir)
+        if (!build.ok) {
+            lines.push(`  ❌ docker build\n${tail(build.output, 30)}`)
+            return { ok: false, lines }
+        }
+        lines.push(
+            `  ✅ docker build — ${
+                Math.round((Date.now() - buildStarted) / 1000)
+            }s`,
+        )
+
+        const started = await run(
+            'docker',
+            [
+                'run',
+                '-d',
+                '--label',
+                DOCKER_LABEL,
+                '--network',
+                'none',
+                '-e',
+                'APP_KEY',
+                tag,
+            ],
+            dir,
+            { APP_KEY: generateAppKey() },
+        )
+        if (!started.ok) {
+            lines.push(`  ❌ docker run\n${tail(started.output)}`)
+            return { ok: false, lines }
+        }
+        container = started.output.trim().split('\n').pop()!.trim()
+        leftovers.containers.add(container)
+
+        const id = container
+        const healthy = await pollHealthy(async () => {
+            const inspected = await run(
+                'docker',
+                ['inspect', '-f', INSPECT_FORMAT, id],
+                dir,
+            )
+            const state = inspected.ok
+                ? parseContainerState(inspected.output)
+                : undefined
+            if (state === undefined) {
+                throw new Error(inspected.output.trim() || 'no output')
+            }
+            return state
+        })
+        if (healthy.ok) {
+            lines.push(`  ✅ ${healthy.detail} (--network none)`)
+            return { ok: true, lines }
+        }
+        const logs = await run('docker', ['logs', '--tail', '30', id], dir)
+        const probe = await run('docker', [
+            'inspect',
+            '-f',
+            '{{if .State.Health}}{{range .State.Health.Log}}{{.Output}}{{end}}{{end}}',
+            id,
+        ], dir)
+        lines.push(
+            `  ❌ ${healthy.detail}\n${tail(logs.output, 30)}${
+                probe.output.trim() === ''
+                    ? ''
+                    : `\n      health-check output:\n${tail(probe.output, 8)}`
+            }`,
+        )
+        return { ok: false, lines }
+    } finally {
+        if (container !== undefined) {
+            await dockerUntracked(['rm', '-f', container])
+            leftovers.containers.delete(container)
+        }
+        await dockerUntracked(['image', 'rm', '-f', tag])
+        leftovers.images.delete(tag)
+    }
+}
+
+/**
+ * Prove every selected kit's Docker image, in parallel.
+ *
+ * Each kit is scaffolded again, into a directory of its own: the boot step
+ * ran the kit on the host, which writes a `deno.lock` and `node_modules/` into
+ * its scaffold, and the image must be built from what `init` produces and
+ * nothing else. Output is buffered per kit and printed in kit order.
+ *
+ * @param selected - The kits.
+ * @param workdir - The run's temp directory.
+ * @param registry - The loopback registry origin.
+ * @param env - The registry environment `init` runs with.
+ * @param initVersion - The `@lockness/init` version in the registry.
+ * @param leftovers - Where containers and images are recorded until removed.
+ * @returns The kits whose image did not build or never became healthy.
+ */
+async function dockerProofs(
+    selected: readonly KitName[],
+    workdir: string,
+    registry: string,
+    env: Record<string, string>,
+    initVersion: string,
+    leftovers: DockerLeftovers,
+): Promise<KitName[]> {
+    console.log('\n🐳 Docker: build each kit from a fresh scaffold, run it')
+    const version = await run('docker', [
+        'version',
+        '--format',
+        '{{.Server.Version}}',
+    ], workdir)
+    if (!version.ok) {
+        console.log(`  ❌ no usable Docker daemon\n${tail(version.output)}`)
+        return [...selected]
+    }
+    console.log(`  ✅ Docker ${version.output.trim()}`)
+
+    const root = join(workdir, 'docker')
+    await Deno.mkdir(root)
+    const proofs = selected.map(async (kit) => {
+        const scaffold = await scaffoldKit(kit, root, {
+            entry: `jsr:@lockness/init@${initVersion}`,
+            env,
+            local: false,
+        })
+        if (!scaffold.ok) {
+            return {
+                kit,
+                ok: false,
+                lines: [`  ❌ scaffold\n${tail(scaffold.output)}`],
+            }
+        }
+        return {
+            kit,
+            ...await dockerProof(kit, scaffold.dir, registry, leftovers),
+        }
+    })
+    const failed: KitName[] = []
+    for (const { kit, ok, lines } of await Promise.all(proofs)) {
+        console.log(`\n🐳 ${kit}`)
+        for (const line of lines) console.log(line)
+        if (!ok) failed.push(kit)
+    }
+    return failed
+}
+
 /** Smoke every kit, or the one that was named. */
 async function main(): Promise<void> {
     const args = parseArgs(Deno.args, {
         string: ['kit'],
-        boolean: ['keep', 'registry'],
+        boolean: ['keep', 'registry', 'docker'],
     })
 
     const names = Object.keys(KITS) as KitName[]
@@ -1083,8 +1520,17 @@ async function main(): Promise<void> {
         }
     }
 
+    if (args.docker && !args.registry) {
+        // The image resolves the framework from a registry; only the
+        // localhost one holds the code under test.
+        console.error('--docker needs --registry.')
+        Deno.exit(1)
+    }
+
     if (args.registry) {
-        if (!await smokeAgainstRegistry(selected, args.keep)) Deno.exit(1)
+        if (!await smokeAgainstRegistry(selected, args.keep, args.docker)) {
+            Deno.exit(1)
+        }
         return
     }
 
