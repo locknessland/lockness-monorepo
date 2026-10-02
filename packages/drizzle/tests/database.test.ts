@@ -651,3 +651,84 @@ Deno.test('#425 loadClient wraps an import failure, and passes a load through', 
     assertEquals(error.cause, cause)
     assertEquals(await loadClient('mysql', () => Promise.resolve(42)), 42)
 })
+
+// =============================================================================
+// #426 — the branches of the failure render no test reached
+// =============================================================================
+
+/**
+ * Three fragments of a fake password, assembled at run time so the secret
+ * scan never sees a credential-shaped literal. Joined by a slash then a raw
+ * `@`, they are the #420 shape: the shared pattern stops at the first `@`, so
+ * only the held check keeps the tail out of a render.
+ */
+const FRAGMENTS = ['Fk' + '4', 'Rq' + '8', 'Zt' + '6'] as const
+/** The password as a driver echoes it: decoded, raw `/` and `@` included. */
+const DECODED = `${FRAGMENTS[0]}/${FRAGMENTS[1]}@${FRAGMENTS[2]}`
+/** The DSN that carries it, percent-encoded so `connect()` accepts it. */
+const ENCODED_DSN = `postgres://app:${FRAGMENTS[0]}%2F${FRAGMENTS[1]}%40${
+    FRAGMENTS[2]
+}@db.invalid:5432/prod`
+
+/** Assert that no fragment of the fake password reached `text`. */
+function assertNoFragment(text: string, surface: string): void {
+    for (const fragment of FRAGMENTS) {
+        assertEquals(
+            text.includes(fragment),
+            false,
+            `${surface} leaked '${fragment}': ${text}`,
+        )
+    }
+}
+
+Deno.test('#426 a probe rejecting with a string that holds the password is withheld, with no name', async () => {
+    // `readHead`'s non-Error branch: a driver may reject with a bare string.
+    // It must take the same check as an Error, and a string has no name to
+    // show — so the sentence carries none, not a borrowed `(Error)`.
+    const message = await probeFailure(
+        ENCODED_DSN,
+        `could not reach postgres://app:${DECODED}@db.invalid:5432/prod`,
+    )
+    assertEquals(message, probeWithheld())
+    assertNoFragment(message, 'probe()')
+})
+
+Deno.test('#426 a probe rejecting with a string that holds only the exact DSN shows it redacted by identity', async () => {
+    // The shown leg of the same branch: the exact DSN is replaced whole and
+    // the string rendered as a string — no `Error:` prefix it never had, and
+    // the marker rather than the shared pattern's `***:***`.
+    const message = await probeFailure(
+        ENCODED_DSN,
+        `could not reach ${ENCODED_DSN}`,
+    )
+    assertEquals(message, 'could not reach <dsn redacted>')
+    assertNoFragment(message, 'probe()')
+})
+
+Deno.test('#426 an import error rejected as a string that holds the password never reaches ConnectionResult.error', async () => {
+    // The one `connect()` path that renders driver text: a missing client
+    // package shows its import error. A loader may reject with a string, and
+    // that string reaches `readHead`'s non-Error branch on its way to the
+    // RETURNED result — not only to a log line.
+    const db = new Database()
+    db.setDriverFactory(
+        'postgres',
+        throwingFactory(
+            new ClientUnavailableError(
+                'postgres',
+                `cannot load postgres://app:${DECODED}@db.invalid:5432/prod`,
+            ),
+        ),
+    )
+    // Not silent (#427): the log is half of what the no-leak check reads.
+    const { value: result, logged } = await capturingErrors(() =>
+        db.connect(ENCODED_DSN)
+    )
+    assertEquals(result, {
+        success: false,
+        error: "The 'postgres' driver's client package (postgres) could not " +
+            'be imported; the import error is withheld because it contains ' +
+            'a database credential',
+    })
+    assertNoFragment(`${result.error}\n${logged}`, 'connect()')
+})
