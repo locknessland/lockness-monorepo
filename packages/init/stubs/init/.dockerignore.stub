@@ -16,11 +16,15 @@ coverage/
 *.md
 !README.md
 
-# Environment files (secrets)
-.env
-.env.local
-.env.*.local
+# Environment files and key material (secrets): `COPY . .` would bake them
+# into an image layer. Pass them at run time instead (--env-file).
+.env*
 !.env.exemple
+*.pem
+*.key
+*.p8
+*.p12
+*.pfx
 
 # Test files
 tests/

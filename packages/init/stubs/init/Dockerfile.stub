@@ -19,6 +19,9 @@ FROM denoland/deno:${DENO_VERSION}
 # Registry the build resolves jsr: specifiers from. The running container keeps
 # it (ENV below): Deno keys its module cache by registry origin, so a
 # --cached-only start finds the modules only under the registry they came from.
+# Never put credentials in it: it persists in the image config. For a private
+# mirror, give DENO_AUTH_TOKENS to the `deno install` steps through a BuildKit
+# secret mount (RUN --mount=type=secret,...), never as an ARG or ENV.
 ARG JSR_URL=https://jsr.io
 
 WORKDIR /app
