@@ -220,8 +220,12 @@ describe('init command', () => {
             // Check for non-root user
             expect(dockerfile).toContain('USER lockness')
 
-            // Check for health check
+            // Health check polls liveness (/health), not / or /ready (#424)
             expect(dockerfile).toContain('HEALTHCHECK')
+            expect(dockerfile).toContain(
+                "fetch('http://localhost:8888/health')",
+            )
+            expect(dockerfile).not.toContain("fetch('http://localhost:8888/')")
 
             // Check for correct port
             expect(dockerfile).toContain('EXPOSE 8888')
