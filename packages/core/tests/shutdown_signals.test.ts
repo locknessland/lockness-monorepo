@@ -56,9 +56,40 @@ interface ProbeResult {
     port: number | null
 }
 
+/** How long a probe may take to print its ready line. */
+const READY_DEADLINE_MS = 15_000
+
+/** What {@link readWithin} resolves to when the time ran out first. */
+const EXPIRED = Symbol('expired')
+
+/**
+ * Wait for a pending stdout read, but no longer than `ms`.
+ *
+ * A bare `reader.read()` blocks for as long as the child stays silent, so a
+ * deadline checked only between reads never fires for a child that prints
+ * nothing at all (#495). The read is left pending on expiry, not abandoned:
+ * the caller still owns it and must await it once the child is stopped.
+ */
+async function readWithin(
+    pending: Promise<ReadableStreamReadResult<Uint8Array>>,
+    ms: number,
+): Promise<ReadableStreamReadResult<Uint8Array> | typeof EXPIRED> {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const expiry = new Promise<typeof EXPIRED>((resolve) => {
+        timer = setTimeout(() => resolve(EXPIRED), ms)
+    })
+    try {
+        return await Promise.race([pending, expiry])
+    } finally {
+        clearTimeout(timer)
+    }
+}
+
 /**
  * Run one probe: write it, start it, wait for READY, signal it, collect.
  *
+ * @param deadlineMs How long the child has to print its ready line. Only the
+ * test that proves the deadline itself shortens it, to keep the suite fast.
  * @throws {Error} "probe did not start" when the child ends, or the wait runs
  * out, without printing its ready line. Signalling a probe that never started
  * would measure its startup failure and report it as a shutdown one.
@@ -66,7 +97,7 @@ interface ProbeResult {
 async function probe(
     source: string,
     signal: Deno.Signal,
-    { twice = false } = {},
+    { twice = false, deadlineMs = READY_DEADLINE_MS } = {},
 ): Promise<ProbeResult> {
     await Deno.mkdir(DIR, { recursive: true })
     const file = `${DIR}/shutdown-probe-${crypto.randomUUID().slice(0, 8)}.ts`
@@ -84,17 +115,22 @@ async function probe(
     const reader = child.stdout.getReader()
 
     // Wait for the probe to say it is listening. Signalling before the handler
-    // is installed would measure a race, not the behaviour.
-    const deadline = Date.now() + 15_000
+    // is installed would measure a race, not the behaviour. Every read races
+    // the time left, so a silent child cannot hold the wait past the deadline.
+    const deadline = Date.now() + deadlineMs
     let ready: RegExpMatchArray | null = null
     let ended = false
+    let pending: Promise<ReadableStreamReadResult<Uint8Array>> | null = null
     while (Date.now() < deadline) {
-        const { value, done } = await reader.read()
-        if (done) {
+        pending ??= reader.read()
+        const result = await readWithin(pending, deadline - Date.now())
+        if (result === EXPIRED) break
+        pending = null
+        if (result.done) {
             ended = true
             break
         }
-        chunks.push(decoder.decode(value))
+        chunks.push(decoder.decode(result.value))
         ready = chunks.join('').match(READY_LINE)
         if (ready) break
     }
@@ -114,8 +150,13 @@ async function probe(
         child.kill('SIGKILL')
     }
 
-    // Drain the rest so the pipe closes and the child can exit.
+    // Drain the rest so the pipe closes and the child can exit. A read left
+    // pending by an expired deadline comes first, or its chunk would be lost.
     try {
+        if (pending) {
+            const { value, done } = await pending
+            if (!done) chunks.push(decoder.decode(value))
+        }
         while (true) {
             const { value, done } = await reader.read()
             if (done) break
@@ -245,6 +286,25 @@ Deno.test('probe - a child that never prints READY fails as "did not start"', as
     // judged on shutdown: its failure is a startup one, and says so.
     await assertRejects(
         () => probe(`console.log('no ready line'); Deno.exit(3)`, 'SIGTERM'),
+        Error,
+        'probe did not start',
+    )
+})
+
+Deno.test('probe - a child whose listen() never settles fails as "did not start"', async () => {
+    // #495. The child's TIMED_OUT safety timer is armed after listen(), so it
+    // never fires here, and the child prints nothing: only the parent's
+    // deadline can end this probe. The interval keeps the child's event loop
+    // alive; without it Deno rejects the unresolved top-level await and exits
+    // on its own, which is the case the test above already covers.
+    await assertRejects(
+        () =>
+            probe(
+                appSource(`setInterval(() => {}, 60_000)
+await new Promise(() => {})`),
+                'SIGTERM',
+                { deadlineMs: 1_000 },
+            ),
         Error,
         'probe did not start',
     )
