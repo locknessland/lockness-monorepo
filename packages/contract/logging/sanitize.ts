@@ -500,8 +500,9 @@ export interface RenderErrorOptions {
  * The name, its code when spelled like a runtime or driver code, and the
  * **redacted, truncated, encoded** message; no other property, ever, and never
  * the stack. `console.error('...', error)` prints the whole object and its
- * stack, and teardown is exactly where credential-bearing errors are produced: a Postgres driver
- * failure carries `postgres://user:password@host/db`, a `fetch` rejection
+ * stack, and teardown is exactly where credential-bearing errors are
+ * produced: a Postgres driver failure carries
+ * `postgres://user:password@host/db`, a `fetch` rejection
  * carries a URL with its token in the query string. Log stores routinely have
  * broader access than the database those credentials open.
  *
