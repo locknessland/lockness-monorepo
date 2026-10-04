@@ -316,9 +316,10 @@ const MUTATIONS: Mutation[] = [
     },
     {
         // Wall-clock, like the #499 linearity row. Measured at #500: this
-        // mutant took 7.7 s a run on the test's first 256 KB shape against
+        // mutant took 4-10 s a run on the test's first 256 KB shape against
         // its 1000 ms limit, and the real scan's worst best-of-runs was 465 ms
-        // with 16 copies of the suite running at once on 10 cores. Three
+        // with 16 copies of the suite running at once. A runner roughly 4x
+        // faster would report SURVIVED; re-measure if it survives. Three
         // misses cost the battery about 23 s.
         label: '#500 the lookahead read never stops — the scan goes quadratic',
         file: CREDENTIALS,
