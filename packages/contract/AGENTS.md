@@ -90,9 +90,19 @@ Anything not listed is internal and free to change.
 - **Which `name=value` pairs carry a credential is decided once, in
   `logging/credential_params.ts`** (on `@lockness/contract/logging/internal`).
   `renderError` replaces such a value by shape; drizzle's `probe()` holds the
-  DSN's values and withholds a message that echoes one (#438). Add a stem there,
-  never a second list beside a caller — two lists drift on the first vendor name
-  somebody adds to only one.
+  DSN's values and withholds a message that echoes one (#438). Add a stem or a
+  code qualifier there, never a second list beside a caller — two lists drift on
+  the first vendor name somebody adds to only one.
+- **Short numeric secrets are stems, and `code` needs a qualifier** (#497).
+  `pin`, `otp`, `cvv` and `cvc` are ends-with stems with no digit exemption
+  (`pin=4821` masks; `max_pins=8` is never a count); the pinned over-match is
+  `spin`, `hairpin`, `gpio_pin`, like `monkey=`. A name ending in `code` or
+  `codes` with something before it is a credential only when that leftover ends
+  in a credential stem or a factor word (`CODE_QUALIFIERS`: `mfa`, `2fa`, `sms`,
+  `onetime`, `security`, `verification`, `verify`, `recovery`, `backup`,
+  `access`), so `pin_code` and `mfa_code` mask anywhere while `status_code`,
+  `exit_code` and `zip_code` render. Factor words alone are not credentials
+  (`mfa=required` renders). A bare `code` keeps its own rule, below.
 - **What the `renderError` net does not see.** It is a shape rule for
   `name=value` (quoted values, spaces around `=` and ANSI-coloured names
   included). It does not see a JSON `"token":"…"`, a header- or YAML-style

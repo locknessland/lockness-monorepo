@@ -26,6 +26,12 @@
  * The cost is a pinned over-match — `monkey=` is masked — which is the safe
  * direction for a redaction rule.
  *
+ * `pin`, `otp`, `cvv` and `cvc` guard short all-digit secrets (#497), so no
+ * digit exemption applies to them: `pin=4821` is masked like any other
+ * value. The ends-with rule is what reaches `totp`, `hotp`, `mpin`,
+ * `upiPin` and (after the trailing digit) `cvv2`. It also over-matches
+ * `spin`, `hairpin` and `gpio_pin`, pinned like `monkey=`.
+ *
  * A name is normalised first: percent-decoded, lowercased, and stripped of
  * `.`, `_`, `~` and `-`. Stripping is what keeps `key_id` and `token_type` out
  * (they end in `id` and `type`) while `api_key` and `api-key` both match.
@@ -57,7 +63,9 @@ const CREDENTIAL_STEMS: readonly string[] = [
 /**
  * Names that are a credential only when they are the WHOLE name. `code` is an
  * OAuth authorization code; as a stem it would mask `statuscode` and
- * `errorcode`, which are exactly what an error message needs to keep.
+ * `errorcode`, which are exactly what an error message needs to keep. A
+ * longer `code` name is decided by its qualifier instead
+ * ({@link CODE_SUFFIXES}).
  */
 const CREDENTIAL_NAMES: ReadonlySet<string> = new Set(['code'])
 
@@ -65,8 +73,8 @@ const CREDENTIAL_NAMES: ReadonlySet<string> = new Set(['code'])
  * The suffixes a qualified code name ends in. A name that ends in one of them
  * WITH something before it is a credential only when that leftover is a
  * qualifier ({@link isCodeQualifier}); otherwise it is a diagnostic
- * (`status_code`, `exit_code`). Longest first, so `backup_codes` leaves
- * `backup`, not `backups`.
+ * (`status_code`, `exit_code`). The plural is listed on its own because a
+ * name ending in `codes` (`backup_codes`) does not end in `code`.
  */
 const CODE_SUFFIXES: readonly string[] = ['codes', 'code']
 
@@ -103,14 +111,18 @@ const STRIPPED: ReadonlySet<string> = new Set(['.', '_', '~', '-'])
  *
  * @param name - The parameter name, as written or already decoded.
  * @returns True when the name ends with a credential stem (or its plural),
- *   or is `code`, once trailing digits and `confirmation` are dropped.
+ *   is `code`, or ends in `code`/`codes` after a credential stem or a factor
+ *   word (`pin_code`, `mfa_code`), once trailing digits and `confirmation`
+ *   are dropped.
  *
  * @example
  * ```typescript
  * isCredentialParamName('access_token') // true
  * isCredentialParamName('password_confirmation') // true
+ * isCredentialParamName('pin_code') // true
  * isCredentialParamName('token_type') // false
  * isCredentialParamName('statuscode') // false
+ * isCredentialParamName('status_code') // false
  * ```
  */
 export function isCredentialParamName(name: string): boolean {
@@ -134,7 +146,8 @@ const COUNT_WORDS: readonly string[] = ['max', 'prompt', 'completion', 'total']
  * - `exact` — the whole name is `code`: an OAuth code only inside a URL.
  * - `count` — a known count name (`max_tokens`, `max-keys`): an all-digit
  *   value is a count.
- * - `stem` — it ends in a stem, or in a stem plus `s`.
+ * - `stem` — it ends in a stem, in a stem plus `s`, or in a qualified `code`
+ *   (`pin_code`, `mfa_code`): masked whatever the value.
  */
 type NameMatch = 'exact' | 'count' | 'stem'
 
@@ -278,13 +291,18 @@ function isCountName(normalised: string): boolean {
  * **Non-secrets kept on purpose.** A bare `code` is an OAuth code only in a
  * URL query, after `&amp;`, or in a form body where its value ends at `&`
  * (or `&amp;`) and another `name=` (`code=…&grant_type=…`); elsewhere
- * (`status code=503`, Postgres `code=23505`) it is left alone. A known count
+ * (`status code=503`, Postgres `code=23505`) it is left alone. A longer
+ * `code` name is masked anywhere when what precedes `code` or `codes` ends in
+ * a credential stem or a factor word (`pin_code`, `passcode`, `mfa_code`,
+ * `backup_codes`); every other one is a diagnostic (`status_code`,
+ * `exit_code`, `zip_code`) and stays readable. A known count
  * name with an unquoted all-digit value is a count (`max_tokens=4096`), not
  * a credential — chosen over a documented over-match because LLM and quota
  * errors carry exactly these. A count name ends in `tokens` or `keys` AND
  * contains `max`, `prompt`, `completion` or `total`; every other plural stays
  * masked (`api_tokens=123456`, `passwords=4821`), and so does a quoted count
- * (`max_tokens="4096"`). Known residue: after `&amp;` a count name takes the
+ * (`max_tokens="4096"`). A numeric-PIN plural is never a count, so
+ * `max_pins=8` is masked. Known residue: after `&amp;` a count name takes the
  * raw end, so `?a=1&amp;max_tokens=4096&amp;b=2` masks the count — its value
  * runs on to `&amp;b=2`, which starts no credential pair.
  *
