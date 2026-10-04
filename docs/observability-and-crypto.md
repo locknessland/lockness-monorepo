@@ -84,8 +84,18 @@ it.
 
 ## OpenTelemetry
 
-`@lockness/telemetry` builds on **Deno's built-in OpenTelemetry**. Opt in at
-runtime:
+`@lockness/telemetry` builds on **Deno's built-in OpenTelemetry**. Turning it on
+takes two switches. The kernel installs the middleware — since v0.5.0 only when
+it says so, never because the package is in the import map:
+
+```typescript
+@Kernel({ telemetry: true })
+```
+
+With the key set and `@lockness/telemetry` not declared, the boot refuses with
+`MissingOptionalPackageError` (see
+[kernel-decorator.md](../packages/core/docs/kernel-decorator.md#error-handling)).
+Then opt in at runtime:
 
 ```bash
 OTEL_DENO=1 OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 deno task start

@@ -95,6 +95,25 @@ Enable development tools in development mode:
 })
 ```
 
+Outside development the key is ignored and `@lockness/devtools` is never
+imported.
+
+### Telemetry and logger
+
+Both are opt-in keys, like `devtools`. Core no longer switches either on because
+the package happens to be in your import map:
+
+```typescript
+@Kernel({
+    telemetry: true, // @lockness/telemetry's request spans (no-op unless OTEL_DENO is set)
+    logger: true,    // scheduled-task failures go to @lockness/logger's logger()
+})
+```
+
+An application that installs its own scheduler reporter keeps it; `logger:
+true`
+only replaces the scheduler's `console.error` fallback.
+
 ### Controllers
 
 Specify controllers directory or explicit list:
@@ -360,16 +379,33 @@ approach based on your preference.
 
 ## Error Handling
 
-If optional dependencies (like `@lockness/drizzle` or `@lockness/session`) are
-not installed, the loader will log a warning and skip that configuration:
+**A key you set must name a package your app declares.** Each optional feature
+is a kernel key backed by one package:
 
-```
-⚠️ @lockness/drizzle not found - skipping database setup
-⚠️ @lockness/session not found - skipping session setup
+| Key                            | Package               |
+| :----------------------------- | :-------------------- |
+| `database`                     | `@lockness/drizzle`   |
+| `session`                      | `@lockness/session`   |
+| `cache`                        | `@lockness/cache`     |
+| `i18n`                         | `@lockness/i18n`      |
+| `devtools` (development only)  | `@lockness/devtools`  |
+| `telemetry`                    | `@lockness/telemetry` |
+| `logger`                       | `@lockness/logger`    |
+| `schedulerLock.driver 'redis'` | `@lockness/redis`     |
+
+A key you leave unset imports nothing and prints nothing, so you use only the
+features you need. A key you set whose package does not resolve **refuses the
+boot** with `MissingOptionalPackageError` (exported from `@lockness/core`, with
+`packageName` and `feature` fields) rather than running without the feature:
+
+```text
+@lockness/cache is configured but not installed: the kernel sets `cache`, and "@lockness/cache" does not resolve from this application.
+Fix: deno add jsr:@lockness/cache (same version as @lockness/core), or remove `cache` from @Kernel().
 ```
 
-This allows you to use only the features you need without requiring all
-packages.
+Until v0.5.0 this printed `⚠️ @lockness/cache not found - skipping cache setup`
+and the app ran without a cache — or, for the redis scheduler lock, without a
+lock, so every replica ran each `onOneServer` task.
 
 ## API Reference
 
@@ -383,6 +419,8 @@ Class decorator to configure the application kernel.
 - `config.session`: Session configuration (boolean or `SessionConfig`)
 - `config.cache`: Cache configuration (boolean or `CacheConfig`)
 - `config.devtools`: Enable devtools (boolean)
+- `config.telemetry`: Install `@lockness/telemetry`'s middleware (boolean)
+- `config.logger`: Route scheduler failures to `@lockness/logger` (boolean)
 - `config.staticDir`: Static files directory (string)
 - `config.controllersDir`: Controllers directory for auto-discovery (string)
 - `config.controllers`: Explicit controllers list (array)

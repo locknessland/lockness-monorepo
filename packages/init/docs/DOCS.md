@@ -594,10 +594,11 @@ Verify `DATABASE_URL` in `.env` and ensure PostgreSQL is running:
 
 ## Upgrading to v0.5.0
 
-Five items. The first and third are for `web` and `api` apps scaffolded from
+Six items. The first and third are for `web` and `api` apps scaffolded from
 v0.4.x; `slim` has no database and is not affected by them. The second, fourth
 and fifth are for every app, of any kit, scaffolded before v0.5.0. If you take
-item 4, which replaces the `Dockerfile`, item 2 is already done.
+item 4, which replaces the `Dockerfile`, item 2 is already done. The sixth is
+for `web` and `api` apps, and **without it they do not boot on v0.5.0**.
 
 For item 1, **migration step:** add the drizzle wiring to `deno.json` and
 `drizzle.config.ts`, then regenerate the migrations (database never migrated) or
@@ -978,6 +979,47 @@ If your `Dockerfile` sets `ENV DENO_ENV=production`, change it to
 `ENV APP_ENV=production`. Since v0.5.0 a `DENO_ENV` that disagrees with
 `APP_ENV` refuses the boot; see the
 [`@lockness/contract` upgrade note](../../contract/README.md#upgrading-to-v050).
+
+### 6. web and api apps scaffolded before v0.5.0: declare `@lockness/cache`
+
+Both kernels set `cache: config.cache`, and neither `deno.json` declared
+`@lockness/cache`. Until v0.5.0 every boot printed
+`⚠️  @lockness/cache not found - skipping cache setup` and the app ran with no
+cache. Since v0.5.0 a configured package that does not resolve **refuses the
+boot** with `MissingOptionalPackageError` (see the
+[`@lockness/core` upgrade note](../../core/README.md#upgrading-to-v050)).
+`@lockness/upgrade` only rewrites specifiers, so apply one of these by hand.
+
+**Keep the cache** — add the package at your `@lockness/core` version, and, in
+an `api` app, the Deno KV flag (the production cache driver throws on first use
+without it; the web kit already had it):
+
+```bash
+deno add jsr:@lockness/cache
+```
+
+```diff
+ // deno.json (api only)
++    "unstable": [
++        "kv"
++    ],
+```
+
+**Or drop it** — remove the key from `app/kernel.ts` and the namespace from
+`config/mod.ts`:
+
+```diff
+ // app/kernel.ts
+-    /** Response and query caching. See config/cache.ts. */
+-    cache: config.cache,
+```
+
+```diff
+ // config/mod.ts
+-import { cacheConfig } from './cache.ts'
+ …
+-    cache: cacheConfig,
+```
 
 ## See Also
 

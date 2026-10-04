@@ -1,7 +1,8 @@
 # `@lockness/telemetry` — agent brief
 
 OpenTelemetry span enrichment + framework metrics on Deno's built-in OTel.
-Optional and soft-loaded by `@lockness/core`. Depends on
+Optional, and loaded by `@lockness/core` only when the kernel sets
+`telemetry: true` (#505) — never by presence. Depends on
 `npm:@opentelemetry/api` (the one npm exception: no JSR equivalent of the
 vendor-neutral OTel API).
 
@@ -62,7 +63,9 @@ Anything not listed is internal and free to change.
   instrument names live in `docs/observability-and-crypto.md` § Framework
   instruments, never in code.
 - `mod.ts` — the barrel.
-- Soft-loaded by `packages/core/kernel/bootstrap/steps/telemetry.ts`.
+- Loaded by `packages/core/kernel/bootstrap/steps/telemetry.ts` through
+  `loadConfiguredPackage(config, 'telemetry', …)`: key unset, nothing is
+  imported; key set and this package absent, the boot refuses.
 
 ## Pitfalls
 

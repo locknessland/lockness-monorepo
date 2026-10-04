@@ -76,6 +76,20 @@ public/                   # static files, compiled CSS, favicons
 tests/smoke.test.ts
 ```
 
+## The cache
+
+`app/kernel.ts` sets `cache: config.cache`, and `deno.json` declares
+`@lockness/cache` for it. `config/cache.ts` picks the memory driver in
+development and Deno KV in production — which is why `deno.json` carries
+`"unstable": ["kv"]`; without it the KV driver throws on first use. On Deno
+Deploy, leave `DATABASE_KV_PATH` unset to use the platform's database.
+
+Every optional feature the kernel names must be a package `deno.json`
+declares: drop `@lockness/cache` but keep the `cache` key and the app refuses
+to boot with `MissingOptionalPackageError`, naming the package and the fix.
+To go without a cache, remove the key from `app/kernel.ts` and `cache` from
+`config/mod.ts`.
+
 ## The two things worth knowing
 
 **Middleware order is load-bearing.** In `app/kernel.ts` the session comes

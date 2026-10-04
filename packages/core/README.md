@@ -527,6 +527,64 @@ export class UserController {
 3. **Multi-Tenancy**: `/tenant/:tenantId/dashboard`
 4. **Hybrid Apps**: Web UI at `/:lang/:region/*` and API at `/api/:version/*`
 
+## Upgrading to v0.5.0
+
+Three items. **Migration step:** for every optional feature your `@Kernel()`
+configures, make sure the package is in your `deno.json`; add `telemetry: true`
+and `logger: true` if you relied on those packages switching on by presence.
+
+### 1. A configured optional package that does not resolve refuses the boot
+
+Until v0.5.0, a kernel key whose package the app did not declare printed
+`⚠️  @lockness/cache not found - skipping cache setup` and the app ran without
+the feature — no cache, no session, or, behind
+`schedulerLock: { driver: 'redis' }`, no lock at all, so every replica ran each
+`onOneServer` task (#505). `createApp()` now refuses instead, with a
+`MissingOptionalPackageError` (exported from `@lockness/core`):
+
+```text
+@lockness/cache is configured but not installed: the kernel sets `cache`, and "@lockness/cache" does not resolve from this application.
+Fix: deno add jsr:@lockness/cache (same version as @lockness/core), or remove `cache` from @Kernel().
+```
+
+- **The keys and their packages:** `database` → `@lockness/drizzle`, `session` →
+  `@lockness/session`, `cache` → `@lockness/cache`, `i18n` → `@lockness/i18n`,
+  `devtools` → `@lockness/devtools` (development only), `telemetry` →
+  `@lockness/telemetry`, `logger` → `@lockness/logger`, and
+  `schedulerLock.driver 'redis'` → `@lockness/redis`.
+- **Unchanged:** a key you do not set imports nothing and prints nothing — the
+  "not found - skipping" line is gone in both directions. A package that
+  resolves but throws while loading is rethrown as itself, not renamed.
+- **The fix:** `deno add jsr:<package>` at your `@lockness/core` version, or
+  remove the key from `@Kernel()` (and from `config/mod.ts` if it comes from
+  there).
+
+### 2. `@lockness/telemetry` and `@lockness/logger` need a kernel key
+
+Both used to switch on because the package resolved from the app's import map:
+adding `@lockness/telemetry` for any reason installed the tracing middleware,
+and adding `@lockness/logger` rewired scheduled-task failures to it. Since
+v0.5.0 core imports an optional package only when the kernel names it.
+
+```diff
+ @Kernel({
+     // …
++    telemetry: true, // request spans; still a no-op unless OTEL_DENO is set
++    logger: true,    // scheduler failures go to logger(), not console.error
+ })
+```
+
+An application that installs its own scheduler reporter keeps it either way;
+`logger: true` without `@lockness/logger` declared refuses the boot (item 1).
+
+### 3. `KernelBooted` now fires in a JSR-installed app
+
+Core loaded `@lockness/events` through a variable specifier that resolved
+against the _application's_ import map. An app installed from JSR does not map
+`@lockness/events`, so `KernelBooted` never fired there — while every workspace
+test saw it fire. It is now imported statically. **No step is required**, but a
+`KernelBooted` listener you wrote and never saw run will start running at boot.
+
 ## 📚 Technical Reference
 
 ### Internal Architecture

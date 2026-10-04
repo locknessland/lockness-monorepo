@@ -12,12 +12,22 @@ This brief does not repeat it.
 
 ## Invariants
 
-- **Optional packages are reached only through
-  `tryImportOptionalPackage('<literal>', …)`.** The specifier is a _string
-  argument_, so it appears in no module graph and **no static tool can see the
-  edge** — `deno info` included. Those seven edges exist only because
-  `deps.policy.jsonc` declares them under `soft`. Adding an eighth without
-  declaring it makes it invisible to every check in the repository.
+- **Core imports an optional package only when the kernel names it, and a
+  configured package that does not resolve refuses the boot (#505).** Every such
+  import goes through `kernel/bootstrap/optional_packages.ts`:
+  `loadConfiguredPackage(config, '<key>', importModule)` for a kernel key in
+  `OPTIONAL_FEATURES`, `importRequiredPackage` for a setting that is not a key
+  (`schedulerLock.driver 'redis'`). Unset key: nothing imported, nothing
+  printed. Set and unresolvable: `MissingOptionalPackageError`. There is no
+  "warn and skip" — that line hid a kit shipping `cache` undeclared and a redis
+  lock that never installed. The specifier is a _string argument_, so **no
+  static tool can see the edge**; `deps.policy.jsonc` declares them under
+  `soft`, and `scripts/core_soft_policy_test.ts` fails when that list and
+  `OPTIONAL_FEATURES` (plus `redis`) disagree.
+- **A hard dependency is imported statically, never through the loader.** The
+  loader's variable specifier resolves against the _application's_ import map;
+  `@lockness/events` went through it and `KernelBooted` never fired in a
+  JSR-installed app (#505).
 - **A soft dependency is never declared in `deno.json`.** The consuming
   application installs it, or the feature stays off. Declaring one would make an
   optional package mandatory for every consumer.
@@ -72,16 +82,20 @@ Anything not listed is internal and free to change.
 | Mount points and locale-prefixed routing | `routing/mount_manager.ts`, `routing/mount_pattern.ts` |
 | Error rendering                          | `exceptions/*.ts`                                      |
 | Log sanitisation                         | `logging/sanitize.ts`                                  |
-| Optional-package loading                 | `kernel/bootstrap/helpers.ts`                          |
+| Optional-package loading                 | `kernel/bootstrap/optional_packages.ts`                |
 | Rate limiting (`@Throttle`)              | `http/throttle_middleware.ts`                          |
 
 ## Pitfalls
 
 - Hard rule #1 applies most sharply here: import Hono through `@lockness/hono`,
   never `hono` directly.
-- `cache`, `devtools`, `drizzle` and `session` are loaded by name through
-  `tryImportOptionalPackage()`. Renaming one of those packages breaks core at
-  runtime with no compile error — grep for the string, not the import.
+- The `OPTIONAL_FEATURES` packages are loaded by name. Renaming one breaks core
+  at runtime with no compile error — grep for the string, not the import.
+- A new optional feature is a key in `KernelConfig` **and** a row in
+  `OPTIONAL_FEATURES` **and** an entry in `core.soft` — and, if a kit sets it, a
+  declared import in that kit's `deno.json.stub` (`scripts/kit_features_test.ts`
+  checks the last). Never probe for a package by presence: a package being in
+  the import map must not change what an app does.
 - Bootstrap steps run in registry order. Adding a step means placing it in
   `kernel/bootstrap/registry.ts`, not just writing the file.
 - Mount patterns are built with `constrainedParam()`, never written as literals

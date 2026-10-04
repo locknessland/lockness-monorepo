@@ -58,6 +58,18 @@ does not scaffold.
 `packages/drizzle/stubs/drizzle.config.ts.stub` is what `@lockness/drizzle`'s
 installer writes into an existing project.
 
+### Kit features (every configured package is declared)
+
+Core imports an optional package only when the kernel names it, and a set key
+whose package does not resolve refuses the boot (#505). So every optional
+feature a kit's `app/kernel.ts.stub` sets — `database`, `session`, `cache`,
+`i18n`, `devtools`, `telemetry`, `logger` — must have its package in that kit's
+`deno.json.stub`, pinned to `{{ locknessVersion }}`, and a kit that sets `cache`
+also carries `"unstable": ["kv"]`. `scripts/kit_features_test.ts` fails the
+suite on either gap; `deno task kits:smoke` then fails a kit whose boot log
+carries an optional-package line and round-trips its cache on memory and on
+deno-kv.
+
 ### Kit migrations (generated, never hand-edited)
 
 The web and api kits ship `database/migrations/` as drizzle-kit's own output

@@ -215,9 +215,11 @@ task's arguments. A `drizzle`/`postgres` error's stack carries the failing
 statement and its bound parameters, and stdout is collected somewhere with
 broader access than the database.
 
-**With `@lockness/logger` installed you need do nothing**: the boot step wires
-it into the reporter port, so failures reach the application's logging rather
-than raw `console.error`.
+**Set `logger: true` in `@Kernel()`** (with `@lockness/logger` declared) and the
+boot step wires the logger into the reporter port, so failures reach the
+application's logging rather than raw `console.error`. Until v0.5.0 this
+happened whenever `@lockness/logger` was installed; it is now the kernel's call,
+and `logger: true` without the package refuses the boot.
 
 To route them somewhere else instead, install your own reporter before boot:
 
