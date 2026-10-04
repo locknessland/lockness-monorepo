@@ -152,6 +152,26 @@ Deno.test('#478 the ends-with rule over-matches on purpose: monkey= is masked', 
     assertEquals(redactQueryCredentials('monkey=banana'), 'monkey=***')
 })
 
+Deno.test('#497 the pin stem over-matches on purpose: spin= is masked', () => {
+    // The `monkey=` trade, made again: an ends-with `pin` keeps `newpin`,
+    // `cardpin` and `USERPIN` masked, and pays with these. Pinned so a future
+    // narrowing is a decision, not an accident.
+    for (
+        const name of [
+            'spin',
+            'hairpin',
+            'kingpin',
+            'gpio_pin',
+            'free_spins',
+            'max_pins',
+            'keyCode',
+        ]
+    ) {
+        assert(isCredentialParamName(name), name)
+    }
+    assertEquals(redactQueryCredentials('spin=up'), 'spin=***')
+})
+
 Deno.test('#478 redaction runs before the cap: a straddling secret leaks no prefix', () => {
     // The secret starts a few code points before the 200 cap.
     const out = render(`${'a'.repeat(190)} token=${M}${M}`)
@@ -629,4 +649,212 @@ Deno.test('#494 only a known count name keeps an all-digit value', () => {
         redactQueryCredentials('max_tokens="4096"'),
         'max_tokens="***"',
     )
+})
+
+// ============================================================================
+// #497: numeric-PIN credential names, and the qualified `code` rule
+// ============================================================================
+
+/** A short all-digit secret, assembled at run time. */
+const PIN = '48' + '21'
+
+Deno.test('#497 a numeric-PIN name masks an all-digit value, quoted or not', () => {
+    for (
+        const name of [
+            'pin',
+            'PIN',
+            'Pin',
+            'user_pin',
+            'userPin',
+            'USER_PIN',
+            'card-pin',
+            'new_pin',
+            'newpin',
+            'mpin',
+            'upiPin',
+            'USERPIN',
+            'pin2',
+            'pin_confirmation',
+            'pins',
+            'otp',
+            'OTP',
+            'totp',
+            'hotp',
+            'sms_otp',
+            'otp2',
+            'otps',
+            'cvv',
+            'cvv2',
+            'CVV2',
+            'card_cvv',
+            'cvc',
+            'cvc2',
+            'card_cvc',
+        ]
+    ) {
+        assert(isCredentialParamName(name), name)
+        assertEquals(
+            redactQueryCredentials(`${name}=${PIN}`),
+            `${name}=***`,
+            name,
+        )
+        assertEquals(
+            redactQueryCredentials(`${name}="${PIN}"`),
+            `${name}="***"`,
+            name,
+        )
+    }
+    assertEquals(
+        redactQueryCredentials(`verify failed pin=${PIN}`),
+        'verify failed pin=***',
+    )
+    assertEquals(redactQueryCredentials(`otp="${PIN}"`), 'otp="***"')
+    assertEquals(
+        redactQueryCredentials(`/x?cvv=${PIN}&page=1`),
+        '/x?cvv=***&page=1',
+    )
+    assertEquals(
+        redactQueryCredentials(`charge failed cvc=${PIN} retry=1`),
+        'charge failed cvc=*** retry=1',
+    )
+})
+
+Deno.test('#497 a code qualified by a credential or a factor word is masked anywhere', () => {
+    // One name per factor word that only that word qualifies, so deleting
+    // any one of them fails here; then the credential-stem leftovers.
+    for (
+        const name of [
+            'mfa_code',
+            'mfaCode',
+            '2fa_code',
+            '2faCode',
+            'sms_code',
+            'smsCode',
+            'one_time_code',
+            'one-time-code',
+            'security_code',
+            'card_security_code',
+            'verification_code',
+            'email_verification_code',
+            'verify_code',
+            'verifyCode',
+            'recovery_code',
+            'backup_codes',
+            'access_code',
+            'passcode',
+            'passCode',
+            'pass_code',
+            'pin_code',
+            'pinCode',
+            'pincode',
+            'otp_code',
+            'totp_code',
+            'auth_code',
+            'pin_code_confirmation',
+        ]
+    ) {
+        assert(isCredentialParamName(name), name)
+        assertEquals(
+            redactQueryCredentials(`login ${name}=${PIN} user=bob`),
+            `login ${name}=*** user=bob`,
+            name,
+        )
+    }
+    assertEquals(
+        redactQueryCredentials(`login mfa_code=${PIN} user=bob`),
+        'login mfa_code=*** user=bob',
+    )
+})
+
+Deno.test('#497 an unqualified code compound is still a diagnostic', () => {
+    for (
+        const name of [
+            'status_code',
+            'statusCode',
+            'statuscode',
+            'error_code',
+            'exit_code',
+            'exitCode',
+            'response_code',
+            'http_code',
+            'zip_code',
+            'zipcode',
+            'postcode',
+            'country_code',
+            'promo_code',
+            'confirmation_code',
+            'barcode',
+            'opcode',
+            'unicode',
+            'decode',
+            'encode',
+            'codec',
+            'codes',
+            'code_page',
+            'preset_code',
+        ]
+    ) {
+        assertEquals(isCredentialParamName(name), false, name)
+    }
+    for (
+        const text of [
+            'status code=503',
+            'exit_code=1 status_code=503',
+            'max_tokens=4096',
+            'Postgres code=23505',
+            'zip_code=75001 country_code=FR',
+        ]
+    ) {
+        assertEquals(redactQueryCredentials(text), text)
+    }
+    assertEquals(
+        redactQueryCredentials('/cb?code=abc&state=1'),
+        '/cb?code=***&state=1',
+    )
+})
+
+Deno.test('#497 a numeric-PIN name is never a count', () => {
+    // `pins` is a credential plural, not a `tokens`/`keys` count, so a count
+    // word in the name does not reopen the digit exemption.
+    for (const name of ['max_pins', 'total_otps', 'max_cvvs']) {
+        assertEquals(
+            redactQueryCredentials(`${name}=${PIN}`),
+            `${name}=***`,
+            name,
+        )
+    }
+})
+
+Deno.test('#497 names that only contain the letters survive', () => {
+    for (
+        const name of [
+            'pinned',
+            'opinion',
+            'shipping',
+            'option',
+            'options',
+            'spinning',
+            'pinpoint',
+            '2fa',
+            'mfa',
+            'sms',
+            'security',
+            'verification',
+            'backup',
+            'tokenType',
+            'key_id',
+            'grant_type',
+            'state',
+        ]
+    ) {
+        assertEquals(isCredentialParamName(name), false, name)
+    }
+    for (
+        const text of [
+            'shipping=2 option=a pinned=true',
+            'mfa=required access=denied',
+        ]
+    ) {
+        assertEquals(redactQueryCredentials(text), text)
+    }
 })
