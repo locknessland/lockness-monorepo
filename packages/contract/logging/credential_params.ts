@@ -194,9 +194,16 @@ function isCountName(normalised: string): boolean {
  *   its own rule. Eating it is NOT the safe direction: the eaten name is
  *   hidden from the scan, and a quoted or blank-separated value of that pair
  *   (`&amp;token="…"`, `&api_key= …`) would render in clear. The accepted
- *   cost: a value that holds `&<credential>=` shows that fragment
- *   (`--password=ab&token=cd` renders `--password=***&token=***`), and a count
- *   after it reads as a count.
+ *   cost: a value that holds `&<credential>=` is cut there, and the pair the
+ *   cut starts takes its own rule, so more than that fragment can show. After
+ *   a raw `&` that pair is in URL mode and ends at the next `&`, `#`, `<` or
+ *   `>`, and the rest of the value shows from there
+ *   (`--password=ab&token=cd&ef` renders `--password=***&token=***&ef`). An
+ *   empty value or a count after the cut is not masked, so the rest shows
+ *   right after it (`--password=ab&token=&ef` renders
+ *   `--password=***&token=&ef`, and a `max_tokens=4096` keeps its count).
+ *   After `&amp;` a credential other than `code` keeps the raw end, so only
+ *   the fragment shows.
  * - `;` and `%26` never end a value: an ODBC tail after `Pwd=` is eaten with
  *   it. That over-masks the tail, and it shares the flaw above — a pair after
  *   a `;` is hidden, so `Pwd=…;Token="…"` shows the quoted token.
@@ -469,9 +476,11 @@ function isEscapedAmpersand(text: string, at: number): boolean {
  *
  * It is one after the `&amp;` an `href` writes, or in a form body
  * (`code=…&grant_type=…`); anywhere else it is a status or exit code. Only
- * this decision reads `&amp;` as a separator: any other name after it keeps
- * the raw end, because an HTML-escaped value carries `&lt;` or `&amp;` as
- * content.
+ * this decision puts a name after `&amp;` in URL mode, so its value ends at
+ * the next `&amp;` whatever follows. Any other name after `&amp;` keeps the
+ * raw end, because an HTML-escaped value carries `&lt;` or `&amp;` as
+ * content; that raw value stops at `&amp;` only before another credential
+ * pair.
  *
  * @param text - The text being scanned.
  * @param start - The index of the name's first character.
@@ -579,8 +588,9 @@ function pairNameAfter(text: string, at: number): string | undefined {
  * Whether the name starting at `start` sits in a URL query or fragment: it
  * follows `?`, `&` or `#`, raw or percent-encoded.
  *
- * Not `&amp;`: only a bare `code` reads it as a separator, in
- * {@link isOAuthCode}.
+ * Not `&amp;`: only a bare `code` takes URL mode after it, in
+ * {@link isOAuthCode}. A raw value elsewhere stops at `&amp;` only before
+ * another credential pair.
  *
  * @param text - The text being scanned.
  * @param start - The index of the name's first character.
