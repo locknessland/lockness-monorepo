@@ -7,9 +7,10 @@
  * @module @lockness/core/events/listener_discovery
  */
 
-import { isAbsolute, join, relative, SEPARATOR } from '@std/path'
+import { join } from '@std/path'
 import { renderError, safeForLog } from '@lockness/contract'
 import { importAppFile } from '@lockness/contract/app-file/internal'
+import { shownPath } from '../logging/shown_path.ts'
 import { container } from '@lockness/container'
 import {
     dispatcher,
@@ -66,15 +67,6 @@ export class ListenerLoadError extends Error {
         this.name = 'ListenerLoadError'
         this.file = shown
     }
-}
-
-/** `file` relative to the working directory when under it, else as given. */
-function shownPath(file: string): string {
-    const shown = relative(Deno.cwd(), file)
-    return shown === '..' || shown.startsWith(`..${SEPARATOR}`) ||
-            isAbsolute(shown)
-        ? file
-        : shown
 }
 
 /**
