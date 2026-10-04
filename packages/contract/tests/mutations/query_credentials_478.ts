@@ -211,6 +211,7 @@ const MUTATIONS: Mutation[] = [
         killedBy: 'a `code` ending at `&` and another pair is a form body',
     },
     {
+        // Shares its edit with a #500 row below; see the note there.
         label:
             '#499 a form body ignores `&amp;` — `code=M&amp;grant_type=` leaks',
         file: CREDENTIALS,
@@ -224,9 +225,10 @@ const MUTATIONS: Mutation[] = [
         // Killed by wall-clock alone: no structural signal exists, because the
         // memo is private state of a pure function, and a scan-step count
         // would put a test-only counter into the production module. Margin
-        // measured at #500: the mutant takes 4.9-8.6 s against the 1000 ms
-        // threshold (the real scan, 3-4 ms), so a runner roughly 5x faster
-        // would report SURVIVED. Re-measure if the row ever survives.
+        // measured at #500: the mutant takes 4.9-8.6 s a run against the
+        // 1000 ms limit (the real scan, 3-4 ms), so a runner roughly 5x faster
+        // would report SURVIVED. The test keeps the best of up to three runs,
+        // so this row costs the battery about 26 s. Re-measure if it survives.
         label:
             '#499 the form run re-read at every `code=` — the scan goes quadratic',
         file: CREDENTIALS,
@@ -269,6 +271,10 @@ const MUTATIONS: Mutation[] = [
             'a raw value runs on through `&` that starts no credential pair',
     },
     {
+        // The same edit as the `#499 a form body ignores `&amp;`` row, on
+        // purpose: `pairNameAfter` serves the form-body `code` check and the
+        // raw-value cut, and `killedBy` names one test, so each behaviour gets
+        // its own row to prove its own test catches the line.
         label:
             '#500 the lookahead reads `amp;` as the name — `&amp;token="M"` shows',
         file: CREDENTIALS,
@@ -307,6 +313,17 @@ const MUTATIONS: Mutation[] = [
         ]],
         killedBy:
             'a raw value runs on through `&` that starts no credential pair',
+    },
+    {
+        // Wall-clock, like the #499 linearity row. Measured at #500: this
+        // mutant took 7.7 s a run on the test's first 256 KB shape against
+        // its 1000 ms limit, and the real scan's worst best-of-runs was 465 ms
+        // with 16 copies of the suite running at once on 10 cores. Three
+        // misses cost the battery about 23 s.
+        label: '#500 the lookahead read never stops — the scan goes quadratic',
+        file: CREDENTIALS,
+        edits: [['if (!isNameCharacter(text[j])) break', 'if (false) break']],
+        killedBy: 'the scan stays linear on credential lookaheads',
     },
     {
         label:

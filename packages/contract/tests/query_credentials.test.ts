@@ -31,6 +31,21 @@ function render(message: string): string {
     return renderError(new Error(message))
 }
 
+/**
+ * Assert that redacting `text` takes under `limit` ms, on the best of up to
+ * three runs. Under load a collection or a preemption adds to one run, never
+ * to the scan's own cost, while a quadratic scan misses on every run.
+ */
+function assertScanUnder(label: string, text: string, limit = 1000): void {
+    let best = Infinity
+    for (let run = 0; run < 3 && best >= limit; run++) {
+        const start = performance.now()
+        redactQueryCredentials(text)
+        best = Math.min(best, performance.now() - start)
+    }
+    assert(best < limit, `${label}: ${best.toFixed(0)} ms`)
+}
+
 Deno.test('#478 every credential stem is redacted', () => {
     const names = [
         'token',
@@ -174,14 +189,14 @@ Deno.test('#478 a thrown non-Error value is redacted too', () => {
     assertStringIncludes(out, 'secret=***')
 })
 
-Deno.test('#478 the scan is linear: a 1 MB name run and 1 MB of pairs', () => {
-    const run = 'a'.repeat(1 << 20) + '=x'
-    const pairs = 'a=b&'.repeat(1 << 18)
+Deno.test('#478 the scan is linear: a 256 KB name run and 256 KB of pairs', () => {
+    // 256 KB, not 1 MB: at 1 MB the name run's best of three reached 704 ms
+    // with 16 copies of this suite running at once. The quadratic regex this
+    // replaced took 2.4 s on 40k characters, so 256 KB still misses by far.
+    const run = 'a'.repeat(1 << 18) + '=x'
+    const pairs = 'a=b&'.repeat(1 << 16)
     for (const [label, text] of [['name run', run], ['pairs', pairs]]) {
-        const start = performance.now()
-        redactQueryCredentials(text)
-        const elapsed = performance.now() - start
-        assert(elapsed < 1000, `${label}: ${elapsed.toFixed(0)} ms`)
+        assertScanUnder(label, text)
     }
 })
 
@@ -427,7 +442,10 @@ Deno.test('#499 after `&amp;`, a credential other than `code` keeps the raw end'
     }
 })
 
-/** Assert that `text` renders as `expected` and leaks no marker part. */
+/**
+ * Assert, for each entry of `cases`, that the redaction renders the key text
+ * as its value, and that `renderError` leaks no marker part from it.
+ */
 function assertRedacted(cases: Record<string, string>): void {
     for (const [text, expected] of Object.entries(cases)) {
         assertEquals(redactQueryCredentials(text), expected, text)
@@ -474,18 +492,48 @@ Deno.test('#500 a raw value runs on through `&` that starts no credential pair',
             '/x?y=1&amp;password=*** end',
     })
     assertEquals(redactQueryCredentials('--password=ab&cd'), '--password=***')
-    // The accepted cost: a value that holds `&<credential>=` shows that
-    // fragment, and a count after it reads as a count.
-    assertEquals(
-        redactQueryCredentials('--password=ab&max_tokens=4096'),
-        '--password=***&max_tokens=4096',
-    )
+})
+
+Deno.test('#500 the accepted cost: after a cut, the rest shows where the next pair ends', () => {
+    // A value that holds `&<credential>=` is cut there, and the pair the cut
+    // starts takes its own rule. After a raw `&` that is the URL rule, so the
+    // rest of the value shows from the next `&`, `#`, `<` or `>`; an empty
+    // or count value ends at once. Pinned here so a change to that extent is
+    // a decision, not a drift.
+    for (
+        const [text, expected] of [
+            ['--password=ab&token=cd&ef', '--password=***&token=***&ef'],
+            ['--password=ab&token=cd#ef', '--password=***&token=***#ef'],
+            ['--password=ab&token=&ef', '--password=***&token=&ef'],
+            [
+                '--password=ab&max_tokens=4096&ef',
+                '--password=***&max_tokens=4096&ef',
+            ],
+            // After `&amp;`, a credential other than `code` keeps the raw
+            // end, so only the fragment shows.
+            [
+                '/x?y=1&amp;password=ab&amp;token=cd&amp;ef',
+                '/x?y=1&amp;password=***&amp;token=***',
+            ],
+        ]
+    ) {
+        assertEquals(redactQueryCredentials(text), expected, text)
+    }
 })
 
 Deno.test('#500 the scan stays linear on credential lookaheads', () => {
-    // About 5 MB each: a cut at every `&amp;`, a lookahead that never meets
-    // `=`, a long non-credential name, and a run of non-credential pairs.
-    const size = 5 << 20
+    // Five shapes, 256 KB each: a cut at every `&amp;`, a lookahead that never
+    // meets `=`, one long non-credential name, a run of non-credential pairs,
+    // and credential names followed by a blank and no `=`.
+    //
+    // A fixed limit on the best of up to three runs: the allocation-heavy
+    // shapes showed a 40x tail on single runs under load. A lookahead that
+    // never stops — the quadratic mutant the battery runs — misses the limit
+    // on every run. A size-doubling ratio was measured and rejected: at sizes
+    // the battery can afford, a sample is shorter than a scheduler slice, and
+    // under load one preemption pushed the ratio to 8 against a bound that
+    // must stay under the quadratic 4.
+    const size = 256 << 10
     for (
         const text of [
             'password=' + '&amp;token='.repeat(size / 11),
@@ -495,10 +543,7 @@ Deno.test('#500 the scan stays linear on credential lookaheads', () => {
             '--password=a' + '&token\t'.repeat(size / 7),
         ]
     ) {
-        const start = performance.now()
-        redactQueryCredentials(text)
-        const elapsed = performance.now() - start
-        assert(elapsed < 1000, `${text.slice(0, 24)}: ${elapsed.toFixed(0)} ms`)
+        assertScanUnder(text.slice(0, 24), text)
     }
 })
 
@@ -541,10 +586,7 @@ Deno.test('#494 the scan stays linear on a run of bare `code=` pairs', () => {
             'code='.repeat(1 << 14) + '&' + 'a'.repeat(1 << 16),
         ]
     ) {
-        const start = performance.now()
-        redactQueryCredentials(text)
-        const elapsed = performance.now() - start
-        assert(elapsed < 1000, `${text.length}: ${elapsed.toFixed(0)} ms`)
+        assertScanUnder(String(text.length), text)
     }
 })
 
