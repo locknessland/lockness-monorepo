@@ -12,12 +12,13 @@
  * @module
  */
 
-import { assert, assertEquals } from '@std/assert'
+import { assert, assertEquals, assertThrows } from '@std/assert'
 import { type KitName, KITS } from '@lockness/init'
 import {
     OPTIONAL_FEATURES,
     type OptionalFeature,
 } from '../packages/core/kernel/bootstrap/optional_packages.ts'
+import { kernelKeys } from './kit_smoke.ts'
 
 const STUBS = new URL('../packages/init/stubs/', import.meta.url)
 
@@ -31,34 +32,20 @@ async function kitStub(kit: KitName, path: string): Promise<string> {
     }
 }
 
-/**
- * The top-level keys of the `@Kernel({ … })` object in a kernel stub.
- *
- * @param source - The kernel stub's text.
- * @returns The keys, in order.
- *
- * @example
- * ```ts
- * kernelKeys('@Kernel({\n    cache: config.cache,\n})') // ['cache']
- * ```
- */
-export function kernelKeys(source: string): string[] {
-    const code = source
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .replace(/^\s*\/\/.*$/gm, '')
-    const start = code.indexOf('@Kernel({')
-    assert(start >= 0, 'no @Kernel({ … }) in the kernel stub')
-    const end = code.indexOf('\n})', start)
-    const body = code.slice(start, end)
-    return [...body.matchAll(/^ {4}(\w+)\s*:/gm)].map((m) => m[1])
-}
-
 Deno.test('kernelKeys - reads the top-level keys and skips comments', () => {
     assertEquals(
         kernelKeys(
             '/** @Kernel({ session: x }) */\n@Kernel({\n    /** c */\n    cache: config.cache,\n    // devtools: true,\n    compile: { a: 1 },\n})\nclass K {}',
         ),
         ['cache', 'compile'],
+    )
+})
+
+Deno.test('kernelKeys - a source without @Kernel({ is an error, not "no keys"', () => {
+    assertThrows(
+        () => kernelKeys('export class AppKernel {}'),
+        Error,
+        '@Kernel',
     )
 })
 

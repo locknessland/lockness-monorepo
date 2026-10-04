@@ -12,6 +12,13 @@
  * ships migrations also runs its `db:generate` before booting, which must
  * report no schema changes (#444).
  *
+ * **Booting is judged by what it printed, too (#505).** {@link judgeBootLog}
+ * fails a kit whose boot log carries an optional-package line — the old
+ * "not found - skipping" probe, or a `MissingOptionalPackageError` refusal —
+ * in every mode, Docker included. A kit whose kernel sets `cache` then runs
+ * {@link cacheRoundTrip} twice: on the memory driver, and on deno-kv under
+ * `APP_ENV=production` — the driver a deployed kit actually uses.
+ *
  * **The scaffold is re-pointed at this working tree** before anything runs.
  * Left alone it would resolve `jsr:@lockness/core@^0.4.0` and test the *last
  * release*, which is exactly the version that cannot contain the change you
@@ -161,7 +168,7 @@ const children = new ChildTracker()
  * @returns Success, and the combined output for a failure message; a
  * failure without spawning once the run is aborted.
  */
-async function run(
+async function runCommand(
     cmd: string,
     args: string[],
     cwd: string,
@@ -253,6 +260,16 @@ export interface BootOptions {
     readonly tracker?: ChildTracker
 }
 
+/** What {@link boots} produced: the verdict, and everything the server printed. */
+export interface BootResult extends StepResult {
+    /**
+     * The server's combined stdout and stderr, drained to EOF (or to the
+     * drain grace) after it was stopped — so a line printed during boot is
+     * here even when `/` answered. {@link judgeBootLog} reads it.
+     */
+    readonly output: string
+}
+
 /**
  * Start the app, ask it for `/`, optionally probe it further, and stop it.
  *
@@ -264,18 +281,34 @@ export interface BootOptions {
  * @param dir - The scaffolded project.
  * @param port - A port nothing else is using.
  * @param options - Environment, timeout and an extra probe.
- * @returns Whether the server answered (and the probe passed).
+ * @returns Whether the server answered (and the probe passed), and what it
+ * printed.
  *
  * @example
  * ```ts
  * await boots('/tmp/lockness-kits-x/api-app', 8931)
- * // { ok: true, detail: 'HTTP 200 in 912ms' }
+ * // { ok: true, detail: 'HTTP 200 in 912ms', output: '✓ Scheduler started…' }
  * ```
  */
 export async function boots(
     dir: string,
     port: number,
     options: BootOptions = {},
+): Promise<BootResult> {
+    // The verdict is decided inside the try; the output is complete only
+    // after its finally has drained the pipes. Holding it here, outside,
+    // is what lets a successful boot return what it printed.
+    const log = { text: '' }
+    const result = await bootAndStop(dir, port, options, log)
+    return { ...result, output: log.text }
+}
+
+/** The body of {@link boots}; appends what the server prints to `log.text`. */
+async function bootAndStop(
+    dir: string,
+    port: number,
+    options: BootOptions,
+    log: { text: string },
 ): Promise<StepResult> {
     const timeoutMs = options.timeoutMs ?? BOOT_TIMEOUT_MS
     const child = (options.tracker ?? children).spawn(
@@ -293,7 +326,6 @@ export async function boots(
 
     // Drained as it arrives: an unread pipe fills up and stalls a chatty
     // server, and the text is the failure message when the server dies.
-    let output = ''
     // A grandchild that inherited the pipes keeps them open after the server
     // is killed; this lets the wait for EOF be cut short.
     const stopDrain = new AbortController()
@@ -304,7 +336,7 @@ export async function boots(
                     signal: stopDrain.signal,
                 })
             ) {
-                output += text
+                log.text += text
             }
         } catch (error) {
             if (!stopDrain.signal.aborted) throw error
@@ -327,7 +359,7 @@ export async function boots(
                     ok: false,
                     detail:
                         `exited with code ${exited.code} before answering\n${
-                            tail(output, 20)
+                            tail(log.text, 20)
                         }`,
                 }
             }
@@ -356,7 +388,7 @@ export async function boots(
         }
         return {
             ok: false,
-            detail: `${lastError} within ${timeoutMs}ms\n${tail(output)}`,
+            detail: `${lastError} within ${timeoutMs}ms\n${tail(log.text)}`,
         }
     } finally {
         if (exited === undefined) {
@@ -386,6 +418,239 @@ export async function boots(
 }
 
 /**
+ * The boot-log lines that fail a kit, each with the reason (#505).
+ *
+ * Core imports an optional package only when the kernel names it, and refuses
+ * the boot when that package does not resolve. Either line below means a kit
+ * broke that rule: the first is the probe #505 removed coming back, the second
+ * a kernel key whose package the kit does not declare.
+ */
+export const BOOT_LOG_FAILURES: ReadonlyArray<
+    { readonly pattern: RegExp; readonly reason: string }
+> = [
+    {
+        pattern: /not found - skipping/,
+        reason: 'core probed for an optional package the kernel did not name',
+    },
+    {
+        pattern: /MissingOptionalPackageError/,
+        reason: 'the kernel configures a package the kit does not declare',
+    },
+]
+
+/**
+ * Judge a boot log: a kit fails when it printed an optional-package line.
+ *
+ * Only the loader's lines are judged — any other warning is the app's
+ * business, and a judge that failed on every `⚠️` would be switched off.
+ *
+ * @param output - What the server (or container) printed.
+ * @returns `ok` when no line matched; otherwise the offending lines.
+ *
+ * @example
+ * ```ts
+ * judgeBootLog('⚠️  @lockness/cache not found - skipping cache setup').ok // false
+ * judgeBootLog('✓ Scheduler started: 0 task(s) armed of 0 registered').ok // true
+ * ```
+ */
+export function judgeBootLog(output: string): StepResult {
+    const hits = output.split('\n').filter((line) =>
+        BOOT_LOG_FAILURES.some(({ pattern }) => pattern.test(line))
+    )
+    if (hits.length === 0) {
+        return { ok: true, detail: 'boot log — no optional-package line' }
+    }
+    const reasons = BOOT_LOG_FAILURES
+        .filter(({ pattern }) => hits.some((line) => pattern.test(line)))
+        .map(({ reason }) => reason)
+    return {
+        ok: false,
+        detail: `boot log — ${reasons.join('; ')}\n${tail(hits.join('\n'))}`,
+    }
+}
+
+/**
+ * The top-level keys of the `@Kernel({ … })` object in a kernel source.
+ *
+ * Comments are stripped first, so a key shown in a JSDoc example or left
+ * commented out does not count as configured.
+ *
+ * @param source - The kernel file's text.
+ * @returns The keys, in order.
+ * @throws {Error} When the source holds no `@Kernel({`.
+ *
+ * @example
+ * ```ts
+ * kernelKeys('@Kernel({\n    cache: config.cache,\n})') // ['cache']
+ * ```
+ */
+export function kernelKeys(source: string): string[] {
+    const code = source
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/^\s*\/\/.*$/gm, '')
+    const start = code.indexOf('@Kernel({')
+    if (start < 0) throw new Error('no @Kernel({ … }) in the kernel source')
+    const end = code.indexOf('\n})', start)
+    return [...code.slice(start, end).matchAll(/^ {4}(\w+)\s*:/gm)].map((m) =>
+        m[1]
+    )
+}
+
+/** The file {@link cacheRoundTrip} writes into a scaffold, and removes. */
+export const CACHE_PROBE_FILE = '__lockness_kit_smoke_cache_probe.ts'
+
+/**
+ * What the cache probe runs: boot the kit's own kernel, then set, get, forget
+ * and get again through `@lockness/cache`, and print which driver answered.
+ */
+export const CACHE_PROBE_SOURCE = `import { createApp } from '@lockness/core'
+import { cache, getCacheConfig } from '@lockness/cache'
+import { AppKernel } from './app/kernel.ts'
+
+await createApp(AppKernel)
+const key = 'lockness-kit-smoke'
+await cache().set(key, 'round-trip')
+const read = await cache().get(key)
+await cache().forget(key)
+const gone = await cache().get(key)
+const driver = getCacheConfig().driver
+if (read !== 'round-trip' || gone !== null) {
+    console.error(\`CACHE_ROUND_TRIP_FAILED driver=\${driver} read=\${String(read)} gone=\${String(gone)}\`)
+    Deno.exit(1)
+}
+console.log(\`CACHE_ROUND_TRIP_OK driver=\${driver}\`)
+Deno.exit(0)
+`
+
+/**
+ * One environment {@link cacheRoundTrip} runs under, and the driver the kit's
+ * `config/cache.ts` must pick there.
+ */
+export interface CacheRun {
+    readonly driver: 'memory' | 'deno-kv'
+    readonly env: Record<string, string>
+}
+
+/**
+ * The two runs: the default environment, which picks the memory driver, and
+ * production, which picks deno-kv — on an in-memory database, so the run
+ * leaves nothing on disk. Production needs a key: the web kit's session
+ * refuses to boot without one, which is the point of that refusal.
+ *
+ * @returns The runs, with a fresh `APP_KEY` for the production one.
+ */
+export function cacheRuns(): CacheRun[] {
+    return [
+        { driver: 'memory', env: { APP_ENV: 'development' } },
+        {
+            driver: 'deno-kv',
+            env: {
+                APP_ENV: 'production',
+                DATABASE_KV_PATH: ':memory:',
+                APP_KEY: generateAppKey(),
+            },
+        },
+    ]
+}
+
+/**
+ * Prove a kit's configured cache works end to end: boot its kernel, round-trip
+ * a value, and check which driver answered (#505).
+ *
+ * The api kit's deno-kv cache used to throw on first use in production — no
+ * `"unstable": ["kv"]` — while every boot looked healthy, because nothing ever
+ * touched the cache. Booting is not using.
+ *
+ * @param dir - The scaffolded project.
+ * @param run - The environment and the driver it must select.
+ * @param env - Extra variables (the registry mode's `JSR_URL`, `DENO_DIR`).
+ * @returns Whether the round trip passed on the expected driver.
+ *
+ * @example
+ * ```ts
+ * await cacheRoundTrip(dir, cacheRuns()[1])
+ * // { ok: true, detail: 'cache round trip on deno-kv' }
+ * ```
+ */
+export async function cacheRoundTrip(
+    dir: string,
+    run: CacheRun,
+    env: Record<string, string> = {},
+): Promise<StepResult> {
+    const probe = join(dir, CACHE_PROBE_FILE)
+    await Deno.writeTextFile(probe, CACHE_PROBE_SOURCE)
+    try {
+        const ran = await runCommand(
+            Deno.execPath(),
+            ['run', '-A', CACHE_PROBE_FILE],
+            dir,
+            { ...env, ...run.env },
+        )
+        const expected = `CACHE_ROUND_TRIP_OK driver=${run.driver}`
+        if (ran.ok && ran.output.includes(expected)) {
+            return { ok: true, detail: `cache round trip on ${run.driver}` }
+        }
+        return {
+            ok: false,
+            detail: `cache round trip on ${run.driver}\n${tail(ran.output)}`,
+        }
+    } finally {
+        await Deno.remove(probe)
+    }
+}
+
+/**
+ * Whether a kit's kernel stub sets `cache` — read from the stub tree, so a kit
+ * that drops or gains the key is followed without editing this script.
+ *
+ * @param kit - The kit.
+ * @returns `true` when its `app/kernel.ts.stub` configures `cache`.
+ */
+async function kitConfiguresCache(kit: KitName): Promise<boolean> {
+    const stubs = join(PACKAGES, 'init', 'stubs')
+    let source: string
+    try {
+        source = await Deno.readTextFile(
+            join(stubs, 'kits', kit, 'app', 'kernel.ts.stub'),
+        )
+    } catch (error) {
+        if (!(error instanceof Deno.errors.NotFound)) throw error
+        source = await Deno.readTextFile(
+            join(stubs, 'init', 'app', 'kernel.ts.stub'),
+        )
+    }
+    return kernelKeys(source).includes('cache')
+}
+
+/**
+ * Judge a boot's log and, for a kit that configures `cache`, round-trip it on
+ * both drivers. Prints one line per check.
+ *
+ * @param kit - The kit.
+ * @param dir - Its scaffold.
+ * @param booted - What {@link boots} returned.
+ * @param env - Extra variables for the cache runs.
+ * @returns Whether every check passed.
+ */
+async function bootLogAndCache(
+    kit: KitName,
+    dir: string,
+    booted: BootResult,
+    env: Record<string, string> = {},
+): Promise<boolean> {
+    const log = judgeBootLog(booted.output)
+    console.log(`  ${log.ok ? '✅' : '❌'} ${log.detail}`)
+    if (!booted.ok || !log.ok) return false
+    if (!await kitConfiguresCache(kit)) return true
+    for (const run of cacheRuns()) {
+        const result = await cacheRoundTrip(dir, run, env)
+        console.log(`  ${result.ok ? '✅' : '❌'} ${result.detail}`)
+        if (!result.ok) return false
+    }
+    return true
+}
+
+/**
  * Run the app's own `db:generate` and require it to find nothing to do (#444).
  *
  * The shipped migrations folder carries drizzle-kit's snapshot of the shipped
@@ -400,7 +665,7 @@ export async function boots(
 async function generatesNothing(dir: string): Promise<StepResult> {
     const folder = join(dir, MIGRATIONS_DIR)
     const before = await readTree(folder)
-    const generate = await run(
+    const generate = await runCommand(
         Deno.execPath(),
         ['task', 'cli', 'db:generate'],
         dir,
@@ -477,7 +742,7 @@ export async function scaffoldKit(
 ): Promise<ScaffoldResult> {
     const name = `${kit}-app`
     const dir = join(workdir, name)
-    const scaffold = await run(
+    const scaffold = await runCommand(
         Deno.execPath(),
         [
             'run',
@@ -522,14 +787,14 @@ async function smoke(
         `  ✅ repointed ${rewritten} @lockness/* import(s) at ./packages`,
     )
 
-    const check = await run(Deno.execPath(), ['check', '.'], dir)
+    const check = await runCommand(Deno.execPath(), ['check', '.'], dir)
     if (!check.ok) {
         console.log(`  ❌ deno check\n${tail(check.output)}`)
         return false
     }
     console.log('  ✅ deno check')
 
-    const test = await run(Deno.execPath(), ['task', 'test'], dir)
+    const test = await runCommand(Deno.execPath(), ['task', 'test'], dir)
     if (!test.ok) {
         console.log(`  ❌ deno task test\n${tail(test.output)}`)
         return false
@@ -555,7 +820,7 @@ async function smoke(
     console.log(
         `  ${booted.ok ? '✅' : '❌'} boots — ${booted.detail}`,
     )
-    return booted.ok
+    return await bootLogAndCache(kit, dir, booted)
 }
 
 // ---------------------------------------------------------------------------
@@ -829,17 +1094,17 @@ async function archiveHead(
     dest: string,
 ): Promise<{ ok: boolean; output: string }> {
     const tarball = `${dest}.tar`
-    const archive = await run(
+    const archive = await runCommand(
         'git',
         ['archive', '--format=tar', `--output=${tarball}`, 'HEAD'],
         ROOT,
     )
     if (!archive.ok) return archive
     await Deno.mkdir(dest)
-    const extract = await run('tar', ['-xf', tarball, '-C', dest], ROOT)
+    const extract = await runCommand('tar', ['-xf', tarball, '-C', dest], ROOT)
     await Deno.remove(tarball)
     if (!extract.ok) return extract
-    return await run('git', ['rev-parse', '--short', 'HEAD'], ROOT)
+    return await runCommand('git', ['rev-parse', '--short', 'HEAD'], ROOT)
 }
 
 /**
@@ -869,7 +1134,7 @@ export async function publishToRegistry(
     token: string,
 ): Promise<{ ok: boolean; output: string }> {
     const url = assertLoopbackUrl(registry)
-    const result = await run(
+    const result = await runCommand(
         Deno.execPath(),
         [
             'publish',
@@ -967,7 +1232,7 @@ async function smokeAgainstRegistry(
             console.log(`  ❌ git archive HEAD\n${tail(head.output)}`)
             return false
         }
-        const dirty = await run('git', ['status', '--porcelain'], ROOT)
+        const dirty = await runCommand('git', ['status', '--porcelain'], ROOT)
         console.log(`  ✅ git archive HEAD (${head.output.trim()})`)
         if (dirty.output.trim() !== '') {
             console.log(
@@ -1037,7 +1302,7 @@ async function smokeAgainstRegistry(
                 probe: notFoundIsHtml,
             })
             console.log(`  ${booted.ok ? '✅' : '❌'} boots — ${booted.detail}`)
-            let kitOk = booted.ok
+            let kitOk = await bootLogAndCache(kit, scaffold.dir, booted, env)
             const appDirs = [scaffold.dir, await Deno.realPath(scaffold.dir)]
             // Booting is not enough: a kit whose app file was resolved
             // against the registry still boots, without that file (#474).
@@ -1049,7 +1314,7 @@ async function smokeAgainstRegistry(
             // directory holds no `#` or space, so a hand-built `file://`
             // string would still pass here. The unit tests own that half.
             const listStart = registryLog.length
-            const listed = await run(
+            const listed = await runCommand(
                 'deno',
                 ['task', 'cli', 'router:list'],
                 scaffold.dir,
@@ -1403,7 +1668,7 @@ async function dockerProof(
     try {
         const buildStarted = Date.now()
         leftovers.images.add(tag)
-        const build = await run('docker', [
+        const build = await runCommand('docker', [
             'build',
             '--network=host',
             '--label',
@@ -1426,7 +1691,7 @@ async function dockerProof(
 
         leftovers.containers.add(container)
         started = true
-        const ran = await run(
+        const ran = await runCommand(
             'docker',
             [
                 'run',
@@ -1451,7 +1716,7 @@ async function dockerProof(
 
         const id = container
         const healthy = await pollHealthy(async () => {
-            const inspected = await run(
+            const inspected = await runCommand(
                 'docker',
                 ['inspect', '-f', INSPECT_FORMAT, id],
                 dir,
@@ -1466,10 +1731,17 @@ async function dockerProof(
         })
         if (healthy.ok) {
             lines.push(`  ✅ ${healthy.detail} (--network none)`)
-            return { ok: true, lines }
+            const logs = await runCommand('docker', ['logs', id], dir)
+            const judged = judgeBootLog(logs.output)
+            lines.push(`  ${judged.ok ? '✅' : '❌'} ${judged.detail}`)
+            return { ok: judged.ok, lines }
         }
-        const logs = await run('docker', ['logs', '--tail', '30', id], dir)
-        const probe = await run('docker', [
+        const logs = await runCommand(
+            'docker',
+            ['logs', '--tail', '30', id],
+            dir,
+        )
+        const probe = await runCommand('docker', [
             'inspect',
             '-f',
             '{{if .State.Health}}{{range .State.Health.Log}}{{.Output}}{{end}}{{end}}',
@@ -1518,7 +1790,7 @@ async function dockerProofs(
     leftovers: DockerLeftovers,
 ): Promise<KitName[]> {
     console.log('\n🐳 Docker: build each kit from a fresh scaffold, run it')
-    const version = await run('docker', [
+    const version = await runCommand('docker', [
         'version',
         '--format',
         '{{.Server.Version}}',
