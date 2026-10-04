@@ -1,8 +1,10 @@
 /**
  * @fileoverview The mutation battery for #478 and #438, the #494
  * regressions their fold-in introduced (rows labelled `#494`), the gaps
- * the #494 reviews found (rows labelled `#499`), and the raw value that hid
- * the credential pair after it (rows labelled `#500`).
+ * the #494 reviews found (rows labelled `#499`), the raw value that hid the
+ * credential pair after it (rows labelled `#500`), and the numeric-PIN names
+ * and qualified `code` compounds the net printed in clear (rows labelled
+ * `#497`).
  *
  * Runs under the shared contract in `harness.ts`, which refuses to start unless
  * the suites are already green and the target files are clean, and requires
@@ -333,6 +335,152 @@ const MUTATIONS: Mutation[] = [
         edits: [["j += text[j + 2] === '\\\\' ? 4 : 3", 'j += 2']],
         killedBy:
             'an escaped quote inside an escaped-quote value does not end it',
+    },
+    // ---- #497 numeric-PIN names and the qualified `code` rule ---------------
+    {
+        label: '#497 the `pin` stem deleted — `pin=<digits>` shows',
+        file: CREDENTIALS,
+        edits: [["    'pin',\n", '']],
+        killedBy: 'a numeric-PIN name masks an all-digit value, quoted or not',
+    },
+    {
+        label: '#497 the `otp` stem deleted — `otp=<digits>` shows',
+        file: CREDENTIALS,
+        edits: [["    'otp',\n", '']],
+        killedBy: 'a numeric-PIN name masks an all-digit value, quoted or not',
+    },
+    {
+        label: '#497 the `cvv` stem deleted — `cvv=<digits>` shows',
+        file: CREDENTIALS,
+        edits: [["    'cvv',\n", '']],
+        killedBy: 'a numeric-PIN name masks an all-digit value, quoted or not',
+    },
+    {
+        label: '#497 the `cvc` stem deleted — `cvc=<digits>` shows',
+        file: CREDENTIALS,
+        edits: [["    'cvc',\n", '']],
+        killedBy: 'a numeric-PIN name masks an all-digit value, quoted or not',
+    },
+    {
+        label: '#497 the code rule skipped — `pin_code=<digits>` shows',
+        file: CREDENTIALS,
+        // Never true, yet `rest` stays narrowed to a string: a bare `false`
+        // (or `false &&`) loses the narrowing, so that mutant does not
+        // type-check and dies unrun.
+        edits: [[
+            'if (rest !== undefined) return',
+            'if (rest !== undefined && rest !== rest) return',
+        ]],
+        killedBy:
+            'a code qualified by a credential or a factor word is masked anywhere',
+    },
+    {
+        label: '#497 every code compound qualified — `status_code=503` is lost',
+        file: CREDENTIALS,
+        edits: [[
+            'CODE_QUALIFIERS.some((word) => rest.endsWith(word)) ||',
+            'true ||',
+        ]],
+        killedBy: 'an unqualified code compound is still a diagnostic',
+    },
+    {
+        label:
+            '#497 a credential stem no longer qualifies a code — `pin_code` shows',
+        file: CREDENTIALS,
+        edits: [[
+            'CREDENTIAL_STEMS.some((stem) => rest.endsWith(stem))',
+            'false',
+        ]],
+        killedBy:
+            'a code qualified by a credential or a factor word is masked anywhere',
+    },
+    {
+        label: '#497 the `codes` suffix dropped — `backup_codes` shows',
+        file: CREDENTIALS,
+        edits: [["['codes', 'code']", "['code']"]],
+        killedBy:
+            'a code qualified by a credential or a factor word is masked anywhere',
+    },
+    {
+        label: '#497 the `mfa` qualifier deleted — `mfa_code` shows',
+        file: CREDENTIALS,
+        edits: [["    'mfa',\n", '']],
+        killedBy:
+            'a code qualified by a credential or a factor word is masked anywhere',
+    },
+    {
+        label: '#497 the `2fa` qualifier deleted — `2fa_code` shows',
+        file: CREDENTIALS,
+        edits: [["    '2fa',\n", '']],
+        killedBy:
+            'a code qualified by a credential or a factor word is masked anywhere',
+    },
+    {
+        label: '#497 the `sms` qualifier deleted — `sms_code` shows',
+        file: CREDENTIALS,
+        edits: [["    'sms',\n", '']],
+        killedBy:
+            'a code qualified by a credential or a factor word is masked anywhere',
+    },
+    {
+        label: '#497 the `onetime` qualifier deleted — `one_time_code` shows',
+        file: CREDENTIALS,
+        edits: [["    'onetime',\n", '']],
+        killedBy:
+            'a code qualified by a credential or a factor word is masked anywhere',
+    },
+    {
+        label: '#497 the `security` qualifier deleted — `security_code` shows',
+        file: CREDENTIALS,
+        edits: [["    'security',\n", '']],
+        killedBy:
+            'a code qualified by a credential or a factor word is masked anywhere',
+    },
+    {
+        label:
+            '#497 the `verification` qualifier deleted — `verification_code` shows',
+        file: CREDENTIALS,
+        edits: [["    'verification',\n", '']],
+        killedBy:
+            'a code qualified by a credential or a factor word is masked anywhere',
+    },
+    {
+        label: '#497 the `verify` qualifier deleted — `verify_code` shows',
+        file: CREDENTIALS,
+        edits: [["    'verify',\n", '']],
+        killedBy:
+            'a code qualified by a credential or a factor word is masked anywhere',
+    },
+    {
+        label: '#497 the `recovery` qualifier deleted — `recovery_code` shows',
+        file: CREDENTIALS,
+        edits: [["    'recovery',\n", '']],
+        killedBy:
+            'a code qualified by a credential or a factor word is masked anywhere',
+    },
+    {
+        label: '#497 the `backup` qualifier deleted — `backup_codes` shows',
+        file: CREDENTIALS,
+        edits: [["    'backup',\n", '']],
+        killedBy:
+            'a code qualified by a credential or a factor word is masked anywhere',
+    },
+    {
+        label: '#497 the `access` qualifier deleted — `access_code` shows',
+        file: CREDENTIALS,
+        edits: [["    'access',\n", '']],
+        killedBy:
+            'a code qualified by a credential or a factor word is masked anywhere',
+    },
+    {
+        label:
+            '#497 a count word alone makes a count — `max_pins=<digits>` shows',
+        file: CREDENTIALS,
+        edits: [[
+            'COUNT_PLURALS.some((plural) => normalised.endsWith(plural)) &&',
+            'true &&',
+        ]],
+        killedBy: 'a numeric-PIN name is never a count',
     },
     // ---- renderOne's order ----------------------------------------------------
     {
