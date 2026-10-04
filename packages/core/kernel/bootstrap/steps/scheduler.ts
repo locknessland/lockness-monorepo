@@ -75,6 +75,10 @@ async function buildReporter(context: BootstrapContext): Promise<
  *   reporter port, so failures do not fall back to raw `console.error`
  *   (FR-020) — unless the application already installed a reporter of its
  *   own, which wins
+ * - Install the configured `schedulerLock`, or **refuse** the boot when it
+ *   cannot: a `'redis'` driver with no `redis` connection, or a `driver` it
+ *   does not recognise (#517). Either used to install no lock and say nothing,
+ *   so every replica ran each `onOneServer` task
  * - Discover from `schedulesDir`, and register the explicit `schedules` list
  * - Start the scheduler and log the **armed** count unconditionally
  * - **Re-throw** parse and registration failures. A schedule that cannot be
@@ -147,7 +151,22 @@ export const schedulerStep: BootstrapStep = {
             const { DenoKvSchedulerLock, RedisSchedulerLock } = await import(
                 '../../../scheduler/locks.ts'
             )
-            if (lockConfig.driver === 'redis' && lockConfig.redis) {
+            if (lockConfig.driver === 'redis') {
+                // The type requires `redis`; this is for the caller the type
+                // cannot reach — plain JS, a config built from `any`. Without
+                // it the branch used to be skipped, and the boot installed no
+                // lock and said nothing (#517). Checked before the import, so
+                // the message names the missing connection whether or not the
+                // package is installed.
+                const connection: unknown = lockConfig.redis
+                if (typeof connection !== 'object' || connection === null) {
+                    throw new TypeError(
+                        "schedulerLock.driver 'redis' needs a connection: set " +
+                            "`schedulerLock.redis` (e.g. { hostname: '127.0.0.1' }) " +
+                            'in @Kernel(). Without it no lock is installed and ' +
+                            'every replica runs each onOneServer task.',
+                    )
+                }
                 // Required, not optional (#505). A missing @lockness/redis
                 // used to log once and install NO lock — so every replica ran
                 // each `onOneServer` task, the exact duplicate the lock exists
@@ -183,6 +202,19 @@ export const schedulerStep: BootstrapStep = {
                     dispose: () => kv.close(),
                     priority: SHUTDOWN_PRIORITY.STORES,
                 })
+            } else {
+                // Unreachable for a typed caller — the assignment makes a new
+                // driver added to the union a compile error here, not a silent
+                // fall-through. An untyped caller with a typo in `driver` used
+                // to boot with no lock installed (#517).
+                const unrecognised: never = lockConfig
+                throw new TypeError(
+                    `schedulerLock.driver ${
+                        JSON.stringify(
+                            (unrecognised as { driver?: unknown }).driver,
+                        )
+                    } is not recognised. Use 'redis' or 'deno-kv'.`,
+                )
             }
         }
 

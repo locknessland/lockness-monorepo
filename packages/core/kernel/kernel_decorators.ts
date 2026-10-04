@@ -447,27 +447,52 @@ export interface KernelConfig {
      * in-process. Size `ttlMs` above a guarded task's worst-case runtime — the
      * guarantee is at-most-once **within the TTL**.
      *
-     * @example
+     * A union on `driver`, so each driver carries only its own settings: the
+     * `'redis'` member **requires** `redis`, and the `'deno-kv'` member does not
+     * accept it. A configured lock either installs or refuses the boot — it
+     * never runs unguarded. `{ driver: 'redis' }` without `redis` fails to
+     * compile, and from an untyped caller (plain JS, a config built from `any`)
+     * it throws a `TypeError` naming `schedulerLock.redis` at boot, as does an
+     * unrecognised `driver` (#517). Until v0.5.0 both booted silently with no
+     * lock installed.
+     *
+     * @example Redis (needs `@lockness/redis` in the application)
      * ```typescript
      * @Kernel({ schedulerLock: { driver: 'redis', redis: { hostname: '127.0.0.1' } } })
      * ```
+     *
+     * @example Deno KV
+     * ```typescript
+     * @Kernel({ schedulerLock: { driver: 'deno-kv', kvPath: './storage/lock.kv' } })
+     * ```
      */
-    schedulerLock?: {
-        /** Which backing store the lock uses. */
-        driver: 'redis' | 'deno-kv'
-        /** Claim lifetime in milliseconds. @default 300000 */
-        ttlMs?: number
-        /** Deno KV path (for the `'deno-kv'` driver). */
-        kvPath?: string
-        /** Redis connection (for the `'redis'` driver). */
-        redis?: {
-            hostname: string
-            port?: number
-            password?: string
-            db?: number
-            tls?: boolean
+    schedulerLock?:
+        | {
+            /** The Redis backing store. */
+            driver: 'redis'
+            /** Claim lifetime in milliseconds. @default 300000 */
+            ttlMs?: number
+            /** Redis connection — required for this driver. */
+            redis: {
+                hostname: string
+                port?: number
+                password?: string
+                db?: number
+                tls?: boolean
+            }
+            /** Not accepted: a Deno KV path belongs to the `'deno-kv'` driver. */
+            kvPath?: never
         }
-    }
+        | {
+            /** The Deno KV backing store. */
+            driver: 'deno-kv'
+            /** Claim lifetime in milliseconds. @default 300000 */
+            ttlMs?: number
+            /** Deno KV path. Omitted, Deno's default database is opened. */
+            kvPath?: string
+            /** Not accepted: a Redis connection belongs to the `'redis'` driver. */
+            redis?: never
+        }
 
     /**
      * Mount point for URL prefixing (i18n, multi-tenancy).
