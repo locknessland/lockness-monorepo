@@ -529,9 +529,10 @@ export class UserController {
 
 ## Upgrading to v0.5.0
 
-Three items. **Migration step:** for every optional feature your `@Kernel()`
+Four items. **Migration step:** for every optional feature your `@Kernel()`
 configures, make sure the package is in your `deno.json`; add `telemetry: true`
-and `logger: true` if you relied on those packages switching on by presence.
+and `logger: true` if you relied on those packages switching on by presence;
+give a `schedulerLock` with `driver: 'redis'` its `redis` connection.
 
 ### 1. A configured optional package that does not resolve refuses the boot
 
@@ -584,6 +585,22 @@ against the _application's_ import map. An app installed from JSR does not map
 `@lockness/events`, so `KernelBooted` never fired there — while every workspace
 test saw it fire. It is now imported statically. **No step is required**, but a
 `KernelBooted` listener you wrote and never saw run will start running at boot.
+
+### 4. A `schedulerLock` that cannot install a lock refuses the boot
+
+`schedulerLock: { driver: 'redis' }` with no `redis` connection matched no
+branch at boot: no lock was installed, nothing was logged, and every replica ran
+each `onOneServer` task (#517). An unrecognised `driver` did the same.
+
+- **Compile time:** `schedulerLock` is now a union on `driver`. The `'redis'`
+  member requires `redis`, and the `'deno-kv'` member no longer accepts it, so a
+  kernel that sets either wrongly stops compiling.
+- **Boot:** a config the type cannot see — plain JS, or one built from `any` —
+  throws a `TypeError` from `createApp()` naming `schedulerLock.redis`, or the
+  unrecognised `schedulerLock.driver`.
+- **The fix:** add the connection (`redis: { hostname: '127.0.0.1' }`), switch
+  to `driver: 'deno-kv'`, or remove `schedulerLock`. Drop a stray `redis` block
+  from a `'deno-kv'` config.
 
 ## 📚 Technical Reference
 
