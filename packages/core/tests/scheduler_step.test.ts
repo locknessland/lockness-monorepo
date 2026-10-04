@@ -8,20 +8,71 @@
  * `console.error` instead of the application's own logging.
  */
 
-import { assertEquals } from '@std/assert'
+import { assertEquals, assertRejects, assertStringIncludes } from '@std/assert'
 import { Scheduler, scheduler, setScheduler } from '@lockness/scheduler'
 import { schedulerStep } from '../kernel/bootstrap/steps/scheduler.ts'
 import type { BootstrapContext } from '../kernel/bootstrap/types.ts'
+import type { ImportModule } from '../kernel/bootstrap/optional_packages.ts'
+import type { KernelConfig } from '../kernel/kernel_decorators.ts'
 
 /** A context carrying nothing the scheduler step does not read. */
-function contextWith(config: Record<string, unknown>): BootstrapContext {
+function contextWith(
+    config: Record<string, unknown>,
+    importModule?: ImportModule,
+): BootstrapContext {
     class TestKernel {}
     return {
         config,
         kernel: new TestKernel(),
         KernelClass: TestKernel,
         bootHooks: [],
+        importModule,
     } as unknown as BootstrapContext
+}
+
+/** An importer that records every specifier and resolves none of them. */
+function recordingImporter(): { importModule: ImportModule; calls: string[] } {
+    const calls: string[] = []
+    return {
+        calls,
+        importModule: (specifier) => {
+            calls.push(specifier)
+            return Promise.reject(
+                new TypeError(`unexpected import ${specifier}`),
+            )
+        },
+    }
+}
+
+/**
+ * Run the step with an untyped `schedulerLock` — the shape a plain-JS caller,
+ * or a config built from `any`, can hand the kernel past the type — and return
+ * the boot's rejection.
+ */
+async function bootRejectingLock(
+    schedulerLock: unknown,
+): Promise<{ error: TypeError; calls: string[] }> {
+    const { importModule, calls } = recordingImporter()
+    setScheduler(new Scheduler())
+    try {
+        const error = await assertRejects(
+            async () =>
+                await schedulerStep.run(contextWith({
+                    schedulerLock,
+                    schedulesDir: './tmp/does-not-exist-schedules',
+                }, importModule)),
+            TypeError,
+        )
+        assertEquals(
+            scheduler().hasLock,
+            false,
+            'a refused lock config installs nothing',
+        )
+        return { error, calls }
+    } finally {
+        scheduler().stop()
+        setScheduler(undefined)
+    }
 }
 
 /**
@@ -134,4 +185,43 @@ Deno.test('schedulerStep - without logger: true no reporter is wired, and the lo
         assertEquals(scheduler().hasReporter, false)
         return Promise.resolve()
     }, {})
+})
+
+Deno.test("KernelConfig.schedulerLock - driver 'redis' without a connection does not compile", () => {
+    // #517: one object type with an optional `redis` let this compile, and at
+    // boot it installed no lock — every replica ran each onOneServer task.
+    // @ts-expect-error - the 'redis' member requires `redis`
+    const missing: KernelConfig['schedulerLock'] = { driver: 'redis' }
+    const stray: KernelConfig['schedulerLock'] = {
+        driver: 'deno-kv',
+        // @ts-expect-error - the 'deno-kv' member does not accept `redis`
+        redis: { hostname: '127.0.0.1' },
+    }
+    const valid: KernelConfig['schedulerLock'][] = [
+        { driver: 'redis', redis: { hostname: '127.0.0.1' }, ttlMs: 60_000 },
+        { driver: 'deno-kv' },
+        { driver: 'deno-kv', kvPath: './tmp/lock.kv', ttlMs: 60_000 },
+    ]
+    assertEquals([missing, stray, ...valid].length, 5)
+})
+
+Deno.test("schedulerStep - schedulerLock.driver 'redis' without a connection refuses the boot", async () => {
+    // It used to match neither branch, install no lock and say nothing (#517).
+    // The refusal comes before the package import, so it names the missing
+    // connection whether or not @lockness/redis is installed.
+    const { error, calls } = await bootRejectingLock({ driver: 'redis' })
+    assertStringIncludes(error.message, 'schedulerLock.redis')
+    assertEquals(calls, [], 'no package is imported for a refused config')
+})
+
+Deno.test("schedulerStep - schedulerLock.driver 'redis' with a non-object connection refuses the boot", async () => {
+    const { error } = await bootRejectingLock({ driver: 'redis', redis: null })
+    assertStringIncludes(error.message, 'schedulerLock.redis')
+})
+
+Deno.test('schedulerStep - an unknown schedulerLock.driver refuses the boot', async () => {
+    const { error, calls } = await bootRejectingLock({ driver: 'memcached' })
+    assertStringIncludes(error.message, 'schedulerLock.driver')
+    assertStringIncludes(error.message, '"memcached"')
+    assertEquals(calls, [])
 })
