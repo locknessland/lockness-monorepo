@@ -427,6 +427,78 @@ Deno.test('#499 after `&amp;`, a credential other than `code` keeps the raw end'
     }
 })
 
+/** Assert that `text` renders as `expected` and leaks no marker part. */
+function assertRedacted(cases: Record<string, string>): void {
+    for (const [text, expected] of Object.entries(cases)) {
+        assertEquals(redactQueryCredentials(text), expected, text)
+        assertNoMarker(render(text), text)
+    }
+}
+
+Deno.test('#500 a credential pair after `&amp;` is masked by its own rule', () => {
+    // A raw value used to run through `&amp;<credential>=`, hiding the next
+    // name from the scan, so its quoted or blank-separated value showed.
+    assertRedacted({
+        [`/x?y=1&amp;password=${HEAD}&amp;token="${TAIL}"`]:
+            '/x?y=1&amp;password=***&amp;token="***"',
+        [`/x?y=1&amp;password=${HEAD}&amp;api_key= ${TAIL}`]:
+            '/x?y=1&amp;password=***&amp;api_key= ***',
+        [`/x?y=1&amp;password=${HEAD}&amp;api_key =${TAIL}`]:
+            '/x?y=1&amp;password=***&amp;api_key =***',
+        [`/x?y=1&AMP;password=${HEAD}&AMP;token="${TAIL}"`]:
+            '/x?y=1&AMP;password=***&AMP;token="***"',
+    })
+})
+
+Deno.test('#500 a credential pair after a raw `&` is masked by its own rule', () => {
+    assertRedacted({
+        [`--password=${HEAD}&token="${TAIL}" -v`]:
+            '--password=***&token="***" -v',
+        [`--password=${HEAD}&api%5Fkey="${TAIL}" -v`]:
+            '--password=***&api%5Fkey="***" -v',
+        [`--password=${HEAD}&code="${TAIL}" -v`]:
+            '--password=***&code="***" -v',
+    })
+})
+
+Deno.test('#500 a raw value runs on through `&` that starts no credential pair', () => {
+    // Cutting there would show the rest of a CLI or HTML-escaped value.
+    assertRedacted({
+        [`password=${HEAD}&lt;${TAIL} end`]: 'password=*** end',
+        [`--password=ab&${M} -v`]: '--password=*** -v',
+        [`--password=${HEAD}&x=${TAIL} -v`]: '--password=*** -v',
+        [`/x?y=1&amp;password=${HEAD}&amp;b=${TAIL} end`]:
+            '/x?y=1&amp;password=*** end',
+    })
+    assertEquals(redactQueryCredentials('--password=ab&cd'), '--password=***')
+    // The accepted cost: a value that holds `&<credential>=` shows that
+    // fragment, and a count after it reads as a count.
+    assertEquals(
+        redactQueryCredentials('--password=ab&max_tokens=4096'),
+        '--password=***&max_tokens=4096',
+    )
+})
+
+Deno.test('#500 the scan stays linear on credential lookaheads', () => {
+    // About 5 MB each: a cut at every `&amp;`, a lookahead that never meets
+    // `=`, a long non-credential name, and a run of non-credential pairs.
+    const size = 5 << 20
+    for (
+        const text of [
+            'password=' + '&amp;token='.repeat(size / 11),
+            'password=a' + '&amp;tokenx'.repeat(size / 11),
+            '--password=a&' + 'a'.repeat(size),
+            '--password=a' + '&x='.repeat(size / 3),
+            '--password=a' + '&token\t'.repeat(size / 7),
+        ]
+    ) {
+        const start = performance.now()
+        redactQueryCredentials(text)
+        const elapsed = performance.now() - start
+        assert(elapsed < 1000, `${text.slice(0, 24)}: ${elapsed.toFixed(0)} ms`)
+    }
+})
+
 Deno.test('#494 a `code` ending at `&` and another pair is a form body', () => {
     assertEquals(
         redactQueryCredentials(

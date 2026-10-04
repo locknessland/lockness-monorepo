@@ -185,12 +185,21 @@ function isCountName(normalised: string): boolean {
  *   percent-encoded) a value also ends at `&`, `#`, `<` or `>`, so the
  *   neighbouring parameters stay readable. A bare `code` after `&amp;` (an
  *   `href`'s query) ends there too.
- * - Anywhere else it ends only at ASCII whitespace or a quote, save a
- *   form-body `code`, which ends at `&` (below). A CLI `--password=ab&cd`
- *   holds its `&` as content, and so does a value after `&amp;` that was
- *   HTML-escaped whole (`password=ab&lt;cd`); ending there would leak the
- *   rest. `;` and `%26` never end a value: an ODBC tail after `Pwd=` is
- *   eaten, and eating more is the safe direction.
+ * - Anywhere else it ends at ASCII whitespace or a quote, save a form-body
+ *   `code`, which ends at `&` (below). A CLI `--password=ab&cd` holds its
+ *   `&` as content, and so does a value after `&amp;` that was HTML-escaped
+ *   whole (`password=ab&lt;cd`); ending there would leak the rest.
+ * - Such a raw value also ends before a `&` or `&amp;` that starts another
+ *   credential `name=` (named by this same rule), so that pair is masked by
+ *   its own rule. Eating it is NOT the safe direction: the eaten name is
+ *   hidden from the scan, and a quoted or blank-separated value of that pair
+ *   (`&amp;token="…"`, `&api_key= …`) would render in clear. The accepted
+ *   cost: a value that holds `&<credential>=` shows that fragment
+ *   (`--password=ab&token=cd` renders `--password=***&token=***`), and a count
+ *   after it reads as a count.
+ * - `;` and `%26` never end a value: an ODBC tail after `Pwd=` is eaten with
+ *   it. That over-masks the tail, and it shares the flaw above — a pair after
+ *   a `;` is hidden, so `Pwd=…;Token="…"` shows the quoted token.
  *
  * An empty value is left alone, so `?token=&page=1` stays diagnostic. Blanks
  * after `=` are always skipped, so `password= …` (what `util.format('k=', v)`
@@ -285,7 +294,12 @@ function redactPairs(text: string): string {
         }
         const ends = url ? URL_VALUE_END : RAW_VALUE_END
         let end = valueStart
-        while (end < text.length && !ends.has(text[end])) end++
+        while (end < text.length && !ends.has(text[end])) {
+            if (!url && text[end] === '&' && startsCredentialPair(text, end)) {
+                break
+            }
+            end++
+        }
         if (match === 'count' && isDigits(text, valueStart, end)) {
             // `max_tokens=4096` counts tokens; it is not one.
             i = end
@@ -519,10 +533,44 @@ function readFormRun(text: string, from: number): FormRun {
     let end = from
     while (end < text.length && !URL_VALUE_END.has(text[end])) end++
     if (text[end] !== '&') return { end, query: false }
-    let j = isEscapedAmpersand(text, end) ? end + AMP.length : end + 1
-    const name = j
-    while (j < text.length && isNameCharacter(text[j])) j++
-    return { end, query: j > name && equalsAt(text, j) > 0 }
+    return { end, query: pairNameAfter(text, end) !== undefined }
+}
+
+/**
+ * Whether the `&` at `at` starts another credential pair, which must end the
+ * raw value it sits in so the pair is masked by its own rule.
+ *
+ * @param text - The text being scanned.
+ * @param at - The index of a `&`, raw or the start of `&amp;`.
+ * @returns True when a credential-named `name=` follows.
+ */
+function startsCredentialPair(text: string, at: number): boolean {
+    const name = pairNameAfter(text, at)
+    return name !== undefined && classifyName(name) !== undefined
+}
+
+/**
+ * The name of the pair that starts after the `&` (or `&amp;`) at `at`.
+ *
+ * A name here is what {@link nameStart} walks over, read rightwards: name
+ * characters, raw or percent-encoded. Blanks may sit before the equals sign,
+ * as in `api_key =…`.
+ *
+ * Linear across a scan: the read stops at the first character that is
+ * neither a name character nor a blank, so it never crosses the next `&`,
+ * and the reads after two ampersands never overlap.
+ *
+ * @param text - The text being scanned.
+ * @param at - The index of a `&`, raw or the start of `&amp;`.
+ * @returns The name as written, or `undefined` when no `name=` follows.
+ */
+function pairNameAfter(text: string, at: number): string | undefined {
+    const start = isEscapedAmpersand(text, at) ? at + AMP.length : at + 1
+    const end = nameEnd(text, start)
+    if (end === start) return undefined
+    return equalsAt(text, skipBlanksRight(text, end)) > 0
+        ? text.slice(start, end)
+        : undefined
 }
 
 /**
@@ -613,6 +661,32 @@ function nameStart(text: string, end: number, floor: number): number {
         }
         if (!isNameCharacter(text[j - 1])) break
         j--
+    }
+    return j
+}
+
+/**
+ * Walk right from `start` over a parameter name and return where it ends —
+ * {@link nameStart}'s walk in the other direction, crossing `%XX` only when
+ * it decodes to a name character.
+ *
+ * @param text - The text being scanned.
+ * @param start - The index of the name's first character.
+ * @returns One past the name's last character; `start` when there is none.
+ */
+function nameEnd(text: string, start: number): number {
+    let j = start
+    while (j < text.length) {
+        if (text[j] === '%' && isHex(text[j + 1]) && isHex(text[j + 2])) {
+            const decoded = String.fromCharCode(
+                parseInt(text.slice(j + 1, j + 3), 16),
+            )
+            if (!isNameCharacter(decoded)) break
+            j += 3
+            continue
+        }
+        if (!isNameCharacter(text[j])) break
+        j++
     }
     return j
 }
