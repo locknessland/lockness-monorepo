@@ -241,7 +241,9 @@ export class AppKernel {}
 ```
 
 Listeners are auto-discovered from `listenersDir` and can also be explicitly
-registered via `config.listeners`.
+registered via `config.listeners`. A missing `listenersDir` is tolerated; a
+listener file that fails to load refuses the boot with a `ListenerLoadError`
+naming the file (#518).
 
 ## Complete Example
 

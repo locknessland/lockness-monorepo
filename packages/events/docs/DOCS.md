@@ -827,6 +827,11 @@ export class AppKernel {}
 Both `listenersDir` and `listeners` work together - auto-discovered listeners
 from the directory are registered alongside explicit listener classes.
 
+A missing `listenersDir` is fine: the explicit `listeners` still register. A
+listener file that fails to load (an unresolvable import, a compile error, a
+throw at load) refuses the boot with a `ListenerLoadError` naming the file. See
+[When a listener file fails to load](/docs/lifecycle-events#when-a-listener-file-fails-to-load).
+
 ### Multiple Listeners per Event
 
 You can have multiple methods listening to the same event:

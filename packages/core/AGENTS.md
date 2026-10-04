@@ -28,6 +28,12 @@ This brief does not repeat it.
   loader's variable specifier resolves against the _application's_ import map;
   `@lockness/events` went through it and `KernelBooted` never fired in a
   JSR-installed app (#505).
+- **A boot discovery step tolerates only an absent directory.** The listeners
+  and schedules steps catch `Deno.errors.NotFound` from discovery and rethrow
+  everything else, so a file that cannot load refuses the boot (#518).
+  `discoverListeners` wraps each import failure in a `ListenerLoadError` naming
+  the file, because a module can throw `NotFound` itself while it evaluates and
+  would otherwise pass for an absent directory.
 - **A soft dependency is never declared in `deno.json`.** The consuming
   application installs it, or the feature stays off. Declaring one would make an
   optional package mandatory for every consumer.
@@ -105,7 +111,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-55 test files for 74 source files:
+56 test files for 74 source files:
 
 - `packages/core/cli/tests/kernel_file.test.ts`
 - `packages/core/cli/tests/ssg_command.test.ts`
@@ -137,6 +143,7 @@ Anything not listed is internal and free to change.
 - `packages/core/tests/hono_reexports.test.ts`
 - `packages/core/tests/kernel.test.ts`
 - `packages/core/tests/kernel_ssg_config.test.ts`
+- `packages/core/tests/listeners_step.test.ts`
 - `packages/core/tests/load_failure_redaction.test.ts`
 - `packages/core/tests/middleware_resolver_declared.test.ts`
 - `packages/core/tests/mount_pattern.test.ts`
@@ -185,7 +192,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 55 test files directly —
+Then, specific to this package: run its 56 test files directly —
 
 ```bash
 deno test -A packages/core/

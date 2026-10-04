@@ -529,10 +529,11 @@ export class UserController {
 
 ## Upgrading to v0.5.0
 
-Four items. **Migration step:** for every optional feature your `@Kernel()`
+Five items. **Migration step:** for every optional feature your `@Kernel()`
 configures, make sure the package is in your `deno.json`; add `telemetry: true`
 and `logger: true` if you relied on those packages switching on by presence;
-give a `schedulerLock` with `driver: 'redis'` its `redis` connection.
+give a `schedulerLock` with `driver: 'redis'` its `redis` connection; and fix or
+delete any listener file that fails to load.
 
 ### 1. A configured optional package that does not resolve refuses the boot
 
@@ -601,6 +602,24 @@ each `onOneServer` task (#517). An unrecognised `driver` did the same.
 - **The fix:** add the connection (`redis: { hostname: '127.0.0.1' }`), switch
   to `driver: 'deno-kv'`, or remove `schedulerLock`. Drop a stray `redis` block
   from a `'deno-kv'` config.
+
+### 5. A listener file that fails to load refuses the boot
+
+Discovery imports every file under `listenersDir` before it registers any. So
+one listener that imported an unresolvable specifier, failed to compile or threw
+while loading dropped **every** directory listener, and the explicit `listeners`
+too. The boot logged it, or printed nothing at all, and carried on (#518).
+`createApp()` now rejects with a `ListenerLoadError` naming the file:
+
+```text
+ListenerLoadError: Listener file "app/listener/audit_listener.ts" could not be loaded, so no listener was registered: …
+```
+
+- **Unchanged:** a missing `listenersDir` boots silently, and the explicit
+  `listeners` still register.
+- **The fix:** repair the file named in the error. If your app booted with
+  `⚠️  Error discovering listeners:` in its log, a listener file was already
+  broken, and no directory or explicit listener ran.
 
 ## 📚 Technical Reference
 

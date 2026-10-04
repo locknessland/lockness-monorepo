@@ -309,6 +309,9 @@ Listener classes are auto-discovered from `listenersDir` and can also be
 explicitly registered via `config.listeners`. This allows packages to export
 listeners that users can opt-in to use.
 
+A missing `listenersDir` is tolerated. A listener file that fails to load
+refuses the boot with a `ListenerLoadError` naming the file (#518).
+
 See [Lifecycle Events Guide](/docs/lifecycle-events) for more details on
 creating events and listeners.
 

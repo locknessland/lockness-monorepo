@@ -838,6 +838,30 @@ export class AppKernel {}
 > together. Listeners from the directory are auto-discovered, and explicit
 > listener classes are also registered.
 
+### When a listener file fails to load
+
+A missing `listenersDir` is fine: an app with no listeners has no directory, and
+the boot says nothing about it. The explicit `listeners` are still registered.
+
+Any other failure refuses the boot. That covers a listener file that imports a
+specifier the app cannot resolve, one that does not compile, and one that throws
+while it loads. `createApp()` rejects with a `ListenerLoadError` that names the
+file:
+
+```text
+ListenerLoadError: Listener file "app/listener/audit_listener.ts" could not be loaded, so no listener was registered: TypeError [ERR_MODULE_NOT_FOUND]: Import "@acme/audit" not a dependency and not in import map …
+```
+
+Discovery imports every listener file before it registers any, so one broken
+file means no directory listener is registered at all. Until v0.5.0 the step
+logged that, or hid it entirely, and booted anyway. Events then fired into an
+empty dispatcher, and audit or lockout handlers stopped without any sign (#518).
+The schedules directory follows the same rule.
+
+The original error is included in the message, rendered on one line with
+credentials redacted. The error has no `cause`, so an uncaught refusal prints
+nothing beyond that line and its stack.
+
 ## See Also
 
 - [Events API Reference](/docs/events) - Complete API documentation for
