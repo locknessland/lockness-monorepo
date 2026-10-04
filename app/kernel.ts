@@ -63,6 +63,12 @@ import { config } from '../config/mod.ts'
     // Enable devtools in development
     devtools: true,
 
+    // OpenTelemetry request spans (a no-op unless OTEL_DENO is set) and the
+    // logger-backed scheduler reporter. Both used to switch on because the
+    // packages resolve in this workspace; since #505 the kernel names them.
+    telemetry: true,
+    logger: true,
+
     // Static files directory
     staticDir: 'public',
 
