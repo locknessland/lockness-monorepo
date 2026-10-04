@@ -1,7 +1,8 @@
 /**
  * @fileoverview The mutation battery for #478 and #438, the #494
- * regressions their fold-in introduced (rows labelled `#494`), and the gaps
- * the #494 reviews found (rows labelled `#499`).
+ * regressions their fold-in introduced (rows labelled `#494`), the gaps
+ * the #494 reviews found (rows labelled `#499`), and the raw value that hid
+ * the credential pair after it (rows labelled `#500`).
  *
  * Runs under the shared contract in `harness.ts`, which refuses to start unless
  * the suites are already green and the target files are clean, and requires
@@ -58,7 +59,10 @@ const MUTATIONS: Mutation[] = [
         label:
             'the walk crosses an encoded separator — `cb%3Fcode` hides `code`',
         file: CREDENTIALS,
-        edits: [['if (!isNameCharacter(decoded)) break', 'if (false) break']],
+        edits: [[
+            'if (!isNameCharacter(decoded)) break\n            j -= 3',
+            'if (false) break\n            j -= 3',
+        ]],
         killedBy:
             'an encoded separator ends a name, so a nested `code` is found',
     },
@@ -211,12 +215,18 @@ const MUTATIONS: Mutation[] = [
             '#499 a form body ignores `&amp;` — `code=M&amp;grant_type=` leaks',
         file: CREDENTIALS,
         edits: [[
-            'let j = isEscapedAmpersand(text, end) ? end + AMP.length : end + 1',
-            'let j = end + 1',
+            'const start = isEscapedAmpersand(text, at) ? at + AMP.length : at + 1',
+            'const start = at + 1',
         ]],
         killedBy: 'a `code` ending at `&` and another pair is a form body',
     },
     {
+        // Killed by wall-clock alone: no structural signal exists, because the
+        // memo is private state of a pure function, and a scan-step count
+        // would put a test-only counter into the production module. Margin
+        // measured at #500: the mutant takes 4.9-8.6 s against the 1000 ms
+        // threshold (the real scan, 3-4 ms), so a runner roughly 5x faster
+        // would report SURVIVED. Re-measure if the row ever survives.
         label:
             '#499 the form run re-read at every `code=` — the scan goes quadratic',
         file: CREDENTIALS,
@@ -236,6 +246,67 @@ const MUTATIONS: Mutation[] = [
         ]],
         killedBy:
             'after `&amp;`, a credential other than `code` keeps the raw end',
+    },
+    {
+        label:
+            '#500 a raw value runs through `&<credential>=` — a quoted `token="M"` after it shows',
+        file: CREDENTIALS,
+        edits: [[
+            "if (!url && text[end] === '&' && startsCredentialPair(text, end)) {",
+            'if (false) {',
+        ]],
+        killedBy: 'a credential pair after a raw `&` is masked by its own rule',
+    },
+    {
+        label:
+            '#500 a raw value cut before any `name=` — `--password=ab&x=M` shows its tail',
+        file: CREDENTIALS,
+        edits: [[
+            'return name !== undefined && classifyName(name) !== undefined',
+            'return name !== undefined',
+        ]],
+        killedBy:
+            'a raw value runs on through `&` that starts no credential pair',
+    },
+    {
+        label:
+            '#500 the lookahead reads `amp;` as the name — `&amp;token="M"` shows',
+        file: CREDENTIALS,
+        edits: [[
+            'const start = isEscapedAmpersand(text, at) ? at + AMP.length : at + 1',
+            'const start = at + 1',
+        ]],
+        killedBy: 'a credential pair after `&amp;` is masked by its own rule',
+    },
+    {
+        label:
+            '#500 the lookahead skips no blanks before `=` — `&amp;api_key =M` shows',
+        file: CREDENTIALS,
+        edits: [[
+            'return equalsAt(text, skipBlanksRight(text, end)) > 0',
+            'return equalsAt(text, end) > 0',
+        ]],
+        killedBy: 'a credential pair after `&amp;` is masked by its own rule',
+    },
+    {
+        label: '#500 the lookahead stops at `%XX` — `&api%5Fkey="M"` shows',
+        file: CREDENTIALS,
+        edits: [[
+            "if (text[j] === '%' && isHex(text[j + 1]) && isHex(text[j + 2])) {",
+            'if (false) {',
+        ]],
+        killedBy: 'a credential pair after a raw `&` is masked by its own rule',
+    },
+    {
+        label:
+            '#500 the lookahead crosses `%26` — `&M%26token=` cuts and shows `M`',
+        file: CREDENTIALS,
+        edits: [[
+            'if (!isNameCharacter(decoded)) break\n            j += 3',
+            'if (false) break\n            j += 3',
+        ]],
+        killedBy:
+            'a raw value runs on through `&` that starts no credential pair',
     },
     {
         label:

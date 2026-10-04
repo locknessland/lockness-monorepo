@@ -467,6 +467,9 @@ Deno.test('#500 a raw value runs on through `&` that starts no credential pair',
         [`password=${HEAD}&lt;${TAIL} end`]: 'password=*** end',
         [`--password=ab&${M} -v`]: '--password=*** -v',
         [`--password=${HEAD}&x=${TAIL} -v`]: '--password=*** -v',
+        // An encoded separator ends the lookahead's name, as it ends a name
+        // walked leftwards: `M%26token` is no credential name.
+        [`--password=ab&${M}%26token=1 -v`]: '--password=*** -v',
         [`/x?y=1&amp;password=${HEAD}&amp;b=${TAIL} end`]:
             '/x?y=1&amp;password=*** end',
     })
