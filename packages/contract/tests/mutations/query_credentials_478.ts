@@ -2,9 +2,10 @@
  * @fileoverview The mutation battery for #478 and #438, the #494
  * regressions their fold-in introduced (rows labelled `#494`), the gaps
  * the #494 reviews found (rows labelled `#499`), the raw value that hid the
- * credential pair after it (rows labelled `#500`), and the numeric-PIN names
- * and qualified `code` compounds the net printed in clear (rows labelled
- * `#497`).
+ * credential pair after it (rows labelled `#500`), the `;` and `,` cut and
+ * the raw end of a pair a cut starts (rows labelled `#525` and `#524`), and
+ * the numeric-PIN names and qualified `code` compounds the net printed in
+ * clear (rows labelled `#497`).
  *
  * Runs under the shared contract in `harness.ts`, which refuses to start unless
  * the suites are already green and the target files are clean, and requires
@@ -162,7 +163,7 @@ const MUTATIONS: Mutation[] = [
     {
         label: 'a bare `code` masked everywhere — `code=23505` is lost',
         file: CREDENTIALS,
-        edits: [["if (match === 'exact' && !url) {", 'if (false) {']],
+        edits: [["if (match === 'exact' && !url && !cut) {", 'if (false) {']],
         killedBy:
             'a bare `code` outside a URL is a diagnostic, not an OAuth code',
     },
@@ -180,7 +181,7 @@ const MUTATIONS: Mutation[] = [
         label: 'a known count name masked — `max_tokens=4096` is lost',
         file: CREDENTIALS,
         edits: [[
-            "match === 'count' && isDigits(text, valueStart, end)",
+            "match === 'count' && !cut && isDigits(text, valueStart, end)",
             'false',
         ]],
         killedBy:
@@ -218,8 +219,8 @@ const MUTATIONS: Mutation[] = [
             '#499 a form body ignores `&amp;` — `code=M&amp;grant_type=` leaks',
         file: CREDENTIALS,
         edits: [[
-            'const start = isEscapedAmpersand(text, at) ? at + AMP.length : at + 1',
-            'const start = at + 1',
+            'return isEscapedAmpersand(text, at) ? at + AMP.length : at + 1',
+            'return at + 1',
         ]],
         killedBy: 'a `code` ending at `&` and another pair is a form body',
     },
@@ -256,8 +257,8 @@ const MUTATIONS: Mutation[] = [
             '#500 a raw value runs through `&<credential>=` — a quoted `token="M"` after it shows',
         file: CREDENTIALS,
         edits: [[
-            "if (!url && text[end] === '&' && startsCredentialPair(text, end)) {",
-            'if (false) {',
+            '!url && CUT_SEPARATORS.has(text[end]) &&\n                startsCredentialPair(text, end)',
+            'false',
         ]],
         killedBy: 'a credential pair after a raw `&` is masked by its own rule',
     },
@@ -281,8 +282,8 @@ const MUTATIONS: Mutation[] = [
             '#500 the lookahead reads `amp;` as the name — `&amp;token="M"` shows',
         file: CREDENTIALS,
         edits: [[
-            'const start = isEscapedAmpersand(text, at) ? at + AMP.length : at + 1',
-            'const start = at + 1',
+            'return isEscapedAmpersand(text, at) ? at + AMP.length : at + 1',
+            'return at + 1',
         ]],
         killedBy: 'a credential pair after `&amp;` is masked by its own rule',
     },
@@ -327,6 +328,69 @@ const MUTATIONS: Mutation[] = [
         file: CREDENTIALS,
         edits: [['if (!isNameCharacter(text[j])) break', 'if (false) break']],
         killedBy: 'the scan stays linear on credential lookaheads',
+    },
+    // ---- #525 the `;` and `,` cut, #524 the raw end of a cut pair --------
+    {
+        label: '#525 `;` does not cut — `Pwd=M;Token="M"` shows the token',
+        file: CREDENTIALS,
+        edits: [["new Set(['&', ';', ','])", "new Set(['&', ','])"]],
+        killedBy:
+            'a credential pair after `;` or `,` is masked by its own rule',
+    },
+    {
+        label:
+            '#525 `,` does not cut — `password=M,secret =M` shows the secret',
+        file: CREDENTIALS,
+        edits: [["new Set(['&', ';', ','])", "new Set(['&', ';'])"]],
+        killedBy:
+            'a credential pair after `;` or `,` is masked by its own rule',
+    },
+    {
+        label:
+            '#524 a cut pair takes URL mode — `--password=M&token=M&M` shows its tail',
+        file: CREDENTIALS,
+        edits: [['const url = !cut && (inUrl(', 'const url = (inUrl(']],
+        killedBy: 'a pair a cut starts keeps the raw end',
+    },
+    {
+        label:
+            '#524 a cut pair keeps the `code` exemption — `Pwd=M;code=M end` shows it',
+        file: CREDENTIALS,
+        edits: [[
+            "if (match === 'exact' && !url && !cut) {",
+            "if (match === 'exact' && !url) {",
+        ]],
+        killedBy: 'a pair a cut starts takes no exemption',
+    },
+    {
+        label:
+            '#524 a cut pair keeps the count exemption — `Pwd=M;max_tokens=4096` shows it',
+        file: CREDENTIALS,
+        edits: [[
+            "match === 'count' && !cut && isDigits",
+            "match === 'count' && isDigits",
+        ]],
+        killedBy: 'a pair a cut starts takes no exemption',
+    },
+    {
+        label:
+            '#524 the cut marker is never set — every cut pair takes its own rule',
+        file: CREDENTIALS,
+        edits: [[
+            'if (cutHere) inherited = separatorEnd(text, end)',
+            'if (false) inherited = separatorEnd(text, end)',
+        ]],
+        killedBy: 'a pair a cut starts keeps the raw end',
+    },
+    {
+        label:
+            '#525 the marker set before the count check — `max_tokens=4096;code=23505` masks',
+        file: CREDENTIALS,
+        edits: [[
+            'cutHere = true\n',
+            'inherited = separatorEnd(text, end)\n                cutHere = true\n',
+        ]],
+        killedBy: "a count before a cut keeps the next pair's own rule",
     },
     {
         label:
