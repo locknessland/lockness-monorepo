@@ -11,6 +11,7 @@
 
 import {
     assertEquals,
+    assertInstanceOf,
     assertRejects,
     assertStrictEquals,
     assertStringIncludes,
@@ -47,17 +48,23 @@ function recordingImporter(
     }
 }
 
-/** Run `fn` with `console.warn` captured, and return what it printed. */
-async function capturingWarn(fn: () => Promise<unknown>): Promise<unknown[]> {
+/**
+ * Run `fn` with `console.warn` captured, and return what it printed together
+ * with how it settled: the caller asserts on the rejection, so a loader that
+ * quietly resolved instead of refusing cannot pass.
+ */
+async function capturingWarn(
+    fn: () => Promise<unknown>,
+): Promise<{ warned: unknown[]; settled: PromiseSettledResult<unknown> }> {
     const warned: unknown[] = []
     const original = console.warn
     console.warn = (...args: unknown[]) => warned.push(args)
     try {
-        await fn().catch(() => undefined)
+        const [settled] = await Promise.allSettled([fn()])
+        return { warned, settled }
     } finally {
         console.warn = original
     }
-    return warned
 }
 
 Deno.test('OPTIONAL_FEATURES - names the seven kernel keys and their packages', () => {
@@ -140,15 +147,20 @@ Deno.test('MissingOptionalPackageError - is the class @lockness/core exports', (
 })
 
 Deno.test('loadConfiguredPackage - a missing package never warns, it refuses', async () => {
+    const resolverError = unresolvable('@lockness/session')
     const { importModule } = recordingImporter(() =>
-        Promise.reject(unresolvable('@lockness/session'))
+        Promise.reject(resolverError)
     )
 
-    const warned = await capturingWarn(() =>
+    const { warned, settled } = await capturingWarn(() =>
         loadConfiguredPackage({ session: true }, 'session', importModule)
     )
 
     assertEquals(warned, [])
+    assertEquals(settled.status, 'rejected')
+    const reason = (settled as PromiseRejectedResult).reason
+    assertInstanceOf(reason, MissingOptionalPackageError)
+    assertStrictEquals(reason.cause, resolverError)
 })
 
 Deno.test('loadConfiguredPackage - any other import failure is rethrown as the same object', async () => {
