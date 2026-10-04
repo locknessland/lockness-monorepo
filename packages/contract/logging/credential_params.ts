@@ -246,7 +246,7 @@ function redactPairs(text: string): string {
     let out = ''
     let copied = 0
     let i = 0
-    let run: FormRun = { end: -1, query: false }
+    const runs = new FormRuns()
     while (i < text.length) {
         const equalsLength = equalsAt(text, i)
         if (equalsLength === 0) {
@@ -266,24 +266,13 @@ function redactPairs(text: string): string {
         // what `util.format('password=', v)` prints. The cost is that an
         // empty value takes the next word (`token= *** header`).
         const valueStart = skipBlanksRight(text, i + equalsLength)
-        let url = inUrl(text, start)
+        const url = inUrl(text, start) ||
+            (match === 'exact' && isOAuthCode(text, start, valueStart, runs))
         if (match === 'exact' && !url) {
-            // `code` is an OAuth code in a URL query, after the `&amp;` an
-            // `href` writes, or in a form body (`code=…&grant_type=…`);
-            // anywhere else it is a status or exit code (`code=23505`,
-            // `exit code=1`) an operator needs. Only this decision reads
-            // `&amp;`: any other name after it keeps the raw end, because an
-            // HTML-escaped value carries `&lt;` or `&amp;` as content. The run
-            // is reused while the scan stays inside it, which keeps a text of
-            // bare `code=` pairs linear.
-            if (!isEscapedAmpersand(text, start - AMP.length)) {
-                if (run.end < valueStart) run = readFormRun(text, valueStart)
-                if (!run.query) {
-                    i += equalsLength
-                    continue
-                }
-            }
-            url = true
+            // A status or exit code (`code=23505`, `exit code=1`) an operator
+            // needs.
+            i += equalsLength
+            continue
         }
         const quoted = quotedValue(text, valueStart)
         if (quoted !== undefined) {
@@ -459,6 +448,52 @@ function isEscapedAmpersand(text: string, at: number): boolean {
 }
 
 /**
+ * Whether a bare `code` outside a raw-separator query is still an OAuth code,
+ * and so takes the URL rule.
+ *
+ * It is one after the `&amp;` an `href` writes, or in a form body
+ * (`code=…&grant_type=…`); anywhere else it is a status or exit code. Only
+ * this decision reads `&amp;` as a separator: any other name after it keeps
+ * the raw end, because an HTML-escaped value carries `&lt;` or `&amp;` as
+ * content.
+ *
+ * @param text - The text being scanned.
+ * @param start - The index of the name's first character.
+ * @param valueStart - Where the value starts.
+ * @param runs - The scan's form-run reader, shared across its `code=` pairs.
+ * @returns True when the `code` is in URL mode.
+ */
+function isOAuthCode(
+    text: string,
+    start: number,
+    valueStart: number,
+    runs: FormRuns,
+): boolean {
+    return isEscapedAmpersand(text, start - AMP.length) ||
+        runs.at(text, valueStart).query
+}
+
+/**
+ * Reads form runs for one scan, reusing the last run while the scan stays
+ * inside it — which keeps a text of bare `code=` pairs linear.
+ */
+class FormRuns {
+    #last: FormRun = { end: -1, query: false }
+
+    /**
+     * The form run a value starting at `from` belongs to.
+     *
+     * @param text - The text being scanned.
+     * @param from - Where the value starts.
+     * @returns The run, read once and reused while it covers `from`.
+     */
+    at(text: string, from: number): FormRun {
+        if (this.#last.end < from) this.#last = readFormRun(text, from)
+        return this.#last
+    }
+}
+
+/**
  * Where an unquoted value would end under the URL rule, and whether it ends
  * as a form body does: at `&` followed by another `name=`.
  */
@@ -495,7 +530,7 @@ function readFormRun(text: string, from: number): FormRun {
  * follows `?`, `&` or `#`, raw or percent-encoded.
  *
  * Not `&amp;`: only a bare `code` reads it as a separator, in
- * {@link redactPairs}.
+ * {@link isOAuthCode}.
  *
  * @param text - The text being scanned.
  * @param start - The index of the name's first character.

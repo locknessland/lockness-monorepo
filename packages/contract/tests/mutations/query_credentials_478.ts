@@ -194,8 +194,8 @@ const MUTATIONS: Mutation[] = [
             '#494 R4 `&amp;` is not a query separator — an href `code` leaks',
         file: CREDENTIALS,
         edits: [[
-            'if (!isEscapedAmpersand(text, start - AMP.length)) {',
-            'if (true) {',
+            'return isEscapedAmpersand(text, start - AMP.length) ||',
+            'return false ||',
         ]],
         killedBy: 'an OAuth `code` after an HTML-escaped `&amp;` is in a query',
     },
@@ -203,7 +203,7 @@ const MUTATIONS: Mutation[] = [
         label:
             '#494 R4 a form body is not a query — `code=M&grant_type=` leaks',
         file: CREDENTIALS,
-        edits: [['if (!run.query) {', 'if (true) {']],
+        edits: [['runs.at(text, valueStart).query', 'false']],
         killedBy: 'a `code` ending at `&` and another pair is a form body',
     },
     {
@@ -221,8 +221,8 @@ const MUTATIONS: Mutation[] = [
             '#499 the form run re-read at every `code=` — the scan goes quadratic',
         file: CREDENTIALS,
         edits: [[
-            'if (run.end < valueStart) run = readFormRun(text, valueStart)',
-            'if (true) run = readFormRun(text, valueStart)',
+            'if (this.#last.end < from) this.#last = readFormRun(text, from)',
+            'if (true) this.#last = readFormRun(text, from)',
         ]],
         killedBy: 'the scan stays linear on a run of bare `code=` pairs',
     },
