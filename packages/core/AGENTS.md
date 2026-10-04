@@ -31,9 +31,10 @@ This brief does not repeat it.
 - **A boot discovery step tolerates only an absent directory.** The listeners
   and schedules steps catch `Deno.errors.NotFound` from discovery and rethrow
   everything else, so a file that cannot load refuses the boot (#518).
-  `discoverListeners` wraps each import failure in a `ListenerLoadError` naming
-  the file, because a module can throw `NotFound` itself while it evaluates and
-  would otherwise pass for an absent directory.
+  `discoverListeners` wraps each import failure in a `ListenerLoadError` and
+  `discoverSchedules` in a `ScheduleLoadError` (#521), each naming the file,
+  because a module can throw `NotFound` itself while it evaluates and would
+  otherwise pass for an absent directory.
 - **A soft dependency is never declared in `deno.json`.** The consuming
   application installs it, or the feature stays off. Declaring one would make an
   optional package mandatory for every consumer.
@@ -111,7 +112,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-56 test files for 74 source files:
+57 test files for 75 source files:
 
 - `packages/core/cli/tests/kernel_file.test.ts`
 - `packages/core/cli/tests/ssg_command.test.ts`
@@ -156,6 +157,7 @@ Anything not listed is internal and free to change.
 - `packages/core/tests/router.test.ts`
 - `packages/core/tests/routes_generator.test.ts`
 - `packages/core/tests/schedule_discovery.test.ts`
+- `packages/core/tests/schedule_load_error.test.ts`
 - `packages/core/tests/scheduler_locks.test.ts`
 - `packages/core/tests/scheduler_step.test.ts`
 - `packages/core/tests/session_boot.test.ts`
@@ -170,12 +172,13 @@ Anything not listed is internal and free to change.
 - `packages/core/tests/signed_url.test.ts`
 - `packages/core/tests/throttle.test.ts`
 
-2 mutation batteries — **`deno test` does not run these.** Each is an executable
+3 mutation batteries — **`deno test` does not run these.** Each is an executable
 that mutates a source file and re-runs the suites that should notice. Run them
 with `deno task mutate` (all of them, one at a time) or
 `deno task mutate <name>` (one); nightly CI runs the full sweep. See
 [testing.md](../../docs/testing.md#mutation-batteries).
 
+- `packages/core/tests/mutations/schedule_load_521.ts`
 - `packages/core/tests/mutations/scheduler_lock_517.ts`
 - `packages/core/tests/mutations/session_secure_504.ts`
 
@@ -192,7 +195,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 56 test files directly —
+Then, specific to this package: run its 57 test files directly —
 
 ```bash
 deno test -A packages/core/

@@ -856,7 +856,17 @@ Discovery imports every listener file before it registers any, so one broken
 file means no directory listener is registered at all. Until v0.5.0 the step
 logged that, or hid it entirely, and booted anyway. Events then fired into an
 empty dispatcher, and audit or lockout handlers stopped without any sign (#518).
-The schedules directory follows the same rule.
+
+The schedules directory follows the same rule. A missing `schedulesDir` is fine,
+and the explicit `schedules` are still registered. A schedule file that fails to
+load rejects `createApp()` with a `ScheduleLoadError` naming it. That includes a
+module that throws `Deno.errors.NotFound` while it loads, such as a top-level
+read of a missing config file, which until v0.5.0 passed for a missing directory
+and dropped scheduled tasks without a word (#521):
+
+```text
+ScheduleLoadError: Schedule file "app/schedule/purge_tokens.ts" could not be loaded, so no scheduled task was started: NotFound [ENOENT]: No such file or directory (os error 2): readfile './config/purge.json'
+```
 
 The original error is included in the message, rendered on one line with
 credentials redacted. The error has no `cause`, so an uncaught refusal prints

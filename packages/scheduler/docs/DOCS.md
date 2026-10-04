@@ -268,9 +268,16 @@ class AppKernel {}
 ```
 
 A missing directory is a no-op. Everything else fails the boot: a malformed
-expression, an expression with no possible occurrence (`0 0 30 2 *`), or two
-tasks resolving to the same name. A schedule that cannot be armed is a
-configuration error, not an optional feature.
+expression, an expression with no possible occurrence (`0 0 30 2 *`), two tasks
+resolving to the same name, or a schedule file that fails to load. A schedule
+that cannot be armed is a configuration error, not an optional feature.
+
+A schedule file that does not resolve or compile, or that throws while it loads,
+rejects `createApp()` with a `ScheduleLoadError` naming the file, even when what
+it threw is `Deno.errors.NotFound`, so a missing config file read at the top of
+a schedule module is never mistaken for a missing directory. See
+[When a listener file fails to load](/docs/lifecycle-events#when-a-listener-file-fails-to-load):
+the schedules directory follows the same rule.
 
 The boot line reports the **armed** count unconditionally, including zero:
 

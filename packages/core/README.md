@@ -529,11 +529,11 @@ export class UserController {
 
 ## Upgrading to v0.5.0
 
-Five items. **Migration step:** for every optional feature your `@Kernel()`
+Six items. **Migration step:** for every optional feature your `@Kernel()`
 configures, make sure the package is in your `deno.json`; add `telemetry: true`
 and `logger: true` if you relied on those packages switching on by presence;
 give a `schedulerLock` with `driver: 'redis'` its `redis` connection; and fix or
-delete any listener file that fails to load.
+delete any listener or schedule file that fails to load.
 
 ### 1. A configured optional package that does not resolve refuses the boot
 
@@ -620,6 +620,30 @@ ListenerLoadError: Listener file "app/listener/audit_listener.ts" could not be l
 - **The fix:** repair the file named in the error. If your app booted with
   `⚠️  Error discovering listeners:` in its log, a listener file was already
   broken, and no directory or explicit listener ran.
+
+### 6. A schedule file that fails to load always refuses the boot
+
+A schedule file that did not resolve, compile or evaluate already failed the
+boot, with whatever the import threw. One case did not: a module that threw
+`Deno.errors.NotFound` while it loaded, such as a top-level read of a missing
+config file, passed for a missing `schedulesDir`. The boot carried on without a
+log line, minus that file's tasks and those of every file scanned after it
+(#521). `createApp()` now rejects with a `ScheduleLoadError` naming the file in
+every case:
+
+```text
+ScheduleLoadError: Schedule file "app/schedule/purge_tokens.ts" could not be loaded, so no scheduled task was started: NotFound [ENOENT]: …
+```
+
+- **Unchanged:** a missing `schedulesDir` boots silently, and the explicit
+  `schedules` still register. A duplicate task name keeps its own error.
+- **Changed for every load failure:** the error is a `ScheduleLoadError`, not
+  whatever the import threw (a `TypeError`, an `AppFileCompileError`, or the
+  module's own error). The original is rendered on one line with credentials
+  redacted, and there is no `cause`.
+- **The fix:** repair the file named in the error. If your `✓ Scheduler started`
+  line counted fewer tasks than you declared, a schedule file was already being
+  dropped.
 
 ## 📚 Technical Reference
 
