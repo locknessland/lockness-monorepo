@@ -183,3 +183,19 @@ Deno.test('#438 a probe error holding no credential is shown, not withheld', asy
     )
     assertEquals(out, 'Error: connection refused')
 })
+
+Deno.test('#497 a numeric PIN query value is held', async () => {
+    // `pin` is a contract stem, so drizzle holds it with no list of its own.
+    const pin = '48' + '21'
+    assertEquals(inspectDsn(`libsql://h?pin=${pin}&tls=1`), {
+        ok: true,
+        secrets: [pin],
+    })
+    const out = await probeFailure(
+        'sqlite',
+        `libsql://db.example.com?pin=${pin}`,
+        new Error(`rejected pin ${pin}`),
+    )
+    assertEquals(out, WITHHELD)
+    assert(!out.includes(pin), out)
+})
