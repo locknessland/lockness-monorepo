@@ -19,6 +19,8 @@ import { join } from '@std/path'
 import { ControllerDiscovery } from '../routing/discovery.ts'
 import { loadControllers } from '../ssg/enumerate.ts'
 import { listenersStep } from '../kernel/bootstrap/steps/listeners.ts'
+import { schedulerStep } from '../kernel/bootstrap/steps/scheduler.ts'
+import { Scheduler, scheduler, setScheduler } from '@lockness/scheduler'
 
 const HEAD = 'FA' + 'KE'
 const TAIL = 'MA' + 'RK'
@@ -174,6 +176,47 @@ Deno.test('#478 the listeners boot step redacts a credential pair a listener thr
         assertNoMarker(error.message)
         assertStringIncludes(error.message, 'token=***')
         // No cause for Deno.inspect to print raw.
+        assertEquals(error.cause, undefined)
+        assertNoMarker(Deno.inspect(error))
+    })
+})
+
+/**
+ * Run the scheduler step against `schedulesDir` with a fresh shared
+ * Scheduler, and return its refusal.
+ */
+async function schedulerRefusal(schedulesDir: string): Promise<Error> {
+    setScheduler(new Scheduler())
+    try {
+        const context = {
+            config: { schedulesDir },
+        } as unknown as Parameters<typeof schedulerStep.run>[0]
+        return await assertRejects(
+            () => Promise.resolve(schedulerStep.run(context)),
+            Error,
+        )
+    } finally {
+        scheduler().stop()
+        setScheduler(undefined)
+    }
+}
+
+Deno.test('#521 the scheduler boot step refuses a broken schedule file rendered, never with its source', async () => {
+    await withDir({ 'broken_schedule.ts': UNPARSEABLE }, async ({ rel }) => {
+        const error = await schedulerRefusal(rel)
+        assertStringIncludes(error.message, 'broken_schedule.ts')
+        assertStringIncludes(error.message, 'SyntaxError at')
+        assertNoMarker(error.message)
+        assertNoMarker(Deno.inspect(error))
+        assert(!error.message.includes('    at '), error.message)
+    })
+})
+
+Deno.test('#521 the scheduler boot step redacts a credential pair a schedule file throws', async () => {
+    await withDir({ 'leaky_schedule.ts': LEAKY }, async ({ rel }) => {
+        const error = await schedulerRefusal(rel)
+        assertNoMarker(error.message)
+        assertStringIncludes(error.message, 'token=***')
         assertEquals(error.cause, undefined)
         assertNoMarker(Deno.inspect(error))
     })

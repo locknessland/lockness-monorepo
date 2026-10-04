@@ -21,7 +21,9 @@
  */
 
 import { join, resolve, SEPARATOR } from '@std/path'
+import { renderError, safeForLog } from '@lockness/contract'
 import { importAppFile } from '@lockness/contract/app-file/internal'
+import { shownPath } from '../logging/shown_path.ts'
 import { container } from '@lockness/container'
 import {
     DEFAULT_SCHEDULES_DIR,
@@ -30,6 +32,54 @@ import {
     type Scheduler,
     scheduler as sharedScheduler,
 } from '@lockness/scheduler'
+
+/**
+ * A schedule file that could not be loaded — it does not resolve, compile or
+ * link, or it threw while it evaluated.
+ *
+ * Raised by {@link discoverSchedules}, and so by the scheduler boot step,
+ * which refuses the boot with it. Unwrapped, a module that threw
+ * `Deno.errors.NotFound` while it evaluated passed for an absent schedules
+ * directory, and the boot carried on without that file's tasks or those of
+ * every file scanned after it — token or session purges among them (#521).
+ * The twin of `ListenerLoadError` (#518).
+ *
+ * The message carries the original failure rendered through `renderError`,
+ * and there is no `cause`. An uncaught boot error is printed through
+ * `Deno.inspect`, which prints a cause raw — and a module that throws while it
+ * evaluates can put a credential in it (#478).
+ *
+ * @example
+ * ```ts
+ * try {
+ *     await discoverSchedules('./app/schedule')
+ * } catch (error) {
+ *     if (error instanceof ScheduleLoadError) console.error(error.file)
+ *     throw error
+ * }
+ * ```
+ */
+export class ScheduleLoadError extends Error {
+    /** The failing file: relative to the working directory when under it. */
+    readonly file: string
+
+    /**
+     * @param file - The schedule file's absolute path.
+     * @param error - What importing it threw.
+     */
+    constructor(file: string, error: unknown) {
+        const shown = shownPath(file)
+        super(
+            `Schedule file "${
+                safeForLog(shown)
+            }" could not be loaded, so no scheduled task was started: ${
+                renderError(error)
+            }`,
+        )
+        this.name = 'ScheduleLoadError'
+        this.file = shown
+    }
+}
 
 /** A class that may carry `@Schedule` metadata. */
 export type ScheduleClass = new (...args: unknown[]) => object
@@ -161,7 +211,10 @@ async function scan(dir: string): Promise<string[]> {
  * @returns How many schedules were registered.
  * @throws {Deno.errors.NotFound} If the directory does not exist — the caller
  * decides whether that is an error, because a project with no scheduled tasks
- * legitimately has no directory.
+ * legitimately has no directory. Raised before any file is imported, so it is
+ * never a schedule file's own `NotFound`.
+ * @throws {ScheduleLoadError} If a schedule file fails to import, compile or
+ * evaluate. The message names the file.
  * @throws {TypeError} If the resolved directory escapes the working directory.
  * @throws {Error} If two schedules resolve to the same name. The message names
  * both source files and points at `@Schedule({ name })` as the resolution.
@@ -206,7 +259,15 @@ export async function discoverSchedules(
     for (const file of files) {
         // importAppFile escapes the path; `file://${path}` mis-parses '#' and
         // '?' and would silently skip a file its author believes is scheduled.
-        const module = await importAppFile(file)
+        //
+        // Each failure is wrapped here, where the file is still known, and
+        // only the import: the duplicate-name refusal below keeps its own
+        // message. Unwrapped, a module that throws Deno.errors.NotFound while
+        // it evaluates passed for an absent directory, and the step dropped
+        // this file's tasks and every later file's in silence (#521).
+        const module = await importAppFile(file).catch((error: unknown) => {
+            throw new ScheduleLoadError(file, error)
+        })
 
         for (const [exportName, exported] of Object.entries(module)) {
             // `typeof === 'function'` is not enough. `container.get` calls

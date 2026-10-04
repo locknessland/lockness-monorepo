@@ -231,7 +231,9 @@ export const schedulerStep: BootstrapStep = {
         } catch (error) {
             // A project with no scheduled tasks legitimately has no directory.
             // Everything else — a bad expression, a duplicate name, a path that
-            // escapes the project — fails the boot.
+            // escapes the project, a file that fails to load — fails the boot.
+            // A schedule file's own NotFound cannot reach here: discovery wraps
+            // it in a ScheduleLoadError (#521).
             if (!(error instanceof Deno.errors.NotFound)) throw error
         }
 
