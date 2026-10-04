@@ -18,12 +18,15 @@ const HEAD = 'FA' + 'KE'
 const TAIL = 'MA' + 'RK'
 /** The fake secret. */
 const M = HEAD + TAIL
+/** A second fake secret, for the value between a head and a tail. */
+const MID = 'MI' + 'DS'
 
-/** Assert that no part of the marker survived into `out`. */
+/** Assert that no part of the marker, nor {@link MID}, survived into `out`. */
 function assertNoMarker(out: string, context = out): void {
     assert(!out.includes(M), `marker leaked: ${context}`)
     assert(!out.includes(HEAD), `marker head leaked: ${context}`)
     assert(!out.includes(TAIL), `marker tail leaked: ${context}`)
+    assert(!out.includes(MID), `middle marker leaked: ${context}`)
 }
 
 /** Render `message` as the message of an `Error`. */
@@ -514,26 +517,97 @@ Deno.test('#500 a raw value runs on through `&` that starts no credential pair',
     assertEquals(redactQueryCredentials('--password=ab&cd'), '--password=***')
 })
 
-Deno.test('#500 the accepted cost: after a cut, the rest shows where the next pair ends', () => {
-    // A value that holds `&<credential>=` is cut there, and the pair the cut
-    // starts takes its own rule. After a raw `&` that is the URL rule, so the
-    // rest of the value shows from the next `&`, `#`, `<` or `>`; an empty
-    // or count value ends at once. Pinned here so a change to that extent is
-    // a decision, not a drift.
+Deno.test('#525 a credential pair after `;` or `,` is masked by its own rule', () => {
+    // A raw value used to run through `;<credential>=` and `,<credential>=`,
+    // hiding the next name from the scan, so its quoted or blank-separated
+    // value showed — the second secret of an ODBC connection string.
+    assertRedacted({
+        [`Pwd=${HEAD};Token="${TAIL}"`]: 'Pwd=***;Token="***"',
+        [`Pwd=${HEAD};Api_Key= ${TAIL}`]: 'Pwd=***;Api_Key= ***',
+        [`Server=x;Pwd=${HEAD};Token='${TAIL}'`]:
+            "Server=x;Pwd=***;Token='***'",
+        [`password=${HEAD},secret =${TAIL}`]: 'password=***,secret =***',
+        [`Pwd=${HEAD};Token=\\"${TAIL}\\" x`]: 'Pwd=***;Token=\\"***\\" x',
+        [`Pwd=${HEAD};Token%3D"${TAIL}"`]: 'Pwd=***;Token%3D"***"',
+        [`Pwd=${HEAD};api%5Fkey="${TAIL}"`]: 'Pwd=***;api%5Fkey="***"',
+        [`Pwd=${HEAD};Token=${MID};Secret="${TAIL}"`]:
+            'Pwd=***;Token=***;Secret="***"',
+    })
+})
+
+Deno.test('#525 a `;` or `,` inside a password cuts only before a credential `name=`', () => {
+    // Only `;<credential>=` cuts, so a password holding one shows that
+    // fragment and none of its own characters.
+    assertRedacted({
+        [`Pwd=${HEAD};cd;token=${TAIL}`]: 'Pwd=***;token=***',
+        [`Pwd=${HEAD};${TAIL}`]: 'Pwd=***',
+        [`password=${HEAD},cd=${TAIL}`]: 'password=***',
+    })
+})
+
+Deno.test("#525 a count before a cut keeps the next pair's own rule", () => {
+    // The count is not a masked value, so the pair after it is not a cut
+    // inside one: `code=23505` stays a diagnostic and `prompt_tokens` a
+    // count. The other rows pin what the wider cut leaves unchanged.
+    for (
+        const text of [
+            'max_tokens=4096;code=23505',
+            'max_tokens=4096,prompt_tokens=10',
+            'Server=db;Database=app;User Id=sa',
+            'status code=503,retry=2',
+            'exit code=1;token_type=bearer',
+        ]
+    ) {
+        assertEquals(redactQueryCredentials(text), text)
+    }
+    assertRedacted({
+        [`/cb?code=${M}&state=1`]: '/cb?code=***&state=1',
+        [`?password=${M}&page=2`]: '?password=***&page=2',
+        [`code=${M}&grant_type=authorization_code`]:
+            'code=***&grant_type=authorization_code',
+        [`password=${HEAD};${TAIL} ef`]: 'password=*** ef',
+        [`--password=${HEAD}&lt;${TAIL} e`]: '--password=*** e',
+    })
+})
+
+Deno.test('#524 a pair a cut starts keeps the raw end', () => {
+    // Such a pair sits inside a masked value, so it never takes URL mode:
+    // ending at the next `&`, `#`, `<` or `>` would show the rest of the
+    // password.
+    assertRedacted({
+        [`--password=${HEAD}&token=${MID}&${TAIL}`]: '--password=***&token=***',
+        [`--password=${HEAD}&token=${MID}#${TAIL}`]: '--password=***&token=***',
+        [`--password=${HEAD}&token=&${TAIL}`]: '--password=***&token=***',
+        [`/x?y=1&amp;password=${HEAD}&amp;code=${MID}&${TAIL}`]:
+            '/x?y=1&amp;password=***&amp;code=***',
+    })
+})
+
+Deno.test('#524 a pair a cut starts takes no exemption', () => {
+    // Neither a bare `code` nor a count is kept there: either would show a
+    // password's characters as the value it keeps.
+    assertRedacted({
+        [`--password=${HEAD}&code=${MID}&${TAIL}`]: '--password=***&code=***',
+        [`Pwd=${HEAD};code=${MID} end`]: 'Pwd=***;code=*** end',
+        [`Pwd=${HEAD};code="${MID}"`]: 'Pwd=***;code="***"',
+        [`--password=${HEAD}&max_tokens=4096`]: '--password=***&max_tokens=***',
+        [`Pwd=${HEAD};max_tokens=4096`]: 'Pwd=***;max_tokens=***',
+    })
+})
+
+Deno.test('#524 #525 the accepted cost: a cut shows its separator and name', () => {
+    // A raw value that holds `&`, `;` or `,` before a credential `name=` is
+    // cut there, so that fragment shows; a URL-mode value is never cut, and
+    // a pair after a cut ends only where a raw value ends. Pinned here so a
+    // change to that extent is a decision, not a drift.
     for (
         const [text, expected] of [
-            ['--password=ab&token=cd&ef', '--password=***&token=***&ef'],
-            ['--password=ab&token=cd#ef', '--password=***&token=***#ef'],
-            ['--password=ab&token=&ef', '--password=***&token=&ef'],
+            ['Pwd=ab;token=cd', 'Pwd=***;token=***'],
+            ['Pwd=ab;key="x"yz', 'Pwd=***;key="***"yz'],
+            ['?password=A;token="B"', '?password=***"B"'],
             [
-                '--password=ab&max_tokens=4096&ef',
-                '--password=***&max_tokens=4096&ef',
-            ],
-            // After `&amp;`, a credential other than `code` keeps the raw
-            // end, so only the fragment shows.
-            [
-                '/x?y=1&amp;password=ab&amp;token=cd&amp;ef',
-                '/x?y=1&amp;password=***&amp;token=***',
+                'client_secret=cs&code=xyz&grant_type=authorization_code',
+                'client_secret=***&code=***',
             ],
         ]
     ) {
@@ -542,9 +616,11 @@ Deno.test('#500 the accepted cost: after a cut, the rest shows where the next pa
 })
 
 Deno.test('#500 the scan stays linear on credential lookaheads', () => {
-    // Five shapes, 256 KB each: a cut at every `&amp;`, a lookahead that never
+    // Nine shapes, 256 KB each: a cut at every `&amp;`, a lookahead that never
     // meets `=`, one long non-credential name, a run of non-credential pairs,
-    // and credential names followed by a blank and no `=`.
+    // credential names followed by a blank and no `=`, an empty credential
+    // value at every `;`, a run of bare `;`, a run of `,x=` pairs, and a chain
+    // of pairs each cut inside the value before it.
     //
     // A fixed limit on the best of up to three runs: the allocation-heavy
     // shapes showed a 40x tail on single runs under load. A lookahead that
@@ -561,6 +637,10 @@ Deno.test('#500 the scan stays linear on credential lookaheads', () => {
             '--password=a&' + 'a'.repeat(size),
             '--password=a' + '&x='.repeat(size / 3),
             '--password=a' + '&token\t'.repeat(size / 7),
+            'password=' + ';token='.repeat(size / 7),
+            'Pwd=a' + ';'.repeat(size),
+            'password=a' + ',x='.repeat(size / 3),
+            'password=' + ';token=a'.repeat(size / 8),
         ]
     ) {
         assertScanUnder(text.slice(0, 24), text)
