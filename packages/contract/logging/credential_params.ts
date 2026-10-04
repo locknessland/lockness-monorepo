@@ -345,6 +345,9 @@ function redactPairs(text: string): string {
     let copied = 0
     let i = 0
     const runs = new FormRuns()
+    // Where the name of the pair a cut started inside a masked value begins
+    // (#524): that pair keeps the raw end and takes no exemption.
+    let inherited = -1
     while (i < text.length) {
         const equalsLength = equalsAt(text, i)
         if (equalsLength === 0) {
@@ -364,9 +367,12 @@ function redactPairs(text: string): string {
         // what `util.format('password=', v)` prints. The cost is that an
         // empty value takes the next word (`token= *** header`).
         const valueStart = skipBlanksRight(text, i + equalsLength)
-        const url = inUrl(text, start) ||
-            (match === 'exact' && isOAuthCode(text, start, valueStart, runs))
-        if (match === 'exact' && !url) {
+        // A pair a cut started sits inside a masked value: URL mode or an
+        // exemption would show the rest of that value as this one's.
+        const cut = start === inherited
+        const url = !cut && (inUrl(text, start) ||
+            (match === 'exact' && isOAuthCode(text, start, valueStart, runs)))
+        if (match === 'exact' && !url && !cut) {
             // A status or exit code (`code=23505`, `exit code=1`) an operator
             // needs.
             i += equalsLength
@@ -383,13 +389,18 @@ function redactPairs(text: string): string {
         }
         const ends = url ? URL_VALUE_END : RAW_VALUE_END
         let end = valueStart
+        let cutHere = false
         while (end < text.length && !ends.has(text[end])) {
-            if (!url && text[end] === '&' && startsCredentialPair(text, end)) {
+            if (
+                !url && CUT_SEPARATORS.has(text[end]) &&
+                startsCredentialPair(text, end)
+            ) {
+                cutHere = true
                 break
             }
             end++
         }
-        if (match === 'count' && isDigits(text, valueStart, end)) {
+        if (match === 'count' && !cut && isDigits(text, valueStart, end)) {
             // `max_tokens=4096` counts tokens; it is not one.
             i = end
             continue
@@ -397,6 +408,7 @@ function redactPairs(text: string): string {
         if (end > valueStart) {
             out += `${text.slice(copied, valueStart)}***`
             copied = end
+            if (cutHere) inherited = separatorEnd(text, end)
         }
         i = Math.max(end, i + equalsLength)
     }
@@ -536,8 +548,33 @@ const URL_SEPARATORS: ReadonlySet<string | undefined> = new Set([
     '#',
 ])
 
+/**
+ * The separators a raw value is cut before when another credential `name=`
+ * follows (#500, #525): `&` (and `&amp;`, which opens with it) for a query or
+ * a form body, `;` for an ODBC connection string, `,` for a comma-separated
+ * list. Only outside URL mode, where a value already ends at `&`; and never
+ * the encoded `%26`, `%3B` or `%2C`, which a value carries as content.
+ */
+const CUT_SEPARATORS: ReadonlySet<string> = new Set(['&', ';', ','])
+
 /** The HTML escape of `&`, as a query inside an `href` attribute is written. */
 const AMP = '&amp;'
+
+/**
+ * Where the name after a separator starts: past `&amp;`, or past the one
+ * character of any other separator.
+ *
+ * The single home of a separator's width. {@link pairNameAfter} reads the
+ * name from here, and the scan marks the pair a cut starts at the same
+ * index, which is where its own walk left over the name stops.
+ *
+ * @param text - The text being scanned.
+ * @param at - The index of a separator, raw or the start of `&amp;`.
+ * @returns The index just past the separator.
+ */
+function separatorEnd(text: string, at: number): number {
+    return isEscapedAmpersand(text, at) ? at + AMP.length : at + 1
+}
 
 /**
  * Whether `text` holds `&amp;` at `at`, in any case.
@@ -656,7 +693,7 @@ function startsCredentialPair(text: string, at: number): boolean {
  * @returns The name as written, or `undefined` when no `name=` follows.
  */
 function pairNameAfter(text: string, at: number): string | undefined {
-    const start = isEscapedAmpersand(text, at) ? at + AMP.length : at + 1
+    const start = separatorEnd(text, at)
     const end = nameEnd(text, start)
     if (end === start) return undefined
     return equalsAt(text, skipBlanksRight(text, end)) > 0
