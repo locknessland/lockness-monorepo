@@ -215,7 +215,9 @@ function isCountName(normalised: string): boolean {
  * errors carry exactly these. A count name ends in `tokens` or `keys` AND
  * contains `max`, `prompt`, `completion` or `total`; every other plural stays
  * masked (`api_tokens=123456`, `passwords=4821`), and so does a quoted count
- * (`max_tokens="4096"`).
+ * (`max_tokens="4096"`). Known residue: after `&amp;` a count name takes the
+ * raw end, so `?a=1&amp;max_tokens=4096&amp;b=2` masks the count — its value
+ * runs on to `&amp;b=2`, which starts no credential pair.
  *
  * **Not seen.** This net is a shape rule for `name=value`. It does not see a
  * JSON `"token":"…"`, a header- or YAML-style `name: value`, an

@@ -108,6 +108,16 @@ Anything not listed is internal and free to change.
   (`code=…&grant_type=…`); elsewhere (`status code=503`, `exit code=1`) it
   renders. Only that `code` decision reads `&amp;` as a separator: any other
   name after it keeps the raw end, or an HTML-escaped value shows its tail.
+  Known residue of that raw end: `?a=1&amp;max_tokens=4096&amp;b=2` masks the
+  count.
+- **A raw value ends early only before another credential pair** (#500). Raw
+  termination (whitespace or a quote) also stops at a `&` or `&amp;` whose
+  lookahead is a credential `name=` by `classifyName`, so that pair is masked by
+  its own rule; eating it would hide the name and show a quoted value. Never cut
+  at a non-credential lookahead (`password=…&lt;…`, `--password=ab&cd`): that
+  shows the rest of the value. The accepted cost is that a value holding
+  `&<credential>=` shows that fragment. `;` does not cut yet, so
+  `Pwd=…;Token="…"` still shows the quoted token.
 - **A compile failure is recognised by its message shape, never by class or
   `code`** (`logging/compile_diagnostic.ts`). Deno reports a parse failure as a
   `TypeError` with `ERR_MODULE_NOT_FOUND`, the same pair "Module not found"
