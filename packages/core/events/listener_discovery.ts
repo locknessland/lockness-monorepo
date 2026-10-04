@@ -7,7 +7,8 @@
  * @module @lockness/core/events/listener_discovery
  */
 
-import { join } from '@std/path'
+import { isAbsolute, join, relative, SEPARATOR } from '@std/path'
+import { renderError, safeForLog } from '@lockness/contract'
 import { importAppFile } from '@lockness/contract/app-file/internal'
 import { container } from '@lockness/container'
 import {
@@ -21,6 +22,60 @@ import {
  */
 // deno-lint-ignore no-explicit-any
 export type ListenerClass = new (...args: any[]) => any
+
+/**
+ * A listener file that could not be loaded — it does not resolve, compile or
+ * link, or it threw while it evaluated.
+ *
+ * Raised by {@link discoverListeners}, and so by the listeners boot step,
+ * which refuses the boot with it: a dropped listener is event-driven behaviour
+ * that silently stops, an audit or lockout handler among them (#518).
+ *
+ * The message carries the original failure rendered through `renderError`,
+ * and there is no `cause`. An uncaught boot error is printed through
+ * `Deno.inspect`, which prints a cause raw — and a module that throws while it
+ * evaluates can put a credential in it (#478).
+ *
+ * @example
+ * ```typescript
+ * try {
+ *     await discoverListeners('./app/listener')
+ * } catch (error) {
+ *     if (error instanceof ListenerLoadError) console.error(error.file)
+ *     throw error
+ * }
+ * ```
+ */
+export class ListenerLoadError extends Error {
+    /** The failing file: relative to the working directory when under it. */
+    readonly file: string
+
+    /**
+     * @param file - The listener file's absolute path.
+     * @param error - What importing it threw.
+     */
+    constructor(file: string, error: unknown) {
+        const shown = shownPath(file)
+        super(
+            `Listener file "${
+                safeForLog(shown)
+            }" could not be loaded, so no listener was registered: ${
+                renderError(error)
+            }`,
+        )
+        this.name = 'ListenerLoadError'
+        this.file = shown
+    }
+}
+
+/** `file` relative to the working directory when under it, else as given. */
+function shownPath(file: string): string {
+    const shown = relative(Deno.cwd(), file)
+    return shown === '..' || shown.startsWith(`..${SEPARATOR}`) ||
+            isAbsolute(shown)
+        ? file
+        : shown
+}
 
 /**
  * Register explicit listener classes with the event dispatcher.
@@ -77,8 +132,17 @@ export function registerListeners(listenerClasses: ListenerClass[]): number {
  * finds classes with @Listener decorated methods, instantiates them
  * via the DI container, and registers their listeners with the event dispatcher.
  *
+ * Nothing registers unless every file loads: the files are imported first,
+ * then registered.
+ *
  * @param listenersDir - Path to the listeners directory (e.g., './app/listener')
  * @returns Promise that resolves when all listeners are registered
+ * @throws {Deno.errors.NotFound} If the directory does not exist. The caller
+ * decides whether that is an error — a project with no listeners legitimately
+ * has no directory.
+ * @throws {ListenerLoadError} If a listener file fails to import, compile or
+ * evaluate. The message names the file.
+ * @throws Whatever else reading the directory throws, untouched.
  *
  * @example
  * ```typescript
@@ -88,115 +152,100 @@ export function registerListeners(listenerClasses: ListenerClass[]): number {
  * @internal
  */
 export async function discoverListeners(listenersDir: string): Promise<void> {
-    try {
-        // Resolve absolute path
-        const absolutePath = join(Deno.cwd(), listenersDir)
+    const absolutePath = join(Deno.cwd(), listenersDir)
 
-        // Recursively find all .ts files in the directory
-        const files: string[] = []
-        for await (const entry of Deno.readDir(absolutePath)) {
-            if (entry.isFile && entry.name.endsWith('.ts')) {
-                files.push(join(absolutePath, entry.name))
-            } else if (entry.isDirectory) {
-                // Recursively scan subdirectories
-                const subFiles = await scanDirectory(
-                    join(absolutePath, entry.name),
-                )
-                files.push(...subFiles)
-            }
-        }
+    // An absent directory throws Deno.errors.NotFound from here, before any
+    // import runs — so the caller can tell "no listeners" from "a broken one".
+    const files = await scanDirectory(absolutePath)
 
-        // Import all listener files
-        const modules = await Promise.all(
-            files.map((file) => importAppFile(file)),
-        )
+    // Each failure is wrapped where the file is still known. Unwrapped, the
+    // runtime's error names the file only sometimes, and a module that throws
+    // Deno.errors.NotFound while it evaluates would pass for an absent
+    // directory and be dropped in silence (#518).
+    const modules = await Promise.all(
+        files.map((file) =>
+            importAppFile(file).catch((error: unknown) => {
+                throw new ListenerLoadError(file, error)
+            })
+        ),
+    )
 
-        // Extract listener classes and register them
-        // Note: TC39 Stage 3 decorators only populate metadata during instantiation,
-        // so we must instantiate first, then check for metadata
-        let registeredCount = 0
+    // Extract listener classes and register them
+    // Note: TC39 Stage 3 decorators only populate metadata during instantiation,
+    // so we must instantiate first, then check for metadata
+    let registeredCount = 0
 
-        for (const module of modules) {
-            for (const exportedValue of Object.values(module)) {
-                if (typeof exportedValue === 'function') {
-                    try {
-                        // Instantiate via DI container first
-                        // This triggers @Listener decorator's addInitializer
-                        // Cast to constructor type for container.get()
-                        const listenerInstance = container.get(
-                            exportedValue as new (
-                                ...args: unknown[]
-                            ) => unknown,
-                        )
+    for (const module of modules) {
+        for (const exportedValue of Object.values(module)) {
+            if (typeof exportedValue === 'function') {
+                try {
+                    // Instantiate via DI container first
+                    // This triggers @Listener decorator's addInitializer
+                    // Cast to constructor type for container.get()
+                    const listenerInstance = container.get(
+                        exportedValue as new (
+                            ...args: unknown[]
+                        ) => unknown,
+                    )
 
-                        // Now check for metadata (populated during instantiation)
-                        const metadata = getListenerMetadata(exportedValue)
+                    // Now check for metadata (populated during instantiation)
+                    const metadata = getListenerMetadata(exportedValue)
 
-                        if (metadata.length > 0) {
-                            // Register each listener method
-                            metadata.forEach((meta: ListenerMetadata) => {
-                                const method = (listenerInstance as any)[
-                                    meta.methodName
-                                ]
-                                if (typeof method === 'function') {
-                                    dispatcher().on(
-                                        meta.eventClass,
-                                        method.bind(listenerInstance),
-                                        meta.options,
-                                    )
-                                    registeredCount++
-                                }
-                            })
-                        }
-                    } catch {
-                        // Skip non-instantiable exports (interfaces, types, etc.)
-                        continue
+                    if (metadata.length > 0) {
+                        // Register each listener method
+                        metadata.forEach((meta: ListenerMetadata) => {
+                            const method = (
+                                listenerInstance as Record<
+                                    string | symbol,
+                                    unknown
+                                >
+                            )[meta.methodName]
+                            if (typeof method === 'function') {
+                                dispatcher().on(
+                                    meta.eventClass,
+                                    method.bind(listenerInstance),
+                                    meta.options,
+                                )
+                                registeredCount++
+                            }
+                        })
                     }
+                } catch {
+                    // Skip non-instantiable exports (interfaces, types, etc.)
+                    continue
                 }
             }
         }
+    }
 
-        if (registeredCount > 0) {
-            console.log(
-                `✓ Registered ${registeredCount} event listener(s) from ${listenersDir}`,
-            )
-        }
-    } catch (error) {
-        // Directory doesn't exist - this is fine, listeners are optional
-        if (error instanceof Deno.errors.NotFound) {
-            return
-        }
-        // Re-throw other errors
-        throw error
+    if (registeredCount > 0) {
+        console.log(
+            `✓ Registered ${registeredCount} event listener(s) from ${listenersDir}`,
+        )
     }
 }
 
 /**
- * Recursively scan a directory for TypeScript files
+ * Recursively scan a directory for TypeScript files.
+ *
+ * Nothing is tolerated here. A subdirectory that cannot be read is listeners
+ * the author believes are registered and are not, so it fails like the root
+ * does; whether an absent root is fine is the caller's decision.
  *
  * @param dirPath - Directory path to scan
  * @returns Array of absolute file paths
+ * @throws {Deno.errors.NotFound} If `dirPath` does not exist.
+ * @throws Whatever else `Deno.readDir` throws, untouched.
  * @internal
  */
 async function scanDirectory(dirPath: string): Promise<string[]> {
     const files: string[] = []
 
-    try {
-        for await (const entry of Deno.readDir(dirPath)) {
-            if (entry.isFile && entry.name.endsWith('.ts')) {
-                files.push(join(dirPath, entry.name))
-            } else if (entry.isDirectory) {
-                const subFiles = await scanDirectory(join(dirPath, entry.name))
-                files.push(...subFiles)
-            }
-        }
-    } catch (error) {
-        // Ignore permission errors and not found errors
-        if (
-            !(error instanceof Deno.errors.NotFound) &&
-            !(error instanceof Deno.errors.PermissionDenied)
-        ) {
-            throw error
+    for await (const entry of Deno.readDir(dirPath)) {
+        if (entry.isFile && entry.name.endsWith('.ts')) {
+            files.push(join(dirPath, entry.name))
+        } else if (entry.isDirectory) {
+            files.push(...await scanDirectory(join(dirPath, entry.name)))
         }
     }
 

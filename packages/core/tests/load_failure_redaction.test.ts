@@ -136,21 +136,27 @@ Deno.test('#478 loadControllers (ssg) renders a credential pair, never embeds it
     })
 })
 
-Deno.test('#478 the listeners boot step logs a broken listener rendered, not as an object', async () => {
+// The listeners step refuses the boot with a broken listener since #518, so
+// what reaches the terminal is the refusal: its message, and the
+// `Deno.inspect` an uncaught boot error is printed through.
+
+Deno.test('#478 the listeners boot step refuses a broken listener rendered, never with its source', async () => {
     await withDir({ 'broken_listener.ts': UNPARSEABLE }, async ({ rel }) => {
         const context = {
             config: { listenersDir: rel },
         } as unknown as Parameters<
             typeof listenersStep.run
         >[0]
-        const output = await captured(() =>
-            Promise.resolve(listenersStep.run(context))
+        const error = await assertRejects(
+            () => Promise.resolve(listenersStep.run(context)),
+            Error,
         )
-        assertStringIncludes(output, 'Error discovering listeners: ')
-        assertStringIncludes(output, 'SyntaxError at')
-        assertNoMarker(output)
-        // The object form printed a stack; the rendered line has none.
-        assert(!output.includes('    at '), output)
+        assertStringIncludes(error.message, 'broken_listener.ts')
+        assertStringIncludes(error.message, 'SyntaxError at')
+        assertNoMarker(error.message)
+        assertNoMarker(Deno.inspect(error))
+        // The message is the rendered line: no stack frame inside it.
+        assert(!error.message.includes('    at '), error.message)
     })
 })
 
@@ -161,10 +167,14 @@ Deno.test('#478 the listeners boot step redacts a credential pair a listener thr
         } as unknown as Parameters<
             typeof listenersStep.run
         >[0]
-        const output = await captured(() =>
-            Promise.resolve(listenersStep.run(context))
+        const error = await assertRejects(
+            () => Promise.resolve(listenersStep.run(context)),
+            Error,
         )
-        assertNoMarker(output)
-        assertStringIncludes(output, 'token=***')
+        assertNoMarker(error.message)
+        assertStringIncludes(error.message, 'token=***')
+        // No cause for Deno.inspect to print raw.
+        assertEquals(error.cause, undefined)
+        assertNoMarker(Deno.inspect(error))
     })
 })

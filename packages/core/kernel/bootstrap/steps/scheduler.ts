@@ -82,9 +82,9 @@ async function buildReporter(context: BootstrapContext): Promise<
  * - Discover from `schedulesDir`, and register the explicit `schedules` list
  * - Start the scheduler and log the **armed** count unconditionally
  * - **Re-throw** parse and registration failures. A schedule that cannot be
- *   armed is a configuration error, not an optional feature: the listeners step
- *   this mirrors logs and continues, under which a `0 0 30 2 *` task boots
- *   clean and silently never fires
+ *   armed is a configuration error, not an optional feature: under
+ *   log-and-continue — the listeners step's behaviour until #518 — a
+ *   `0 0 30 2 *` task boots clean and silently never fires
  */
 export const schedulerStep: BootstrapStep = {
     id: 'scheduler',
@@ -219,8 +219,8 @@ export const schedulerStep: BootstrapStep = {
         }
 
         // The constant, not a restated literal. Restating it is the duplication
-        // that already ships for listeners — steps/listeners.ts:33 hardcodes
-        // './app/listener' while kernel_decorators.ts:211 repeats it as an
+        // that already ships for listeners — steps/listeners.ts hardcodes
+        // './app/listener' while KernelConfig.listenersDir repeats it as an
         // @default tag, and the two can drift apart silently.
         const schedulesDir = context.config.schedulesDir ??
             DEFAULT_SCHEDULES_DIR

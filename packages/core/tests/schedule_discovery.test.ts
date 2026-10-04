@@ -169,7 +169,7 @@ export class Broken {
     }, async (dir) => {
         const s = new Scheduler(quiet)
         // 30 February parses, but has no occurrence. It must surface — the
-        // mirrored listeners step would have logged and continued.
+        // listeners step logged and continued until #518.
         await discoverSchedules(dir, s)
         assertThrows(() => s.start(), RangeError, 'no occurrence')
     })
@@ -211,7 +211,7 @@ export class QueryService {
 })
 
 Deno.test('discoverSchedules - a failing constructor is reported by name and does not abort the scan', async () => {
-    // listener_discovery.ts:153 is a bare `catch { continue }`. Downgrading to
+    // discoverListeners has a bare per-export `catch { continue }`. Downgrading to
     // that would make this class vanish with no signal — the S3 failure.
     const errors: string[] = []
     const original = console.error

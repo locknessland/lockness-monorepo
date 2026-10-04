@@ -7,7 +7,10 @@
  * @since 0.2.0
  */
 
-import { renderError } from '@lockness/contract'
+import {
+    discoverListeners,
+    registerListeners,
+} from '../../../events/listener_discovery.ts'
 import type { BootstrapStep } from '../types.ts'
 
 /**
@@ -18,54 +21,45 @@ import type { BootstrapStep } from '../types.ts'
  * Responsibilities:
  * - Auto-discover listeners from listenersDir (default: ./app/listener)
  * - Register explicit listener classes from config.listeners
- * - Skip gracefully if events package not available or directory doesn't exist
+ *
+ * An absent listeners directory is the one tolerated failure — a project with
+ * no listeners has none. Anything else refuses the boot: a listener file that
+ * cannot load raises a `ListenerLoadError` naming the file, because a dropped
+ * listener is event-driven behaviour that silently stops (#518).
+ *
+ * @throws {ListenerLoadError} If a listener file fails to load.
+ * @throws Whatever else reading the listeners directory throws, except
+ * `Deno.errors.NotFound`.
  */
 export const listenersStep: BootstrapStep = {
     id: 'listeners',
     order: 410,
 
     async run(context) {
+        const listenersDir = context.config.listenersDir ?? './app/listener'
+
         try {
-            const { discoverListeners, registerListeners } = await import(
-                '../../../events/listener_discovery.ts'
+            await discoverListeners(listenersDir)
+        } catch (error) {
+            // A project with no listeners legitimately has no directory.
+            // Everything else — a file that does not resolve, compile or
+            // evaluate, a directory that cannot be read — fails the boot.
+            // Same shape as the schedules step.
+            if (!(error instanceof Deno.errors.NotFound)) throw error
+        }
+
+        // Outside the discovery `try`, so an absent directory never skips the
+        // classes the kernel names explicitly (from packages or production
+        // builds).
+        if (context.config.listeners && context.config.listeners.length > 0) {
+            const count = registerListeners(
+                context.config.listeners as Parameters<
+                    typeof registerListeners
+                >[0],
             )
 
-            // Auto-discover from directory
-            const listenersDir = context.config.listenersDir ?? './app/listener'
-            await discoverListeners(listenersDir)
-
-            // Register explicit listener classes (from packages or production builds)
-            if (
-                context.config.listeners && context.config.listeners.length > 0
-            ) {
-                const count = registerListeners(
-                    context.config.listeners as Parameters<
-                        typeof registerListeners
-                    >[0],
-                )
-
-                if (count > 0) {
-                    console.log(
-                        `✓ Registered ${count} explicit event listener(s)`,
-                    )
-                }
-            }
-        } catch (error) {
-            // Silently skip if directory doesn't exist or events package not available
-            if (
-                error instanceof Deno.errors.NotFound ||
-                (error instanceof TypeError &&
-                    error.message.includes('Cannot resolve'))
-            ) {
-                // Expected conditions - no action needed
-            } else {
-                // Log unexpected errors but continue bootstrap. Rendered, not
-                // the object: a listener that fails to load rejects discovery
-                // here, and the object prints its message, stack and cause —
-                // a source excerpt or a credential among them (#478).
-                console.error(
-                    `⚠️  Error discovering listeners: ${renderError(error)}`,
-                )
+            if (count > 0) {
+                console.log(`✓ Registered ${count} explicit event listener(s)`)
             }
         }
     },
