@@ -48,6 +48,10 @@ const CREDENTIAL_STEMS: readonly string[] = [
     'phrase',
     'assertion',
     'verifier',
+    'pin',
+    'otp',
+    'cvv',
+    'cvc',
 ]
 
 /**
@@ -56,6 +60,34 @@ const CREDENTIAL_STEMS: readonly string[] = [
  * `errorcode`, which are exactly what an error message needs to keep.
  */
 const CREDENTIAL_NAMES: ReadonlySet<string> = new Set(['code'])
+
+/**
+ * The suffixes a qualified code name ends in. A name that ends in one of them
+ * WITH something before it is a credential only when that leftover is a
+ * qualifier ({@link isCodeQualifier}); otherwise it is a diagnostic
+ * (`status_code`, `exit_code`). Longest first, so `backup_codes` leaves
+ * `backup`, not `backups`.
+ */
+const CODE_SUFFIXES: readonly string[] = ['codes', 'code']
+
+/**
+ * The factor words that make a `code` compound a one-time secret:
+ * `mfa_code`, `sms_code`, `verification_code`, `backup_codes`. They count only
+ * before `code`, never alone, so `mfa=required` and `access=denied` stay
+ * diagnostics.
+ */
+const CODE_QUALIFIERS: readonly string[] = [
+    'mfa',
+    '2fa',
+    'sms',
+    'onetime',
+    'security',
+    'verification',
+    'verify',
+    'recovery',
+    'backup',
+    'access',
+]
 
 /** The suffix a confirmation field adds to a credential name. */
 const CONFIRMATION = 'confirmation'
@@ -126,6 +158,8 @@ function classifyName(name: string): NameMatch | undefined {
     }
     if (normalised === '') return undefined
     if (CREDENTIAL_NAMES.has(normalised)) return 'exact'
+    const rest = withoutCodeSuffix(normalised)
+    if (rest !== undefined) return isCodeQualifier(rest) ? 'stem' : undefined
     if (CREDENTIAL_STEMS.some((stem) => normalised.endsWith(stem))) {
         return 'stem'
     }
@@ -133,6 +167,34 @@ function classifyName(name: string): NameMatch | undefined {
         return undefined
     }
     return isCountName(normalised) ? 'count' : 'stem'
+}
+
+/**
+ * What precedes a code suffix, when a normalised name has one.
+ *
+ * @param normalised - A normalised name.
+ * @returns The leftover before `code` or `codes`, or `undefined` when the
+ *   name does not end in one or is nothing but the suffix.
+ */
+function withoutCodeSuffix(normalised: string): string | undefined {
+    for (const suffix of CODE_SUFFIXES) {
+        if (normalised.length > suffix.length && normalised.endsWith(suffix)) {
+            return normalised.slice(0, -suffix.length)
+        }
+    }
+    return undefined
+}
+
+/**
+ * Whether what precedes a code suffix makes it a secret: a factor word
+ * (`mfa`, `verification`) or a credential stem (`pin`, `pass`, `auth`).
+ *
+ * @param rest - The leftover before `code` or `codes`.
+ * @returns True for `mfa`, `pin`, `emailverification` and the like.
+ */
+function isCodeQualifier(rest: string): boolean {
+    return CODE_QUALIFIERS.some((word) => rest.endsWith(word)) ||
+        CREDENTIAL_STEMS.some((stem) => rest.endsWith(stem))
 }
 
 /**
