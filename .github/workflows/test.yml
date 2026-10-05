@@ -15,6 +15,14 @@ on:
         - cron: '17 3 * * *'
     workflow_dispatch:
 
+# Read-only by default (#480): no job here writes anything, and actions/cache
+# uses the runner's cache token, not GITHUB_TOKEN. Every job must declare its
+# permissions at one level or the other, so none runs on the repository's
+# default token, and no job here may request an id-token
+# (scripts/ci_id_token_test.ts).
+permissions:
+    contents: read
+
 jobs:
     test:
         name: Run Tests
