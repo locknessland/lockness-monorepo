@@ -1057,6 +1057,13 @@ Deno.test('#526 the path qualifies a field across the brackets', () => {
     )
     // A pinned over-match: a stem prefix qualifies the code after it.
     assertEquals(redactQueryCredentials('[auth]code=23505'), '[auth]code=***')
+    // Pinned over-matches: a `key` field is a stem, and a nested `code`
+    // field in a URL or a form body takes the OAuth rule.
+    assertRedacted({
+        [`config[key]=${M}`]: 'config[key]=***',
+        [`/x?error[code]=${M}&a=1`]: '/x?error[code]=***&a=1',
+        [`error[code]=${M}&a=b`]: 'error[code]=***&a=b',
+    })
 })
 
 Deno.test('#526 non-credential bracket names still render', () => {
@@ -1138,10 +1145,24 @@ Deno.test('#526 the accepted cost: what a bracketed name still shows', () => {
             ['card[cvc]=314&card[number]=4242', 'card[cvc]=***'],
             // A query name that begins with a bracket takes URL mode.
             ['?[x]password=A&B', '?[x]password=***&B'],
+            // A credential container with another generic field name.
+            ['token[raw]=x', 'token[raw]=x'],
+            // A dotted path keeps its single compound reading.
+            ['user.code=X&a=b', 'user.code=X&a=b'],
+            // `two_factor` is no code qualifier, so free text renders.
+            ['two_factor[code]=x', 'two_factor[code]=x'],
+            // A nested `code` field in free text is a diagnostic.
+            ['error[code]=E_X', 'error[code]=E_X'],
         ]
     ) {
         assertEquals(redactQueryCredentials(text), expected, text)
     }
+    // `[` and `]` join the run a cut shows (#529): a password holding
+    // `,Q7W[y8]zi.SiG-=` is cut there, and that fragment renders.
+    assertRedacted({
+        [`password=${HEAD},Q7W[y8]zi.SiG-=${TAIL}`]:
+            'password=***,Q7W[y8]zi.SiG-=***',
+    })
 })
 
 Deno.test('#526 the scan stays linear on bracketed names', () => {
