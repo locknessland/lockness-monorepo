@@ -33,10 +33,12 @@
  * `spin`, `hairpin` and `gpio_pin`, pinned like `monkey=`.
  *
  * A name is normalised first: percent-decoded, lowercased, and stripped of
- * `.`, `_`, `~` and `-`. Stripping is what keeps `key_id` and `token_type` out
- * (they end in `id` and `type`) while `api_key` and `api-key` both match.
- * Then trailing digits (`password2`) and a trailing `confirmation`
- * (`password_confirmation`, the form-field idiom) are dropped.
+ * `.`, `_`, `~`, `-`, `[` and `]`. Stripping is what keeps `key_id` and
+ * `token_type` out (they end in `id` and `type`) while `api_key` and
+ * `api-key` both match. Then trailing digits (`password2`) and a trailing
+ * `confirmation` (`password_confirmation`, the form-field idiom) are
+ * dropped. A bracketed name (`card[cvc]`) is matched by its field segment
+ * first, and its stripped path can only raise that match (#526).
  */
 const CREDENTIAL_STEMS: readonly string[] = [
     'token',
@@ -112,20 +114,31 @@ const STRIPPED: ReadonlySet<string> = new Set(['.', '_', '~', '-', ...BRACKETS])
  * Case-insensitive and encoding-insensitive: `PASSWORD`, `AuthToken` and
  * `api%5Fkey` all match. A sequence that is not `%XX` is kept as written.
  *
+ * A bracketed name, as qs, PHP and Rails nest form fields, is decided by its
+ * field segment — the last bracket segment that holds a letter — so
+ * `card[cvc]`, `user[password]` and `card%5Bcvc%5D` match while
+ * `card[number]` and `token[type]` do not. An index segment (`[]`, `[0]`) is
+ * skipped, and a name whose segments are all indexes is read as its path, so
+ * `password[]` matches. The whole path can only raise a field to a stem match
+ * (`verification[code]`, `password[confirmation]`); an outer segment alone
+ * never matches (#526).
+ *
  * @param name - The parameter name, as written or already decoded.
- * @returns True when the name ends with a credential stem (or its plural),
- *   is `code`, or ends in `code`/`codes` after a credential stem or a factor
- *   word (`pin_code`, `mfa_code`), once trailing digits and `confirmation`
- *   are dropped.
+ * @returns True when the name (or, bracketed, its field segment) ends with a
+ *   credential stem (or its plural), is `code`, or ends in `code`/`codes`
+ *   after a credential stem or a factor word (`pin_code`, `mfa_code`), once
+ *   trailing digits and `confirmation` are dropped.
  *
  * @example
  * ```typescript
  * isCredentialParamName('access_token') // true
  * isCredentialParamName('password_confirmation') // true
  * isCredentialParamName('pin_code') // true
+ * isCredentialParamName('card[cvc]') // true
  * isCredentialParamName('token_type') // false
  * isCredentialParamName('statuscode') // false
  * isCredentialParamName('status_code') // false
+ * isCredentialParamName('card[number]') // false
  * ```
  */
 export function isCredentialParamName(name: string): boolean {
@@ -313,7 +326,11 @@ function isCountName(normalised: string): boolean {
  * is never before the previous `=`, so walks cover disjoint spans and the
  * whole pass touches each character a bounded number of times. A global
  * regular expression of the obvious shape was measured quadratic on the
- * uncapped message (40k characters: 2.4 s).
+ * uncapped message (40k characters: 2.4 s). Brackets are name characters, so
+ * a bracketed name is one run to both walks, and its structure is read once,
+ * from the name's end, when the name is classified: no walk pairs a `[` with
+ * its `]`, which would rescan on `x]=` repeated, and no segment is read to
+ * the end of the name, which would rescan on `[0]` repeated.
  *
  * The walk crosses `%XX` only when it decodes to a name character, so an
  * encoded separator (`%3F`, `%26`) ends a name the way a raw one does — which
@@ -353,9 +370,14 @@ function isCountName(normalised: string): boolean {
  *   bare `code` or a count there is masked. Its value is the rest of the
  *   value before it, so either rule would show that rest
  *   (`--password=ab&token=cd&ef` renders `--password=***&token=***`, and
- *   `Pwd=ab;max_tokens=4096` renders `Pwd=***;max_tokens=***`). A pair after
- *   an empty value or a kept count sits inside no masked value and keeps its
- *   own rule, so `max_tokens=4096;code=23505` renders whole.
+ *   `Pwd=ab;max_tokens=4096` renders `Pwd=***;max_tokens=***`). Every cut
+ *   passes this on, whatever value it ends, an empty one included (#528):
+ *   `pwd=A;token=;code=B` renders `pwd=***;token=;code=***`, and
+ *   `--password=,code=B,retry=C` renders `--password=,code=***`. A pair after
+ *   a kept count sits inside no masked value and keeps its own rule, so
+ *   `max_tokens=4096;code=23505` renders whole. The cost: an empty raw
+ *   credential value before a separator and a bare `code` or a count masks
+ *   that pair (`token=;code=23505` renders `token=;code=***`).
  * - The accepted cost, and what the cut leaves: a value that holds a
  *   separator before a credential `name=` shows that separator and name
  *   (`Pwd=ab;token=cd` renders `Pwd=***;token=***`), and so does a password
@@ -392,11 +414,33 @@ function isCountName(normalised: string): boolean {
  * takes the raw end, so `?a=1&amp;max_tokens=4096&amp;b=2` masks the count —
  * its value runs on to `&amp;b=2`, which starts no credential pair.
  *
+ * **Bracketed names (#526).** `[` and `]`, raw or as `%5B`/`%5D`, are name
+ * characters, so both walks cross them and the pair is classified by
+ * {@link isCredentialParamName}'s field-segment rule: `card[cvc]=…`,
+ * `user[password]=…`, `card[cvc][]=…` and `password[0]=…` are masked, a
+ * cut finds `&card[cvc]=` after a password, and a nested `code` field takes
+ * the bare `code` rule (`user[code]=…&state=1` is a form body, masked;
+ * `status[code]=503` renders). Known residue, pinned by the accepted-cost
+ * test: a credential container with a generic field renders
+ * (`password[value]`, `token[raw]`, as `password_value` does); a segment
+ * holding a blank, `:`, `/`, `@`, `+` or non-ASCII ends the walk inside the
+ * brackets (`user[pass word]=x` renders); an unqualified container's `code`
+ * renders in free text (`user[code]=x`, `two_factor[code]=x`); a dotted
+ * path keeps its single compound reading (`user.code=X&a=b` renders); a raw
+ * credential value outside a URL eats the bracket pair after it
+ * (`card[cvc]=314&card[number]=4242` renders `card[cvc]=***`); a query name
+ * that begins with a bracket takes URL mode (`?[x]password=A&B` renders
+ * `?[x]password=***&B`); a cut shows its separator and its bracketed name,
+ * and `[` and `]` join the run such a cut can show; and `[auth]code=23505`,
+ * `config[key]=v` and, in a URL or form body, `error[code]=E_X` are pinned
+ * over-matches.
+ *
  * **Not seen.** This net is a shape rule for `name=value`. It does not see a
  * JSON `"token":"…"`, a header- or YAML-style `name: value`, an
  * `Authorization: Bearer …` header, a bare token with no name, a doubly
- * encoded separator (`%253D`), or a session id under a name it does not
- * know. Those need a source-side fix where the value is known.
+ * encoded separator (`%253D`) or bracket (`%255B`), or a session id under a
+ * name it does not know. Those need a source-side fix where the value is
+ * known.
  *
  * @param text - Text that may carry credential pairs.
  * @returns The text with each credential value replaced by `***`.
@@ -927,7 +971,10 @@ function withoutTrailingDigits(text: string): string {
 
 /**
  * Whether a character may appear in a parameter name: ASCII letters, digits,
- * `.`, `_`, `~` and `-`.
+ * `.`, `_`, `~`, `-`, `[` and `]`.
+ *
+ * The brackets are here so a nested form name (`card[cvc]`) is one run to
+ * both walks; its segments are read only by {@link classifyName} (#526).
  *
  * @param char - One character.
  * @returns True for a name character.

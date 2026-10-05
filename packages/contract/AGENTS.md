@@ -134,17 +134,52 @@ Anything not listed is internal and free to change.
   keeps the raw end and the cut check and takes no exemption: never URL mode,
   and a bare `code` or a count digit run is masked there. Its value is the rest
   of the value before it, so any of those would show it
-  (`--password=ab&token=cd&ef` renders `--password=***&token=***`). The marker
-  is set only when a masked value was cut: a pair after a kept count keeps its
-  own rule (`max_tokens=4096;code=23505` renders whole). Leftover leaks, pinned
-  by the accepted-cost test: the cut shows its separator and name
-  (`Pwd=ab;token=cd` → `Pwd=***;token=***`, likewise a password holding `&pin=`,
-  `;pin=` or `,pin=`); a quoted value after a cut ends at its quote
+  (`--password=ab&token=cd&ef` renders `--password=***&token=***`). Every cut
+  sets the marker, whatever value it ends, an empty one included (#528):
+  `pwd=A;token=;code=B` renders `pwd=***;token=;code=***`, and
+  `--password=,code=B,retry=C` renders `--password=,code=***`. Only a kept count
+  or an exempt bare `code` leaves the scan before the marker, so a pair after a
+  kept count keeps its own rule (`max_tokens=4096;code=23505` renders whole).
+  The cost, pinned: an empty raw credential value before a separator and a bare
+  `code` or a count masks that pair (`token=;code=23505` → `token=;code=***`).
+  Leftover leaks, pinned by the accepted-cost test: the cut shows its separator
+  and name (`Pwd=ab;token=cd` → `Pwd=***;token=***`, likewise a password holding
+  `&pin=`, `;pin=` or `,pin=`); a quoted value after a cut ends at its quote
   (`Pwd=ab;key="x"yz` shows `yz`); a URL-mode value is not cut
   (`?password=A;token="B"` shows `"B"`); an unnamed pair is no cut
   (`Pwd=ab;x= cd` shows `cd`); and a form body with a secret before `code` loses
   the code's neighbours (`client_secret=cs&code=xyz&grant_type=…` →
   `client_secret=***&code=***`).
+- **A bracket is a name character, and only `classifyName` reads the structure**
+  (#526). `[` and `]` sit in `STRIPPED`, so the walk left and the cut lookahead
+  cross them, raw or as `%5B`/`%5D`, through the one `isNameCharacter`
+  predicate; neither walk pairs a `[` with its `]`, and none may start to — two
+  parsers of one grammar break the cut's `inherited` identity check, and a
+  pairing search is quadratic on `x]=` repeated. A bracketed name is classified
+  by its field segment (`fieldSegment`: the last bracket segment holding a
+  letter) with every existing rule: `card[cvc]`, `user[password]`, `card[cvc][]`
+  mask, and `user[code]` takes the bare `code` rule (masked in a URL, after
+  `&amp;` or in a form body). An index segment (`[]`, `[0]`) is skipped; a name
+  of indexes only reads as its path, so `password[0]` masks. The whole path,
+  read as a dotted name is, can only raise the result to `stem`
+  (`verification[code]`, `pin[code]`, `password[confirmation]`), never lower it
+  (`max[api_tokens]` stays masked). An outer segment alone never classifies:
+  `token[type]`, `api_key[id]` and `card[number]` render. `fieldSegment` reads
+  each name once from its end; a scan to the end of the name at every bracket is
+  quadratic (battery row). Known residue, pinned by the accepted-cost test: a
+  credential container with a generic field renders (`password[value]`,
+  `token[raw]`, as `password_value` does); a segment holding a blank, `:`, `/`,
+  `@`, `+` or non-ASCII ends the walk inside the brackets (`user[pass word]=x`
+  renders); a doubly encoded bracket is not seen (`%255B`, like `%253D`); an
+  unqualified container's `code` renders in free text (`user[code]=x`, and
+  `two_factor[code]=x`, since `two_factor` is no `CODE_QUALIFIERS` word, #527);
+  a dotted path keeps its single compound reading (`user.code=X&a=b` renders);
+  outside a URL a raw credential value eats the bracket pair after it
+  (`card[cvc]=314&card[number]=4242` → `card[cvc]=***`); a query name that
+  begins with a bracket takes URL mode (`?[x]password=A&B` →
+  `?[x]password=***&B`); `[` and `]` join the run a cut can show (#529); and
+  `[auth]code=23505`, `config[key]=v` and, in a URL or form body,
+  `error[code]=E_X` are pinned over-matches.
 - **A compile failure is recognised by its message shape, never by class or
   `code`** (`logging/compile_diagnostic.ts`). Deno reports a parse failure as a
   `TypeError` with `ERR_MODULE_NOT_FOUND`, the same pair "Module not found"
