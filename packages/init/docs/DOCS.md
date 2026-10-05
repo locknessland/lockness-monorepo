@@ -516,7 +516,7 @@ deno task build
 
 Prepares the app to run: it regenerates `app/routes.ts` from your controllers,
 and in the `web` kit also compiles `public/css/app.css` with Tailwind. It builds
-no binary. For a standalone binary, run `deno task cli compile`; see
+no binary. For a standalone binary, run `deno task compile`; see
 [compilation.md](../../../docs/compilation.md).
 
 ### Environment Variables
@@ -598,11 +598,11 @@ Verify `DATABASE_URL` in `.env` and ensure PostgreSQL is running:
 
 ## Upgrading to v0.5.0
 
-Seven items. The first and third are for `web` and `api` apps scaffolded from
-v0.4.x; `slim` has no database and is not affected by them. The second, fourth
-and fifth are for every app, of any kit, scaffolded before v0.5.0. If you take
-item 4, which replaces the `Dockerfile`, item 2 is already done. The sixth is
-for `web` and `api` apps, and **without it they do not boot on v0.5.0**. The
+Eight items. The first and third are for `web` and `api` apps scaffolded from
+v0.4.x; `slim` has no database and is not affected by them. The second, fourth,
+fifth and eighth are for every app, of any kit, scaffolded before v0.5.0. If you
+take item 4, which replaces the `Dockerfile`, item 2 is already done. The sixth
+is for `web` and `api` apps, and **without it they do not boot on v0.5.0**. The
 seventh is for `web` apps only, whose stylesheet never ran through Tailwind.
 
 For item 1, **migration step:** add the drizzle wiring to `deno.json` and
@@ -1072,6 +1072,25 @@ the colour utilities `app/view/components/ui.tsx` uses (`bg-primary`,
 Delete `postcss.config.js`; nothing reads it. Then run `deno task css:build`,
 check that `public/css/app.css` starts with a `tailwindcss v4` banner, and
 commit `deno.lock`.
+
+### 8. Every app scaffolded before v0.5.0: add a `compile` task
+
+The generated `app/kernel.ts`, `app/routes.ts` and `config/compile.ts` (and the
+`slim` README) say to run `deno task compile`, but no kit defined that task, so
+the command answered "Task not found" (#453). Add it to `deno.json`:
+
+```json
+{
+    "tasks": {
+        "compile": "deno task cli compile"
+    }
+}
+```
+
+If you kept the commented `'deno task css:build'` example in the
+`compile.scripts` list of an `api` or `slim` app's `config/compile.ts`, change
+it to `'deno task build'`: those kits have no `css:build` task. v0.5.0 scaffolds
+write `'deno task build'` in every kit.
 
 ## See Also
 
