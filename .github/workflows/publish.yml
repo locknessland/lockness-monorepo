@@ -12,6 +12,13 @@ on:
 # only the verdict of the jobs that check (`needs:`), never their bytes: no
 # cache, no artifact and no job output crosses into it. Every job checks out
 # github.sha, so the commit that was checked is the commit that is published.
+#
+# Every job installs the one exact Deno version in .dvmrc (#481), never a
+# range: `deno publish` rewrites what it uploads, so the toolchain decides
+# whether a published package works (#474). A floating `v2.x` would publish
+# with whatever 2.x was newest when the job started, possibly a different one
+# per job. test.yml's `pinned` lane reads the same file, so the version that
+# publishes is a version CI tested.
 permissions:
     contents: read
 
@@ -32,7 +39,7 @@ jobs:
             - name: Setup Deno
               uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2
               with:
-                  deno-version: v2.x
+                  deno-version-file: .dvmrc
 
             # The same versioned gate the pre-push hook and test.yml run
             # (#388, #396): the ordered step list lives in scripts/gate.ts
@@ -67,7 +74,7 @@ jobs:
             - name: Setup Deno
               uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2
               with:
-                  deno-version: v2.x
+                  deno-version-file: .dvmrc
 
             - name: Publish locally, then scaffold and boot every kit
               run: deno task kits:smoke --registry
@@ -94,7 +101,7 @@ jobs:
             - name: Setup Deno
               uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2
               with:
-                  deno-version: v2.x
+                  deno-version-file: .dvmrc
 
             - name: Publish to JSR
               run: deno publish
