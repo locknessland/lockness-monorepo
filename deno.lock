@@ -4681,6 +4681,7 @@
       },
       "packages/i18n": {
         "dependencies": [
+          "jsr:@lockness/cli@0.4",
           "jsr:@lockness/hono@0.4",
           "jsr:@std/assert@1",
           "jsr:@std/path@1"

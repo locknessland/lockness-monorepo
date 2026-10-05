@@ -29,6 +29,18 @@ export interface Cli {
     register(name: string, handler: CommandHandler, description?: string): void
 }
 
+/**
+ * A failed i18n command. `@lockness/cli` recognises a failure by its shape — an
+ * integer `exitCode` — so i18n raises one without importing the CLI: the
+ * dispatcher prints the message once and exits with this status. Deliberately
+ * not exported (#436, D1).
+ */
+class I18nCommandError extends Error {
+    /** The process exit status the dispatcher maps this failure to. */
+    readonly exitCode = 1
+    override readonly name = 'I18nCommandError'
+}
+
 /** Where catalogs are scaffolded. */
 export const LANG_DIR = './resources/lang'
 /** A strict locale-argument shape (security S2). */
@@ -61,30 +73,29 @@ async function processStub(
 /**
  * `make:lang <locale>` — scaffold a catalog module for a locale.
  *
+ * Internal: reached through `registerI18nCommands`, not the package barrel.
+ *
  * @param args - CLI args; the first non-flag token is the locale.
- * @returns The path written, or `undefined` when rejected.
+ * @returns The path written.
+ * @throws {I18nCommandError} When the locale is missing or malformed, or its
+ *   path would leave {@link LANG_DIR}.
  */
-export async function handleMakeLang(
-    args: string[],
-): Promise<string | undefined> {
+export async function handleMakeLang(args: string[]): Promise<string> {
     const locale = args.find((a) => !a.startsWith('-'))?.toLowerCase()
     if (!locale) {
-        console.error('❌ Please provide a locale (e.g. fr-fr)')
-        return undefined
+        throw new I18nCommandError('Please provide a locale (e.g. fr-fr)')
     }
     if (!LOCALE_RE.test(locale)) {
-        console.error(
-            `❌ Invalid locale "${locale}" — use a BCP-47-like tag (e.g. en, fr-fr)`,
+        throw new I18nCommandError(
+            `Invalid locale "${locale}" — use a BCP-47-like tag (e.g. en, fr-fr)`,
         )
-        return undefined
     }
     const fileName = `${locale.replaceAll('-', '_')}.ts`
     const filePath = join(LANG_DIR, fileName)
     // Defence in depth: the shape allowlist already forbids separators, but
     // verify containment against the resolved lang dir before writing (S2).
     if (!isContained(LANG_DIR, filePath)) {
-        console.error(`❌ Refusing to write outside ${LANG_DIR}`)
-        return undefined
+        throw new I18nCommandError(`Refusing to write outside ${LANG_DIR}`)
     }
 
     const content = await processStub('lang', { locale })

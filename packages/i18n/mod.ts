@@ -65,7 +65,6 @@ export {
 export {
     type Cli,
     handleExtract,
-    handleMakeLang,
     isContained,
     LANG_DIR,
     registerI18nCommands,
