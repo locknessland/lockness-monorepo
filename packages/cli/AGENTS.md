@@ -20,7 +20,10 @@ User-facing documentation: [README.md](README.md) ·
   (`@lockness/cli/entry`, the standalone tools) alike, and its `applyExitStatus`
   is the one `Deno.exitCode` write. A failure prints `❌ <message>` through
   `renderMessage`, then `caused by: <cause>` through `renderError`. Automation
-  branches on that status, not on output text. Breaks when:
+  branches on that status, not on output text. The `lockness-exit` lint plugin
+  (`scripts/lint/exit_contract.ts`) guards it: `process-exit` rejects
+  `Deno.exit` and `Deno.exitCode` writes outside their owners, and
+  `printed-failure` rejects a `❌` print in command code. Breaks when:
   - a handler prints `❌` and returns — the process exits 0 and CI reads the
     failure as success;
   - `run()` calls `Deno.exit()` — `finally` blocks (a `db.close()`) are skipped
