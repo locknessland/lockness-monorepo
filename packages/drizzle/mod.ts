@@ -61,6 +61,7 @@ export type {
 } from './cli_commands.ts'
 export type {
     MigrationConfigLoader,
+    MigrationEntry,
     MigrationSettings,
 } from './migration_settings.ts'
 export type { KitDialect } from './generators/dialect_schema.ts'

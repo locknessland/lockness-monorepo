@@ -21,12 +21,21 @@ import {
 import { RefusedError } from '../refusal.ts'
 import { DIALECT_FROM_KIT } from '../generators/dialect_schema.ts'
 
-/** A reader that returns one migration and records the folder it was asked. */
+/**
+ * A reader that returns one migration per statement list and records the
+ * folder it was asked. Entry `i` is tagged `000i_m`, timestamped `i + 1` and
+ * hashed `hash-i`.
+ */
 function reader(statements: string[][] = [['CREATE TABLE "t" ()']]) {
     const folders: string[] = []
     const read: MigrationReader = (folder) => {
         folders.push(folder)
-        return Promise.resolve(statements)
+        return Promise.resolve(statements.map((list, i) => ({
+            tag: `000${i}_m`,
+            when: i + 1,
+            hash: `hash-${i}`,
+            statements: list,
+        })))
     }
     return { folders, read }
 }
@@ -63,6 +72,10 @@ Deno.test('#435 settings carry the defaults drizzle-kit uses', async () => {
         table: '__drizzle_migrations',
         schema: 'drizzle',
         migrations: 2,
+        entries: [
+            { tag: '0000_m', when: 1, hash: 'hash-0' },
+            { tag: '0001_m', when: 2, hash: 'hash-1' },
+        ],
         statements: ['A', 'B', 'C'],
     })
     assertEquals(folders, ['./database/migrations'])
@@ -97,6 +110,7 @@ Deno.test('#442 loadFreshSettings adds the reset scope, from one import of the c
         schema: 'drizzle',
         schemaFilter: ['app', 'auth'],
         migrations: 1,
+        entries: [{ tag: '0000_m', when: 1, hash: 'hash-0' }],
         statements: ['A'],
     })
 })
@@ -861,3 +875,95 @@ Deno.test('#435 the default reader returns each migration’s statements', async
         await Deno.remove(dir, { recursive: true })
     }
 })
+
+/** The lowercase hex SHA-256 of `text`, the hash drizzle-orm records. */
+async function sha256(text: string): Promise<string> {
+    const digest = await crypto.subtle.digest(
+        'SHA-256',
+        new TextEncoder().encode(text),
+    )
+    return [...new Uint8Array(digest)]
+        .map((byte) => byte.toString(16).padStart(2, '0'))
+        .join('')
+}
+
+/** Write a migrations folder: a journal of `entries` plus one file per tag. */
+async function writeFolder(
+    dir: string,
+    entries: ReadonlyArray<{ readonly tag: unknown; readonly when: unknown }>,
+    files: Readonly<Record<string, string>>,
+): Promise<void> {
+    await Deno.mkdir(join(dir, 'meta'))
+    await Deno.writeTextFile(
+        join(dir, 'meta', '_journal.json'),
+        JSON.stringify({
+            entries: entries.map((e) => ({ ...e, breakpoints: true })),
+        }),
+    )
+    for (const [tag, sql] of Object.entries(files)) {
+        await Deno.writeTextFile(join(dir, `${tag}.sql`), sql)
+    }
+}
+
+Deno.test('#439 the default reader returns each entry’s tag, journal timestamp and file hash, in journal order', async () => {
+    const dir = await Deno.makeTempDir()
+    try {
+        const init = 'CREATE TABLE "users" ("id" integer);'
+        const posts = 'CREATE TABLE "posts" ("id" integer);'
+        await writeFolder(dir, [
+            { tag: '0000_init', when: 1_700_000_000_000 },
+            { tag: '0001_posts', when: 1_700_000_000_500 },
+        ], { '0000_init': init, '0001_posts': posts })
+
+        const settings = await loadMigrationSettings(
+            () => Promise.resolve({ ...base, out: dir }),
+        )
+
+        assertEquals(settings.migrations, 2)
+        assertEquals(settings.entries, [
+            {
+                tag: '0000_init',
+                when: 1_700_000_000_000,
+                hash: await sha256(init),
+            },
+            {
+                tag: '0001_posts',
+                when: 1_700_000_000_500,
+                hash: await sha256(posts),
+            },
+        ])
+    } finally {
+        await Deno.remove(dir, { recursive: true })
+    }
+})
+
+for (
+    const [label, when] of [
+        ['a fractional', 1.5],
+        ['a string', '1700000000000'],
+        ['an unsafe', 2 ** 53],
+        ['a missing', undefined],
+    ] as const
+) {
+    Deno.test(`#439 R3 refuses a journal entry with ${label} \`when\``, async () => {
+        const dir = await Deno.makeTempDir()
+        try {
+            await writeFolder(dir, [{ tag: '0000_init', when }], {
+                '0000_init': 'SELECT 1;',
+            })
+            const error = await assertRejects(
+                () =>
+                    loadMigrationSettings(
+                        () => Promise.resolve({ ...base, out: dir }),
+                    ),
+                RefusedError,
+            )
+            assertStringIncludes(
+                error.message,
+                'journal entry 0000_init has no integer `when`',
+            )
+        } finally {
+            await Deno.remove(dir, { recursive: true })
+        }
+    })
+}

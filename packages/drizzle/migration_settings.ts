@@ -4,7 +4,9 @@
  * database.
  *
  * Both commands migrate in-process, through one loader, so they cannot
- * disagree about which database a config names. They read `out`,
+ * disagree about which database a config names. `db:status` reads through the
+ * same loader (#439), so it reports on exactly the migrations `db:migrate`
+ * would apply. They read `out`,
  * `dbCredentials.url`, `dialect`, `migrations.table` and `migrations.schema`,
  * and nothing else; `db:fresh` alone also reads its reset scope,
  * `schemaFilter`, through {@link loadFreshSettings}. Only `drizzle.config.ts`
@@ -21,10 +23,11 @@
  *   mysql, sqlite or turso. A refusal is `kitOnly` when drizzle-kit can still
  *   run the configuration: an `ssl` certificate, one of its own drivers, or
  *   the singlestore and gel dialects.
- * - **R3** — the journal, or a file it lists, is missing. The migrations are
- *   read up front with drizzle-orm's own `readMigrationFiles`: a database is
- *   never wiped that could not then be migrated, and `db:migrate` refuses
- *   before it connects rather than after.
+ * - **R3** — the journal, or a file it lists, is missing; or an entry's
+ *   `when` is not an integer, or the journal disagrees with what drizzle-orm
+ *   read from it. The migrations are read up front with drizzle-orm's own
+ *   `readMigrationFiles`: a database is never wiped that could not then be
+ *   migrated, and `db:migrate` refuses before it connects rather than after.
  *
  * Every refusal is a {@link RefusedError} carrying only its reason; the
  * command that caught it adds its own name and outcome.
@@ -34,6 +37,7 @@
  */
 
 import { importAppFile } from '@lockness/contract/app-file/internal'
+import { join } from '@std/path'
 import type { MigrationMeta } from 'drizzle-orm/migrator'
 import type { Dialect } from './drivers.ts'
 import {
@@ -53,15 +57,57 @@ import { RefusedError } from './refusal.ts'
 export type MigrationConfigLoader = () => Promise<unknown>
 
 /**
- * Reads a migrations folder and returns each migration's statements, in
- * journal order. Throws when the journal or a listed file is missing.
+ * One journal entry, as drizzle-orm's migrator sees it: what `db:status`
+ * compares with the bookkeeping table (#439).
+ *
+ * The migrator records an applied entry as one bookkeeping row holding
+ * `when` as `created_at` and `hash` as `hash`, so a row matches an entry when
+ * its `created_at` equals `when`.
+ *
+ * @example
+ * ```ts
+ * const entry: MigrationEntry = {
+ *     tag: '0000_init',
+ *     when: 1_700_000_000_000,
+ *     hash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+ * }
+ * ```
+ */
+export interface MigrationEntry {
+    /** The entry's `tag` in `meta/_journal.json`: the file name, for display. */
+    readonly tag: string
+    /**
+     * The entry's `when` in the journal: an integer, in milliseconds. The
+     * migrator stores it as the row's `created_at`.
+     */
+    readonly when: number
+    /**
+     * The lowercase hex SHA-256 of the migration file, as drizzle-orm
+     * computes it and stores it as the row's `hash`.
+     */
+    readonly hash: string
+}
+
+/**
+ * One migration as the reader returns it: its journal entry plus its
+ * statements. Internal.
+ */
+export interface ReadMigration extends MigrationEntry {
+    /** The file's statements, split on drizzle-kit's breakpoint marker. */
+    readonly statements: readonly string[]
+}
+
+/**
+ * Reads a migrations folder and returns each migration, in journal order.
+ * Throws when the journal or a listed file is missing, or when an entry
+ * cannot be compared with a bookkeeping row.
  *
  * @param folder - The migrations folder.
- * @returns One statement list per journal entry.
+ * @returns One migration per journal entry.
  */
 export type MigrationReader = (
     folder: string,
-) => Promise<readonly (readonly string[])[]>
+) => Promise<readonly ReadMigration[]>
 
 /**
  * Everything `db:migrate` and `db:fresh` act on, read once from
@@ -83,8 +129,10 @@ export interface MigrationSettings {
     readonly table: string
     /** postgres only: `migrations.schema`, default `drizzle`. */
     readonly schema: string | undefined
-    /** How many migrations the journal lists. */
+    /** How many migrations the journal lists: `entries.length`. */
     readonly migrations: number
+    /** Every journal entry, in journal order (#439). */
+    readonly entries: readonly MigrationEntry[]
     /** Every migration statement, in order. */
     readonly statements: readonly string[]
 }
@@ -130,20 +178,72 @@ export const defaultLoadMigrationConfig = async (
 /**
  * The production reader: drizzle-orm's own `readMigrationFiles`, the function
  * its migrator runs first — so a folder it accepts here is one the migrate
- * step accepts too. Loaded on demand through a fixed literal (S2).
+ * step accepts too, and each `when` and `hash` is exactly the value the
+ * migrator records. Loaded on demand through a fixed literal (S2).
+ *
+ * drizzle-orm returns no tag, so the journal is read a second time for the
+ * tags, by index. They are for display only: a journal that then disagrees
+ * with drizzle-orm's read (the file changed in between) is refused rather
+ * than shown with the wrong names.
  *
  * @param folder - The migrations folder.
- * @returns One statement list per journal entry.
- * @throws When the journal or a listed file is missing.
+ * @returns One migration per journal entry.
+ * @throws When the journal or a listed file is missing, an entry's `when` is
+ *   not a safe integer, or the second read disagrees with the first.
  */
 const defaultReadMigrations: MigrationReader = async (folder) => {
     const { readMigrationFiles } = await import('drizzle-orm/migrator')
     // Explicit, not redundant: in publish:check's staged subgraph Deno can
     // resolve drizzle-orm's types as `any` depending on import order, and the
     // inferred parameter then fails TS7006. The type import is erased at runtime.
-    return readMigrationFiles({ migrationsFolder: folder }).map((
-        m: MigrationMeta,
-    ) => m.sql)
+    const read: MigrationMeta[] = readMigrationFiles({
+        migrationsFolder: folder,
+    })
+    const journal = await journalEntries(folder)
+    if (journal.length !== read.length) {
+        throw new Error(
+            `the journal lists ${journal.length} entries, but drizzle-orm ` +
+                `read ${read.length}`,
+        )
+    }
+    return read.map((m: MigrationMeta, i: number) => {
+        const { tag, when } = journal[i]
+        if (typeof when !== 'number' || !Number.isSafeInteger(when)) {
+            throw new Error(`journal entry ${tag} has no integer \`when\``)
+        }
+        if (when !== m.folderMillis) {
+            throw new Error(
+                `journal entry ${tag} changed while it was being read`,
+            )
+        }
+        return { tag, when, hash: m.hash, statements: m.sql }
+    })
+}
+
+/**
+ * The `tag` and `when` of each journal entry, read straight from
+ * `meta/_journal.json`. Called only after drizzle-orm parsed the same file,
+ * so it exists and holds an `entries` array.
+ *
+ * @param folder - The migrations folder.
+ * @returns Each entry's tag, as drizzle-orm interpolates it into a file
+ *   name, and its raw `when`.
+ * @throws When the file cannot be read or parsed, or holds no entry list.
+ */
+async function journalEntries(
+    folder: string,
+): Promise<{ readonly tag: string; readonly when: unknown }[]> {
+    const journal: unknown = JSON.parse(
+        await Deno.readTextFile(join(folder, 'meta', '_journal.json')),
+    )
+    const entries = isRecord(journal) ? journal.entries : undefined
+    if (!Array.isArray(entries)) {
+        throw new Error('the journal holds no `entries` list')
+    }
+    return entries.map((entry: unknown) => {
+        const fields = isRecord(entry) ? entry : {}
+        return { tag: String(fields.tag), when: fields.when }
+    })
 }
 
 /**
@@ -228,13 +328,14 @@ async function importConfig(
  * @param parsed - Every setting read from the config itself.
  * @param readMigrations - Reads the migrations folder.
  * @returns The complete settings.
- * @throws {RefusedError} R3 when the journal or a file it lists is missing.
+ * @throws {RefusedError} R3 when the journal or a file it lists is missing,
+ *   or an entry cannot be compared with a bookkeeping row.
  */
 async function withMigrations(
-    parsed: Omit<MigrationSettings, 'migrations' | 'statements'>,
+    parsed: Omit<MigrationSettings, 'migrations' | 'entries' | 'statements'>,
     readMigrations: MigrationReader,
 ): Promise<MigrationSettings> {
-    let migrations: readonly (readonly string[])[]
+    let migrations: readonly ReadMigration[]
     try {
         migrations = await readMigrations(parsed.folder)
     } catch (error) {
@@ -248,7 +349,8 @@ async function withMigrations(
     return {
         ...parsed,
         migrations: migrations.length,
-        statements: migrations.flat(),
+        entries: migrations.map(({ tag, when, hash }) => ({ tag, when, hash })),
+        statements: migrations.flatMap((m) => m.statements),
     }
 }
 
@@ -282,7 +384,7 @@ function importRefused(error: unknown): RefusedError {
  */
 function parseConfig(
     config: unknown,
-): Omit<MigrationSettings, 'migrations' | 'statements'> {
+): Omit<MigrationSettings, 'migrations' | 'entries' | 'statements'> {
     if (!isRecord(config)) {
         throw refused('its default export is not a config object')
     }
