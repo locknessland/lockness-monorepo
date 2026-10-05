@@ -1,41 +1,49 @@
 /**
- * @fileoverview #444 — what a fresh web or api app TELLS its user to run is
- * what it can run, and its database commands are safe before a database is
- * configured.
+ * @fileoverview #444, #453 — what a fresh app TELLS its user to run is what
+ * it can run, and a web or api app's database commands are safe before a
+ * database is configured.
  *
  * `kit_migrations_test.ts` proves the shipped migrations folder; the
- * live-postgres suite proves `db:migrate` and `db:fresh` against a server.
- * Neither reads the app's own text. For each kit that ships migrations, an
- * app is scaffolded the way `kits:smoke` does it (`init` in a subprocess,
- * repointed at this working tree), and then:
+ * live-postgres suite proves `db:migrate` and `db:fresh` against a server;
+ * `kits:smoke` proves the app boots. None of them reads the app's own text.
+ * For every kit, an app is scaffolded the way `kits:smoke` does it (`init`
+ * in a subprocess, repointed at this working tree), and then:
  *
- * 1. every DATABASE instruction written anywhere in the app — README, `.env`,
- *    doc comments — runs: `deno task db:<x>` names a task in its `deno.json`,
- *    `deno task cli db:<x>` names a command its CLI registers, and every task
- *    that runs `cli.ts <command>` names one too. #444 was a README that said
- *    `deno task db:migrate` to an app answering "Unknown command". The check
- *    is held to the database instructions on purpose — #444's scope; other
- *    instructions are not this issue's to gate;
- * 2. with `DATABASE_URL` unset — the state the scaffold ships in — the
- *    drizzle config holds no credentials at all, `db:migrate` fails saying a
- *    url is required, and `db:fresh` refuses before connecting. A fallback
- *    url of ANY spelling would point a destructive command at a database
- *    nobody chose; `kits.test.ts` only catches the `?? ''` spelling.
+ * 1. every `deno task <x>` written anywhere in the app — README, `.env`,
+ *    doc comments, and the body of each task in `deno.json`, since a task
+ *    that runs `deno task <x>` is an instruction the app executes itself —
+ *    names a task in its `deno.json`. This step is offline. #444 was a README
+ *    saying `deno task db:migrate` to an app answering "Unknown command";
+ *    #453 was every kit's `app/kernel.ts` naming a `deno task compile` no
+ *    kit defined;
+ * 2. every `deno task cli <command>` in that same text, and every task that
+ *    runs `cli.ts <command>`, names a command the app's CLI registers;
+ * 3. for the kits that ship migrations, with `DATABASE_URL` unset — the
+ *    state the scaffold ships in — the drizzle config holds no credentials at
+ *    all, `db:migrate` fails saying a url is required, and `db:fresh`
+ *    refuses before connecting. A fallback url of ANY spelling would point a
+ *    destructive command at a database nobody chose; `kits.test.ts` only
+ *    catches the `?? ''` spelling.
  *
- * Step 2 is ordered so this test cannot itself be destructive: the config is
+ * Step 3 is ordered so this test cannot itself be destructive: the config is
  * proven credential-free before `db:fresh` runs, `.env` is proven to set no
  * `DATABASE_URL`, and `PG*` points at a closed loopback port.
  *
- * The app's commands resolve npm packages; on a cold offline machine the test
- * skips with a printed reason — only on a recognised network error, the #157
- * pattern of `packages/vite/tests/e2e_smoke.test.ts`.
+ * Steps 2 and 3 run the app's commands, which resolve npm packages; on a cold
+ * offline machine they are skipped with a printed reason — only on a
+ * recognised network error, the #157 pattern of
+ * `packages/vite/tests/e2e_smoke.test.ts`. Step 1 needs no network.
+ *
+ * Only the `deno task <x>` grammar is read: `./nessy <x>`, `deno run … cli.ts
+ * <x>` in prose, and descriptions such as "run the compile task" are not.
  *
  * @module
  */
 
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { join } from '@std/path'
-import { migratingKits } from './kit_migrations.ts'
+import { type KitName, KITS } from '@lockness/init'
+import { shipsMigrations } from './kit_migrations.ts'
 import { scaffoldKit } from './kit_smoke.ts'
 
 /** A network failure fetching a package — the only reason to skip. */
@@ -115,24 +123,39 @@ async function inApp(
     }
 }
 
-/**
- * Whether an instruction is about the database — the instructions #444 is
- * about.
- *
- * @param instruction - The instruction.
- * @returns True for `deno task db:<x>` and `deno task cli db:<x>`.
- */
-function aboutTheDatabase(instruction: Instruction): boolean {
-    return instruction.task.startsWith('db:') ||
-        (instruction.task === 'cli' &&
-            (instruction.command?.startsWith('db:') ?? false))
-}
-
 /** One instruction found in the app's text. */
 interface Instruction {
     readonly file: string
     readonly task: string
     readonly command: string | undefined
+}
+
+/**
+ * Every `deno task …` instruction in a piece of text.
+ *
+ * @param file - Where the text came from, for the failure message.
+ * @param content - The text.
+ * @returns The instructions it holds.
+ */
+function instructionsIn(file: string, content: string): Instruction[] {
+    return [...content.matchAll(INSTRUCTION)].map((match) => ({
+        file,
+        task: match[1],
+        command: match[2],
+    }))
+}
+
+/**
+ * Every `deno task …` instruction the app's own tasks run — `build` running
+ * `deno task routes:generate`, `compile` running `deno task cli compile`.
+ *
+ * @param tasks - The `tasks` of the app's `deno.json`.
+ * @returns The instructions, each attributed to its task.
+ */
+function taskInstructions(tasks: Record<string, string>): Instruction[] {
+    return Object.entries(tasks).flatMap(([name, body]) =>
+        instructionsIn(`deno.json task "${name}"`, body)
+    )
 }
 
 /**
@@ -156,27 +179,62 @@ async function instructions(dir: string): Promise<Instruction[]> {
             if (!entry.isFile || !TEXT_FILE.test(entry.name)) continue
             if (file === 'deno.json' || file === 'deno.lock') continue
             const content = await Deno.readTextFile(join(current, entry.name))
-            for (const match of content.matchAll(INSTRUCTION)) {
-                found.push({ file, task: match[1], command: match[2] })
-            }
+            found.push(...instructionsIn(file, content))
         }
     }
     await visit(dir, '')
     return found
 }
 
-for (const kit of migratingKits()) {
-    Deno.test(`#444 QA ${kit}: the app's instructions run, and its db commands refuse without DATABASE_URL`, async (t) => {
+for (const kit of Object.keys(KITS) as KitName[]) {
+    Deno.test(`#444 #453 QA ${kit}: the app's instructions run, and its db commands refuse without DATABASE_URL`, async (t) => {
         const workdir = await Deno.makeTempDir({ prefix: 'lockness-444-qa-' })
         try {
             const scaffold = await scaffoldKit(kit, workdir)
             assert(scaffold.ok, scaffold.output)
             const dir = scaffold.dir
 
+            const tasks = (JSON.parse(
+                await Deno.readTextFile(join(dir, 'deno.json')),
+            ) as { tasks: Record<string, string> }).tasks
+            const said = [
+                ...(await instructions(dir)),
+                ...taskInstructions(tasks),
+            ]
+
+            await t.step(
+                'every `deno task <x>` it tells the user to run is a task',
+                () => {
+                    // Not vacuous: app/kernel.ts is where #453 was found, and
+                    // the README is where #444 was.
+                    assert(
+                        said.some((i) =>
+                            i.file === 'app/kernel.ts' && i.task === 'compile'
+                        ),
+                        'app/kernel.ts no longer says `deno task compile`',
+                    )
+                    if (shipsMigrations(kit)) {
+                        assert(
+                            said.some((i) =>
+                                i.file === 'README.md' &&
+                                i.task === 'db:migrate'
+                            ),
+                            'README.md no longer says `deno task db:migrate`',
+                        )
+                    }
+                    const missing = said
+                        .filter(({ task }) => !(task in tasks))
+                        .map(({ file, task }) =>
+                            `${file}: \`deno task ${task}\` is not a task`
+                        )
+                    assertEquals([...new Set(missing)], [])
+                },
+            )
+
             const listed = await inApp(dir, ['task', 'cli', 'list'])
             if (!listed.ok && OFFLINE.test(listed.output)) {
                 console.warn(
-                    `[#444] skipped ${kit} — the app's npm packages are unavailable offline`,
+                    `[#444] skipped the CLI and database steps for ${kit} — the app's npm packages are unavailable offline`,
                 )
                 return
             }
@@ -189,47 +247,34 @@ for (const kit of migratingKits()) {
                 [...listed.output.matchAll(/^ {2}([a-z][\w:-]*) /gm)]
                     .map((m) => m[1]),
             )
-            assert(commands.has('db:migrate'), listed.output)
+            assert(commands.has('compile'), listed.output)
 
             await t.step(
-                'every database command it tells the user to run exists',
-                async () => {
-                    const tasks = (JSON.parse(
-                        await Deno.readTextFile(join(dir, 'deno.json')),
-                    ) as { tasks: Record<string, string> }).tasks
-
-                    const said = (await instructions(dir)).filter(
-                        aboutTheDatabase,
-                    )
-                    // Not vacuous: the README is where #444 was found.
-                    assert(
-                        said.some((i) =>
-                            i.file === 'README.md' && i.task === 'db:migrate'
-                        ),
-                        'README.md no longer says `deno task db:migrate`',
-                    )
+                'every CLI command it tells the user to run is registered',
+                () => {
+                    const missing: string[] = []
                     for (const { file, task, command } of said) {
-                        assert(
-                            task in tasks,
-                            `${file}: \`deno task ${task}\` is not a task`,
-                        )
-                        if (task === 'cli' && command !== undefined) {
-                            assert(
-                                commands.has(command),
+                        if (task !== 'cli' || command === undefined) continue
+                        if (!commands.has(command)) {
+                            missing.push(
                                 `${file}: \`deno task cli ${command}\` is not a command`,
                             )
                         }
                     }
                     for (const [task, line] of Object.entries(tasks)) {
                         const command = CLI_TASK.exec(line)?.[1]
-                        if (command === undefined) continue
-                        assert(
-                            commands.has(command),
+                        if (command === undefined || commands.has(command)) {
+                            continue
+                        }
+                        missing.push(
                             `task "${task}" runs \`cli.ts ${command}\`, which is not a command`,
                         )
                     }
+                    assertEquals([...new Set(missing)], [])
                 },
             )
+
+            if (!shipsMigrations(kit)) return
 
             await t.step(
                 'unset DATABASE_URL: no credentials, db:migrate fails, db:fresh refuses',
