@@ -11,108 +11,44 @@
  *   floating `v2.x`, so the version that publishes is a version CI tested and
  *   no literal version sits in the matrix to drift from `.dvmrc`.
  *
- * The workflows are read line by line rather than through a YAML library: the
- * files are `deno fmt`-formatted, so their indentation is stable, and a shape
- * this reader does not recognise fails the test instead of passing it.
+ * The workflows are read through `scripts/ci_workflows.ts`, the one
+ * `@std/yaml` reader every workflow-shape test shares (#480), so a shape it
+ * does not expect throws instead of reading as an absent field.
  *
  * @module
  */
 
 import { assert, assertEquals, assertMatch } from '@std/assert'
+import { readWorkflows, type Workflow } from './ci_workflows.ts'
 
 const DENO_VERSION_FILE = new URL('../.dvmrc', import.meta.url)
-const PUBLISH_WORKFLOW = new URL(
-    '../.github/workflows/publish.yml',
-    import.meta.url,
-)
-const TEST_WORKFLOW = new URL('../.github/workflows/test.yml', import.meta.url)
 
-/** One `denoland/setup-deno` step, with the job it belongs to. */
-interface SetupDenoStep {
-    /** The key of the job under `jobs:`. */
-    job: string
-    /** The step's `with:` inputs, values unquoted. */
-    inputs: Record<string, string>
-}
-
-/** The indentation of a line, in spaces. */
-function indentOf(line: string): number {
-    return line.length - line.trimStart().length
-}
-
-/** A blank line or a comment, which never ends a block. */
-function isFiller(line: string): boolean {
-    const trimmed = line.trim()
-    return trimmed === '' || trimmed.startsWith('#')
+/**
+ * One workflow of the real tree, by file name.
+ *
+ * @param file - The file name, such as `publish.yml`.
+ * @returns The parsed workflow.
+ */
+async function workflowNamed(file: string): Promise<Workflow> {
+    const workflow = (await readWorkflows()).find((w) => w.file === file)
+    assert(workflow !== undefined, `no ${file} in .github/workflows/`)
+    return workflow
 }
 
 /**
- * Every job key under `jobs:`, in order.
+ * Every `denoland/setup-deno` step, with the job it belongs to.
  *
- * @param workflow - The workflow file's text.
- * @returns The job keys.
+ * @param workflow - The parsed workflow.
+ * @returns Each step's job id and `with:` inputs, in file order.
  */
-function jobsOf(workflow: string): string[] {
-    const jobs: string[] = []
-    let inJobs = false
-    for (const line of workflow.split('\n')) {
-        if (isFiller(line)) continue
-        if (indentOf(line) === 0) {
-            inJobs = /^jobs:\s*$/.test(line)
-            continue
-        }
-        const job = inJobs ? line.match(/^ {4}([\w-]+):\s*$/) : null
-        if (job !== null) jobs.push(job[1])
-    }
-    return jobs
-}
-
-/**
- * Every `denoland/setup-deno` step, with its job and its `with:` inputs.
- *
- * @param workflow - The workflow file's text.
- * @returns The steps, in file order.
- */
-function setupDenoSteps(workflow: string): SetupDenoStep[] {
-    const lines = workflow.split('\n')
-    const steps: SetupDenoStep[] = []
-    let job = ''
-    let inJobs = false
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i]
-        if (isFiller(line)) continue
-        if (indentOf(line) === 0) {
-            inJobs = /^jobs:\s*$/.test(line)
-            continue
-        }
-        const jobKey = inJobs ? line.match(/^ {4}([\w-]+):\s*$/) : null
-        if (jobKey !== null) {
-            job = jobKey[1]
-            continue
-        }
-        const uses = line.match(/^(\s*)(- )?uses:\s*denoland\/setup-deno@/)
-        if (uses === null) continue
-        // The column of the step's own keys: `uses:`, `with:`, `name:`.
-        const keyIndent = uses[1].length + (uses[2] === undefined ? 0 : 2)
-        const inputs: Record<string, string> = {}
-        let inWith = false
-        for (let j = i + 1; j < lines.length; j++) {
-            const next = lines[j]
-            if (isFiller(next)) continue
-            const indent = indentOf(next)
-            if (indent < keyIndent) break // the next step, or the next job
-            if (indent === keyIndent) {
-                inWith = /^\s*with:\s*$/.test(next)
-                continue
-            }
-            if (!inWith) continue
-            const input = next.match(/^\s*([\w-]+):\s*(.*?)\s*$/)
-            assert(input !== null, `unreadable setup-deno input: ${next}`)
-            inputs[input[1]] = input[2].replace(/^(['"])(.*)\1$/, '$2')
-        }
-        steps.push({ job, inputs })
-    }
-    return steps
+function denoSetups(
+    workflow: Workflow,
+): { job: string; inputs: Readonly<Record<string, string>> }[] {
+    return workflow.jobs.flatMap((job) =>
+        job.steps
+            .filter((step) => step.uses?.startsWith('denoland/setup-deno@'))
+            .map((step) => ({ job: job.id, inputs: step.with }))
+    )
 }
 
 Deno.test('.dvmrc holds one exact x.y.z, never a range', async () => {
@@ -123,10 +59,10 @@ Deno.test('.dvmrc holds one exact x.y.z, never a range', async () => {
 })
 
 Deno.test('every publish.yml job installs Deno from .dvmrc only', async () => {
-    const workflow = await Deno.readTextFile(PUBLISH_WORKFLOW)
-    const steps = setupDenoSteps(workflow)
+    const workflow = await workflowNamed('publish.yml')
+    const steps = denoSetups(workflow)
     // Every job runs `deno`, so every job installs it, once.
-    assertEquals(steps.map((s) => s.job), jobsOf(workflow))
+    assertEquals(steps.map((s) => s.job), workflow.jobs.map((job) => job.id))
     assert(steps.length > 0, 'no setup-deno step in publish.yml')
     for (const { job, inputs } of steps) {
         assertEquals(
@@ -141,22 +77,28 @@ Deno.test('every publish.yml job installs Deno from .dvmrc only', async () => {
             `job "${job}" also states deno-version: ${inputs['deno-version']}`,
         )
     }
-    // Belt and braces: no range, and no second statement, anywhere in the file.
-    assert(
-        !/^\s*deno-version:/m.test(workflow),
-        'publish.yml states a deno-version',
-    )
+    // Belt and braces: no range, and no second statement, in any step.
+    for (const job of workflow.jobs) {
+        for (const step of job.steps) {
+            assert(
+                !('deno-version' in step.with),
+                `job "${job.id}" states a deno-version`,
+            )
+        }
+    }
 })
 
 Deno.test("test.yml's pinned lane installs Deno from .dvmrc", async () => {
-    const workflow = await Deno.readTextFile(TEST_WORKFLOW)
-    const axis = workflow.match(/^\s*deno:\s*\[([^\]]*)\]\s*$/m)
-    assert(axis !== null, 'no `deno` matrix axis in test.yml')
-    const lanes = axis[1].split(',').map((l) =>
-        l.trim().replace(/^'(.*)'$/, '$1')
+    const workflow = await workflowNamed('test.yml')
+    const job = workflow.jobs.find((j) => j.id === 'test')
+    assert(job !== undefined, 'no `test` job in test.yml')
+    const matrix = job.matrix
+    assert(
+        typeof matrix === 'object' && matrix !== null && 'deno' in matrix,
+        'no `deno` matrix axis in test.yml',
     )
-    assertEquals(lanes, ['v2.x', 'pinned'])
-    const [step, ...others] = setupDenoSteps(workflow).filter((s) =>
+    assertEquals(matrix.deno, ['v2.x', 'pinned'])
+    const [step, ...others] = denoSetups(workflow).filter((s) =>
         s.job === 'test'
     )
     assert(step !== undefined, 'no setup-deno step in the test job')
