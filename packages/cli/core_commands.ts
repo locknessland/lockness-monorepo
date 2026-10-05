@@ -9,6 +9,7 @@
 
 import type { Cli } from './mod.ts'
 import { addPackage, removePackage } from './package_loader.ts'
+import { CommandFailedError } from './command_failure.ts'
 import { registerMakeCommands } from './commands/make_commands.ts'
 import { registerAuthCommands } from './commands/auth_commands.ts'
 import { registerNessyCommands } from './commands/nessy_commands.ts'
@@ -28,6 +29,10 @@ import { registerDebugCommands } from './commands/debug_commands.ts'
  * - nessy:install command
  * - tinker REPL command
  *
+ * Every handler reports a failure by throwing — a `CommandFailedError` for
+ * one it can explain — and `Cli.dispatch()` prints it once and returns a
+ * non-zero status (#436). None calls `Deno.exit()`.
+ *
  * @param cli - The CLI instance to register commands on
  *
  * @example
@@ -44,9 +49,9 @@ export function registerCoreCommands(cli: Cli): void {
         async (args: string[]) => {
             const packageName = args[0]
             if (!packageName) {
-                console.error('❌ Usage: cli package:add <package-name>')
-                console.log('Example: cli package:add openapi')
-                return
+                throw new CommandFailedError(
+                    'Usage: cli package:add <package-name> (e.g., cli package:add openapi)',
+                )
             }
             await addPackage(packageName)
         },
@@ -58,9 +63,9 @@ export function registerCoreCommands(cli: Cli): void {
         async (args: string[]) => {
             const packageName = args[0]
             if (!packageName) {
-                console.error('❌ Usage: cli package:install <package-name>')
-                console.log('Example: cli package:install openapi')
-                return
+                throw new CommandFailedError(
+                    'Usage: cli package:install <package-name> (e.g., cli package:install openapi)',
+                )
             }
 
             // Normalize package name
@@ -68,40 +73,42 @@ export function registerCoreCommands(cli: Cli): void {
                 ? packageName
                 : `@lockness/${packageName}`
 
+            let module: { default?: unknown }
             try {
-                // Try to import and run the install script. A package
-                // specifier the app's import map resolves, not an app file,
-                // so importAppFile does not apply; publish:check inventories it.
+                // A package specifier the app's import map resolves, not an
+                // app file, so importAppFile does not apply; publish:check
+                // inventories it.
                 // deno-lint-ignore lockness/app-file-specifier
-                const module = await import(`${fullPackageName}/install`)
-                if (typeof module.default === 'function') {
-                    await module.default()
-                } else {
-                    // Fallback: just add to config
-                    await addPackage(packageName)
-                    console.log('\n✅ Package added to configuration')
-                    console.log(
-                        '⚠️  This package does not have an automated installer',
-                    )
-                    console.log(
-                        '   Please refer to the package documentation for setup instructions',
-                    )
-                }
+                module = await import(`${fullPackageName}/install`)
             } catch (error) {
+                // Only a package without an install script is expected;
+                // anything else reaches the dispatcher's catch-all.
                 if (
-                    error instanceof Error &&
-                    error.message.includes('does not provide an export')
+                    !(error instanceof Error &&
+                        error.message.includes('does not provide an export'))
                 ) {
-                    // No install script, just add to config
-                    await addPackage(packageName)
-                    console.log('\n✅ Package added to configuration')
-                    console.log(
-                        'ℹ️  This package does not have an automated installer',
-                    )
-                } else {
-                    console.error('❌ Installation failed:', error)
-                    Deno.exit(1)
+                    throw error
                 }
+                await addPackage(packageName)
+                console.log('\n✅ Package added to configuration')
+                console.log(
+                    'ℹ️  This package does not have an automated installer',
+                )
+                return
+            }
+
+            if (typeof module.default === 'function') {
+                await module.default()
+            } else {
+                // Fallback: just add to config
+                await addPackage(packageName)
+                console.log('\n✅ Package added to configuration')
+                console.log(
+                    '⚠️  This package does not have an automated installer',
+                )
+                console.log(
+                    '   Please refer to the package documentation for setup instructions',
+                )
             }
         },
         'Install and configure a Lockness package (runs setup automatically)',
@@ -112,8 +119,9 @@ export function registerCoreCommands(cli: Cli): void {
         async (args: string[]) => {
             const packageName = args[0]
             if (!packageName) {
-                console.error('❌ Usage: cli package:remove <package-name>')
-                return
+                throw new CommandFailedError(
+                    'Usage: cli package:remove <package-name> (e.g., cli package:remove openapi)',
+                )
             }
             await removePackage(packageName)
         },

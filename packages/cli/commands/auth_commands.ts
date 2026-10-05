@@ -8,6 +8,7 @@
  */
 
 import { type Cli, Stub } from '../mod.ts'
+import { runSteps } from '../command_failure.ts'
 import { dirname, fromFileUrl, join } from '@std/path'
 
 /**
@@ -30,6 +31,8 @@ if (import.meta.url.startsWith('file://')) {
  * Commands registered:
  * - make:auth - Scaffold authentication system (controller + provider)
  *   - Use --social flag to include OAuth provider support
+ *   - Writes every file it can, then throws a `CommandFailedError` naming the
+ *     files that failed (`1 of 2 steps failed: UserProvider`)
  *
  * @param cli - The CLI instance to register commands on
  *
@@ -72,8 +75,11 @@ export function registerAuthCommands(cli: Cli): void {
                 })
             }
 
-            for (const file of files) {
-                try {
+            // Each file is one step: a failed write does not stop the others,
+            // then the command fails naming it (#436, P1).
+            await runSteps(files.map((file) => ({
+                label: file.name,
+                run: async () => {
                     const content = await Stub.renderFrom(
                         STUBS_PATH,
                         'auth',
@@ -90,14 +96,8 @@ export function registerAuthCommands(cli: Cli): void {
                     await Deno.mkdir(dirPath, { recursive: true })
                     await Deno.writeTextFile(file.output, content)
                     console.log(`✅ ${file.name} created at ${file.output}`)
-                } catch (error) {
-                    console.error(
-                        `❌ Failed to create ${file.name}: ${
-                            (error as Error).message
-                        }`,
-                    )
-                }
-            }
+                },
+            })))
 
             console.log('\n📝 Next steps:')
             console.log(

@@ -11,6 +11,7 @@ import type { JobClass, QueueConfig } from '@lockness/queue'
 import { join } from '@std/path'
 import { importAppFile } from '@lockness/contract/app-file/internal'
 import { renderError, safeForLog } from '@lockness/contract'
+import { CommandFailedError } from '../command_failure.ts'
 
 /**
  * Raised when `QUEUE_DRIVER=redis` is selected but the Redis connection
@@ -235,6 +236,7 @@ export async function discoverJobs(
  *   - --once - Process one job and exit
  * - queue:clear - Clear all jobs from a queue
  * - queue:retry - Retry failed (dead-lettered) jobs: queue:retry [<id> | --all]
+ *   - an unknown id throws a `CommandFailedError`, so it exits non-zero (#436)
  *
  * @param cli - The CLI instance to register commands on
  *
@@ -337,10 +339,9 @@ export function registerQueueCommands(cli: Cli): void {
         }
 
         const id = args[0]
-        if (await retryFailedJob(id)) {
-            console.log(`✅ Re-enqueued failed job ${id}`)
-        } else {
-            console.error(`❌ No failed job with id ${id}`)
+        if (!(await retryFailedJob(id))) {
+            throw new CommandFailedError(`No failed job with id ${id}`)
         }
+        console.log(`✅ Re-enqueued failed job ${id}`)
     }, 'Retry failed (dead-lettered) jobs: queue:retry [<id> | --all]')
 }

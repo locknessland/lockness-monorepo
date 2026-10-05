@@ -8,6 +8,7 @@
  */
 
 import { type Cli, Stub } from '../mod.ts'
+import { CommandFailedError } from '../command_failure.ts'
 import { dirname, fromFileUrl, join } from '@std/path'
 
 /**
@@ -30,6 +31,10 @@ if (import.meta.url.startsWith('file://')) {
  * Commands registered:
  * - nessy:install - Install the Nessy shell wrapper script
  *
+ * `nessy:install` throws a `CommandFailedError` when there is no `cli.ts` in
+ * the working directory; a failed write reaches `Cli.dispatch()`'s catch-all
+ * (#436).
+ *
  * @param cli - The CLI instance to register commands on
  *
  * @example
@@ -47,84 +52,78 @@ export function registerNessyCommands(cli: Cli): void {
         console.log('🦕 Installing Nessy - Your Lockness CLI companion!')
         console.log('')
 
+        // Check if cli.ts exists
+        const acePath = join(Deno.cwd(), 'cli.ts')
         try {
-            // Check if cli.ts exists
-            const acePath = join(Deno.cwd(), 'cli.ts')
-            try {
-                await Deno.stat(acePath)
-            } catch {
-                console.error('❌ cli.ts not found in the current directory')
-                console.error(
-                    '   Make sure you run this command from your project root',
-                )
-                return
-            }
-
-            // Determine the OS to create appropriate wrapper
-            const isWindows = Deno.build.os === 'windows'
-            const scriptName = isWindows ? 'nessy.cmd' : 'nessy'
-            const scriptPath = join(Deno.cwd(), scriptName)
-
-            console.log(`📝 Creating ${scriptName} wrapper...`)
-            console.log('')
-
-            // Load wrapper script from stub
-            const stubName = isWindows ? 'nessy.cmd' : 'nessy'
-            const scriptContent = await Stub.renderFrom(
-                STUBS_PATH,
-                'nessy',
-                stubName,
-                {},
-            )
-
-            await Deno.writeTextFile(scriptPath, scriptContent)
-
-            // Make executable on Unix systems
-            if (!isWindows) {
-                await Deno.chmod(scriptPath, 0o755)
-            }
-
-            console.log('✅ Nessy wrapper created successfully!')
-            console.log('')
-            console.log('🎉 You can now use Nessy for ALL commands:')
-            console.log('')
-
-            if (isWindows) {
-                console.log('   .\\nessy list')
-                console.log('   .\\nessy make:controller User')
-                console.log('   .\\nessy db:migrate')
-                console.log('   .\\nessy router:list')
-            } else {
-                console.log('   ./nessy list')
-                console.log('   ./nessy make:controller User')
-                console.log('   ./nessy db:migrate')
-                console.log('   ./nessy router:list')
-            }
-
-            console.log('')
-            console.log(
-                '💡 Tip: Add nessy to your PATH for even easier access!',
-            )
-            console.log('')
-
-            // Check if .gitignore exists and warn if nessy is not ignored
-            try {
-                const gitignorePath = join(Deno.cwd(), '.gitignore')
-                const gitignoreContent = await Deno.readTextFile(gitignorePath)
-
-                if (!gitignoreContent.includes('nessy')) {
-                    console.log(
-                        '⚠️  Remember to add "nessy" to your .gitignore file',
-                    )
-                    console.log('')
-                }
-            } catch {
-                // .gitignore doesn't exist, no problem
-            }
+            await Deno.stat(acePath)
         } catch (error) {
-            console.error(
-                `❌ Error installing Nessy: ${(error as Error).message}`,
+            // Only a missing cli.ts is expected; anything else propagates.
+            if (!(error instanceof Deno.errors.NotFound)) throw error
+            throw new CommandFailedError(
+                'cli.ts not found in the current directory. Run this command from your project root',
             )
+        }
+
+        // Determine the OS to create appropriate wrapper
+        const isWindows = Deno.build.os === 'windows'
+        const scriptName = isWindows ? 'nessy.cmd' : 'nessy'
+        const scriptPath = join(Deno.cwd(), scriptName)
+
+        console.log(`📝 Creating ${scriptName} wrapper...`)
+        console.log('')
+
+        // Load wrapper script from stub
+        const stubName = isWindows ? 'nessy.cmd' : 'nessy'
+        const scriptContent = await Stub.renderFrom(
+            STUBS_PATH,
+            'nessy',
+            stubName,
+            {},
+        )
+
+        await Deno.writeTextFile(scriptPath, scriptContent)
+
+        // Make executable on Unix systems
+        if (!isWindows) {
+            await Deno.chmod(scriptPath, 0o755)
+        }
+
+        console.log('✅ Nessy wrapper created successfully!')
+        console.log('')
+        console.log('🎉 You can now use Nessy for ALL commands:')
+        console.log('')
+
+        if (isWindows) {
+            console.log('   .\\nessy list')
+            console.log('   .\\nessy make:controller User')
+            console.log('   .\\nessy db:migrate')
+            console.log('   .\\nessy router:list')
+        } else {
+            console.log('   ./nessy list')
+            console.log('   ./nessy make:controller User')
+            console.log('   ./nessy db:migrate')
+            console.log('   ./nessy router:list')
+        }
+
+        console.log('')
+        console.log(
+            '💡 Tip: Add nessy to your PATH for even easier access!',
+        )
+        console.log('')
+
+        // Check if .gitignore exists and warn if nessy is not ignored
+        try {
+            const gitignorePath = join(Deno.cwd(), '.gitignore')
+            const gitignoreContent = await Deno.readTextFile(gitignorePath)
+
+            if (!gitignoreContent.includes('nessy')) {
+                console.log(
+                    '⚠️  Remember to add "nessy" to your .gitignore file',
+                )
+                console.log('')
+            }
+        } catch {
+            // .gitignore doesn't exist, no problem
         }
     }, 'Install Nessy CLI wrapper for faster commands')
 }
