@@ -39,11 +39,8 @@ import {
     type MigrationConfigLoader,
     type MigrationSettings,
 } from './migration_settings.ts'
-import {
-    describeResetScope,
-    FreshRefusedError,
-    resetDatabase,
-} from './reset.ts'
+import { describeResetScope, resetDatabase } from './reset.ts'
+import { RefusedError } from './refusal.ts'
 
 /**
  * CLI command handler type.
@@ -269,7 +266,7 @@ export const defaultLoadSeeder: SeederLoader = (relativePath) =>
  * @returns The session; closing it closes the `Database`.
  * @throws {Error} When the client cannot be configured (the redacted
  *   `ConnectionResult.error`).
- * @throws {FreshRefusedError} R4: the driver offers no maintenance
+ * @throws {RefusedError} R4: the driver offers no maintenance
  *   capability — a custom driver factory need not.
  */
 const defaultOpenMaintenance: MaintenanceOpener = async (settings) => {
@@ -286,7 +283,7 @@ const defaultOpenMaintenance: MaintenanceOpener = async (settings) => {
     const maintenance = db.maintenance
     if (!maintenance) {
         await db.close()
-        throw new FreshRefusedError(
+        throw new RefusedError(
             `the '${settings.dialect}' driver offers no schema maintenance ` +
                 '(a custom driver factory?)',
         )
@@ -366,6 +363,50 @@ function refuseInProduction(command: string, args: readonly string[]): void {
 }
 
 /**
+ * What each schema command says after a refusal: that it changed nothing.
+ * The sentence belongs to the command, so the shared loader never has to know
+ * which command called it (#442).
+ */
+const REFUSAL_OUTCOME = {
+    'db:fresh': 'Nothing was dropped',
+} as const
+
+/** A command that frames a {@link RefusedError}. */
+type RefusingCommand = keyof typeof REFUSAL_OUTCOME
+
+/**
+ * Frame a refusal for the command that caught it:
+ * `<command> refused: <reason>. <outcome>.`
+ *
+ * @param command - The command that refused.
+ * @param error - The refusal, carrying only its reason.
+ * @returns The message the command fails with.
+ */
+function refusalMessage(command: RefusingCommand, error: RefusedError): string {
+    return `${command} refused: ${error.reason}. ${REFUSAL_OUTCOME[command]}.`
+}
+
+/**
+ * The message for a failure caught while a command reads its settings or
+ * opens its connection: a refusal framed for the command, anything else
+ * prefixed with what was being done.
+ *
+ * @param command - The command that failed.
+ * @param error - Whatever was thrown.
+ * @param prefix - Prepended to a failure that is not a refusal.
+ * @returns The message the command fails with.
+ */
+function failureMessage(
+    command: RefusingCommand,
+    error: unknown,
+    prefix = '',
+): string {
+    return error instanceof RefusedError
+        ? refusalMessage(command, error)
+        : `${prefix}${getErrorMessage(error)}`
+}
+
+/**
  * Handle `db:fresh` — empty the managed scope, then apply every migration,
  * in one process over one connection (#435).
  *
@@ -390,7 +431,9 @@ async function handleFresh(
     try {
         settings = await loadMigrationSettings(deps.loadMigrationConfig)
     } catch (error) {
-        throw new CommandFailedError(getErrorMessage(error), { cause: error })
+        throw new CommandFailedError(failureMessage('db:fresh', error), {
+            cause: error,
+        })
     }
 
     let session: MaintenanceSession
@@ -398,9 +441,7 @@ async function handleFresh(
         session = await deps.openMaintenance(settings)
     } catch (error) {
         throw new CommandFailedError(
-            error instanceof FreshRefusedError
-                ? error.message
-                : `Could not open the database: ${getErrorMessage(error)}`,
+            failureMessage('db:fresh', error, 'Could not open the database: '),
             { cause: error },
         )
     }
@@ -411,10 +452,11 @@ async function handleFresh(
             await resetDatabase(session, settings)
         } catch (error) {
             throw new CommandFailedError(
-                error instanceof FreshRefusedError
-                    ? error.message
-                    : 'Failed to empty the database; migrations were not run: ' +
-                        getErrorMessage(error),
+                failureMessage(
+                    'db:fresh',
+                    error,
+                    'Failed to empty the database; migrations were not run: ',
+                ),
                 { cause: error },
             )
         }

@@ -15,7 +15,7 @@ import {
     loadMigrationSettings,
     type MigrationReader,
 } from '../migration_settings.ts'
-import { FreshRefusedError } from '../reset.ts'
+import { RefusedError } from '../refusal.ts'
 import { DIALECT_FROM_KIT } from '../generators/dialect_schema.ts'
 
 /** A reader that returns one migration and records the folder it was asked. */
@@ -125,7 +125,7 @@ async function assertRefused(
     const { folders, read } = reader()
     const error = await assertRejects(
         () => loadMigrationSettings(config, read),
-        FreshRefusedError,
+        RefusedError,
     )
     assertEquals(
         error.message.includes(fragment),
@@ -190,7 +190,7 @@ for (
         const { folders, read } = reader()
         const error = await assertRejects(
             () => loadMigrationSettings(() => Promise.reject(thrown()), read),
-            FreshRefusedError,
+            RefusedError,
         )
 
         assertStringIncludes(error.message, 'could not be imported')
@@ -263,16 +263,15 @@ for (
                         () => Promise.resolve({ ...base, dbCredentials }),
                         read,
                     ),
-                FreshRefusedError,
+                RefusedError,
             )
             const label = JSON.stringify(dbCredentials) ?? 'undefined'
             assertEquals(
-                error.message,
-                `db:fresh refused: drizzle.config.ts: ${
-                    CREDENTIAL_FAULTS[fault]
-                }. Nothing was dropped.`,
+                error.reason,
+                `drizzle.config.ts: ${CREDENTIAL_FAULTS[fault]}`,
                 label,
             )
+            assertEquals(error.kitOnly, false, label)
             assertEquals(error.message.includes('secret-host'), false, label)
             assertEquals(error.message.includes('postgres://'), false, label)
             assertEquals(folders, [], `${label}: the migrations were read`)
@@ -426,16 +425,12 @@ for (const [dialect, urls] of NAMES_NO_DATABASE) {
                             }),
                         read,
                     ),
-                FreshRefusedError,
+                RefusedError,
                 undefined,
                 url,
             )
-            assertEquals(
-                error.message,
-                `db:fresh refused: drizzle.config.ts: ${NO_DATABASE}. ` +
-                    'Nothing was dropped.',
-                url,
-            )
+            assertEquals(error.reason, `drizzle.config.ts: ${NO_DATABASE}`, url)
+            assertEquals(error.kitOnly, false, url)
             const text = exposed(error)
             assertEquals(text.includes('secret-host'), false, url)
             assertEquals(text.includes('pw@'), false, url)
@@ -516,7 +511,7 @@ Deno.test('#435 R3 refuses a migrations folder without a journal', async () => {
                 loadMigrationSettings(
                     () => Promise.resolve({ ...base, out: dir }),
                 ),
-            FreshRefusedError,
+            RefusedError,
         )
         assertEquals(error.message.includes('_journal.json'), true)
     } finally {
@@ -539,7 +534,7 @@ Deno.test('#435 R3 refuses a journal that lists a missing file', async () => {
                 loadMigrationSettings(
                     () => Promise.resolve({ ...base, out: dir }),
                 ),
-            FreshRefusedError,
+            RefusedError,
         )
         assertEquals(error.message.includes('0000_gone'), true)
     } finally {

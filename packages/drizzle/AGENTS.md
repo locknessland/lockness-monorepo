@@ -102,7 +102,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-20 test files for 17 source files:
+20 test files for 18 source files:
 
 - `packages/drizzle/tests/app_file.test.ts`
 - `packages/drizzle/tests/cli_commands.test.ts`

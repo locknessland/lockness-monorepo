@@ -20,7 +20,6 @@ import {
 import type { SchemaMaintenance } from '../drivers.ts'
 import {
     describeResetScope,
-    FreshRefusedError,
     planMysqlReset,
     planPostgresReset,
     planSqliteReset,
@@ -29,6 +28,7 @@ import {
     resetDatabase,
     type ResetScope,
 } from '../reset.ts'
+import { RefusedError } from '../refusal.ts'
 
 /** A scope with the drizzle-kit defaults for `dialect`. */
 function scope(
@@ -193,7 +193,7 @@ Deno.test('#435 every mysql DROP names the database', () => {
 Deno.test('#435 R5 mysql plan refuses a NULL DATABASE()', () => {
     assertThrows(
         () => planMysqlReset(mysqlRows(null, []), '__drizzle_migrations'),
-        FreshRefusedError,
+        RefusedError,
         'no database selected',
     )
 })
@@ -205,7 +205,7 @@ Deno.test('#435 mysql plan refuses rows naming more than one database', () => {
                 { db: 'app', name: 'a', type: 'BASE TABLE' },
                 { db: 'other', name: 'b', type: 'BASE TABLE' },
             ], '__drizzle_migrations'),
-        FreshRefusedError,
+        RefusedError,
         'more than one database',
     )
 })
@@ -213,7 +213,7 @@ Deno.test('#435 mysql plan refuses rows naming more than one database', () => {
 Deno.test('#435 mysql plan refuses a catalogue that returned no row', () => {
     assertThrows(
         () => planMysqlReset([], '__drizzle_migrations'),
-        FreshRefusedError,
+        RefusedError,
     )
 })
 
@@ -224,10 +224,10 @@ Deno.test('#435 R5 mysql refuses when DATABASE() is NULL, before any drop', asyn
 
     const error = await assertRejects(
         () => resetDatabase(maintenance, scope('mysql')),
-        FreshRefusedError,
+        RefusedError,
     )
 
-    assertStringIncludes(error.message, 'no database selected')
+    assertStringIncludes(error.reason, 'no database selected')
     assertEquals(calls, ['query'])
 })
 
@@ -252,10 +252,10 @@ for (
 
         const error = await assertRejects(
             () => resetDatabase(maintenance, scope('mysql')),
-            FreshRefusedError,
+            RefusedError,
         )
 
-        assertStringIncludes(error.message, 'system database')
+        assertStringIncludes(error.reason, 'system database')
         assertEquals(calls, ['query'], 'it dropped')
     })
 }
@@ -538,8 +538,8 @@ Deno.test('#435 R6 refuses a migration that creates a schema outside the scope',
             return e
         }
     })()
-    assert(error instanceof FreshRefusedError, String(error))
-    assertStringIncludes(error.message, '"audit"')
+    assert(error instanceof RefusedError, String(error))
+    assertStringIncludes(error.reason, '"audit"')
 })
 
 Deno.test('#435 R6 ignores CREATE SCHEMA IF NOT EXISTS, which re-runs cleanly', () => {
@@ -566,8 +566,8 @@ Deno.test('#435 R6 refuses to drop a schema that holds extension members', () =>
             return e
         }
     })()
-    assert(error instanceof FreshRefusedError, String(error))
-    assertStringIncludes(error.message, 'extension')
+    assert(error instanceof RefusedError, String(error))
+    assertStringIncludes(error.reason, 'extension')
 })
 
 const SYSTEM_SCHEMA_SCOPES: ReadonlyArray<
@@ -592,17 +592,17 @@ for (const [label, overrides] of SYSTEM_SCHEMA_SCOPES) {
 
         const error = await assertRejects(
             () => resetDatabase(maintenance, scope('postgres', overrides)),
-            FreshRefusedError,
+            RefusedError,
         )
 
-        assertStringIncludes(error.message, 'system schema')
+        assertStringIncludes(error.reason, 'system schema')
         assertEquals(calls, [], 'it read the catalogue or dropped')
     })
 
     Deno.test(`#435 planPostgresReset refuses a system schema (${label})`, () => {
         assertThrows(
             () => planPostgresReset(EMPTY, scope('postgres', overrides)),
-            FreshRefusedError,
+            RefusedError,
             'system schema',
         )
     })
@@ -686,7 +686,7 @@ Deno.test('#435 a catalogue row of the wrong shape is refused before any drop', 
     })
     await assertRejects(
         () => resetDatabase(maintenance, scope('sqlite')),
-        FreshRefusedError,
+        RefusedError,
     )
     assertEquals(calls.includes('execute'), false)
 })

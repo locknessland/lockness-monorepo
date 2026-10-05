@@ -31,7 +31,7 @@ import {
     type KitDialect,
 } from './generators/dialect_schema.ts'
 import { vettedErrorName } from './error_name.ts'
-import { FreshRefusedError } from './reset.ts'
+import { RefusedError } from './refusal.ts'
 
 /**
  * Loads the `drizzle.config.ts` default export. The seam `db:fresh` reads its
@@ -129,7 +129,7 @@ const defaultReadMigrations: MigrationReader = async (folder) => {
  * @param readMigrations - Reads the migrations folder; drizzle-orm's reader
  *   by default.
  * @returns The validated settings.
- * @throws {FreshRefusedError} R2 when the configuration cannot be acted on;
+ * @throws {RefusedError} R2 when the configuration cannot be acted on;
  *   R3 when the migrations cannot be read.
  *
  * @example
@@ -154,7 +154,7 @@ export async function loadMigrationSettings(
     try {
         migrations = await readMigrations(parsed.folder)
     } catch (error) {
-        throw new FreshRefusedError(
+        throw new RefusedError(
             `the migrations in ${parsed.folder} cannot be read (${
                 messageOf(error)
             })`,
@@ -180,9 +180,9 @@ export async function loadMigrationSettings(
  * @param error - Whatever the import threw.
  * @returns The refusal to throw.
  */
-function importRefused(error: unknown): FreshRefusedError {
+function importRefused(error: unknown): RefusedError {
     const name = vettedErrorName(error, [])
-    return new FreshRefusedError(
+    return new RefusedError(
         `drizzle.config.ts could not be imported${
             name === undefined ? '' : ` (${name})`
         }; its error is withheld because it may contain the DSN`,
@@ -194,7 +194,7 @@ function importRefused(error: unknown): FreshRefusedError {
  *
  * @param config - The `drizzle.config.ts` default export.
  * @returns Every setting except those read from the migrations folder.
- * @throws {FreshRefusedError} On the first field `db:fresh` cannot act on.
+ * @throws {RefusedError} On the first field `db:fresh` cannot act on.
  */
 function parseConfig(
     config: unknown,
@@ -264,7 +264,7 @@ function parseConfig(
  *
  * @param credentials - The raw `dbCredentials`.
  * @returns The URL, as written.
- * @throws {FreshRefusedError} When `dbCredentials` is missing or not an
+ * @throws {RefusedError} When `dbCredentials` is missing or not an
  *   object, when `url` is missing, not a string, empty or blank, or when any
  *   key besides `url` is present.
  */
@@ -383,7 +383,7 @@ function namesDatabase(dialect: KitDialect, url: string): boolean {
  *
  * @param value - The raw `schemaFilter`.
  * @returns The scope schemas.
- * @throws {FreshRefusedError} When it is anything else.
+ * @throws {RefusedError} When it is anything else.
  */
 function schemaFilterOf(value: unknown): readonly string[] {
     if (value === undefined) return DEFAULT_SCHEMA_FILTER
@@ -403,7 +403,7 @@ function schemaFilterOf(value: unknown): readonly string[] {
  * @param value - The raw value.
  * @param label - The field, as the refusal names it.
  * @returns The value, or `undefined` when it is not set.
- * @throws {FreshRefusedError} When it is set to anything but a non-empty
+ * @throws {RefusedError} When it is set to anything but a non-empty
  *   string.
  */
 function optionalName(value: unknown, label: string): string | undefined {
@@ -420,8 +420,8 @@ function optionalName(value: unknown, label: string): string | undefined {
  * @param reason - What is wrong with the file.
  * @returns The refusal to throw.
  */
-function refused(reason: string): FreshRefusedError {
-    return new FreshRefusedError(`drizzle.config.ts: ${reason}`)
+function refused(reason: string): RefusedError {
+    return new RefusedError(`drizzle.config.ts: ${reason}`)
 }
 
 /**

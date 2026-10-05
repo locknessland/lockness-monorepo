@@ -26,29 +26,7 @@
  */
 
 import type { Dialect, SchemaMaintenance } from './drivers.ts'
-
-/**
- * `db:fresh` refused to act, and nothing was dropped.
- *
- * Every refusal happens before the first `DROP`: a configuration it cannot
- * act on, migrations it could not re-apply, a connection without the
- * maintenance capability, or a scope it cannot empty safely.
- *
- * @example
- * ```ts
- * throw new FreshRefusedError('`out` is not set in drizzle.config.ts')
- * ```
- */
-export class FreshRefusedError extends Error {
-    /**
-     * @param reason - Why, in one sentence without a trailing period.
-     * @param options - The underlying failure, when there is one.
-     */
-    constructor(reason: string, options?: ErrorOptions) {
-        super(`db:fresh refused: ${reason}. Nothing was dropped.`, options)
-        this.name = 'FreshRefusedError'
-    }
-}
+import { RefusedError } from './refusal.ts'
 
 /**
  * What a reset needs to know — a subset of the `db:fresh` settings.
@@ -102,7 +80,7 @@ const SQLITE_CATALOGUE =
  *
  * @param rows - `sqlite_master` rows: `type` and `name`.
  * @returns The statements for one write batch.
- * @throws {FreshRefusedError} When a row is not of the expected shape.
+ * @throws {RefusedError} When a row is not of the expected shape.
  *
  * @example
  * ```ts
@@ -171,7 +149,7 @@ const MYSQL_CATALOGUE = [
  *   `type` (both `NULL` on the anchor row of an empty database).
  * @param table - The bookkeeping table (`migrations.table`).
  * @returns The statements for one dedicated session.
- * @throws {FreshRefusedError} R5: no database is selected; the rows name more
+ * @throws {RefusedError} R5: no database is selected; the rows name more
  *   than one database or none; the database is a system database; or a row
  *   is not of the expected shape.
  *
@@ -189,26 +167,26 @@ export function planMysqlReset(
     table: string,
 ): string[] {
     if (rows.length === 0) {
-        throw new FreshRefusedError(
+        throw new RefusedError(
             'the catalogue returned no row, not even the database name',
         )
     }
     if (rows.some((row) => row.db == null)) {
-        throw new FreshRefusedError(
+        throw new RefusedError(
             'the connection has no database selected (DATABASE() is NULL); ' +
                 'name one in the url',
         )
     }
     const databases = new Set(rows.map((row) => text(row, 'db')))
     if (databases.size > 1) {
-        throw new FreshRefusedError(
+        throw new RefusedError(
             'the catalogue named more than one database ' +
                 `(${[...databases].map(backtick).join(', ')})`,
         )
     }
     const [database] = databases
     if (MYSQL_SYSTEM_DATABASES.has(database.toLowerCase())) {
-        throw new FreshRefusedError(
+        throw new RefusedError(
             `the connection selects the system database ${
                 backtick(database)
             }; name an application database in the url`,
@@ -497,7 +475,7 @@ const CENSUS_CHECK = [
  * @param catalogue - The catalogue in scope, read before any DDL.
  * @param scope - The reset scope.
  * @returns The statements for one transaction.
- * @throws {FreshRefusedError} When `schemaFilter` or `migrations.schema`
+ * @throws {RefusedError} When `schemaFilter` or `migrations.schema`
  *   names a system schema; R6: a migration creates a schema outside the
  *   scope, or a schema that would be dropped holds extension members.
  *
@@ -515,7 +493,7 @@ export function planPostgresReset(
     const created = schemasCreatedBy(scope.statements)
     const outside = created.filter((schema) => !inScope.has(schema))
     if (outside.length > 0) {
-        throw new FreshRefusedError(
+        throw new RefusedError(
             `a migration creates schema ${
                 outside.map(quote).join(', ')
             } outside schemaFilter, so it could not run again; add it to schemaFilter`,
@@ -524,7 +502,7 @@ export function planPostgresReset(
     const dropped = new Set(created)
     const holding = catalogue.extensionSchemas.filter((s) => dropped.has(s))
     if (holding.length > 0) {
-        throw new FreshRefusedError(
+        throw new RefusedError(
             `schema ${
                 holding.map(quote).join(', ')
             } would be dropped, and it holds extension members`,
@@ -575,14 +553,14 @@ function isSystemSchema(schema: string): boolean {
  * anything is read or dropped.
  *
  * @param scope - The reset scope.
- * @throws {FreshRefusedError} When `schemaFilter` or `migrations.schema`
+ * @throws {RefusedError} When `schemaFilter` or `migrations.schema`
  *   names a system schema.
  */
 function refuseSystemSchemas(scope: ResetScope): void {
     const named = [...scope.schemaFilter, scope.schema ?? 'public']
         .filter(isSystemSchema)
     if (named.length > 0) {
-        throw new FreshRefusedError(
+        throw new RefusedError(
             `${
                 [...new Set(named)].map(quote).join(', ')
             } is a system schema; schemaFilter and migrations.schema ` +
@@ -729,7 +707,7 @@ export function describeResetScope(scope: ResetScope): string {
  * @param maintenance - The connection's maintenance capability.
  * @param scope - The reset scope.
  * @returns Resolves once the scope is empty.
- * @throws {FreshRefusedError} R5, R6, or a system target (a MySQL system
+ * @throws {RefusedError} R5, R6, or a system target (a MySQL system
  *   database, a postgres system schema), before any statement ran.
  * @throws Whatever the plan's execution throws — on postgres the census
  *   check (R7) among them, after which nothing was kept.
@@ -761,13 +739,13 @@ export async function resetDatabase(
  * @param row - The row.
  * @param column - The column.
  * @returns The value.
- * @throws {FreshRefusedError} When it is not a string: the catalogue did not
+ * @throws {RefusedError} When it is not a string: the catalogue did not
  *   answer as expected, and nothing is dropped on a guess.
  */
 function text(row: Row, column: string): string {
     const value = row[column]
     if (typeof value !== 'string') {
-        throw new FreshRefusedError(
+        throw new RefusedError(
             `the catalogue returned a row without a text \`${column}\``,
         )
     }

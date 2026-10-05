@@ -45,7 +45,8 @@ import {
     registerDrizzleCommands,
 } from '../cli_commands.ts'
 import type { NoticeReporter } from '../notice.ts'
-import { FreshRefusedError, resetDatabase, type ResetScope } from '../reset.ts'
+import { resetDatabase, type ResetScope } from '../reset.ts'
+import { RefusedError } from '../refusal.ts'
 import {
     assertLoopback,
     LIVE_POSTGRES as LIVE,
@@ -548,7 +549,7 @@ Deno.test({
             // R6, not R7: without the refusal the CASCADE would drop the
             // extension and the census would roll it back — a different
             // error, raised after the drops had run.
-            assert(error instanceof FreshRefusedError, String(error))
+            assert(error instanceof RefusedError, String(error))
             assertStringIncludes(error.message, 'extension')
             await assertUntouched(admin)
             const [row] = await admin.unsafe(
