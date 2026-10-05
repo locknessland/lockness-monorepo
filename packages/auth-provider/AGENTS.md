@@ -100,7 +100,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-5 test files for 15 source files:
+5 test files for 16 source files:
 
 - `packages/auth-provider/tests/deny_paths.test.ts`
 - `packages/auth-provider/tests/drizzle_multidialect.test.ts`

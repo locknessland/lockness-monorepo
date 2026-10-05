@@ -19,15 +19,14 @@ import type {
     PROVIDER_REAL_USER,
     TokenUserProviderContract,
 } from '@lockness/auth'
-
-/** Default token length, in random bytes (80 hex characters). */
-const DEFAULT_TOKEN_LENGTH = 40
-
-/**
- * The shortest token accepted, in random bytes. 128 bits of entropy is the
- * floor below which an opaque bearer credential can be guessed.
- */
-const MIN_TOKEN_LENGTH = 16
+import {
+    assertCredentialBytes,
+    DEFAULT_CREDENTIAL_BYTES,
+    expiryAfter,
+    hashCredential,
+    isUnexpired,
+    mintCredential,
+} from './opaque_credential.ts'
 
 /** Default lifetime of an access token: one year, in milliseconds. */
 const DEFAULT_EXPIRES_IN_MS = 365 * 24 * 60 * 60 * 1000
@@ -126,48 +125,9 @@ export abstract class TokenProviderBase<User extends Authenticatable>
      * @throws {RangeError} When `tokenLength` is not an integer of at least 16.
      */
     constructor(options: TokenProviderBaseOptions = {}) {
-        const tokenLength = options.tokenLength ?? DEFAULT_TOKEN_LENGTH
-        if (!Number.isInteger(tokenLength) || tokenLength < MIN_TOKEN_LENGTH) {
-            throw new RangeError(
-                `tokenLength must be an integer of at least ${MIN_TOKEN_LENGTH} bytes, got ${tokenLength}`,
-            )
-        }
-        this.#tokenLength = tokenLength
-    }
-
-    /**
-     * Generate a cryptographically secure token value.
-     *
-     * @param lengthInBytes - Random bytes to draw.
-     * @returns The bytes, lowercase hex.
-     */
-    // deno-lint-ignore require-await
-    async #generateTokenValue(
-        lengthInBytes: number = DEFAULT_TOKEN_LENGTH,
-    ): Promise<string> {
-        const bytes = new Uint8Array(lengthInBytes)
-        crypto.getRandomValues(bytes)
-        return Array.from(bytes)
-            .map((b) => b.toString(16).padStart(2, '0'))
-            .join('')
-    }
-
-    /**
-     * Hash a token value with SHA-256.
-     *
-     * A fast hash is right here, unlike for passwords: the input is 128+ bits
-     * of randomness, so there is nothing for a slow hash to protect.
-     *
-     * @param token - The plaintext.
-     * @returns The digest, lowercase hex (64 characters).
-     */
-    async #hashTokenValue(token: string): Promise<string> {
-        const encoder = new TextEncoder()
-        const data = encoder.encode(token)
-        const hashBuffer = await crypto.subtle.digest('SHA-256', data)
-        return Array.from(new Uint8Array(hashBuffer))
-            .map((b) => b.toString(16).padStart(2, '0'))
-            .join('')
+        this.#tokenLength = assertCredentialBytes(
+            options.tokenLength ?? DEFAULT_CREDENTIAL_BYTES,
+        )
     }
 
     /**
@@ -261,21 +221,22 @@ export abstract class TokenProviderBase<User extends Authenticatable>
         expiresIn: number = DEFAULT_EXPIRES_IN_MS,
     ): Promise<AccessToken> {
         const now = new Date()
-        const expiresAt = new Date(now.getTime() + expiresIn)
-        if (
-            !Number.isFinite(expiresIn) || expiresIn <= 0 ||
-            Number.isNaN(expiresAt.getTime())
-        ) {
-            throw new RangeError(
-                `expiresIn must be a finite number of milliseconds greater than 0, got ${expiresIn}`,
-            )
-        }
+        const expiresAt = expiryAfter(
+            now,
+            expiresIn,
+            () =>
+                new RangeError(
+                    `expiresIn must be a finite number of milliseconds greater than 0, got ${expiresIn}`,
+                ),
+        )
 
-        const value = await this.#generateTokenValue(this.#tokenLength)
+        const { plaintext: value, hash } = await mintCredential(
+            this.#tokenLength,
+        )
         const stored = await this.insertTokenRecord({
             userId: user.id,
             name,
-            hash: await this.#hashTokenValue(value),
+            hash,
             expiresAt,
             lastUsedAt: null,
             createdAt: now,
@@ -303,10 +264,13 @@ export abstract class TokenProviderBase<User extends Authenticatable>
         // One clock read per call: expiry and last use agree on "now".
         const now = new Date()
 
-        const hash = await this.#hashTokenValue(tokenValue)
+        const hash = await hashCredential(tokenValue)
         const row = await this.findTokenRecordByHash(hash)
         if (!row) return null
-        // Defence in depth against a binding that returns the wrong row.
+        // Defence in depth against a binding that returns the wrong row. A
+        // plain `!==` on purpose: both sides are hashes, never the plaintext,
+        // so there is no secret for a timing side channel to leak (see
+        // `hashCredential`).
         if (row.hash !== hash) return null
         if (!isUnexpired(row.expiresAt, now)) return null
 
@@ -378,14 +342,6 @@ export abstract class TokenProviderBase<User extends Authenticatable>
             return last ?? undefined
         }
     }
-}
-
-/**
- * Whether `expiresAt` is still ahead of `now`. Written so that `null`, a
- * non-Date and an Invalid Date all read as expired.
- */
-function isUnexpired(expiresAt: Date | null, now: Date): boolean {
-    return expiresAt instanceof Date && now.getTime() < expiresAt.getTime()
 }
 
 /** The contract's view of a stored row; the plaintext is not part of it. */
