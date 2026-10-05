@@ -57,6 +57,12 @@ does not scaffold.
 `packages/drizzle/stubs/drizzle.config.ts.stub` is what `@lockness/drizzle`'s
 installer writes into an existing project.
 
+`packages/init/stubs/kits/slim/app/view/pages/errors/error_handler.tsx.stub` has
+no root twin either: it is the slim kit's JSON error handler, at the path core
+reads a custom handler from. The slim smoke test and
+`deno task kits:smoke --registry` both fail when an unknown route stops
+answering with its JSON 404 (#479).
+
 ### Kit features (every configured package is declared)
 
 Core imports an optional package only when the kernel names it, and a set key
