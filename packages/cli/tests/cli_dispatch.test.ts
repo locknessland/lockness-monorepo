@@ -102,6 +102,18 @@ Deno.test('CommandFailedError - keeps an explicit exit code in range', () => {
     assertEquals(new CommandFailedError('x', { exitCode: 3 }).exitCode, 3)
 })
 
+// The constructor clamps on its own, not only when `Cli.dispatch` reads the
+// code: a programmatic caller that inspects `exitCode` must never see `0` or a
+// status the operating system would truncate (#440(d)).
+for (const code of [0, 256, NaN, -1]) {
+    Deno.test(`CommandFailedError - clamps exitCode ${code} to 1 in the constructor`, () => {
+        assertEquals(
+            new CommandFailedError('x', { exitCode: code }).exitCode,
+            1,
+        )
+    })
+}
+
 Deno.test('isCommandFailure - recognises the shape, not the class', () => {
     assert(isCommandFailure(new CommandFailedError('x')))
     assert(isCommandFailure(new LocalFailure('x', 2)))
