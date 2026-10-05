@@ -100,8 +100,11 @@ const CODE_QUALIFIERS: readonly string[] = [
 /** The suffix a confirmation field adds to a credential name. */
 const CONFIRMATION = 'confirmation'
 
-/** The characters a normalised name drops. */
-const STRIPPED: ReadonlySet<string> = new Set(['.', '_', '~', '-'])
+/** The brackets a nested name writes its segments in: `card[cvc]`, `%5B`/`%5D`. */
+const BRACKETS: ReadonlySet<string> = new Set(['[', ']'])
+
+/** The characters a normalised name drops, and the walks cross. */
+const STRIPPED: ReadonlySet<string> = new Set(['.', '_', '~', '-', ...BRACKETS])
 
 /**
  * Whether a parameter name marks its value as a credential.
@@ -152,14 +155,75 @@ const COUNT_WORDS: readonly string[] = ['max', 'prompt', 'completion', 'total']
 type NameMatch = 'exact' | 'count' | 'stem'
 
 /**
- * Normalise a name and say how it matched, if it did.
+ * Say how a name matched, if it did.
+ *
+ * A bracketed name (`card[cvc]`, `user[code][]`) is classified by its field
+ * segment ({@link fieldSegment}); its whole path, read the way a dotted name
+ * is, can only raise that result to `stem` (`verification[code]`,
+ * `password[confirmation]`), never lower it (`max[api_tokens]` stays a
+ * `stem`). A flat name, or one whose bracket segments are all indexes, reads
+ * as its path alone.
  *
  * @param name - The parameter name, as written or already decoded.
  * @returns The kind of match, or `undefined` for no credential.
  */
 function classifyName(name: string): NameMatch | undefined {
+    const decoded = decodeAsciiEscapes(name).toLowerCase()
+    const field = fieldSegment(decoded)
+    const match = classifyNormalised(normalise(field ?? decoded))
+    if (field === undefined) return match
+    return classifyNormalised(normalise(decoded)) === 'stem' ? 'stem' : match
+}
+
+/**
+ * The field segment of a bracketed name: the last segment after a bracket
+ * that holds a letter — `cvc` in `card[cvc][]`, `password` in
+ * `[INFO]password`.
+ *
+ * Reads the name once, from its end: each bracket closes the segment after
+ * it, so no segment is read twice.
+ *
+ * @param decoded - A decoded, lowercased name.
+ * @returns The segment, or `undefined` for a flat name and for one whose
+ *   bracket segments are all indexes (`password[0]`), which reads as its
+ *   path.
+ */
+function fieldSegment(decoded: string): string | undefined {
+    let end = decoded.length
+    for (let j = end - 1; j >= 0; j--) {
+        if (!BRACKETS.has(decoded[j])) continue
+        if (hasLetter(decoded, j + 1, end)) return decoded.slice(j + 1, end)
+        end = j
+    }
+    return undefined
+}
+
+/**
+ * Whether `text[from, to)` holds an ASCII letter.
+ *
+ * @param text - A lowercased name.
+ * @param from - The first index.
+ * @param to - One past the last index.
+ * @returns True when a character in the span is `a-z`.
+ */
+function hasLetter(text: string, from: number, to: number): boolean {
+    for (let j = from; j < to; j++) {
+        const code = text.charCodeAt(j)
+        if (code >= 0x61 && code <= 0x7a) return true
+    }
+    return false
+}
+
+/**
+ * Normalise a decoded name: drop the {@link STRIPPED} characters, then
+ * trailing digits, then a trailing `confirmation`.
+ *
+ * @param decoded - A decoded, lowercased name or segment.
+ * @returns The normalised name.
+ */
+function normalise(decoded: string): string {
     let normalised = ''
-    for (const char of decodeAsciiEscapes(name).toLowerCase()) {
+    for (const char of decoded) {
         if (!STRIPPED.has(char)) normalised += char
     }
     normalised = withoutTrailingDigits(normalised)
@@ -169,6 +233,16 @@ function classifyName(name: string): NameMatch | undefined {
     ) {
         normalised = normalised.slice(0, -CONFIRMATION.length)
     }
+    return normalised
+}
+
+/**
+ * Say how a normalised name matched, if it did.
+ *
+ * @param normalised - A name {@link normalise} produced.
+ * @returns The kind of match, or `undefined` for no credential.
+ */
+function classifyNormalised(normalised: string): NameMatch | undefined {
     if (normalised === '') return undefined
     if (CREDENTIAL_NAMES.has(normalised)) return 'exact'
     const rest = withoutCodeSuffix(normalised)
