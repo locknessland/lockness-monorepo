@@ -18,6 +18,10 @@
  * branch of `readHead` (a driver that rejects with a string), and the error
  * name — checked for the password, and coerced when it is not a string.
  *
+ * The `#441` rows reach what the #425 re-review found unmutated: the identity
+ * split itself (not only its marker), the withhold check over the message,
+ * and each refusal rule of drizzle's DSN check that no later rule backs up.
+ *
  * ```bash
  * deno run -A packages/contract/tests/mutations/dsn_redaction_301_303.ts
  * ```
@@ -30,6 +34,7 @@ import { type Mutation, runBattery } from '@mutations/harness.ts'
 const SOURCE = new URL('../../logging/sanitize.ts', import.meta.url)
 const TELEMETRY = new URL('../../../telemetry/attributes.ts', import.meta.url)
 const DRIZZLE = new URL('../../../drizzle/mod.ts', import.meta.url)
+const DSN = new URL('../../../drizzle/dsn.ts', import.meta.url)
 const SUITES = [
     new URL('../log_sanitize.test.ts', import.meta.url).pathname,
     new URL('../../../telemetry/tests/attributes.test.ts', import.meta.url)
@@ -40,6 +45,9 @@ const SUITES = [
     // not only what its message says (#426).
     new URL('../../../drizzle/tests/multi_db.test.ts', import.meta.url)
         .pathname,
+    // Holds one test per DSN refusal rule, each on a DSN only that rule
+    // refuses (#441).
+    new URL('../../../drizzle/tests/dsn.test.ts', import.meta.url).pathname,
 ]
 
 /** `readHead`'s non-Error branch: a driver that rejects with a bare value. */
@@ -366,6 +374,61 @@ const MUTATIONS: Mutation[] = [
         file: DRIZZLE,
         edits: [[NAME_COERCION, 'String(raw.name)']],
         killedBy: '#426 a non-string error name falls back to Error',
+    },
+    // ---- #441: the identity split, the withhold check, the DSN refusals ----
+    {
+        label:
+            "#441 SECURITY — drizzle's identity split skipped: the exact DSN is never cut out",
+        file: DRIZZLE,
+        edits: [[
+            'const pieces = head.message.split(held.dsn)',
+            'const pieces = [head.message]',
+        ]],
+        killedBy:
+            '#420 a driver message carrying the exact DSN is redacted by identity',
+    },
+    {
+        label:
+            '#441 SECURITY — the withhold check skips the message: a password in driver text renders',
+        file: DRIZZLE,
+        edits: [[HELD_CHECK, 'head.name !== undefined && holds(head.name)']],
+        killedBy:
+            '#425 a short password is withheld, never replaced inside driver text',
+    },
+    {
+        label:
+            '#441 R0 — the control-character check dropped: a trailing newline passes',
+        file: DSN,
+        edits: [[
+            "if (hasControlCharacter(url) || url.startsWith(' ')) return REFUSED",
+            "if (url.startsWith(' ')) return REFUSED",
+        ]],
+        killedBy: '#441 R0 refuses a trailing newline',
+    },
+    {
+        label: '#441 R3 — only the first host entry checked',
+        file: DSN,
+        edits: [[
+            '!entries.every((entry) => HOST.test(entry))',
+            '!HOST.test(entries[0])',
+        ]],
+        killedBy: '#441 R3 checks every entry of a host list',
+    },
+    {
+        label:
+            '#441 R5 — a comma host list before the host part no longer refused',
+        file: DSN,
+        edits: [[
+            'if (first >= 0 && first < authorityStart + at + 1) return REFUSED',
+            'void first',
+        ]],
+        killedBy: '#441 R5 refuses a comma host list repeated in the user',
+    },
+    {
+        label: '#441 R5 — a `$` in a comma host list no longer refused',
+        file: DSN,
+        edits: [["if (list.includes('$')) return REFUSED", 'void list']],
+        killedBy: '#441 R5 refuses a `$` in a comma host list',
     },
 ]
 
