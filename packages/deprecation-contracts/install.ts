@@ -13,8 +13,9 @@
  * ```
  */
 
-// No static import of @lockness/cli to avoid circular dependency
-// core -> deprecation-contracts -> cli -> core
+// `@lockness/cli` may be imported here: `cli` never reaches `core` or this
+// package, and only this installer imports it, so `core` -> `mod.ts` loads none
+// of it (deps.policy.jsonc).
 
 // =============================================================================
 // Constants

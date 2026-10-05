@@ -87,7 +87,13 @@
                 }
             }
         },
-        "deprecation-contracts": { "tier": "implementation", "allow": [] },
+        // `deprecation-contracts` reaches `cli` from its installer only
+        // (`install.ts`: `runEntry` and `CommandFailedError`, #436); `mod.ts`
+        // imports nothing, so `core` and `realtime` still load no `cli` code.
+        "deprecation-contracts": {
+            "tier": "implementation",
+            "allow": ["cli"]
+        },
         "devtools": {
             "tier": "implementation",
             "allow": ["hono", "contract", "events", "session"],
@@ -159,8 +165,9 @@
         // `hono` only for `upgradeWebSocket` (via `@lockness/hono/deno`) and the
         // `WSContext` type (`@lockness/hono/network`), and `redis` for the
         // cross-process broadcast driver (hard, lazy-connect — mirrors queue).
-        // `deprecation-contracts` (#392) is a zero-dependency foundation package
-        // (see its own entry above) — `disconnect`'s id-form notice.
+        // `deprecation-contracts` (#392) is reached through its `mod.ts`, which
+        // imports nothing (see its own entry above) — `disconnect`'s id-form
+        // notice.
         // `events` is a SOFT edge: the events→broadcast bridge soft-loads it,
         // typed by local structural interfaces (an `import type` would harden
         // the edge and fail this check). `@lockness/notification` is a dev/test
@@ -201,9 +208,12 @@
         // does NOT import `ui` back (its default component map is plain HTML);
         // the styled map lives here in `ui/markdown.tsx`. The former cycle
         // (#127) is retired — do not re-add `ui` to `markdown`'s allow.
+        // `ui` reaches `cli` from its standalone entry only (`mod.ts`:
+        // `runEntry` and `CommandFailedError` through their subpaths, never the
+        // barrel, #436).
         "ui": {
             "tier": "implementation",
-            "allow": ["hono", "markdown"],
+            "allow": ["cli", "hono", "markdown"],
             "jsx": "a JSX component library, so its consumers are JSX apps by definition. Accepted residue: an entry file whose own graph has no .tsx still fails to load it.",
             "runtimeImports": {
                 "doc_loader.ts": {
@@ -212,7 +222,9 @@
                 }
             }
         },
-        "upgrade": { "tier": "implementation", "allow": [] },
+        // `upgrade` reaches `cli` for its standalone entry (`runEntry`) and its
+        // failure class, through their subpaths (#436).
+        "upgrade": { "tier": "implementation", "allow": ["cli"] },
         "validator": { "tier": "implementation", "allow": ["hono"] },
         // `vite` is framework-agnostic build tooling: the SSR bridge takes
         // `App.fetch()` by injection, so it imports NOTHING from the workspace

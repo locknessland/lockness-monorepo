@@ -20,6 +20,7 @@
         ]
     },
     "imports": {
+        "@lockness/cli": "jsr:@lockness/cli@^0.4.0",
         "@lockness/hono": "jsr:@lockness/hono@^0.4.0",
         "@lockness/hono/jsx-runtime": "jsr:@lockness/hono@^0.4.0/jsx-runtime",
         "@lockness/markdown": "jsr:@lockness/markdown@^0.4.0",

@@ -17,6 +17,7 @@
         ]
     },
     "imports": {
+        "@lockness/cli": "jsr:@lockness/cli@^0.4.0",
         "@std/cli": "jsr:@std/cli@^1.0.0",
         "@std/jsonc": "jsr:@std/jsonc@^1.0.0",
         "@std/path": "jsr:@std/path@^1.0.0",

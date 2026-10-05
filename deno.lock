@@ -4629,6 +4629,7 @@
       },
       "packages/deprecation-contracts": {
         "dependencies": [
+          "jsr:@lockness/cli@0.4",
           "jsr:@std/assert@1"
         ]
       },
@@ -4829,6 +4830,7 @@
       },
       "packages/ui": {
         "dependencies": [
+          "jsr:@lockness/cli@0.4",
           "jsr:@lockness/hono@0.4",
           "jsr:@lockness/markdown@0.4",
           "jsr:@std/assert@1",
@@ -4843,6 +4845,7 @@
       },
       "packages/upgrade": {
         "dependencies": [
+          "jsr:@lockness/cli@0.4",
           "jsr:@std/assert@1",
           "jsr:@std/cli@1",
           "jsr:@std/jsonc@1",
