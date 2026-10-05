@@ -14,7 +14,7 @@
 
 import { assertEquals } from '@std/assert'
 import { join } from '@std/path'
-import { defaultLoadSeeder } from '../cli_commands.ts'
+import { defaultLoadSeeder } from '../seeder_loader.ts'
 import { defaultLoadMigrationConfig } from '../migration_settings.ts'
 
 /** A directory name holding both characters `file://${…}` mis-parses. */

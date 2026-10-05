@@ -17,7 +17,7 @@
  * @internal
  */
 
-import type { CommandResult } from './cli_commands.ts'
+import type { CommandResult } from './command_runner.ts'
 
 /** The `drizzle-kit` subcommands the `db:*` commands run. */
 export type KitSubcommand = 'generate' | 'push' | 'studio' | 'check'

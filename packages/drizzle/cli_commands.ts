@@ -22,7 +22,6 @@ import { dirname, fromFileUrl, join } from '@std/path'
 import { CommandFailedError } from '@lockness/cli/command-failure'
 import { container } from '@lockness/container'
 import { renderError } from '@lockness/contract'
-import { importAppFile } from '@lockness/contract/app-file/internal'
 import { Database } from './mod.ts'
 import { handleMakeFactory } from './generators/factory_generator.ts'
 import { handleMakeModel } from './generators/model_generator.ts'
@@ -44,6 +43,18 @@ import {
 import { describeResetScope, resetDatabase } from './reset.ts'
 import { RefusedError } from './refusal.ts'
 import { kitFailure, type KitSubcommand } from './kit_outcome.ts'
+import {
+    type CommandResult,
+    type CommandRunner,
+    type CommandSpec,
+    defaultRunCommand,
+} from './command_runner.ts'
+import { defaultLoadSeeder, type SeederLoader } from './seeder_loader.ts'
+
+// The port types are public — `DrizzleCommandDeps` names them — so they are
+// re-exported here; their default implementations stay in the two unlisted
+// modules, out of reach of every `exports` entry (#564).
+export type { CommandResult, CommandRunner, CommandSpec, SeederLoader }
 
 /**
  * CLI command handler type.
@@ -66,51 +77,6 @@ interface Cli {
 // =============================================================================
 
 /**
- * A process to spawn: an executable plus its argument vector.
- */
-export interface CommandSpec {
-    /** The executable to run (e.g. `'deno'`). */
-    readonly cmd: string
-    /** The argument vector passed to the executable. */
-    readonly args: readonly string[]
-}
-
-/**
- * What a {@link CommandRunner} observed of one finished process: facts only.
- * Whether the step worked is decided by the command, not the runner (#445).
- */
-export interface CommandResult {
-    /** The process exit code. */
-    readonly code: number
-    /**
-     * What the process wrote to stderr, decoded as UTF-8. The production
-     * runner keeps only the first {@link RETAINED_STDERR_BYTES} bytes; all of
-     * it has already been shown on the terminal.
-     */
-    readonly stderr: string
-}
-
-/**
- * Command-runner port — spawns a process and resolves what it observed.
- *
- * The stdio contract (#445): **stdin and stdout are inherited**, so a prompt
- * drizzle-kit shows on a terminal still works — its prompt library checks
- * exactly those two streams, and without a TTY it refuses rather than waits,
- * so a run never hangs. **stderr is shown and returned**: each chunk is
- * forwarded to the terminal as it arrives, and a copy comes back in
- * {@link CommandResult.stderr}, because drizzle-kit reports a refused prompt
- * or a failed statement there while exiting 0.
- *
- * The production default wraps {@link Deno.Command}; a test injects a fake that
- * records the constructed argv (asserting the `drizzle-kit` command line)
- * without ever executing it.
- *
- * @param spec - The command and arguments to run.
- * @returns The exit code and the stderr the process wrote.
- */
-export type CommandRunner = (spec: CommandSpec) => Promise<CommandResult>
-
-/**
  * Minimal database connection port used by the `db:check` and `db:seed`
  * commands. {@link Database} satisfies it structurally.
  *
@@ -123,20 +89,6 @@ export interface DbConnection {
     /** Close the connection. */
     close(): Promise<void>
 }
-
-/**
- * Seeder-module loader port — resolves a seeder module from a project-relative
- * path.
- *
- * The production default dynamically imports it; a test injects a fake that
- * returns a synthetic module, keeping `db:seed` hermetic.
- *
- * @param relativePath - Path to the seeder file, relative to the project root.
- * @returns The imported module namespace.
- */
-export type SeederLoader = (
-    relativePath: string,
-) => Promise<Record<string, unknown>>
 
 /**
  * One open connection's schema-maintenance capability, plus the way to close
@@ -213,15 +165,6 @@ const DRIZZLE_KIT_SPAWN_ARGS = [
     DRIZZLE_KIT_SPECIFIER,
 ] as const
 
-/**
- * How much of a child's stderr the production runner keeps for the verdict.
- * The verdict needs only to know that stderr is not blank and whether it holds
- * the TTY refusal, which comes first; the rest is forwarded, never kept.
- *
- * @internal Exported for tests.
- */
-export const RETAINED_STDERR_BYTES = 64 * 1024
-
 /** Directory for database seeders. Shared with the seeder generator. */
 export const SEEDERS_DIR = './database/seeders' as const
 
@@ -282,92 +225,6 @@ async function initDatabase(): Promise<Database> {
     }
     return db
 }
-
-/**
- * Where the production runner forwards a child's stderr: the terminal's,
- * unless a test records it.
- */
-interface StderrSink {
-    /** Write some bytes; resolves how many were written. */
-    write(chunk: Uint8Array): Promise<number>
-}
-
-/**
- * Production command-runner: spawns a real process via {@link Deno.Command}
- * under the {@link CommandRunner} stdio contract — stdin and stdout inherited,
- * stderr piped, forwarded live and returned. It judges nothing.
- *
- * @param spec - The command and arguments to run.
- * @param sink - Where stderr is forwarded; the process's own stderr by
- *   default.
- * @returns The exit code, and the first {@link RETAINED_STDERR_BYTES} bytes of
- *   stderr.
- * @throws Whatever spawning the process, or writing to the sink, throws; a
- *   failed write first kills and reaps the child.
- * @internal Exported for tests.
- *
- * @example
- * ```ts
- * const { code, stderr } = await defaultRunCommand({
- *     cmd: Deno.execPath(),
- *     args: ['eval', "console.error('x')"],
- * })
- * // code === 0, stderr === 'x\n'
- * ```
- */
-export async function defaultRunCommand(
-    spec: CommandSpec,
-    sink: StderrSink = Deno.stderr,
-): Promise<CommandResult> {
-    const child = new Deno.Command(spec.cmd, {
-        args: [...spec.args],
-        stdin: 'inherit',
-        stdout: 'inherit',
-        stderr: 'piped',
-    }).spawn()
-    const kept = new Uint8Array(RETAINED_STDERR_BYTES)
-    let size = 0
-    try {
-        for await (const chunk of child.stderr) {
-            for (let written = 0; written < chunk.length;) {
-                written += await sink.write(chunk.subarray(written))
-            }
-            const room = Math.min(RETAINED_STDERR_BYTES - size, chunk.length)
-            kept.set(chunk.subarray(0, room), size)
-            size += room
-        }
-    } catch (error) {
-        // Forwarding failed (stderr closed, `| head` gone: EPIPE). Nobody
-        // can see the child's report any more, so it must not finish a push
-        // unwatched: kill it, reap it, then surface the failure.
-        child.kill()
-        await child.status
-        throw error
-    }
-    const { code } = await child.status
-    return { code, stderr: new TextDecoder().decode(kept.subarray(0, size)) }
-}
-
-/**
- * Production seeder-loader: imports a seeder module from the project's
- * working directory.
- *
- * Through `importAppFile`, never a `file://` template literal: `deno publish`
- * rewrites one into a relative path, which from JSR resolves against the
- * registry (#477).
- *
- * @param relativePath - Path to the seeder file, relative to the project root.
- * @returns The imported module namespace.
- * @throws Whatever the import throws; `db:seed` reports it.
- * @internal Exported for tests.
- *
- * @example
- * ```ts
- * await defaultLoadSeeder('database/seeders/database_seeder.ts')
- * ```
- */
-export const defaultLoadSeeder: SeederLoader = (relativePath) =>
-    importAppFile(relativePath)
 
 /**
  * Production opener: configures the container's `Database` from the

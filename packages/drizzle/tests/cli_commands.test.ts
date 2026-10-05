@@ -29,13 +29,12 @@ import {
     type CommandRunner,
     type CommandSpec,
     type DbConnection,
-    defaultRunCommand,
     type DrizzleCommandDeps,
     type MaintenanceSession,
     registerDrizzleCommands,
-    RETAINED_STDERR_BYTES,
     type SeederLoader,
 } from '../cli_commands.ts'
+import { defaultRunCommand, RETAINED_STDERR_BYTES } from '../command_runner.ts'
 import type { MigrateOptions } from '../drivers.ts'
 import type { MigrationSettings } from '../migration_settings.ts'
 import { DRIZZLE_KIT_SPECIFIER } from '../generators/dialect_schema.ts'
