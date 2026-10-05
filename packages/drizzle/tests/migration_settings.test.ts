@@ -228,29 +228,26 @@ const CREDENTIAL_FAULTS = {
         'that builds it from an environment variable leaves it out when ' +
         'that variable is unset',
     notObject: '`dbCredentials` must be an object holding a `url`',
-    noUrl: '`dbCredentials.url` is not set or is not a string; db:fresh ' +
+    noUrl: '`dbCredentials.url` is not set or is not a string; Lockness ' +
         'connects through `url` only',
     emptyUrl: '`dbCredentials.url` is empty, so no database is named; ' +
         'the environment variable it is built from is probably unset',
-    extraKeys: '`dbCredentials` holds keys besides `url`; db:fresh connects ' +
-        'through `url` only',
+    extraKeys: '`dbCredentials` holds keys Lockness does not read: remove ' +
+        'them; Lockness connects through `dbCredentials.url` only',
 } as const
 
 for (
     const [fault, cases] of [
         ['missing', [undefined]],
         ['notObject', [null, 'postgres://app', ['url']]],
-        ['noUrl', [{}, { url: 42 }, { url: null }, {
-            host: 'h',
-            port: 5432,
-            database: 'app',
-        }]],
+        ['noUrl', [{}, { url: 42 }, { url: null }]],
         ['emptyUrl', [{ url: '' }, { url: ' ' }, { url: '\t\n ' }, {
             url: '  ',
         }]],
         ['extraKeys', [
-            { url: `libsql://${URL_HOST}`, authToken: 't' },
-            { url: `postgres://app@${URL_HOST}/app`, ssl: true },
+            { url: `postgres://app@${URL_HOST}/app`, secretArn: 't' },
+            // authToken is libsql's; on postgresql it is just an unknown key.
+            { url: `postgres://app@${URL_HOST}/app`, authToken: 't' },
         ]],
     ] as const
 ) {
@@ -463,19 +460,247 @@ Deno.test('#456 R2 gives a url that names no database its own message', () => {
     assertEquals(messages.includes(NO_DATABASE), false)
 })
 
-Deno.test('#435 R2 refuses a config that names a driver', async () => {
-    await assertRefused(
-        () => Promise.resolve({ ...base, driver: 'pglite' }),
-        '`driver`',
+// -----------------------------------------------------------------------------
+// #442 — the credential forms Lockness does not take, recognised and refused
+// in one pass, naming every recognised key and never quoting a value
+// -----------------------------------------------------------------------------
+
+/**
+ * A value the refusals must never quote, assembled at runtime so no scanner
+ * reads a credential into the source.
+ */
+const SENTINEL = ['sentinel', 'not-a-real-secret'].join('-')
+
+/** Load a config through the loader, expecting a refusal; return it. */
+async function refusalOf(config: unknown): Promise<RefusedError> {
+    const { folders, read } = reader()
+    const error = await assertRejects(
+        () => loadMigrationSettings(() => Promise.resolve(config), read),
+        RefusedError,
     )
+    assertEquals(folders, [], 'the migrations were read after a refusal')
+    assertEquals(exposed(error).includes(SENTINEL), false, exposed(error))
+    return error
+}
+
+/** One refused form: the config, what its reason holds, and `kitOnly`. */
+interface RefusedForm {
+    readonly label: string
+    readonly config: Record<string, unknown>
+    readonly holds: readonly string[]
+    readonly kitOnly: boolean
+}
+
+/** The base config with `dbCredentials` replaced, for `dialect`. */
+function withCredentials(
+    dialect: string,
+    dbCredentials: Record<string, unknown>,
+): Record<string, unknown> {
+    return { ...base, dialect, dbCredentials }
+}
+
+/** The url each server dialect's host-field refusal offers instead. */
+const HOST_ALTERNATIVE = {
+    postgresql: '`postgresql://<user>:<password>@<host>:<port>/<database>`',
+    mysql: '`mysql://<user>:<password>@<host>:<port>/<database>`',
+} as const
+
+/** Every refused form of the #442 table, by row. */
+const REFUSED_FORMS: readonly RefusedForm[] = [
+    ...(['postgresql', 'mysql'] as const).map((dialect): RefusedForm => ({
+        label: `${dialect} host fields`,
+        config: withCredentials(dialect, {
+            host: SENTINEL,
+            port: 5432,
+            user: SENTINEL,
+            password: SENTINEL,
+            database: SENTINEL,
+        }),
+        holds: [
+            '`dbCredentials` uses host fields (`host`, `port`, `user`, ' +
+            '`password`, `database`), and Lockness connects through ' +
+            '`dbCredentials.url` only',
+            `write one url instead, ${HOST_ALTERNATIVE[dialect]}`,
+            'with the password percent-encoded',
+        ],
+        kitOnly: false,
+    })),
+    {
+        label: 'postgresql ssl mode with url',
+        config: withCredentials('postgresql', {
+            url: `postgres://app:${SENTINEL}@h/app`,
+            ssl: 'require',
+        }),
+        holds: [
+            '`dbCredentials.ssl` is set',
+            "goes in the url's query string",
+            '`?sslmode=require` or `?sslmode=verify-full`',
+            '`&sslrootcert=system`',
+        ],
+        kitOnly: false,
+    },
+    {
+        label: 'mysql ssl boolean with host fields',
+        config: withCredentials('mysql', {
+            host: SENTINEL,
+            database: SENTINEL,
+            ssl: true,
+        }),
+        holds: [
+            'host fields (`host`, `database`)',
+            '`dbCredentials.ssl` is set',
+            '`?ssl=` followed by the percent-encoded JSON options',
+        ],
+        kitOnly: false,
+    },
+    {
+        label: 'ssl certificate object',
+        config: withCredentials('postgresql', {
+            url: 'postgres://app@h/app',
+            ssl: { ca: SENTINEL, rejectUnauthorized: true },
+        }),
+        holds: ['an `ssl` certificate cannot be written in a url'],
+        kitOnly: true,
+    },
+    ...(['turso', 'sqlite'] as const).map((dialect): RefusedForm => ({
+        label: `${dialect} authToken`,
+        config: withCredentials(dialect, {
+            url: 'libsql://app.example',
+            authToken: SENTINEL,
+        }),
+        holds: [
+            '`dbCredentials.authToken` is set, and Lockness connects through ' +
+            '`dbCredentials.url` only',
+            'append the token to the url as `?authToken=<token>`',
+        ],
+        kitOnly: false,
+    })),
+    {
+        label: 'url and host fields together',
+        config: withCredentials('postgresql', {
+            url: 'postgres://app@h/app',
+            host: SENTINEL,
+            port: 5432,
+        }),
+        holds: [
+            '`dbCredentials` sets both `url` and host fields (`host`, `port`)',
+            'remove the host fields; the url alone names the database',
+        ],
+        kitOnly: false,
+    },
+    {
+        label: 'an unknown key',
+        config: withCredentials('postgresql', {
+            url: 'postgres://app@h/app',
+            [SENTINEL]: SENTINEL,
+        }),
+        holds: [
+            '`dbCredentials` holds keys Lockness does not read',
+            'remove them',
+        ],
+        kitOnly: false,
+    },
+    ...['aws-data-api', 'pglite', 'd1-http', 'expo', 'durable-sqlite'].map(
+        (driver): RefusedForm => ({
+            label: `driver ${driver}`,
+            config: { ...base, driver },
+            holds: [
+                `\`driver\` is '${driver}', a client Lockness does not run; ` +
+                'it connects through postgres.js, mysql2 and libsql only',
+            ],
+            kitOnly: true,
+        }),
+    ),
+    {
+        label: 'an unknown driver',
+        config: { ...base, driver: SENTINEL },
+        holds: [
+            '`driver` is set; Lockness connects with the default client of ' +
+            'the dialect only',
+            'remove `driver`',
+        ],
+        kitOnly: false,
+    },
+    ...['singlestore', 'gel'].map((dialect): RefusedForm => ({
+        label: `dialect ${dialect}`,
+        config: { ...base, dialect },
+        holds: [
+            `\`dialect\` is '${dialect}', which Lockness does not run; it ` +
+            'supports postgresql, mysql, sqlite and turso',
+        ],
+        kitOnly: true,
+    })),
+    {
+        label: 'out not set',
+        config: { ...base, out: undefined },
+        holds: [
+            '`out` (the migrations folder) is not set. drizzle-kit defaulted ' +
+            'it to `./drizzle`; Lockness does not',
+            'set `out` to your migrations folder',
+        ],
+        kitOnly: false,
+    },
+]
+
+for (const form of REFUSED_FORMS) {
+    Deno.test(`#442 R2 recognises and refuses: ${form.label}`, async () => {
+        const error = await refusalOf(form.config)
+        assertEquals(
+            error.reason.startsWith('drizzle.config.ts: '),
+            true,
+            error.reason,
+        )
+        for (const fragment of form.holds) {
+            assertStringIncludes(error.reason, fragment)
+        }
+        assertEquals(error.kitOnly, form.kitOnly, error.reason)
+        assertEquals(error.message, error.reason)
+    })
+}
+
+Deno.test('#442 R2 names every recognised dbCredentials form in one refusal', async () => {
+    const error = await refusalOf(withCredentials('postgresql', {
+        host: SENTINEL,
+        password: SENTINEL,
+        ssl: { cert: SENTINEL, key: SENTINEL },
+        [SENTINEL]: 1,
+    }))
+    assertStringIncludes(error.reason, 'host fields (`host`, `password`)')
+    assertStringIncludes(error.reason, 'holds a certificate (`cert`, `key`)')
+    assertStringIncludes(error.reason, 'keys Lockness does not read')
+    assertEquals(error.kitOnly, true, 'a certificate makes it drizzle-kit only')
 })
 
-Deno.test('#435 R2 refuses an unsupported dialect', async () => {
-    for (const dialect of ['singlestore', 'gel', undefined]) {
-        await assertRefused(
-            () => Promise.resolve({ ...base, dialect }),
-            '`dialect`',
+Deno.test('#442 R2 never names an unknown dialect value', async () => {
+    for (const dialect of [SENTINEL, undefined, 42]) {
+        const error = await refusalOf({ ...base, dialect })
+        assertStringIncludes(
+            error.reason,
+            '`dialect` must be postgresql, mysql, sqlite or turso',
         )
+        assertEquals(error.kitOnly, false)
+    }
+})
+
+Deno.test('#442 R2 accepts the documented url alternatives verbatim', async () => {
+    for (
+        const [dialect, url] of [
+            ['turso', 'libsql://app.example?authToken=<token>'],
+            [
+                'postgresql',
+                'postgresql://app@h:5432/app?sslmode=verify-full&sslrootcert=system',
+            ],
+            [
+                'mysql',
+                'mysql://app@h:3306/app?ssl=%7B%22rejectUnauthorized%22%3Atrue%7D',
+            ],
+        ]
+    ) {
+        const settings = await loadMigrationSettings(
+            () => Promise.resolve(withCredentials(dialect, { url })),
+            reader().read,
+        )
+        assertEquals(settings.url, url)
     }
 })
 

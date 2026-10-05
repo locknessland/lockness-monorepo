@@ -9,12 +9,15 @@
  *
  * - **R2** — the file cannot be imported (its error is withheld, since it may
  *   quote the DSN; only an identifier-shaped error name is shown); `out` is
- *   absent; `dbCredentials` is missing or not an object, holds anything
- *   besides `url`, or its `url` is missing, not a string, empty or blank
- *   (#449), or names no database (#456): a postgresql or mysql url with
- *   nothing in its path, or a sqlite or turso `file:` url with no path; a
- *   `driver` is named; or the dialect is not postgresql, mysql, sqlite or
- *   turso.
+ *   absent; `dbCredentials` is missing or not an object, holds any form
+ *   besides `url` (host fields, `ssl`, `authToken` or an unknown key — all
+ *   recognised and refused at once, #442), or its `url` is missing, not a
+ *   string, empty or blank (#449), or names no database (#456): a postgresql
+ *   or mysql url with nothing in its path, or a sqlite or turso `file:` url
+ *   with no path; a `driver` is named; or the dialect is not postgresql,
+ *   mysql, sqlite or turso. A refusal is `kitOnly` when drizzle-kit can still
+ *   run the configuration: an `ssl` certificate, one of its own drivers, or
+ *   the singlestore and gel dialects.
  * - **R3** — the journal, or a file it lists, is missing. The migrations are
  *   read up front with drizzle-orm's own `readMigrationFiles`: a database is
  *   never wiped that could not then be migrated.
@@ -207,19 +210,17 @@ function parseConfig(
         typeof kitDialect !== 'string' ||
         !Object.hasOwn(DIALECT_FROM_KIT, kitDialect)
     ) {
-        throw refused(
-            '`dialect` must be postgresql, mysql, sqlite or turso',
-        )
+        throw dialectRefused(kitDialect)
     }
-    if (config.driver !== undefined) {
-        throw refused(
-            '`driver` is set; db:fresh connects with the default driver only',
-        )
-    }
+    if (config.driver !== undefined) throw driverRefused(config.driver)
     if (typeof config.out !== 'string' || config.out === '') {
-        throw refused('`out` (the migrations folder) is not set')
+        throw refused(
+            '`out` (the migrations folder) is not set. drizzle-kit ' +
+                'defaulted it to `./drizzle`; Lockness does not: set `out` ' +
+                'to your migrations folder',
+        )
     }
-    const url = credentialsUrl(config.dbCredentials)
+    const url = credentialsUrl(kitDialect as KitDialect, config.dbCredentials)
     if (!namesDatabase(kitDialect as KitDialect, url)) {
         throw refused(
             '`dbCredentials.url` names no database in its path, so the driver ' +
@@ -250,25 +251,192 @@ function parseConfig(
     }
 }
 
+/** The dialects drizzle-kit runs and Lockness does not (#442). */
+const KIT_ONLY_DIALECTS: readonly string[] = ['singlestore', 'gel']
+
 /**
- * Read `dbCredentials.url`, the one database a destructive command may reach
+ * The drizzle-kit drivers with no Lockness factory (#442). Their credential
+ * forms (aws-data-api, pglite, d1-http) are refused through this list.
+ */
+const KIT_ONLY_DRIVERS: readonly string[] = [
+    'aws-data-api',
+    'pglite',
+    'd1-http',
+    'expo',
+    'durable-sqlite',
+]
+
+/**
+ * The R2 refusal for a `dialect` Lockness does not run. A value is named only
+ * when it is in drizzle-kit's own vocabulary; anything else may be text the
+ * config built, so it is never quoted.
+ *
+ * @param dialect - The raw `dialect`.
+ * @returns The refusal to throw; `kitOnly` when drizzle-kit can run it.
+ */
+function dialectRefused(dialect: unknown): RefusedError {
+    if (typeof dialect === 'string' && KIT_ONLY_DIALECTS.includes(dialect)) {
+        return refused(
+            `\`dialect\` is '${dialect}', which Lockness does not run; it ` +
+                'supports postgresql, mysql, sqlite and turso',
+            true,
+        )
+    }
+    return refused('`dialect` must be postgresql, mysql, sqlite or turso')
+}
+
+/**
+ * The R2 refusal for a `driver`: Lockness connects with the default client of
+ * each dialect only. A value is named only when it is in drizzle-kit's own
+ * vocabulary.
+ *
+ * @param driver - The raw `driver`, set.
+ * @returns The refusal to throw; `kitOnly` when drizzle-kit can run it.
+ */
+function driverRefused(driver: unknown): RefusedError {
+    if (typeof driver === 'string' && KIT_ONLY_DRIVERS.includes(driver)) {
+        return refused(
+            `\`driver\` is '${driver}', a client Lockness does not run; it ` +
+                'connects through postgres.js, mysql2 and libsql only',
+            true,
+        )
+    }
+    return refused(
+        '`driver` is set; Lockness connects with the default client of the ' +
+            'dialect only: remove `driver`',
+    )
+}
+
+/** drizzle-kit's host fields for postgresql and mysql, in its own order. */
+const HOST_FIELDS: readonly string[] = [
+    'host',
+    'port',
+    'user',
+    'password',
+    'database',
+]
+
+/** The `ssl` object keys that hold a certificate, which no url can carry. */
+const CERTIFICATE_FIELDS: readonly string[] = ['ca', 'cert', 'key', 'pfx']
+
+/** The url a host-field config should be written as, per server dialect. */
+const URL_SHAPE: Readonly<Record<'postgresql' | 'mysql', string>> = {
+    postgresql: '`postgresql://<user>:<password>@<host>:<port>/<database>`',
+    mysql: '`mysql://<user>:<password>@<host>:<port>/<database>`',
+}
+
+/** Where each server dialect's `ssl` setting goes in the url. */
+const SSL_IN_URL: Readonly<Record<'postgresql' | 'mysql', string>> = {
+    postgresql: '`?sslmode=require` or `?sslmode=verify-full` (add ' +
+        '`&sslrootcert=system` to verify against the system store)',
+    mysql: '`?ssl=` followed by the percent-encoded JSON options',
+}
+
+/**
+ * Recognise every `dbCredentials` form besides `url` and refuse them all at
+ * once (#442), so the user fixes the file in one pass.
+ *
+ * Lockness connects through one url, the way the runtime `Database` does, so
+ * a form the app itself could not run on is refused here rather than
+ * translated. A key is named only when it is in drizzle-kit's vocabulary for
+ * the dialect — host fields and `ssl` for postgresql and mysql, `authToken`
+ * for sqlite and turso; any other key is mentioned, never named. No value is
+ * ever quoted.
+ *
+ * @param dialect - The dialect the credentials are read for.
+ * @param credentials - The raw `dbCredentials`, an object.
+ * @returns The refusal, or `undefined` when only `url` is set.
+ */
+function credentialFormsRefused(
+    dialect: KitDialect,
+    credentials: Record<string, unknown>,
+): RefusedError | undefined {
+    const keys = Object.keys(credentials).filter((key) => key !== 'url')
+    if (keys.length === 0) return undefined
+
+    const server = dialect === 'postgresql' || dialect === 'mysql'
+        ? dialect
+        : undefined
+    const known = new Set<string>()
+    const clauses: string[] = []
+    let kitOnly = false
+
+    const hostKeys = server === undefined
+        ? []
+        : HOST_FIELDS.filter((key) => keys.includes(key))
+    if (server !== undefined && hostKeys.length > 0) {
+        hostKeys.forEach((key) => known.add(key))
+        const named = hostKeys.map((key) => `\`${key}\``).join(', ')
+        clauses.push(
+            credentials.url === undefined
+                ? `\`dbCredentials\` uses host fields (${named}), and ` +
+                    'Lockness connects through `dbCredentials.url` only: ' +
+                    `write one url instead, ${URL_SHAPE[server]}, with the ` +
+                    'password percent-encoded'
+                : `\`dbCredentials\` sets both \`url\` and host fields ` +
+                    `(${named}): remove the host fields; the url alone names ` +
+                    'the database',
+        )
+    }
+    if (server !== undefined && keys.includes('ssl')) {
+        known.add('ssl')
+        const ssl = credentials.ssl
+        const certificate = isRecord(ssl)
+            ? CERTIFICATE_FIELDS.filter((key) => Object.hasOwn(ssl, key))
+            : []
+        if (certificate.length > 0) {
+            kitOnly = true
+            clauses.push(
+                `\`dbCredentials.ssl\` holds a certificate (${
+                    certificate.map((key) => `\`${key}\``).join(', ')
+                }), and an \`ssl\` certificate cannot be written in a url`,
+            )
+        } else {
+            clauses.push(
+                "`dbCredentials.ssl` is set: it goes in the url's query " +
+                    `string, ${SSL_IN_URL[server]}`,
+            )
+        }
+    }
+    if (server === undefined && keys.includes('authToken')) {
+        known.add('authToken')
+        clauses.push(
+            '`dbCredentials.authToken` is set, and Lockness connects through ' +
+                '`dbCredentials.url` only: append the token to the url as ' +
+                '`?authToken=<token>`; libsql reads it there, and Lockness ' +
+                'redacts it like a password (#438)',
+        )
+    }
+    if (keys.some((key) => !known.has(key))) {
+        clauses.push(
+            '`dbCredentials` holds keys Lockness does not read: remove them; ' +
+                'Lockness connects through `dbCredentials.url` only',
+        )
+    }
+    return refused(clauses.join('; '), kitOnly)
+}
+
+/**
+ * Read `dbCredentials.url`, the one database a schema command may reach
  * (#449).
  *
- * An empty or blank URL is refused, not passed on: a driver given no URL
- * falls back to its own default target, so a reset would start against a
- * database the config never named. That URL is what
+ * Every credential form besides `url` is recognised and refused first, in one
+ * refusal (#442). An empty or blank URL is refused, not passed on: a driver
+ * given no URL falls back to its own default target, so a command would start
+ * against a database the config never named. That URL is what
  * `Deno.env.get('DATABASE_URL') ?? ''` yields with the variable unset.
  *
  * Each fault gets its own message, so the user fixes the field that is wrong.
  * No message quotes the URL or any part of it: it carries the password.
  *
+ * @param dialect - The dialect the credentials are read for.
  * @param credentials - The raw `dbCredentials`.
  * @returns The URL, as written.
- * @throws {RefusedError} When `dbCredentials` is missing or not an
- *   object, when `url` is missing, not a string, empty or blank, or when any
- *   key besides `url` is present.
+ * @throws {RefusedError} When `dbCredentials` is missing or not an object,
+ *   holds any key besides `url`, or when `url` is missing, not a string,
+ *   empty or blank.
  */
-function credentialsUrl(credentials: unknown): string {
+function credentialsUrl(dialect: KitDialect, credentials: unknown): string {
     if (credentials === undefined) {
         throw refused(
             '`dbCredentials` is not set, so no database is named; a config ' +
@@ -279,10 +447,12 @@ function credentialsUrl(credentials: unknown): string {
     if (!isRecord(credentials)) {
         throw refused('`dbCredentials` must be an object holding a `url`')
     }
+    const forms = credentialFormsRefused(dialect, credentials)
+    if (forms !== undefined) throw forms
     const url = credentials.url
     if (typeof url !== 'string') {
         throw refused(
-            '`dbCredentials.url` is not set or is not a string; db:fresh ' +
+            '`dbCredentials.url` is not set or is not a string; Lockness ' +
                 'connects through `url` only',
         )
     }
@@ -290,12 +460,6 @@ function credentialsUrl(credentials: unknown): string {
         throw refused(
             '`dbCredentials.url` is empty, so no database is named; the ' +
                 'environment variable it is built from is probably unset',
-        )
-    }
-    if (Object.keys(credentials).some((key) => key !== 'url')) {
-        throw refused(
-            '`dbCredentials` holds keys besides `url`; db:fresh connects ' +
-                'through `url` only',
         )
     }
     return url
@@ -418,10 +582,11 @@ function optionalName(value: unknown, label: string): string | undefined {
  * An R2 refusal about `drizzle.config.ts`.
  *
  * @param reason - What is wrong with the file.
+ * @param kitOnly - drizzle-kit can still run this configuration.
  * @returns The refusal to throw.
  */
-function refused(reason: string): RefusedError {
-    return new RefusedError(`drizzle.config.ts: ${reason}`)
+function refused(reason: string, kitOnly = false): RefusedError {
+    return new RefusedError(`drizzle.config.ts: ${reason}`, { kitOnly })
 }
 
 /**
