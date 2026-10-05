@@ -73,7 +73,12 @@ import { parseArgs } from '@std/cli'
 import { parse as parseJsonc } from '@std/jsonc'
 import { fromFileUrl, join } from '@std/path'
 import { generateAppKey, type KitName, KITS } from '@lockness/init'
-import { MIGRATIONS_DIR, readTree, shipsMigrations } from './kit_migrations.ts'
+import {
+    diffTree,
+    MIGRATIONS_DIR,
+    readTree,
+    shipsMigrations,
+} from './kit_migrations.ts'
 import {
     assertLoopbackUrl,
     type LocalJsr,
@@ -722,7 +727,8 @@ async function bootLogAndCache(
  * without `lockness.packages`, `db:generate` is an unknown command.
  *
  * @param dir - The scaffolded project.
- * @returns Whether drizzle-kit reported no changes and wrote no file.
+ * @returns Whether drizzle-kit reported no changes and left the folder
+ * byte-for-byte unchanged; otherwise every added, removed or changed path.
  */
 async function generatesNothing(dir: string): Promise<StepResult> {
     const folder = join(dir, MIGRATIONS_DIR)
@@ -741,9 +747,8 @@ async function generatesNothing(dir: string): Promise<StepResult> {
             }`,
         }
     }
-    const after = await readTree(folder)
-    const written = [...after.keys()].filter((path) => !before.has(path))
-    if (written.length > 0 || after.size !== before.size) {
+    const written = diffTree(before, await readTree(folder))
+    if (written.length > 0) {
         return { ok: false, detail: `wrote ${written.join(', ')}` }
     }
     return { ok: true, detail: 'no schema changes' }

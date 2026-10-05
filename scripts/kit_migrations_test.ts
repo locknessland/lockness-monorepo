@@ -29,6 +29,7 @@ import type { Cli } from '@lockness/cli'
 import {
     compareMigrations,
     diffKitMigrations,
+    diffTree,
     DrizzleKitError,
     drizzleProject,
     migratingKits,
@@ -143,6 +144,24 @@ Deno.test('#444 compare: a future or non-integer when is refused', () => {
             .length,
         1,
     )
+})
+
+Deno.test('#450 diffTree: an unchanged tree has no difference', () => {
+    assertEquals(diffTree(folder(NOW, 'a', SQL), folder(NOW, 'a', SQL)), [])
+})
+
+Deno.test('#450 diffTree: every added, removed and rewritten path is named', () => {
+    // "No schema changes" means the folder is unchanged — not merely the same
+    // size: a rewritten journal or snapshot is a write too.
+    const before = folder(NOW, 'a', SQL)
+    const after = folder(NOW + 1, 'a', SQL)
+    after.delete('meta/0000_snapshot.json')
+    after.set('0001_next.sql', SQL)
+    assertEquals(diffTree(before, after), [
+        'added: 0001_next.sql',
+        'removed: meta/0000_snapshot.json',
+        'changed: meta/_journal.json',
+    ])
 })
 
 Deno.test('#444 compare: the file set must be identical', () => {

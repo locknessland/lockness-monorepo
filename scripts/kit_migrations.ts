@@ -164,6 +164,39 @@ export async function readTree(dir: string): Promise<Map<string, string>> {
 }
 
 /**
+ * Every path that differs between two {@link readTree} snapshots of a folder.
+ *
+ * Unlike {@link compareMigrations}, which forgives a regeneration its new
+ * `id` and `when`, this is byte-for-byte: it answers "was anything written?",
+ * so a rewritten journal or snapshot counts as much as a new file.
+ *
+ * @param before - The folder before.
+ * @param after - The folder after.
+ * @returns `added: <path>`, then `removed: <path>`, then `changed: <path>`,
+ * each group sorted; empty when the two are identical.
+ *
+ * @example
+ * ```ts
+ * diffTree(before, await readTree(folder)) // ['changed: meta/_journal.json']
+ * ```
+ */
+export function diffTree(
+    before: MigrationFiles,
+    after: MigrationFiles,
+): string[] {
+    const sorted = (paths: Iterable<string>) => [...paths].sort()
+    return [
+        ...sorted(after.keys()).filter((path) => !before.has(path))
+            .map((path) => `added: ${path}`),
+        ...sorted(before.keys()).filter((path) => !after.has(path))
+            .map((path) => `removed: ${path}`),
+        ...sorted(after.keys()).filter((path) =>
+            before.has(path) && before.get(path) !== after.get(path)
+        ).map((path) => `changed: ${path}`),
+    ]
+}
+
+/**
  * The `drizzle-orm` and `drizzle-kit` mappings a kit's `deno.json.stub`
  * declares — the versions an app scaffolded from it runs. The `drizzle-kit`
  * one is pinned to `DRIZZLE_KIT_SPECIFIER` by `@lockness/drizzle`'s #437 test.
