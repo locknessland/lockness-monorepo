@@ -200,6 +200,9 @@ const defaultReadMigrations: MigrationReader = async (folder) => {
         migrationsFolder: folder,
     })
     const journal = await journalEntries(folder)
+    // The count and `folderMillis` checks below guard only against the journal
+    // changing between drizzle-orm's read and this one; they are deliberately
+    // untested (no seam reaches between the two reads).
     if (journal.length !== read.length) {
         throw new Error(
             `the journal lists ${journal.length} entries, but drizzle-orm ` +
