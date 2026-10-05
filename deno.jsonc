@@ -123,6 +123,9 @@
         "@std/jsonc": "jsr:@std/jsonc@1",
         "@std/testing": "jsr:@std/testing@1",
         "@std/semver": "jsr:@std/semver@1",
+        // scripts/ci_workflows.ts only: the one reader every workflow-shape
+        // test parses .github/workflows/ through (#480).
+        "@std/yaml": "jsr:@std/yaml@1",
         // scripts/local_jsr.ts only: untars the bundles `deno publish` uploads
         // to the localhost registry the kit boot gate runs against (#470).
         "@std/tar": "jsr:@std/tar@^0.1.10",
