@@ -18,6 +18,7 @@ import {
     judgeNotFound,
     judgeRouterList,
     missingFromRegistry,
+    NOT_FOUND_ANSWER,
     parseContainerState,
     pollHealthy,
     publishableMembers,
@@ -78,12 +79,46 @@ Deno.test('missingFromRegistry names every member that never arrived', () => {
     )
 })
 
-Deno.test('judgeNotFound passes only an HTML 404', () => {
-    assert(judgeNotFound(404, 'text/html; charset=UTF-8', '<html>').ok)
-    assert(!judgeNotFound(404, 'application/json', '{}').ok)
-    assert(!judgeNotFound(500, 'text/html', 'boom').ok)
-    assert(!judgeNotFound(200, 'text/html', '<html>').ok)
-    assert(!judgeNotFound(404, null, '').ok)
+Deno.test('judgeNotFound passes only an HTML 404 from the default view', () => {
+    const view = 'default-view'
+    assert(judgeNotFound(404, 'text/html; charset=UTF-8', '<html>', view).ok)
+    assert(!judgeNotFound(404, 'application/json', '{}', view).ok)
+    assert(!judgeNotFound(500, 'text/html', 'boom', view).ok)
+    assert(!judgeNotFound(200, 'text/html', '<html>', view).ok)
+    assert(!judgeNotFound(404, null, '', view).ok)
+})
+
+Deno.test("judgeNotFound passes only the app handler's JSON 404 when one is shipped (#479)", () => {
+    const handler = 'app-handler'
+    const json = 'application/json'
+    assert(
+        judgeNotFound(404, json, '{"error":"Not Found","status":404}', handler)
+            .ok,
+    )
+    // The handler failed to load: core's HTML page answered instead.
+    assert(!judgeNotFound(404, 'text/html', '<html>', handler).ok)
+    assert(!judgeNotFound(404, json, '{"error":"Nope"}', handler).ok)
+    assert(!judgeNotFound(404, json, 'not json', handler).ok)
+    assert(!judgeNotFound(404, json, 'null', handler).ok)
+    assert(!judgeNotFound(500, json, '{"error":"Not Found"}', handler).ok)
+})
+
+Deno.test('NOT_FOUND_ANSWER expects the app handler exactly where a kit ships one (#479)', async () => {
+    for (const kit of Object.keys(KITS) as KitName[]) {
+        const stub = new URL(
+            `../packages/init/stubs/kits/${kit}/app/view/pages/errors/error_handler.tsx.stub`,
+            import.meta.url,
+        )
+        const ships = await Deno.stat(stub).then(() => true, (error) => {
+            if (error instanceof Deno.errors.NotFound) return false
+            throw error
+        })
+        assertEquals(
+            NOT_FOUND_ANSWER[kit],
+            ships ? 'app-handler' : 'default-view',
+            kit,
+        )
+    }
 })
 
 Deno.test('appPathRequests flags a registry line naming a path inside the app (#474)', () => {

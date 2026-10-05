@@ -1025,35 +1025,86 @@ export function missingFromRegistry(
 }
 
 /**
- * Judge the answer to {@link MISSING_PATH}: the framework's HTML 404 page.
+ * Who answers {@link MISSING_PATH} in each kit.
  *
- * Asking for it renders core's default error view at runtime — the module
- * #470 broke — which `/` alone never reaches in a kit with its own home page.
+ * - `default-view`: core's HTML 404 page, rendered at runtime — the module
+ *   #470 broke — which `/` alone never reaches in a kit with its own home page.
+ * - `app-handler`: the kit's own `app/view/pages/errors/error_handler.tsx`,
+ *   which answers `{ error: 'Not Found' }` as JSON. Only a published core can
+ *   fail to load it, by resolving the path against its own URL (#474), so
+ *   registry mode is where that is proven (#479). A handler that did not load
+ *   falls back to the HTML page, which this verdict rejects.
+ */
+export const NOT_FOUND_ANSWER: Readonly<
+    Record<KitName, 'default-view' | 'app-handler'>
+> = {
+    web: 'default-view',
+    api: 'default-view',
+    slim: 'app-handler',
+}
+
+/**
+ * Judge the answer to {@link MISSING_PATH} against who should give it.
  *
  * @param status - The HTTP status.
  * @param contentType - The `content-type` header, if any.
- * @param body - The body, for a failure message.
- * @returns Pass only for a 404 served as `text/html`.
+ * @param body - The body.
+ * @param expected - Who should answer (see {@link NOT_FOUND_ANSWER}).
+ * @returns Pass only for a 404 served as `text/html` from the default view,
+ * or as JSON naming `Not Found` from the app's handler.
  *
  * @example
  * ```ts
- * judgeNotFound(404, 'text/html; charset=UTF-8', '<html>…').ok // true
- * judgeNotFound(500, 'text/plain', 'Internal Server Error').ok   // false
+ * judgeNotFound(404, 'text/html; charset=UTF-8', '<html>…', 'default-view').ok // true
+ * judgeNotFound(404, 'application/json', '{"error":"Not Found"}', 'app-handler').ok // true
+ * judgeNotFound(404, 'text/html', '<html>…', 'app-handler').ok // false
  * ```
  */
 export function judgeNotFound(
     status: number,
     contentType: string | null,
     body: string,
+    expected: 'default-view' | 'app-handler',
 ): StepResult {
     const type = contentType ?? 'no content-type'
-    if (status === 404 && type.toLowerCase().includes('text/html')) {
-        return { ok: true, detail: `${MISSING_PATH} → HTML 404` }
+    const want = expected === 'default-view'
+        ? 'an HTML 404'
+        : "the app handler's JSON 404"
+    if (status === 404 && expected === 'default-view') {
+        if (type.toLowerCase().includes('text/html')) {
+            return { ok: true, detail: `${MISSING_PATH} → HTML 404` }
+        }
+    }
+    if (status === 404 && expected === 'app-handler') {
+        if (
+            type.toLowerCase().includes('application/json') &&
+            jsonError(body) === 'Not Found'
+        ) {
+            return {
+                ok: true,
+                detail:
+                    `${MISSING_PATH} → JSON 404 from the app's error handler`,
+            }
+        }
     }
     return {
         ok: false,
-        detail: `${MISSING_PATH} → HTTP ${status} (${type}), expected an ` +
-            `HTML 404\n${tail(body, 8)}`,
+        detail: `${MISSING_PATH} → HTTP ${status} (${type}), expected ` +
+            `${want}\n${tail(body, 8)}`,
+    }
+}
+
+/** The `error` field of a JSON object body, or `undefined`. */
+function jsonError(body: string): unknown {
+    try {
+        const parsed: unknown = JSON.parse(body)
+        return typeof parsed === 'object' && parsed !== null
+            ? (parsed as { error?: unknown }).error
+            : undefined
+    } catch (error) {
+        // Not JSON is a verdict, not a fault: the caller reports the body.
+        if (error instanceof SyntaxError) return undefined
+        throw error
     }
 }
 
@@ -1183,14 +1234,23 @@ function reportLeaks(
     return false
 }
 
-/** Ask a running kit for {@link MISSING_PATH}. */
-async function notFoundIsHtml(origin: string): Promise<StepResult> {
-    const response = await fetch(`${origin}${MISSING_PATH}`)
-    return judgeNotFound(
-        response.status,
-        response.headers.get('content-type'),
-        await response.text(),
-    )
+/**
+ * A probe asking a running kit for {@link MISSING_PATH}, judged against who
+ * should answer it in that kit.
+ *
+ * @param kit - The kit being probed.
+ * @returns The probe {@link boots} runs once the kit answers `/`.
+ */
+function notFoundProbe(kit: KitName): (origin: string) => Promise<StepResult> {
+    return async (origin) => {
+        const response = await fetch(`${origin}${MISSING_PATH}`)
+        return judgeNotFound(
+            response.status,
+            response.headers.get('content-type'),
+            await response.text(),
+            NOT_FOUND_ANSWER[kit],
+        )
+    }
 }
 
 /** A port the OS says is free right now, on loopback. */
@@ -1417,7 +1477,7 @@ async function smokeAgainstRegistry(
             const booted = await boots(scaffold.dir, freePort(), {
                 env,
                 timeoutMs: REGISTRY_BOOT_TIMEOUT_MS,
-                probe: notFoundIsHtml,
+                probe: notFoundProbe(kit),
             })
             console.log(`  ${booted.ok ? '✅' : '❌'} boots — ${booted.detail}`)
             let kitOk = await bootLogAndCache(kit, scaffold.dir, booted, env)
