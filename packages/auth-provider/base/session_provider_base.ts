@@ -289,6 +289,8 @@ export abstract class SessionProviderBase<User extends Authenticatable>
         if (row.hash !== hash) return null
         if (!isUnexpired(row.expiresAt, now)) return null
         if (!isValidDate(row.firstIssuedAt)) return null
+        // A row without an id cannot be revoked or recycled; never allow it.
+        if (row.id === null || row.id === undefined) return null
 
         const user = await this.findById(row.userId)
         if (!user) return null
@@ -358,8 +360,8 @@ export abstract class SessionProviderBase<User extends Authenticatable>
      * @param expiresIn - Lifetime of the new token, in **seconds**.
      * @returns The new token, `value` holding its plaintext.
      * @throws {Error} When remember-me is off (no store).
-     * @throws {TypeError} When `token.firstIssuedAt` is not a valid Date, or
-     * the store returns a row without an id.
+     * @throws {TypeError} When `token.firstIssuedAt` is not a valid Date,
+     * `token.identifier` is missing, or the store returns a row without an id.
      * @throws {RangeError} When `expiresIn` is not a finite positive number
      * of seconds that lands on a valid date.
      * @throws Whatever the store's `delete` or `insert` throws.
@@ -374,6 +376,13 @@ export abstract class SessionProviderBase<User extends Authenticatable>
         if (!isValidDate(origin)) {
             throw new TypeError(
                 'recycleRememberToken needs the verified token with a valid firstIssuedAt — the guard resolves it before recycling',
+            )
+        }
+        // Without an identifier the delete would target nothing and leave the
+        // old token live beside the new one; refuse before any write.
+        if (token.identifier === null || token.identifier === undefined) {
+            throw new TypeError(
+                'recycleRememberToken needs the verified token with its identifier',
             )
         }
         const now = new Date()
