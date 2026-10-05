@@ -420,8 +420,8 @@ function redactPairs(text: string): string {
         if (end > valueStart) {
             out += `${text.slice(copied, valueStart)}***`
             copied = end
-            if (cutHere) inherited = separatorEnd(text, end)
         }
+        if (cutHere) inherited = separatorEnd(text, end)
         i = Math.max(end, i + equalsLength)
     }
     return copied === 0 ? text : out + text.slice(copied)
