@@ -6,6 +6,7 @@
  * keeps its bookkeeping where `migrations.schema` / `migrations.table` say.
  * #454: `db:fresh` run twice prints no raw server notice, and a reporter
  * passed to `connect` receives the `already exists, skipping` notice.
+ * #446: the kept schema comes out of a reset with its owner and ACL.
  *
  * The pure tests in `reset.test.ts` pin the SQL; only a real server proves
  * that `pg_depend` and `pg_identify_object` classify objects the way the
@@ -17,9 +18,9 @@
  * `deno task test:postgres` sets it. `LOCKNESS_POSTGRES_URL` names the
  * server, and every host it names must be loopback — a guard the gate
  * tests without a server. The suite creates and drops only schemas named
- * `lockness_fresh_*` (and the `citext` extension inside one of them) and one
- * event trigger, `lockness_fresh_ddl`, and it needs a superuser for the
- * event trigger.
+ * `lockness_fresh_*` (and the `citext` extension inside one of them), one
+ * event trigger, `lockness_fresh_ddl`, and one role, `lockness_fresh_owner`,
+ * and it needs a superuser for the event trigger and the role.
  *
  * @module @lockness/drizzle/tests/fresh_postgres_live
  */
@@ -59,8 +60,9 @@ const SCOPE = 'lockness_fresh_scope'
 const OTHER = 'lockness_fresh_other'
 /** The bookkeeping schema, outside the scope as drizzle's own `drizzle` is. */
 const BOOKKEEPING = 'lockness_fresh_drizzle'
-/** The one global object the suite creates. */
+/** The global objects the suite creates: an event trigger and a role. */
 const EVENT_TRIGGER = 'lockness_fresh_ddl'
+const OWNER = 'lockness_fresh_owner'
 
 /** The reset scope every test uses. */
 const SETTINGS: ResetScope = {
@@ -148,6 +150,8 @@ const TEARDOWN = [
     `DROP SCHEMA IF EXISTS ${OTHER} CASCADE`,
     `DROP SCHEMA IF EXISTS ${SCOPE} CASCADE`,
     `DROP SCHEMA IF EXISTS ${BOOKKEEPING} CASCADE`,
+    // Last: the role can go only once the schema it owns is gone.
+    `DROP ROLE IF EXISTS ${OWNER}`,
 ]
 
 /**
@@ -369,6 +373,47 @@ for (const [label, plant] of IN_SCOPE) {
             }),
     })
 }
+
+// -----------------------------------------------------------------------------
+// #446: the kept schema keeps its owner and its ACL
+// -----------------------------------------------------------------------------
+
+/** The scope schema's identity, owner and ACL, as text. */
+async function keptSchema(
+    client: Client,
+): Promise<{ oid: string; owner: string; acl: string }> {
+    const [row] = await client.unsafe(
+        'SELECT oid::text AS oid, nspowner::regrole::text AS owner, ' +
+            'nspacl::text AS acl FROM pg_catalog.pg_namespace ' +
+            `WHERE nspname = '${SCOPE}'`,
+    )
+    assert(row, 'the kept schema is gone')
+    return { oid: row.oid, owner: row.owner, acl: row.acl }
+}
+
+Deno.test({
+    name:
+        '#446 live: the kept schema comes out of a reset with its owner and its ACL',
+    ignore: !LIVE,
+    fn: () =>
+        live(async (admin, maintenance) => {
+            // A non-default owner and grant: a schema dropped and re-created
+            // by the resetting superuser would come back with neither.
+            await run(admin, [
+                `CREATE ROLE ${OWNER} NOLOGIN`,
+                `ALTER SCHEMA ${SCOPE} OWNER TO ${OWNER}`,
+                `GRANT USAGE ON SCHEMA ${SCOPE} TO PUBLIC`,
+            ])
+            const before = await keptSchema(admin)
+            assertEquals(before.owner, OWNER)
+            assertStringIncludes(before.acl, `=U/${OWNER}`)
+
+            await resetDatabase(maintenance, SETTINGS)
+
+            await assertReset(admin)
+            assertEquals(await keptSchema(admin), before)
+        }),
+})
 
 // -----------------------------------------------------------------------------
 // Concurrency: a second session commits between baseline and check

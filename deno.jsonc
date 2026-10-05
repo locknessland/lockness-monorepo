@@ -63,6 +63,11 @@
         // reads it. They also need LOCKNESS_POSTGRES_URL, a loopback superuser
         // connection: the kit suite creates and drops `lockness_kit_*` databases.
         "test:postgres": "LOCKNESS_POSTGRES_INTEGRATION=1 deno test -A packages/drizzle/tests/fresh_postgres_live.test.ts scripts/kit_migrations_live_test.ts scripts/kit_token_flow_live_test.ts scripts/kit_push_live_test.ts scripts/remember_me_live_test.ts",
+        // The live-mysql suite (#446). Skipped by the default `test` task; this
+        // SETS the gate, `packages/drizzle/tests/live_mysql.ts` reads it. It
+        // also needs LOCKNESS_MYSQL_URL, a loopback connection allowed to
+        // create and drop the `lockness_fresh_mysql*` databases.
+        "test:mysql": "LOCKNESS_MYSQL_INTEGRATION=1 deno test -A packages/drizzle/tests/fresh_mysql_live.test.ts",
         "test:coverage": "rm -rf coverage && deno test -A --coverage=coverage packages/ app/ && deno coverage coverage --lcov > coverage/lcov.info && deno coverage coverage",
         "coverage:floor": "deno run -A scripts/coverage_floor.ts --check",
         "coverage:floor:update": "deno run -A scripts/coverage_floor.ts --update",

@@ -105,7 +105,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-22 test files for 19 source files:
+23 test files for 20 source files:
 
 - `packages/drizzle/tests/app_file.test.ts`
 - `packages/drizzle/tests/cli_commands.test.ts`
@@ -113,6 +113,7 @@ Anything not listed is internal and free to change.
 - `packages/drizzle/tests/dsn.test.ts`
 - `packages/drizzle/tests/factory.test.ts`
 - `packages/drizzle/tests/fresh_libsql.test.ts`
+- `packages/drizzle/tests/fresh_mysql_live.test.ts`
 - `packages/drizzle/tests/fresh_postgres_live.test.ts`
 - `packages/drizzle/tests/install.test.ts`
 - `packages/drizzle/tests/lifecycle.test.ts`
@@ -159,6 +160,17 @@ changes them too: `scripts/kit_migrations_live_test.ts`,
 and `scripts/remember_me_live_test.ts` (#450). Inside the package:
 `tests/fresh_postgres_live.test.ts`.
 
+### The live-mysql harness (`tests/live_mysql.ts`)
+
+The same two decisions for a real MySQL (#446), read by
+`tests/fresh_mysql_live.test.ts` only.
+
+| Export                | What it decides                                                                                                    |
+| :-------------------- | :----------------------------------------------------------------------------------------------------------------- |
+| `LIVE_MYSQL`          | Whether the suite runs. The **only** reader of `LOCKNESS_MYSQL_INTEGRATION`; the root `test:mysql` task sets it.   |
+| `assertMysqlLoopback` | Refuses a url unless mysql2's own parse names a loopback host and no socket path — the query string feeds options. |
+| `liveMysqlUrl()`      | `LOCKNESS_MYSQL_URL`, passed through `assertMysqlLoopback`.                                                        |
+
 ## Before you call it done
 
 <!-- generated:gate -->
@@ -170,7 +182,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 22 test files directly —
+Then, specific to this package: run its 23 test files directly —
 
 ```bash
 deno test -A packages/drizzle/
