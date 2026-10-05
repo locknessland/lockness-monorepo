@@ -137,6 +137,56 @@ Deno.test('schedulerStep - logger: true boots with a reporter installed, so fail
     }
 })
 
+Deno.test('schedulerStep - a logger whose transport rejects causes no unhandled rejection and writes one stderr line', async () => {
+    // A `FileTransport` on a full disk, or a sink that is down, rejects. The
+    // reporter used to `void` that promise, so the rejection went unhandled
+    // and ended the process the first time a task failed.
+    const unhandled: unknown[] = []
+    const onUnhandled = (event: PromiseRejectionEvent) => {
+        event.preventDefault()
+        unhandled.push(event.reason)
+    }
+    const rejecting = () => Promise.reject(new Error('disk full'))
+    const importModule: ImportModule = (specifier) =>
+        specifier === '@lockness/logger'
+            ? Promise.resolve({
+                logger: () => ({ error: rejecting, warn: rejecting }),
+            })
+            : Promise.reject(new TypeError(`unexpected import ${specifier}`))
+    const errors: string[] = []
+    const originalError = console.error
+    console.error = (...args: unknown[]) => void errors.push(args.join(' '))
+    globalThis.addEventListener('unhandledrejection', onUnhandled)
+    setScheduler(new Scheduler())
+    try {
+        await schedulerStep.run(contextWith({
+            logger: true,
+            schedulesDir: './tmp/does-not-exist-schedules',
+        }, importModule))
+        scheduler().register({
+            expression: '0 3 * * *',
+            body: () => {
+                throw new Error('task exploded')
+            },
+            options: { name: 'rejecting-sink' },
+        })
+        await scheduler().runNow('rejecting-sink')
+        // Let the rejected transport promise settle and the unhandled
+        // rejection event, if any, fire.
+        await new Promise((resolve) => setTimeout(resolve, 10))
+
+        assertEquals(unhandled, [], 'the transport rejection went unhandled')
+        const failures = errors.filter((line) => line.includes('logger failed'))
+        assertEquals(failures.length, 1, errors.join('\n'))
+        assertStringIncludes(failures[0], 'disk full')
+    } finally {
+        globalThis.removeEventListener('unhandledrejection', onUnhandled)
+        console.error = originalError
+        scheduler().stop()
+        setScheduler(undefined)
+    }
+})
+
 Deno.test("schedulerStep - an application's own reporter is not overwritten", async () => {
     // docs/DOCS.md tells people to install one with
     // `setScheduler(new Scheduler({ … }))`. The step used to replace the shared

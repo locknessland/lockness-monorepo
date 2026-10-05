@@ -192,6 +192,57 @@ Deno.test('#454 logger: true passes notices whose warn and debug reach the logge
     ])
 })
 
+Deno.test('#454 a logger whose transport rejects causes no unhandled rejection and writes one stderr line', async () => {
+    // A `FileTransport` on a full disk, or a sink that is down, rejects. The
+    // reporter used to `void` that promise, so the rejection went unhandled
+    // and ended the process the first time a notice arrived.
+    const options: ConnectOptions[] = []
+    const unhandled: unknown[] = []
+    const onUnhandled = (event: PromiseRejectionEvent) => {
+        event.preventDefault()
+        unhandled.push(event.reason)
+    }
+    const rejecting = () => Promise.reject(new Error('disk full'))
+    const fakeLogger = {
+        logger: () => ({ warn: rejecting, debug: rejecting }),
+    }
+    const errors: string[] = []
+    globalThis.addEventListener('unhandledrejection', onUnhandled)
+    try {
+        await withFreshDatabase(async (db) => {
+            db.connect = (_url, given) => {
+                options.push(given)
+                return Promise.resolve({ success: true })
+            }
+            await databaseStep.run(
+                {
+                    config: {
+                        database: { url: URL_UNDER_TEST },
+                        logger: true,
+                    },
+                    importModule: (specifier: string) =>
+                        specifier === '@lockness/logger'
+                            ? Promise.resolve(fakeLogger)
+                            : import(specifier),
+                } as unknown as Parameters<typeof databaseStep.run>[0],
+            )
+            const notices = options[0]?.notices
+            if (!notices) throw new Error('connect received no notices')
+            // Inside withFreshDatabase, console.error is muted: capture here.
+            console.error = (...a: unknown[]) => void errors.push(a.join(' '))
+            notices.warn('w', {})
+            await new Promise((resolve) => setTimeout(resolve, 10))
+        })
+    } finally {
+        globalThis.removeEventListener('unhandledrejection', onUnhandled)
+    }
+
+    assertEquals(unhandled, [], 'the transport rejection went unhandled')
+    assertEquals(errors.length, 1, errors.join('\n'))
+    assertEquals(errors[0].includes('logger failed'), true, errors[0])
+    assertEquals(errors[0].includes('disk full'), true, errors[0])
+})
+
 Deno.test('#454 without logger, connect receives no notices key and the logger is not imported', async () => {
     const { options, imported } = await runStepCapturingConnect({})
 
