@@ -10,6 +10,7 @@
 
 import { assertEquals, assertThrows } from '@std/assert'
 import { dirname, fromFileUrl, join } from '@std/path'
+import { CommandFailedError } from '@lockness/cli/command-failure'
 import { DEFAULT_KIT, type KitName, KITS, resolveKit } from '../kits.ts'
 
 const STUBS = join(dirname(fromFileUrl(import.meta.url)), '..', 'stubs')
@@ -82,8 +83,14 @@ Deno.test('resolveKit - defaults, accepts, and refuses', () => {
 
     // A typo must never fall back to the default: someone who asked for slim
     // and silently got a full Tailwind scaffold has no way to tell why.
-    assertThrows(() => resolveKit('slm'), TypeError, 'Unknown kit "slm"')
-    assertThrows(() => resolveKit('nope'), TypeError, 'web, api, slim')
+    // It is a command failure itself (#436, D4 rule 4), so the CLI prints its
+    // one line and exits non-zero without the caller translating it.
+    assertThrows(
+        () => resolveKit('slm'),
+        CommandFailedError,
+        'Unknown kit "slm"',
+    )
+    assertThrows(() => resolveKit('nope'), CommandFailedError, 'web, api, slim')
 })
 
 Deno.test('slim ships none of what it says it omits', () => {

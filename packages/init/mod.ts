@@ -1,6 +1,8 @@
 import { parseArgs } from '@std/cli'
 import { dirname, fromFileUrl, join } from '@std/path'
 import { type Cli, Stub } from '@lockness/cli'
+import { CommandFailedError, runSteps } from '@lockness/cli/command-failure'
+import { runEntry } from '@lockness/cli/entry'
 import { DEFAULT_KIT, type KitName, KITS, resolveKit } from './kits.ts'
 
 export { DEFAULT_KIT, KITS, resolveKit } from './kits.ts'
@@ -137,49 +139,57 @@ function validateVersion(version: string): boolean {
 }
 
 /**
+ * Read this package's own version from its `deno.json`: from disk in a
+ * checkout, over HTTP when run from JSR.
+ *
+ * There is no fallback. The one it replaces answered a hard-coded `0.1.22`,
+ * which scaffolded a project pinned to a framework release its stubs do not
+ * match; a failure here now reaches the user with its real reason.
+ *
+ * @returns The version, e.g. `0.4.0`.
+ * @throws {CommandFailedError} When JSR answers with an error status.
+ * @throws {Error} When the file cannot be read, fetched or parsed.
+ */
+async function readOwnVersion(): Promise<string> {
+    const url = new URL('./deno.json', import.meta.url)
+    if (url.protocol === 'file:') {
+        return JSON.parse(await Deno.readTextFile(fromFileUrl(url))).version
+    }
+    const response = await fetch(url)
+    if (!response.ok) {
+        await response.body?.cancel()
+        throw new CommandFailedError(
+            `Could not read the @lockness/init version (HTTP ${response.status})`,
+        )
+    }
+    return (await response.json()).version
+}
+
+/**
  * Resolve version string to exact version or range
+ *
+ * @param version - The `--use` value, or `undefined` for the latest.
+ * @returns The version range to write into the scaffolded `deno.json`.
+ * @throws {CommandFailedError} When `version` is not a form `--use` accepts:
+ * the command failure itself (#436, D4 rule 4).
+ * @throws {Error} When the latest version cannot be read; a fetch failure
+ * propagates (see {@link readOwnVersion}).
  *
  * @example
  * ```typescript
  * await resolveVersion('0.1.15')   // '^0.1.15'
- * await resolveVersion('latest')   // '^0.1.22' (current version)
+ * await resolveVersion('latest')   // '^0.4.0' (this package's version)
  * await resolveVersion('^0.1.0')   // '^0.1.0'
  * ```
  */
 async function resolveVersion(version?: string): Promise<string> {
     if (!version || version === 'latest') {
-        // Read current version from deno.json
-        try {
-            let denoJsonPath: string
-            if (import.meta.url.startsWith('file://')) {
-                denoJsonPath = fromFileUrl(
-                    new URL('./deno.json', import.meta.url),
-                )
-            } else {
-                // When running from JSR, fetch the file
-                const response = await fetch(
-                    new URL('./deno.json', import.meta.url),
-                )
-                if (response.ok) {
-                    const denoJson = await response.json()
-                    return `^${denoJson.version}`
-                }
-                // Fallback if we can't read version
-                return '^0.1.22'
-            }
-            const denoJson = JSON.parse(await Deno.readTextFile(denoJsonPath))
-            return `^${denoJson.version}`
-        } catch {
-            // Fallback if we can't read the version
-            return '^0.1.22'
-        }
+        return `^${await readOwnVersion()}`
     }
 
     if (!validateVersion(version)) {
-        throw new Error(
-            `Invalid version format: "${version}"\n` +
-                `Expected: X.Y.Z, ^X.Y.Z, ~X.Y.Z, or "latest"\n` +
-                `Examples: 0.1.15, ^0.1.0, ~0.1.20, latest`,
+        throw new CommandFailedError(
+            `Invalid version format: "${version}". Expected X.Y.Z, ^X.Y.Z, ~X.Y.Z or "latest", e.g. 0.1.15, ^0.1.0, ~0.1.20`,
         )
     }
 
@@ -269,193 +279,150 @@ function stubRoots(
     }
 }
 
-export function registerInitCommand(cli: Cli) {
-    cli.register('init', async (args: string[]) => {
-        const { projectName, use, kit: rawKit } = parseInitArgs(args)
+/**
+ * Scaffold a project: the one implementation behind `init` on a `Cli` and
+ * behind `deno run jsr:@lockness/init`.
+ *
+ * It reports failure by throwing and never touches process state: the caller
+ * (`Cli.dispatch` or `runEntry`) prints the failure once and sets the exit
+ * status (#436).
+ *
+ * @param args - The project name followed by the init options.
+ * @throws {CommandFailedError} When `--kit` or `--use` is rejected, before
+ * anything is written; or when scaffold steps failed, after every other step
+ * ran.
+ */
+async function runInit(args: string[]): Promise<void> {
+    const { projectName, use, kit: rawKit, help, version } = parseInitArgs(
+        args,
+    )
 
-        // Resolve the kit BEFORE anything is written. A typo'd --kit must not
-        // leave half a project on disk.
-        let kit: KitName
-        try {
-            kit = resolveKit(rawKit)
-        } catch (error) {
-            console.error(`❌ ${(error as Error).message}`)
-            Deno.exit(1)
-        }
+    if (help) {
+        displayHelp()
+        return
+    }
+    if (version) {
+        console.log(`@lockness/init v${await readOwnVersion()}`)
+        return
+    }
 
-        // Resolve version (validate and normalize)
-        let resolvedVersion: string
-        try {
-            resolvedVersion = await resolveVersion(use)
-        } catch (error) {
-            console.error(`❌ ${(error as Error).message}`)
-            Deno.exit(1)
-        }
+    // Resolve the kit and the version BEFORE anything is written. A typo'd
+    // --kit must not leave half a project on disk.
+    const kit = resolveKit(rawKit)
+    const resolvedVersion = await resolveVersion(use)
 
-        const { base, overlay, isRemote } = stubRoots(kit)
-        const definition = KITS[kit]
-        const data = {
-            projectName: String(projectName),
-            locknessVersion: resolvedVersion,
-        }
+    const { base, overlay, isRemote } = stubRoots(kit)
+    const definition = KITS[kit]
+    const target = String(projectName)
+    const data = { projectName: target, locknessVersion: resolvedVersion }
 
-        console.log(`🌊 Scaffolding Lockness project: ${projectName}`)
-        console.log(`🎒 Kit: ${kit} — ${definition.summary}`)
-        console.log(`📦 Framework version: ${resolvedVersion}`)
+    console.log(`🌊 Scaffolding Lockness project: ${projectName}`)
+    console.log(`🎒 Kit: ${kit} — ${definition.summary}`)
+    console.log(`📦 Framework version: ${resolvedVersion}`)
 
-        try {
-            // Base first, overlay second. The overlay is allowed to replace a
-            // base file, and does for deno.json, the kernel and the README —
-            // so the order here is the mechanism, not an incidental.
-            await Stub.scaffoldFrom(
-                base,
-                String(projectName),
-                data,
-                definition.base,
-            )
-            await Stub.scaffoldFrom(
-                overlay,
-                String(projectName),
-                data,
-                definition.overlay,
-            )
+    // Finish, then fail (#436, FR-010): a step that fails does not stop the
+    // others, and the failure names it, so the user knows exactly which part
+    // of the project is missing instead of holding an unknown half of one.
+    await runSteps([
+        // Base first, overlay second. The overlay is allowed to replace a base
+        // file, and does for deno.json, the kernel and the README, so the
+        // order here is the mechanism, not an incidental.
+        {
+            label: 'base stubs',
+            run: () => Stub.scaffoldFrom(base, target, data, definition.base),
+        },
+        {
+            label: `${kit} kit stubs`,
+            run: () =>
+                Stub.scaffoldFrom(overlay, target, data, definition.overlay),
+        },
 
-            // Binaries are copied, never templated. Remotely there is nothing
-            // to copy from — `fetch` would give us text — so they are skipped,
-            // exactly as before kits existed.
-            if (!isRemote) {
-                for (const file of definition.binaries) {
-                    try {
-                        const sourcePath = join(base, file)
-                        const targetPath = join(projectName, file)
-                        await Deno.mkdir(dirname(targetPath), {
-                            recursive: true,
-                        })
-                        await Deno.copyFile(sourcePath, targetPath)
-                    } catch (error) {
-                        console.warn(
-                            `⚠️  Could not copy binary file ${file}: ${
-                                (error as Error).message
-                            }`,
-                        )
-                    }
+        // Binaries are copied, never templated. Remotely there is nothing to
+        // copy from (`fetch` would give us text), so they are skipped, exactly
+        // as before kits existed.
+        ...(isRemote ? [] : definition.binaries).map((file) => ({
+            label: file,
+            run: async () => {
+                const targetPath = join(target, file)
+                await Deno.mkdir(dirname(targetPath), { recursive: true })
+                await Deno.copyFile(join(base, file), targetPath)
+            },
+        })),
+
+        // Directories the app writes into at runtime, which therefore have no
+        // stub to create them.
+        {
+            label: 'directories',
+            run: async () => {
+                for (const dir of definition.directories) {
+                    await Deno.mkdir(`${target}/${dir}`, { recursive: true })
                 }
-            }
+            },
+        },
 
-            // Directories the app writes into at runtime, which therefore have
-            // no stub to create them.
-            for (const dir of definition.directories) {
-                await Deno.mkdir(`${projectName}/${dir}`, { recursive: true })
-            }
-
-            // Copy .env.exemple to .env, and give THIS project its own key.
-            //
-            // Injected here rather than templated into the stub on purpose:
-            // `.env.exemple` is committed by the user, so a key placed there
-            // would ship with the project and be shared by everyone who clones
-            // it — the defect this replaces, in a new costume.
-            try {
+        // Copy .env.exemple to .env, and give THIS project its own key.
+        //
+        // Injected here rather than templated into the stub on purpose:
+        // `.env.exemple` is committed by the user, so a key placed there would
+        // ship with the project and be shared by everyone who clones it, the
+        // defect this replaces in a new costume. Every kit ships
+        // `.env.exemple`, so a failure here is real, never an absent file.
+        {
+            label: '.env',
+            run: async () => {
                 const envContent = await Deno.readTextFile(
-                    `${projectName}/.env.exemple`,
+                    `${target}/.env.exemple`,
                 )
                 // 0600: this file now carries live key material, and its
                 // sensitivity rose the moment a real key went into it. The
                 // default 0644 would leave it world-readable.
                 await Deno.writeTextFile(
-                    `${projectName}/.env`,
+                    `${target}/.env`,
                     withAppKey(envContent, generateAppKey()),
                     { mode: 0o600 },
                 )
-            } catch {
-                // Ignore if .env.exemple doesn't exist
-            }
+            },
+        },
 
-            // Create .env.production.local, with a key of its own.
-            //
-            // Without one, a freshly scaffolded project fails its first
-            // production deploy — the framework refuses to boot on the cookie
-            // driver with no APP_KEY — and the natural repair for that is to
-            // paste a key from a blog post, which is how shared keys spread.
-            try {
-                await Deno.writeTextFile(
-                    `${projectName}/.env.production.local`,
+        // Create .env.production.local, with a key of its own.
+        //
+        // Without one, a freshly scaffolded project fails its first production
+        // deploy (the framework refuses to boot on the cookie driver with no
+        // APP_KEY), and the natural repair for that is to paste a key from a
+        // blog post, which is how shared keys spread.
+        {
+            label: '.env.production.local',
+            run: () =>
+                Deno.writeTextFile(
+                    `${target}/.env.production.local`,
                     `APP_ENV=production\nAPP_KEY=${generateAppKey()}\n`,
                     { mode: 0o600 },
-                )
-            } catch {
-                console.error('⚠️  Could not create .env.production.local')
-            }
-
-            console.log('\n✅ Done! To get started:')
-            console.log(`  cd ${projectName}`)
-            console.log('  deno task dev')
-            console.log(`\n${definition.omits}`)
-        } catch (error) {
-            console.error(
-                `❌ Initialization failed: ${(error as Error).message}`,
-            )
-            // Non-zero, or a failed scaffold looks like a successful one to
-            // everything downstream: a CI step, a `&&` chain, and the person
-            // who now has half a project and a green terminal.
-            Deno.exit(1)
-        }
-    }, 'Initialize a new Lockness project')
-}
-
-if (import.meta.main) {
-    const { projectName, use, kit, help, version } = parseInitArgs(Deno.args)
-
-    // Handle --help flag
-    if (help) {
-        displayHelp()
-        Deno.exit(0)
-    }
-
-    // Handle --version flag
-    if (version) {
-        try {
-            let denoJsonPath: string
-            if (import.meta.url.startsWith('file://')) {
-                denoJsonPath = fromFileUrl(
-                    new URL('./deno.json', import.meta.url),
-                )
-                const denoJson = JSON.parse(
-                    await Deno.readTextFile(denoJsonPath),
-                )
-                console.log(`@lockness/init v${denoJson.version}`)
-            } else {
-                // When running from JSR, fetch the file
-                const response = await fetch(
-                    new URL('./deno.json', import.meta.url),
-                )
-                if (response.ok) {
-                    const denoJson = await response.json()
-                    console.log(`@lockness/init v${denoJson.version}`)
-                } else {
-                    console.log('@lockness/init v0.1.22')
-                }
-            }
-        } catch {
-            console.log('@lockness/init (version unknown)')
-        }
-        Deno.exit(0)
-    }
-
-    // Normal scaffolding
-    const cliMock = {
-        register: (
-            _name: string,
-            handler: (args: string[]) => Promise<void>,
-        ) => {
-            const args = [projectName]
-            if (use) {
-                args.push('--use', use)
-            }
-            if (kit) {
-                args.push('--kit', kit)
-            }
-            return handler(args)
+                ),
         },
-    }
-    registerInitCommand(cliMock as unknown as Cli)
+    ])
+
+    console.log('\n✅ Done! To get started:')
+    console.log(`  cd ${projectName}`)
+    console.log('  deno task dev')
+    console.log(`\n${definition.omits}`)
 }
+
+/**
+ * Register the `init` command on a CLI.
+ *
+ * A failed scaffold throws, so `Cli.dispatch` prints it once and returns a
+ * non-zero status.
+ *
+ * @param cli - The CLI to register `init` on.
+ *
+ * @example
+ * ```typescript
+ * registerInitCommand(cli)
+ * await cli.dispatch(['init', 'my-app', '--kit', 'api'])
+ * ```
+ */
+export function registerInitCommand(cli: Cli): void {
+    cli.register('init', runInit, 'Initialize a new Lockness project')
+}
+
+if (import.meta.main) await runEntry('init', () => runInit(Deno.args))

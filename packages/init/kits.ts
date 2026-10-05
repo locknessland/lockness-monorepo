@@ -16,6 +16,8 @@
  * @module @lockness/init/kits
  */
 
+import { CommandFailedError } from '@lockness/cli/command-failure'
+
 /** The kits `lockness init --kit=<name>` accepts. */
 export type KitName = 'web' | 'api' | 'slim'
 
@@ -182,9 +184,11 @@ export const KITS: Readonly<Record<KitName, Kit>> = {
  *
  * @param value - The raw flag value, or `undefined` when it was not passed.
  * @returns The resolved kit name.
- * @throws {TypeError} If the value names no kit — never a silent fallback to
- * the default, which would hand someone who typo'd `--kit=slm` a full
- * Tailwind scaffold and no hint as to why.
+ * @throws {CommandFailedError} If the value names no kit — never a silent
+ * fallback to the default, which would hand someone who typo'd `--kit=slm` a
+ * full Tailwind scaffold and no hint as to why. It is the command failure
+ * itself (#436, D4 rule 4): validating user input is this helper's job, so the
+ * CLI prints its one line and exits non-zero with no translation in between.
  *
  * @example
  * ```ts
@@ -197,7 +201,7 @@ export function resolveKit(value: string | undefined): KitName {
     if (value === undefined || value === '') return DEFAULT_KIT
     const normalised = value.trim().toLowerCase()
     if (normalised in KITS) return normalised as KitName
-    throw new TypeError(
+    throw new CommandFailedError(
         `Unknown kit "${value}". Available kits: ${
             Object.keys(KITS).join(', ')
         }.`,
