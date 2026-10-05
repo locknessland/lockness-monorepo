@@ -263,25 +263,36 @@ function isCountName(normalised: string): boolean {
  * - Anywhere else it ends at ASCII whitespace or a quote, save a form-body
  *   `code`, which ends at `&` (below). A CLI `--password=ab&cd` holds its
  *   `&` as content, and so does a value after `&amp;` that was HTML-escaped
- *   whole (`password=ab&lt;cd`); ending there would leak the rest.
- * - Such a raw value also ends before a `&` or `&amp;` that starts another
- *   credential `name=` (named by this same rule), so that pair is masked by
- *   its own rule. Eating it is NOT the safe direction: the eaten name is
- *   hidden from the scan, and a quoted or blank-separated value of that pair
- *   (`&amp;token="…"`, `&api_key= …`) would render in clear. The accepted
- *   cost: a value that holds `&<credential>=` is cut there, and the pair the
- *   cut starts takes its own rule, so more than that fragment can show. After
- *   a raw `&` that pair is in URL mode and ends at the next `&`, `#`, `<` or
- *   `>`, and the rest of the value shows from there
- *   (`--password=ab&token=cd&ef` renders `--password=***&token=***&ef`). An
- *   empty value or a count after the cut is not masked, so the rest shows
- *   right after it (`--password=ab&token=&ef` renders
- *   `--password=***&token=&ef`, and a `max_tokens=4096` keeps its count).
- *   After `&amp;` a credential other than `code` keeps the raw end, so only
- *   the fragment shows.
- * - `;` and `%26` never end a value: an ODBC tail after `Pwd=` is eaten with
- *   it. That over-masks the tail, and it shares the flaw above — a pair after
- *   a `;` is hidden, so `Pwd=…;Token="…"` shows the quoted token.
+ *   whole (`password=ab&lt;cd`); ending there would leak the rest. A `;` or
+ *   `,` is content the same way (`Pwd=ab;cd`), and so are `%26`, `%3B` and
+ *   `%2C` wherever they sit.
+ * - Such a raw value also ends before a `&`, `&amp;`, `;` or `,` (the
+ *   {@link CUT_SEPARATORS}) that starts another credential `name=` (named by
+ *   this same rule), so that pair is masked by its own rule (#500, #525).
+ *   Eating it is NOT the safe direction: the eaten name is hidden from the
+ *   scan, and a quoted or blank-separated value of that pair
+ *   (`&amp;token="…"`, an ODBC `Pwd=…;Token="…"`, `password=…,secret =…`)
+ *   would render in clear. A URL-mode value is never cut; it already ends at
+ *   `&`.
+ * - A pair such a cut starts inside a masked value keeps the raw end and the
+ *   cut check, and takes no exemption (#524): it is never in URL mode, and a
+ *   bare `code` or a count there is masked. Its value is the rest of the
+ *   value before it, so either rule would show that rest
+ *   (`--password=ab&token=cd&ef` renders `--password=***&token=***`, and
+ *   `Pwd=ab;max_tokens=4096` renders `Pwd=***;max_tokens=***`). A pair after
+ *   an empty value or a kept count sits inside no masked value and keeps its
+ *   own rule, so `max_tokens=4096;code=23505` renders whole.
+ * - The accepted cost, and what the cut leaves: a value that holds a
+ *   separator before a credential `name=` shows that separator and name
+ *   (`Pwd=ab;token=cd` renders `Pwd=***;token=***`), and so does a password
+ *   holding `&pin=`, `;pin=` or `,pin=`. A quoted value after a cut ends at
+ *   its quote (`Pwd=ab;key="x"yz` shows `yz`); a URL-mode value is not cut
+ *   (`?password=A;token="B"` shows `"B"`); a pair this rule does not name is
+ *   no cut (`Pwd=ab;x= cd` shows `cd`); and a raw quote or whitespace inside
+ *   a password still ends its value. A form body with a secret before its
+ *   `code` loses that code's neighbours
+ *   (`client_secret=cs&code=xyz&grant_type=…` renders
+ *   `client_secret=***&code=***`).
  *
  * An empty value is left alone, so `?token=&page=1` stays diagnostic. Blanks
  * after `=` are always skipped, so `password= …` (what `util.format('k=', v)`
@@ -302,9 +313,10 @@ function isCountName(normalised: string): boolean {
  * contains `max`, `prompt`, `completion` or `total`; every other plural stays
  * masked (`api_tokens=123456`, `passwords=4821`), and so does a quoted count
  * (`max_tokens="4096"`). A numeric-PIN plural is never a count, so
- * `max_pins=8` is masked. Known residue: after `&amp;` a count name takes the
- * raw end, so `?a=1&amp;max_tokens=4096&amp;b=2` masks the count — its value
- * runs on to `&amp;b=2`, which starts no credential pair.
+ * `max_pins=8` is masked. Neither non-secret is kept for a pair a cut starts
+ * inside a masked value (above). Known residue: after `&amp;` a count name
+ * takes the raw end, so `?a=1&amp;max_tokens=4096&amp;b=2` masks the count —
+ * its value runs on to `&amp;b=2`, which starts no credential pair.
  *
  * **Not seen.** This net is a shape rule for `name=value`. It does not see a
  * JSON `"token":"…"`, a header- or YAML-style `name: value`, an
@@ -597,7 +609,8 @@ function isEscapedAmpersand(text: string, at: number): boolean {
  * the next `&amp;` whatever follows. Any other name after `&amp;` keeps the
  * raw end, because an HTML-escaped value carries `&lt;` or `&amp;` as
  * content; that raw value stops at `&amp;` only before another credential
- * pair.
+ * pair. Never asked for a pair a cut starts inside a masked value, which
+ * takes no exemption (#524).
  *
  * @param text - The text being scanned.
  * @param start - The index of the name's first character.
@@ -665,11 +678,11 @@ function readFormRun(text: string, from: number): FormRun {
 }
 
 /**
- * Whether the `&` at `at` starts another credential pair, which must end the
- * raw value it sits in so the pair is masked by its own rule.
+ * Whether the separator at `at` starts another credential pair, which must
+ * end the raw value it sits in so the pair is masked by its own rule.
  *
  * @param text - The text being scanned.
- * @param at - The index of a `&`, raw or the start of `&amp;`.
+ * @param at - The index of a separator, raw or the start of `&amp;`.
  * @returns True when a credential-named `name=` follows.
  */
 function startsCredentialPair(text: string, at: number): boolean {
@@ -678,18 +691,19 @@ function startsCredentialPair(text: string, at: number): boolean {
 }
 
 /**
- * The name of the pair that starts after the `&` (or `&amp;`) at `at`.
+ * The name of the pair that starts after the separator at `at`: a `&`, the
+ * `&amp;` it opens, a `;` or a `,`.
  *
  * A name here is what {@link nameStart} walks over, read rightwards: name
  * characters, raw or percent-encoded. Blanks may sit before the equals sign,
  * as in `api_key =…`.
  *
  * Linear across a scan: the read stops at the first character that is
- * neither a name character nor a blank, so it never crosses the next `&`,
- * and the reads after two ampersands never overlap.
+ * neither a name character nor a blank, so it never crosses the next
+ * separator, and the reads after two separators never overlap.
  *
  * @param text - The text being scanned.
- * @param at - The index of a `&`, raw or the start of `&amp;`.
+ * @param at - The index of a separator, raw or the start of `&amp;`.
  * @returns The name as written, or `undefined` when no `name=` follows.
  */
 function pairNameAfter(text: string, at: number): string | undefined {

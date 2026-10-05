@@ -110,30 +110,41 @@ Anything not listed is internal and free to change.
   a doubly encoded separator (`%253D`), or a session id under a name it does not
   know. Those need a source-side fix where the value is known; do not widen the
   net to guess at them.
-- **Two non-secrets the net keeps on purpose**, because an operator needs them.
-  A known count name (`max_tokens`, `max-keys`: a `tokens` or `keys` plural
-  containing `max`, `prompt`, `completion` or `total`) keeps an unquoted
-  all-digit value; every other plural is masked whatever its value. A bare
-  `code` is an OAuth code only in a URL query, after `&amp;`, or in a form body
-  (`code=…&grant_type=…`); elsewhere (`status code=503`, `exit code=1`) it
-  renders. Only that `code` decision ends a value at `&amp;` unconditionally;
-  any other name after `&amp;` keeps the raw end, or an HTML-escaped value shows
-  its tail, and a raw value stops at `&amp;` only before a credential pair.
-  Known residue of that raw end: `?a=1&amp;max_tokens=4096&amp;b=2` masks the
-  count.
-- **A raw value ends early only before another credential pair** (#500). Raw
-  termination (whitespace or a quote) also stops at a `&` or `&amp;` whose
-  lookahead is a credential `name=` by `classifyName`, so that pair is masked by
-  its own rule; eating it would hide the name and show a quoted value. Never cut
-  at a non-credential lookahead (`password=…&lt;…`, `--password=ab&cd`): that
-  shows the rest of the value. The accepted cost reaches past the fragment: the
-  pair a cut starts takes its own rule, so after a raw `&` it is in URL mode and
-  the rest of the value shows from its next `&`, `#`, `<` or `>`
-  (`--password=ab&token=cd&ef` renders `--password=***&token=***&ef`). An empty
-  or count value after the cut is not masked, so the rest shows right after it.
-  After `&amp;` only the fragment shows. Whether a pair a cut starts should keep
-  the raw end is an open design question, not a bug to patch here. `;` does not
-  cut yet, so `Pwd=…;Token="…"` still shows the quoted token.
+- **Two non-secrets the net keeps on purpose**, because an operator needs them,
+  except after a cut inside a masked value (below). A known count name
+  (`max_tokens`, `max-keys`: a `tokens` or `keys` plural containing `max`,
+  `prompt`, `completion` or `total`) keeps an unquoted all-digit value; every
+  other plural is masked whatever its value. A bare `code` is an OAuth code only
+  in a URL query, after `&amp;`, or in a form body (`code=…&grant_type=…`);
+  elsewhere (`status code=503`, `exit code=1`) it renders. Only that `code`
+  decision ends a value at `&amp;` unconditionally; any other name after `&amp;`
+  keeps the raw end, or an HTML-escaped value shows its tail, and a raw value
+  stops at `&amp;` only before a credential pair. Known residue of that raw end:
+  `?a=1&amp;max_tokens=4096&amp;b=2` masks the count.
+- **A raw value ends early only before another credential pair** (#500, #525).
+  Raw termination (whitespace or a quote) also stops at one of four separators —
+  `&`, `&amp;`, `;` or `,` (`CUT_SEPARATORS`) — whose lookahead is a credential
+  `name=` by `classifyName`, so that pair is masked by its own rule; eating it
+  would hide the name and show a quoted value (`Pwd=…;Token="…"`). Never cut at
+  a non-credential lookahead (`password=…&lt;…`, `--password=ab&cd`,
+  `Pwd=ab;cd`), never in URL mode, and never at `%26`, `%3B` or `%2C`: each
+  would show the rest of the value. `separatorEnd()` is the one home of a
+  separator's width.
+- **A pair a cut starts inside a masked value inherits the raw end** (#524). It
+  keeps the raw end and the cut check and takes no exemption: never URL mode,
+  and a bare `code` or a count digit run is masked there. Its value is the rest
+  of the value before it, so any of those would show it
+  (`--password=ab&token=cd&ef` renders `--password=***&token=***`). The marker
+  is set only when a masked value was cut: a pair after a kept count keeps its
+  own rule (`max_tokens=4096;code=23505` renders whole). Leftover leaks, pinned
+  by the accepted-cost test: the cut shows its separator and name
+  (`Pwd=ab;token=cd` → `Pwd=***;token=***`, likewise a password holding `&pin=`,
+  `;pin=` or `,pin=`); a quoted value after a cut ends at its quote
+  (`Pwd=ab;key="x"yz` shows `yz`); a URL-mode value is not cut
+  (`?password=A;token="B"` shows `"B"`); an unnamed pair is no cut
+  (`Pwd=ab;x= cd` shows `cd`); and a form body with a secret before `code` loses
+  the code's neighbours (`client_secret=cs&code=xyz&grant_type=…` →
+  `client_secret=***&code=***`).
 - **A compile failure is recognised by its message shape, never by class or
   `code`** (`logging/compile_diagnostic.ts`). Deno reports a parse failure as a
   `TypeError` with `ERR_MODULE_NOT_FOUND`, the same pair "Module not found"
