@@ -30,12 +30,11 @@ import {
     type CommandSpec,
     type DbConnection,
     type DrizzleCommandDeps,
-    type MaintenanceSession,
     registerDrizzleCommands,
     type SeederLoader,
 } from '../cli_commands.ts'
 import { defaultRunCommand, RETAINED_STDERR_BYTES } from '../command_runner.ts'
-import type { MigrateOptions } from '../drivers.ts'
+import type { MaintenanceConnection, MigrateOptions } from '../drivers.ts'
 import type { MigrationSettings } from '../migration_settings.ts'
 import { RefusedError } from '../refusal.ts'
 import { DRIZZLE_KIT_SPECIFIER } from '../generators/dialect_schema.ts'
@@ -1240,14 +1239,19 @@ async function withMigrations(
     }
 }
 
-/** Which step of a fake maintenance session fails. */
-type FreshStep = 'query' | 'execute' | 'migrate'
+/**
+ * Which step of a fake maintenance connection fails: a catalogue read the
+ * planner makes, a statement of the plan, or the migrate.
+ */
+type FreshStep = 'read' | 'execute' | 'migrate'
 
 /**
- * The `db:fresh` seams around a fake session that records every call — a
+ * The `db:fresh` seams around a fake connection that records every call — a
  * sqlite one unless `config` overrides `drizzle.config.ts`, and `rows`
- * answers every catalogue query. `runCommand` throws: `db:fresh` must spawn
- * nothing.
+ * answers every catalogue read. `execute` models one unit (#447): it hands
+ * the planner a reader, records `read` per read and `execute` once the plan
+ * runs, and nothing when the planner rejects. `runCommand` throws:
+ * `db:fresh` must spawn nothing.
  */
 function freshDeps(
     folder: string,
@@ -1265,10 +1269,17 @@ function freshDeps(
             ? Promise.reject(new Error(`${name} failed`))
             : Promise.resolve(value)
     }
-    const session: MaintenanceSession = {
-        query: () =>
-            step('query', overrides.rows ?? [{ type: 'table', name: 'users' }]),
-        execute: () => step('execute', undefined),
+    const connection: MaintenanceConnection = {
+        query: () => Promise.reject(new Error('db:fresh read outside execute')),
+        execute: async (planner) => {
+            await planner(() =>
+                step(
+                    'read',
+                    overrides.rows ?? [{ type: 'table', name: 'users' }],
+                )
+            )
+            await step('execute', undefined)
+        },
         migrate: (options) => {
             calls.push(
                 `migrate:${options.folder}:${options.table}:${
@@ -1298,7 +1309,7 @@ function freshDeps(
         openMaintenance: (settings: MigrationSettings) => {
             calls.push('open')
             opened.push(settings)
-            return Promise.resolve(session)
+            return Promise.resolve(connection)
         },
     }
     return { calls, deps, opened }
@@ -1353,7 +1364,7 @@ async function capture(fn: () => Promise<void>): Promise<{
     }
 }
 
-Deno.test('db:fresh - resets then migrates on one session, spawning nothing and prompting nothing', async () => {
+Deno.test('db:fresh - resets then migrates on one connection, spawning nothing and prompting nothing', async () => {
     await withMigrations(async (folder) => {
         const { calls, deps } = freshDeps(folder)
         const cli = new FakeCli()
@@ -1368,7 +1379,7 @@ Deno.test('db:fresh - resets then migrates on one session, spawning nothing and 
         assertEquals(error, undefined)
         assertEquals(calls, [
             'open',
-            'query',
+            'read',
             'execute',
             `migrate:${folder}:__drizzle_migrations:-`,
             'migrate',
@@ -1426,7 +1437,7 @@ Deno.test('db:fresh - opens the connection with the dialect and url of drizzle.c
     })
 })
 
-for (const failAt of ['query', 'execute', 'migrate'] as const) {
+for (const failAt of ['read', 'execute', 'migrate'] as const) {
     Deno.test(`db:fresh - a failed ${failAt} is a CommandFailedError, prints no "refreshed" line, and closes`, async () => {
         await withMigrations(async (folder) => {
             const { calls, deps } = freshDeps(folder, failAt)
@@ -1440,7 +1451,7 @@ for (const failAt of ['query', 'execute', 'migrate'] as const) {
             assert(error instanceof CommandFailedError, String(error))
             assertStringIncludes(error.message, `${failAt} failed`)
             assertEquals(lines.join('\n').includes('refreshed'), false)
-            assertEquals(calls.at(-1), 'close', 'the session was not closed')
+            assertEquals(calls.at(-1), 'close', 'the connection was not closed')
         })
     })
 }
@@ -1685,10 +1696,15 @@ Deno.test('db:fresh - a catalogue refusal happens before any drop, and closes', 
         registerDrizzleCommands(cli, {
             ...deps,
             openMaintenance: async (settings) => {
-                const session = await deps.openMaintenance(settings)
+                const connection = await deps.openMaintenance(settings)
                 return {
-                    ...session,
-                    query: () => Promise.resolve([{ type: 'table', name: 1 }]),
+                    ...connection,
+                    execute: (planner) =>
+                        connection.execute(() =>
+                            planner(() =>
+                                Promise.resolve([{ type: 'table', name: 1 }])
+                            )
+                        ),
                 }
             },
         })
@@ -1735,6 +1751,167 @@ Deno.test('db:fresh - R4 refuses a driver without the maintenance capability', a
         } finally {
             container.delete(Database)
         }
+    })
+})
+
+// -----------------------------------------------------------------------------
+// #447 — the default opener: one connection, released in order, first error kept
+// -----------------------------------------------------------------------------
+
+/** Which release step of the default opener's fake handle fails. */
+interface ReleaseFaults {
+    readonly open?: boolean
+    readonly closeConnection?: boolean
+    readonly closeDatabase?: boolean
+    readonly noMaintenance?: boolean
+}
+
+/**
+ * Run `db:fresh` through the DEFAULT opener, over a container `Database`
+ * whose sqlite factory records `open`, the connection's calls,
+ * `close:connection` and `close:database`, and fails where `faults` says.
+ */
+async function freshThroughDefaultOpener(
+    folder: string,
+    faults: ReleaseFaults = {},
+): Promise<{
+    readonly events: string[]
+    readonly lines: string[]
+    readonly error: unknown
+    readonly stillConnected: boolean
+}> {
+    const events: string[] = []
+    const fail = (fault: boolean | undefined, label: string) => {
+        events.push(label)
+        return fault
+            ? Promise.reject(new Error(`${label} failed`))
+            : Promise.resolve()
+    }
+    const connection: MaintenanceConnection = {
+        query: () => Promise.resolve([]),
+        execute: async (planner) => {
+            events.push('execute')
+            await planner(() => Promise.resolve([]))
+        },
+        migrate: () => fail(false, 'migrate'),
+        close: () => fail(faults.closeConnection, 'close:connection'),
+    }
+    container.delete(Database)
+    try {
+        container.get(Database).setDriverFactory(
+            'sqlite',
+            () =>
+                Promise.resolve({
+                    db: {},
+                    close: () => fail(faults.closeDatabase, 'close:database'),
+                    probe: () => Promise.resolve(),
+                    ...(faults.noMaintenance ? {} : {
+                        maintenance: {
+                            open: async () => {
+                                await fail(faults.open, 'open')
+                                return connection
+                            },
+                        },
+                    }),
+                }),
+        )
+        const { deps } = freshDeps(folder)
+        const cli = new FakeCli()
+        registerDrizzleCommands(cli, {
+            runCommand: deps.runCommand,
+            loadMigrationConfig: deps.loadMigrationConfig,
+        })
+        const { lines, error } = await capture(() =>
+            withAppEnv(undefined, () => cli.run('db:fresh'))
+        )
+        return {
+            events,
+            lines,
+            error,
+            stillConnected: container.get(Database).isConnected(),
+        }
+    } finally {
+        container.delete(Database)
+    }
+}
+
+Deno.test('#447 db:fresh through the default opener resets and migrates on one connection, then closes it, then the Database', async () => {
+    await withMigrations(async (folder) => {
+        const { events, error, stillConnected } =
+            await freshThroughDefaultOpener(folder)
+
+        assertEquals(error, undefined)
+        assertEquals(events, [
+            'open',
+            'execute',
+            'migrate',
+            'close:connection',
+            'close:database',
+        ])
+        assertEquals(stillConnected, false)
+    })
+})
+
+Deno.test('#447 the default opener keeps the R4 refusal when closing the Database fails too, and logs that failure', async () => {
+    await withMigrations(async (folder) => {
+        const { events, lines, error } = await freshThroughDefaultOpener(
+            folder,
+            { noMaintenance: true, closeDatabase: true },
+        )
+
+        assert(error instanceof CommandFailedError, String(error))
+        assertStringIncludes(error.message, 'schema maintenance')
+        assertStringIncludes(error.message, 'Nothing was dropped')
+        assertEquals(events, ['close:database'])
+        assert(
+            lines.some((line) =>
+                line.includes('Could not close the database either') &&
+                line.includes('close:database failed')
+            ),
+            `the close failure was dropped: ${JSON.stringify(lines)}`,
+        )
+    })
+})
+
+Deno.test('#447 the default opener closes the Database when the connection cannot be opened, keeping the open failure', async () => {
+    await withMigrations(async (folder) => {
+        const { events, lines, error, stillConnected } =
+            await freshThroughDefaultOpener(folder, {
+                open: true,
+                closeDatabase: true,
+            })
+
+        assert(error instanceof CommandFailedError, String(error))
+        assertStringIncludes(error.message, 'Could not open the database')
+        assertStringIncludes(error.message, 'open failed')
+        assertEquals(events, ['open', 'close:database'])
+        assertEquals(stillConnected, false)
+        assert(
+            lines.some((line) => line.includes('close:database failed')),
+            `the close failure was dropped: ${JSON.stringify(lines)}`,
+        )
+    })
+})
+
+Deno.test('#447 the composed close still closes the Database after the connection fails to close, and keeps that first failure', async () => {
+    await withMigrations(async (folder) => {
+        const { events, lines, error, stillConnected } =
+            await freshThroughDefaultOpener(folder, {
+                closeConnection: true,
+                closeDatabase: true,
+            })
+
+        assert(error instanceof Error, String(error))
+        assertStringIncludes(error.message, 'close:connection failed')
+        assertEquals(events.slice(-2), ['close:connection', 'close:database'])
+        assertEquals(stillConnected, false)
+        assert(
+            lines.some((line) =>
+                line.includes('Could not close the database either') &&
+                line.includes('close:database failed')
+            ),
+            `the second close failure was dropped: ${JSON.stringify(lines)}`,
+        )
     })
 })
 
@@ -1819,7 +1996,7 @@ function migrateDeps(
     const opened: MigrationSettings[] = []
     const migrated: MigrateOptions[] = []
     const spawned: CommandSpec[] = []
-    const session: MaintenanceSession = {
+    const connection: MaintenanceConnection = {
         query: () => {
             calls.push('query')
             return Promise.resolve([])
@@ -1850,7 +2027,7 @@ function migrateDeps(
             calls.push('open')
             opened.push(settings)
             return options.openError === undefined
-                ? Promise.resolve(session)
+                ? Promise.resolve(connection)
                 : Promise.reject(options.openError)
         },
     }
@@ -2305,7 +2482,7 @@ Deno.test('#442 a failed db:migrate exits 1, prints no success line, and closes'
         )
         assertEquals(error.exitCode, 1)
         assertEquals(lines.join('\n').includes('applied successfully'), false)
-        assertEquals(calls.at(-1), 'close', 'the session was not closed')
+        assertEquals(calls.at(-1), 'close', 'the connection was not closed')
     })
 })
 
@@ -2391,7 +2568,7 @@ function statusDeps(
     const calls: string[] = []
     const queries: string[] = []
     const spawned: CommandSpec[] = []
-    const session: MaintenanceSession = {
+    const connection: MaintenanceConnection = {
         query: (sql) => {
             calls.push('query')
             queries.push(sql)
@@ -2426,7 +2603,7 @@ function statusDeps(
         openMaintenance: () => {
             calls.push('open')
             return options.openError === undefined
-                ? Promise.resolve(session)
+                ? Promise.resolve(connection)
                 : Promise.reject(options.openError)
         },
     }
@@ -2620,7 +2797,7 @@ for (
                 error.message,
                 'Could not read the migration status: relation read failed',
             )
-            assertEquals(calls.at(-1), 'close', 'the session was not closed')
+            assertEquals(calls.at(-1), 'close', 'the connection was not closed')
             assertEquals(lines, [])
         })
     })

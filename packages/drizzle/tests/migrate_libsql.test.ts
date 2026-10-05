@@ -104,10 +104,10 @@ Deno.test('#442 db:migrate on a real libsql file: database applies once, then no
 
         const handle = await defaultDriverFactories.sqlite(url)
         try {
-            const maintenance = handle.maintenance
-            if (!maintenance) {
+            if (!handle.maintenance) {
                 throw new Error('the sqlite factory has no maintenance')
             }
+            const maintenance = await handle.maintenance.open()
             const tables = async () =>
                 (await maintenance.query(
                     "SELECT name FROM sqlite_master WHERE type = 'table' " +
@@ -121,9 +121,9 @@ Deno.test('#442 db:migrate on a real libsql file: database applies once, then no
             // The bookkeeping table is the one the config names.
             assertEquals(await tables(), ['history', 'posts', 'users'])
             assertEquals(await applied(), MIGRATIONS.length)
-            await maintenance.execute([
-                "INSERT INTO `users` VALUES (1, 'ada')",
-            ])
+            await maintenance.execute(() =>
+                Promise.resolve(["INSERT INTO `users` VALUES (1, 'ada')"])
+            )
 
             // A second run has nothing left to apply.
             assertEquals(await migrate(config), [

@@ -37,13 +37,13 @@ application installs it, or the feature stays off.
 
 <!-- generated:surface -->
 
-| Kind      | Exports                                                                                                                                                                                                                                                                                                                                   |
-| :-------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| class     | `Database`, `Factory`, `MalformedCursorError`                                                                                                                                                                                                                                                                                             |
-| function  | `assertNotProduction`, `decodeCursor`, `encodeCursor`, `paginate`, `registerDrizzleCommands`, `resolveDialect`                                                                                                                                                                                                                            |
-| interface | `CommandResult`, `CommandSpec`, `ConnectionOptions`, `ConnectionResult`, `CursorPaginateOptions`, `DbConnection`, `DecodedCursor`, `DriverHandle`, `DriverOptions`, `DrizzleCommandDeps`, `FactoryCreateOptions`, `MigrateOptions`, `MigrationEntry`, `MigrationSettings`, `NoticeReporter`, `OffsetPaginateOptions`, `SchemaMaintenance` |
-| typeAlias | `CommandRunner`, `DatabaseSchema`, `Dialect`, `DialectDatabase`, `DriverFactory`, `KitDialect`, `MaintenanceOpener`, `MaintenanceSession`, `MigrationConfigLoader`, `SeederLoader`                                                                                                                                                        |
-| variable  | `ALLOW_PRODUCTION_FLAG`, `CLIENT_PACKAGE`                                                                                                                                                                                                                                                                                                 |
+| Kind      | Exports                                                                                                                                                                                                                                                                                                                                                            |
+| :-------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| class     | `Database`, `Factory`, `MalformedCursorError`                                                                                                                                                                                                                                                                                                                      |
+| function  | `assertNotProduction`, `decodeCursor`, `encodeCursor`, `paginate`, `registerDrizzleCommands`, `resolveDialect`                                                                                                                                                                                                                                                     |
+| interface | `CommandResult`, `CommandSpec`, `ConnectionOptions`, `ConnectionResult`, `CursorPaginateOptions`, `DbConnection`, `DecodedCursor`, `DriverHandle`, `DriverOptions`, `DrizzleCommandDeps`, `FactoryCreateOptions`, `MaintenanceConnection`, `MigrateOptions`, `MigrationEntry`, `MigrationSettings`, `NoticeReporter`, `OffsetPaginateOptions`, `SchemaMaintenance` |
+| typeAlias | `CommandRunner`, `DatabaseSchema`, `Dialect`, `DialectDatabase`, `DriverFactory`, `KitDialect`, `MaintenanceOpener`, `MaintenancePlanner`, `MigrationConfigLoader`, `SeederLoader`                                                                                                                                                                                 |
+| variable  | `ALLOW_PRODUCTION_FLAG`, `CLIENT_PACKAGE`                                                                                                                                                                                                                                                                                                                          |
 
 Anything not listed is internal and free to change.
 
@@ -119,7 +119,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-27 test files for 24 source files:
+28 test files for 26 source files:
 
 - `packages/drizzle/tests/app_file.test.ts`
 - `packages/drizzle/tests/cli_commands.test.ts`
@@ -145,6 +145,7 @@ Anything not listed is internal and free to change.
 - `packages/drizzle/tests/production_guard.test.ts`
 - `packages/drizzle/tests/query_credentials.test.ts`
 - `packages/drizzle/tests/reset.test.ts`
+- `packages/drizzle/tests/settle_in_order.test.ts`
 - `packages/drizzle/tests/status_libsql.test.ts`
 - `packages/drizzle/tests/status_mysql_live.test.ts`
 - `packages/drizzle/tests/status_postgres_live.test.ts`
@@ -201,7 +202,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 27 test files directly —
+Then, specific to this package: run its 28 test files directly —
 
 ```bash
 deno test -A packages/drizzle/

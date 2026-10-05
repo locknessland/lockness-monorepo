@@ -4,8 +4,10 @@
  * The planners are pure, so every dialect's plan is asserted statement by
  * statement. postgres and MySQL are proven here only; sqlite also runs
  * end-to-end in `fresh_libsql.test.ts`. The refusals (R5, R6) are driven
- * through `resetDatabase` with a maintenance fake whose `execute` records —
- * a refusal must leave it uncalled.
+ * through `resetDatabase` with a fake that models ONE connection (#447): its
+ * `execute` opens a unit, hands the planner a reader inside it, and records
+ * `begin`, each `read`, each statement, then `commit` or `rollback` — a
+ * refusal must leave reads followed by a rollback, and no statement.
  *
  * @module @lockness/drizzle/tests/reset
  */
@@ -17,7 +19,7 @@ import {
     assertStringIncludes,
     assertThrows,
 } from '@std/assert'
-import type { SchemaMaintenance } from '../drivers.ts'
+import type { MaintenanceConnection } from '../drivers.ts'
 import {
     describeResetScope,
     planMysqlReset,
@@ -46,25 +48,43 @@ function scope(
 }
 
 /**
- * A maintenance fake answering each catalogue query by the first `answers`
- * key its SQL contains, and recording every call in order.
+ * A one-connection fake answering each catalogue read by the first `answers`
+ * key its SQL contains. `calls` records the unit in order — `begin`, each
+ * `read`, then `commit` or `rollback` (and `query` for a read outside it);
+ * `executed` holds the statements each unit ran.
  */
 function fakeMaintenance(answers: Record<string, Record<string, unknown>[]>) {
     const calls: string[] = []
     const executed: string[][] = []
-    const maintenance: SchemaMaintenance = {
+    const answer = (sql: string) => {
+        const key = Object.keys(answers).find((k) => sql.includes(k))
+        return Promise.resolve(key === undefined ? [] : answers[key])
+    }
+    const maintenance: MaintenanceConnection = {
         query: (sql) => {
             calls.push('query')
-            const key = Object.keys(answers).find((k) => sql.includes(k))
-            return Promise.resolve(key === undefined ? [] : answers[key])
+            return answer(sql)
         },
-        execute: (statements) => {
-            calls.push('execute')
-            executed.push([...statements])
-            return Promise.resolve()
+        execute: async (planner) => {
+            calls.push('begin')
+            try {
+                const plan = await planner((sql) => {
+                    calls.push('read')
+                    return answer(sql)
+                })
+                executed.push([...plan])
+                calls.push('commit')
+            } catch (error) {
+                calls.push('rollback')
+                throw error
+            }
         },
         migrate: () => {
             calls.push('migrate')
+            return Promise.resolve()
+        },
+        close: () => {
+            calls.push('close')
             return Promise.resolve()
         },
     }
@@ -96,14 +116,14 @@ Deno.test('#435 sqlite plan defers FKs, then drops views, then tables', () => {
     ])
 })
 
-Deno.test('#435 sqlite reset reads the catalogue, then executes one plan', async () => {
+Deno.test('#435 #447 sqlite reset reads the catalogue inside the unit, then runs one plan in it', async () => {
     const { calls, executed, maintenance } = fakeMaintenance({
         sqlite_master: [{ type: 'table', name: 't' }],
     })
 
     await resetDatabase(maintenance, scope('sqlite'))
 
-    assertEquals(calls, ['query', 'execute'])
+    assertEquals(calls, ['begin', 'read', 'commit'])
     assertEquals(executed, [[
         'PRAGMA defer_foreign_keys = ON',
         'DROP TABLE IF EXISTS "t"',
@@ -224,7 +244,7 @@ Deno.test('#435 mysql plan refuses a catalogue that returned no row', () => {
 })
 
 Deno.test('#435 R5 mysql refuses when DATABASE() is NULL, before any drop', async () => {
-    const { calls, maintenance } = fakeMaintenance({
+    const { calls, executed, maintenance } = fakeMaintenance({
         'information_schema.TABLES': mysqlRows(null, []),
     })
 
@@ -234,7 +254,8 @@ Deno.test('#435 R5 mysql refuses when DATABASE() is NULL, before any drop', asyn
     )
 
     assertStringIncludes(error.reason, 'no database selected')
-    assertEquals(calls, ['query'])
+    assertEquals(calls, ['begin', 'read', 'rollback'])
+    assertEquals(executed, [], 'a statement ran')
 })
 
 for (
@@ -250,7 +271,7 @@ for (
     ]
 ) {
     Deno.test(`#435 mysql refuses the system database ${database}, before any drop`, async () => {
-        const { calls, maintenance } = fakeMaintenance({
+        const { calls, executed, maintenance } = fakeMaintenance({
             'information_schema.TABLES': mysqlRows(database, [
                 ['user', 'BASE TABLE'],
             ]),
@@ -262,7 +283,8 @@ for (
         )
 
         assertStringIncludes(error.reason, 'system database')
-        assertEquals(calls, ['query'], 'it dropped')
+        assertEquals(calls, ['begin', 'read', 'rollback'])
+        assertEquals(executed, [], 'it dropped')
     })
 }
 
@@ -271,17 +293,20 @@ Deno.test('#435 mysql reset reads the database and its catalogue in exactly one 
     const { calls, executed, maintenance } = fakeMaintenance({
         'information_schema.TABLES': mysqlRows('app', [['t', 'BASE TABLE']]),
     })
-    const recording: SchemaMaintenance = {
+    const recording: MaintenanceConnection = {
         ...maintenance,
-        query: (sql) => {
-            sqls.push(sql)
-            return maintenance.query(sql)
-        },
+        execute: (planner) =>
+            maintenance.execute((read) =>
+                planner((sql) => {
+                    sqls.push(sql)
+                    return read(sql)
+                })
+            ),
     }
 
     await resetDatabase(recording, scope('mysql'))
 
-    assertEquals(calls, ['query', 'execute'])
+    assertEquals(calls, ['begin', 'read', 'commit'])
     assertEquals(sqls.length, 1)
     assertStringIncludes(sqls[0], 'SELECT DATABASE() AS db')
     assertStringIncludes(sqls[0], 'LEFT JOIN information_schema.TABLES')
@@ -652,7 +677,7 @@ const SYSTEM_SCHEMA_SCOPES: ReadonlyArray<
 ]
 
 for (const [label, overrides] of SYSTEM_SCHEMA_SCOPES) {
-    Deno.test(`#435 postgres refuses a system schema (${label}), before any read or drop`, async () => {
+    Deno.test(`#435 #447 postgres refuses a system schema (${label}), before the unit opens`, async () => {
         const { calls, maintenance } = fakeMaintenance({})
 
         const error = await assertRejects(
@@ -661,7 +686,7 @@ for (const [label, overrides] of SYSTEM_SCHEMA_SCOPES) {
         )
 
         assertStringIncludes(error.reason, 'system schema')
-        assertEquals(calls, [], 'it read the catalogue or dropped')
+        assertEquals(calls, [], 'it opened the unit, read or dropped')
     })
 
     Deno.test(`#435 planPostgresReset refuses a system schema (${label})`, () => {
@@ -729,7 +754,7 @@ Deno.test('#435 R6 reads every extension and extension member in scope, and noth
     )
 })
 
-Deno.test('#435 postgres reset reads the whole catalogue before executing', async () => {
+Deno.test('#435 #447 postgres reset reads the whole catalogue inside the transaction, before any statement', async () => {
     const { calls, executed, maintenance } = fakeMaintenance({
         'pg_catalog.pg_extension': [],
         'relkind IN': [{ schema: 'public', name: 'users', kind: 'r' }],
@@ -737,7 +762,7 @@ Deno.test('#435 postgres reset reads the whole catalogue before executing', asyn
 
     await resetDatabase(maintenance, scope('postgres'))
 
-    assertEquals(calls, ['query', 'query', 'query', 'query', 'execute'])
+    assertEquals(calls, ['begin', 'read', 'read', 'read', 'read', 'commit'])
     assertEquals(executed.length, 1)
     assertEquals(
         executed[0].includes('DROP TABLE IF EXISTS "public"."users" CASCADE'),
@@ -746,14 +771,63 @@ Deno.test('#435 postgres reset reads the whole catalogue before executing', asyn
 })
 
 Deno.test('#435 a catalogue row of the wrong shape is refused before any drop', async () => {
-    const { calls, maintenance } = fakeMaintenance({
+    const { calls, executed, maintenance } = fakeMaintenance({
         sqlite_master: [{ type: 'table', name: 42 }],
     })
     await assertRejects(
         () => resetDatabase(maintenance, scope('sqlite')),
         RefusedError,
     )
-    assertEquals(calls.includes('execute'), false)
+    assertEquals(calls, ['begin', 'read', 'rollback'])
+    assertEquals(executed, [], 'a statement ran')
+})
+
+// -----------------------------------------------------------------------------
+// #447 — a refusal reaches the caller as itself
+// -----------------------------------------------------------------------------
+
+Deno.test('#447 a refusal survives a connection whose execute re-wraps every failure', async () => {
+    const { maintenance } = fakeMaintenance({
+        'information_schema.TABLES': mysqlRows(null, []),
+    })
+    // A custom connection (or a redacting wrapper) that turns every
+    // rejection into a generic error of its own.
+    const rewrapping: MaintenanceConnection = {
+        ...maintenance,
+        execute: async (planner) => {
+            try {
+                await maintenance.execute(planner)
+            } catch (error) {
+                throw new Error('the connection failed', { cause: error })
+            }
+        },
+    }
+
+    const error = await assertRejects(
+        () => resetDatabase(rewrapping, scope('mysql')),
+        RefusedError,
+    )
+    assertStringIncludes(error.reason, 'no database selected')
+})
+
+Deno.test("#447 a statement failure is the connection's error, not mistaken for a refusal", async () => {
+    const { maintenance } = fakeMaintenance({
+        sqlite_master: [{ type: 'table', name: 't' }],
+    })
+    const failing: MaintenanceConnection = {
+        ...maintenance,
+        execute: async (planner) => {
+            await planner(() => Promise.resolve([]))
+            throw new Error('DROP failed')
+        },
+    }
+
+    const error = await assertRejects(
+        () => resetDatabase(failing, scope('sqlite')),
+        Error,
+        'DROP failed',
+    )
+    assert(!(error instanceof RefusedError))
 })
 
 // -----------------------------------------------------------------------------

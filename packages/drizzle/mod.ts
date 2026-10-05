@@ -32,6 +32,8 @@ import {
     type DialectDatabase,
     type DriverFactory,
     type DriverHandle,
+    type MaintenanceConnection,
+    type MaintenancePlanner,
     resolveDialect,
     type SchemaMaintenance,
 } from './drivers.ts'
@@ -56,7 +58,6 @@ export type {
     DbConnection,
     DrizzleCommandDeps,
     MaintenanceOpener,
-    MaintenanceSession,
     SeederLoader,
 } from './cli_commands.ts'
 export type {
@@ -90,6 +91,8 @@ export type {
     DriverFactory,
     DriverHandle,
     DriverOptions,
+    MaintenanceConnection,
+    MaintenancePlanner,
     MigrateOptions,
     SchemaMaintenance,
 } from './drivers.ts'
@@ -376,15 +379,19 @@ export class Database<D extends Dialect = 'postgres'> {
     }
 
     /**
-     * The configured client's schema-maintenance capability — what
-     * `db:fresh` resets and migrates through (#435) — or `undefined` when its
-     * driver factory offers none (a custom factory need not).
+     * The configured client's schema-maintenance capability — what the
+     * `db:fresh`, `db:migrate` and `db:status` commands open their one
+     * connection through (#435, #447) — or `undefined` when its driver
+     * factory offers none (a custom factory need not).
      *
-     * Every failure is re-thrown the way {@link Database.probe} re-throws
-     * one: head-only, the exact DSN replaced whole, and the whole message
-     * withheld when any known form of a credential occurs in it (#425). The
-     * capability is bound to the client configured when it was read, and
-     * redacts against that client's DSN even after {@link Database.close}.
+     * Every failure — of `open()`, and of the connection's `query`, the
+     * planner's reads, the statements `execute` runs, `migrate` and `close`
+     * — is re-thrown the way {@link Database.probe} re-throws one: head-only,
+     * the exact DSN replaced whole, and the whole message withheld when any
+     * known form of a credential occurs in it (#425). An error the planner
+     * itself throws (a refusal) comes back unchanged. The capability is bound
+     * to the client configured when it was read, and redacts against that
+     * client's DSN even after {@link Database.close}.
      *
      * @returns The redacting capability, or `undefined` when there is none.
      * @throws {Error} `Database is not connected` before `connect()` and after
@@ -392,8 +399,14 @@ export class Database<D extends Dialect = 'postgres'> {
      *
      * @example
      * ```ts
-     * const maintenance = db.maintenance
-     * if (maintenance) await maintenance.query('SELECT 1')
+     * const connection = await db.maintenance?.open()
+     * if (connection) {
+     *     try {
+     *         await connection.query('SELECT 1')
+     *     } finally {
+     *         await connection.close()
+     *     }
+     * }
      * ```
      */
     public get maintenance(): SchemaMaintenance | undefined {
@@ -411,9 +424,11 @@ export class Database<D extends Dialect = 'postgres'> {
             }
         }
         return {
-            query: (sql) => redacted(() => inner.query(sql)),
-            execute: (statements) => redacted(() => inner.execute(statements)),
-            migrate: (options) => redacted(() => inner.migrate(options)),
+            open: async () =>
+                redactedConnection(
+                    await redacted(() => inner.open()),
+                    redacted,
+                ),
         }
     }
 
@@ -486,6 +501,57 @@ export class Database<D extends Dialect = 'postgres'> {
         const state = this.#state
         if (state.kind !== 'configured') throw new Error(NOT_CONNECTED)
         return state.client
+    }
+}
+
+// =============================================================================
+// Maintenance
+// =============================================================================
+
+/** Runs one call, re-throwing its failure redacted against what is held. */
+type Redactor = <T>(run: () => Promise<T>) => Promise<T>
+
+/**
+ * Wrap a maintenance connection so every driver failure is redacted, while an
+ * error the planner throws passes through as itself.
+ *
+ * The planner's own reads are redacted where they fail, before the planner
+ * sees them, so whatever the planner then throws — a `RefusedError`, or a
+ * read failure it lets through — is already safe, and is re-thrown
+ * unchanged: re-rendering it would turn a refusal into a generic error and
+ * lose the command's "Nothing was dropped" framing (#447).
+ *
+ * @param connection - The driver's connection.
+ * @param redacted - Redacts against the DSN captured with the handle.
+ * @returns The redacting connection.
+ */
+function redactedConnection(
+    connection: MaintenanceConnection,
+    redacted: Redactor,
+): MaintenanceConnection {
+    return {
+        query: (sql) => redacted(() => connection.query(sql)),
+        execute: async (planner: MaintenancePlanner) => {
+            let planned: { readonly error: unknown } | undefined
+            try {
+                await connection.execute(async (read) => {
+                    try {
+                        return await planner((sql) => redacted(() => read(sql)))
+                    } catch (error) {
+                        // Recorded, then re-thrown so the driver rolls back.
+                        planned = { error }
+                        throw error
+                    }
+                })
+            } catch (error) {
+                // Not swallowed: the planner's error unchanged, any other
+                // failure redacted.
+                if (planned) throw planned.error
+                return redacted(() => Promise.reject(error))
+            }
+        },
+        migrate: (options) => redacted(() => connection.migrate(options)),
+        close: () => redacted(() => connection.close()),
     }
 }
 

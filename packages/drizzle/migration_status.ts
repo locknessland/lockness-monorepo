@@ -32,7 +32,7 @@
  * @since 0.5.0
  */
 
-import type { Dialect, SchemaMaintenance } from './drivers.ts'
+import type { Dialect, MaintenanceConnection } from './drivers.ts'
 import {
     DEFAULT_BOOKKEEPING_SCHEMA,
     type MigrationEntry,
@@ -185,7 +185,7 @@ export function rowsQuery(location: BookkeepingLocation): string {
  * Read the bookkeeping table, if it exists: one catalogue query, then, only
  * when the table is there, the whole table.
  *
- * @param maintenance - The connection's read capability.
+ * @param connection - The maintenance connection, which is only read.
  * @param location - Where the table is.
  * @returns Every row, normalised; `undefined` when the table does not exist.
  * @throws Whatever `query` throws, or an `Error` when the catalogue or a row
@@ -193,18 +193,18 @@ export function rowsQuery(location: BookkeepingLocation): string {
  *
  * @example
  * ```ts
- * const rows = await readBookkeeping(session, settings) // undefined: never migrated
+ * const rows = await readBookkeeping(connection, settings) // undefined: never migrated
  * ```
  */
 export async function readBookkeeping(
-    maintenance: Pick<SchemaMaintenance, 'query'>,
+    connection: Pick<MaintenanceConnection, 'query'>,
     location: BookkeepingLocation,
 ): Promise<readonly BookkeepingRow[] | undefined> {
-    const catalogue = await maintenance.query(
+    const catalogue = await connection.query(
         catalogueQuery(location.dialect),
     )
     if (!findTable(catalogue, location)) return undefined
-    const rows = await maintenance.query(rowsQuery(location))
+    const rows = await connection.query(rowsQuery(location))
     try {
         return rows.map(toBookkeepingRow)
     } catch (error) {

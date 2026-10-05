@@ -16,7 +16,7 @@ import {
     assertStringIncludes,
     assertThrows,
 } from '@std/assert'
-import type { SchemaMaintenance } from '../drivers.ts'
+import type { MaintenanceConnection } from '../drivers.ts'
 import type { MigrationEntry } from '../migration_settings.ts'
 import {
     type BookkeepingLocation,
@@ -317,7 +317,7 @@ Deno.test('#439 a custom postgres schema and table are both honoured', () => {
 })
 
 // -----------------------------------------------------------------------------
-// Reading through the maintenance port — one fake function
+// Reading through the maintenance connection — one fake function
 // -----------------------------------------------------------------------------
 
 /** A `query` that answers each statement from a table, and records it. */
@@ -325,7 +325,7 @@ function fakeQuery(
     answers: Readonly<Record<string, readonly Record<string, unknown>[]>>,
 ) {
     const asked: string[] = []
-    const maintenance: Pick<SchemaMaintenance, 'query'> = {
+    const maintenance: Pick<MaintenanceConnection, 'query'> = {
         query: (sql) => {
             asked.push(sql)
             const rows = answers[sql]

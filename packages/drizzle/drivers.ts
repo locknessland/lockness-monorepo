@@ -9,8 +9,10 @@
  * config — so (a) config can never steer a module load (security S2) and (b) a
  * Postgres-only app never executes the MySQL/SQLite import, so their client
  * packages (and libsql's native binding) are never loaded at runtime (SC-005).
- * The drizzle-orm migrator each handle's `maintenance.migrate` runs (#435) is
- * loaded the same way, and only when `db:fresh` asks for it.
+ * The drizzle-orm migrator a maintenance connection's `migrate` runs (#435,
+ * #447) is loaded the same way, and only when a `db:*` command asks for it.
+ * The port types are here; the three connection adapters live in the
+ * internal `maintenance_connection.ts`.
  *
  * @module @lockness/drizzle/drivers
  * @since 0.2.1
@@ -21,9 +23,18 @@ import type {
     PostgresJsDatabase,
 } from 'drizzle-orm/postgres-js'
 import type postgresClient from 'postgres'
-import type { MySql2Database } from 'drizzle-orm/mysql2'
+import type {
+    drizzle as drizzleMysql,
+    MySql2Database,
+} from 'drizzle-orm/mysql2'
+import type mysqlClient from 'mysql2/promise'
 import type { LibSQLDatabase } from 'drizzle-orm/libsql'
 import { consoleNoticeReporter, reportNotice } from './notice.ts'
+import {
+    libsqlConnection,
+    mysqlConnection,
+    postgresConnection,
+} from './maintenance_connection.ts'
 
 /**
  * Database schema type for Drizzle ORM — the generic constraint the dialect
@@ -60,9 +71,10 @@ export interface DriverHandle {
      */
     probe(): Promise<void>
     /**
-     * The schema-maintenance capability `db:fresh` resets and migrates
-     * through (#435). Optional, so a custom {@link DriverFactory} keeps
-     * working without it; `db:fresh` refuses a handle that has none.
+     * The schema-maintenance capability `db:fresh`, `db:migrate` and
+     * `db:status` open their one connection through (#435, #447). Optional,
+     * so a custom {@link DriverFactory} keeps working without it; those
+     * commands refuse a handle that has none.
      */
     readonly maintenance?: SchemaMaintenance
 }
@@ -84,24 +96,80 @@ export interface MigrateOptions {
 }
 
 /**
- * What `db:fresh` needs from a connection, and nothing more (#435): read the
- * catalogue, run a reset plan in one dedicated session, and apply every
- * migration with the adapter's own drizzle-orm migrator.
+ * Opens the one connection a schema-maintenance run works on (#447): what
+ * `db:fresh` resets and migrates through, what `db:migrate` migrates through,
+ * and what `db:status` reads through.
  *
  * The policy — what to drop, what to refuse — lives in `reset.ts`; this is
- * only the mechanism, because the session rules differ per client.
+ * only the mechanism, because the connection and transaction rules differ per
+ * client.
  *
  * @example
  * ```ts
- * const rows = await maintenance.query('SELECT 1 AS n') // [{ n: 1 }]
- * await maintenance.execute(['DROP TABLE IF EXISTS "t"'])
- * await maintenance.migrate({
- *     folder: './database/migrations',
- *     table: '__drizzle_migrations',
- * })
+ * const connection = await maintenance.open()
+ * try {
+ *     await connection.migrate({
+ *         folder: './database/migrations',
+ *         table: '__drizzle_migrations',
+ *     })
+ * } finally {
+ *     await connection.close()
+ * }
  * ```
  */
 export interface SchemaMaintenance {
+    /**
+     * Open one dedicated connection. It is never borrowed from the handle's
+     * pool, so whatever session state a reset leaves on it (MySQL's
+     * `FOREIGN_KEY_CHECKS = 0`) can never reach the application. libsql is the
+     * one exception by construction: a `:memory:` database exists only on the
+     * client that opened it, so its connection is a view over the handle's own
+     * client, and closing it closes nothing.
+     *
+     * @returns The open connection; the caller closes it.
+     * @throws Whatever the client raises while connecting.
+     */
+    open(): Promise<MaintenanceConnection>
+}
+
+/**
+ * Builds a reset plan from reads taken inside the unit the plan then runs in
+ * (#447). It returns its statements and runs none of them.
+ *
+ * @param read - Runs one read-only statement inside the unit and returns its
+ *   rows as plain objects keyed by column name.
+ * @returns The statements to run, in order, in the same unit.
+ * @throws A refusal, before any statement runs; the driver then rolls the unit
+ *   back and rejects with this same error.
+ *
+ * @example
+ * ```ts
+ * const planner: MaintenancePlanner = async (read) => {
+ *     const rows = await read("SELECT name FROM sqlite_master WHERE type = 'table'")
+ *     return rows.map((row) => `DROP TABLE IF EXISTS "${String(row.name)}"`)
+ * }
+ * ```
+ */
+export type MaintenancePlanner = (
+    read: (sql: string) => Promise<readonly Record<string, unknown>[]>,
+) => Promise<readonly string[]>
+
+/**
+ * One dedicated connection, opened by {@link SchemaMaintenance.open} (#447).
+ * Every method runs on it, and {@link MaintenanceConnection.close} ends it. It
+ * is never borrowed from the handle's pool and never returned to it.
+ *
+ * @example
+ * ```ts
+ * await connection.execute(async (read) => {
+ *     const [{ n }] = await read('SELECT 1 AS n')
+ *     return n === 1 ? ['DROP TABLE IF EXISTS "t"'] : []
+ * })
+ * await connection.migrate({ folder: 'out', table: '__drizzle_migrations' })
+ * await connection.close()
+ * ```
+ */
+export interface MaintenanceConnection {
     /**
      * Run one read-only statement and return its rows as plain objects keyed
      * by column name.
@@ -112,101 +180,38 @@ export interface SchemaMaintenance {
      */
     query(sql: string): Promise<readonly Record<string, unknown>[]>
     /**
-     * Run statements in order on one dedicated session that is discarded
-     * afterwards: one transaction on postgres, one write batch on libsql, and
-     * on MySQL a connection that is destroyed, never released to the pool
-     * (MySQL DDL auto-commits, so it is not atomic there).
+     * Open the dialect's unit — one transaction on postgres (at `REPEATABLE
+     * READ`), one write transaction on libsql, the connection itself on MySQL
+     * — call `planner` with a reader that runs inside that unit, then run the
+     * statements it returns, in order, in the same unit. A refusal the planner
+     * raises therefore always comes before the first statement.
      *
-     * @param statements - Complete SQL statements, run in order.
-     * @returns Resolves once every statement ran.
-     * @throws The first statement failure; on postgres and libsql nothing is
-     *   kept.
+     * @param planner - Reads inside the unit and returns the statements.
+     * @returns Resolves once every statement ran and the unit committed.
+     * @throws The planner's rejection, unchanged, after the unit is rolled
+     *   back and before any statement ran; otherwise the first statement
+     *   failure — on postgres and libsql nothing is kept, on MySQL (whose DDL
+     *   auto-commits) what ran before it is.
      */
-    execute(statements: readonly string[]): Promise<void>
+    execute(planner: MaintenancePlanner): Promise<void>
     /**
      * Apply every pending migration through the adapter's own drizzle-orm
-     * migrator, on this connection. The folder is only read.
+     * migrator, on this connection — on libsql, on the same database through
+     * libsql's own `migrate`, which cannot join a transaction. The folder is
+     * only read.
      *
      * @param options - Folder and bookkeeping location.
      * @returns Resolves once every migration was applied.
      * @throws When the folder cannot be read or a migration fails.
      */
     migrate(options: MigrateOptions): Promise<void>
-}
-
-/** The one MySQL connection a reset borrows. Internal. */
-export interface MysqlSession {
-    /** Run one statement. */
-    query(sql: string): Promise<unknown>
-    /** Close the socket and remove the connection from its pool. */
-    destroy(): void
-    /** Hand the connection back to the pool — never called by a reset. */
-    release(): void
-}
-
-/**
- * Run statements on one dedicated MySQL connection, then destroy it.
- *
- * Never released: the plan sets `FOREIGN_KEY_CHECKS = 0`, and a released
- * connection would carry that session setting to the next borrower — also
- * when a statement fails before the plan turns the checks back on.
- *
- * @param pool - Anything that lends a connection.
- * @param statements - The statements, run in order.
- * @returns Resolves once every statement ran.
- * @throws The first statement failure, after the connection is destroyed.
- *
- * @example
- * ```ts
- * await executeOnDedicatedSession(pool, [
- *     'SET FOREIGN_KEY_CHECKS = 0',
- *     'DROP TABLE IF EXISTS `t`',
- * ])
- * ```
- */
-export async function executeOnDedicatedSession(
-    pool: { getConnection(): Promise<MysqlSession> },
-    statements: readonly string[],
-): Promise<void> {
-    const session = await pool.getConnection()
-    try {
-        for (const statement of statements) await session.query(statement)
-    } finally {
-        session.destroy()
-    }
-}
-
-/** The transaction entry point of a postgres.js client. Internal. */
-export interface PostgresTransactor {
-    /** Run `run` inside `BEGIN … COMMIT`, rolling back when it rejects. */
-    begin<T>(
-        run: (tx: { unsafe(sql: string): Promise<unknown> }) => Promise<T>,
-    ): Promise<T>
-}
-
-/**
- * Run statements inside one postgres transaction: all of them are kept, or
- * none is.
- *
- * @param client - A postgres.js client.
- * @param statements - The statements, run in order.
- * @returns Resolves once the transaction committed.
- * @throws The first statement failure, after the rollback.
- *
- * @example
- * ```ts
- * await executeInTransaction(client, [
- *     'DROP TABLE IF EXISTS "public"."t" CASCADE',
- * ])
- * ```
- */
-export async function executeInTransaction(
-    client: PostgresTransactor,
-    statements: readonly string[],
-): Promise<void> {
-    await client.begin(async (tx) => {
-        for (const statement of statements) await tx.unsafe(statement)
-    })
+    /**
+     * End the connection. Call it once, on every path that opened it.
+     *
+     * @returns Resolves once the connection is closed.
+     * @throws Whatever the client raises while closing.
+     */
+    close(): Promise<void>
 }
 
 /**
@@ -398,9 +403,10 @@ export function resolveDialect(
 
 /**
  * Loads the postgres adapter and client — the seam {@link postgresDriverFactory}
- * builds its client through. Internal: a test passes a fake to observe the
- * options the client is constructed with (#454), since drizzle-orm 0.36 exposes
- * no `$client` on a finished handle.
+ * builds its clients through. Internal: a test passes a fake to observe the
+ * options each client is constructed with (#454) and which client the
+ * migrator's `drizzle` wraps (#447), since drizzle-orm 0.36 exposes no
+ * `$client` on a finished handle.
  */
 export type PostgresClientLoader = () => Promise<{
     readonly drizzle: typeof drizzlePostgres
@@ -414,13 +420,20 @@ const loadPostgresClient: PostgresClientLoader = async () => ({
 })
 
 /**
- * The postgres driver factory. Every client it builds reports server notices
- * through {@link DriverOptions.onNotice} — or, when the caller gives none,
- * through the console fallback — never through postgres.js's own default,
- * which dumps the raw notice object on stdout (#454).
+ * The postgres driver factory. Every client it builds — the application's
+ * pool and each maintenance connection — reports server notices through
+ * {@link DriverOptions.onNotice} or, when the caller gives none, through the
+ * console fallback, never through postgres.js's own default, which dumps the
+ * raw notice object on stdout (#454).
+ *
+ * A maintenance connection is a **dedicated** client holding one connection
+ * (`max: 1`, no `max_lifetime` recycling), never the application's pool
+ * (#447): its reads, its reset transaction and drizzle-orm's migrator all
+ * land on that one connection, so the migrate acts on the database the reset
+ * emptied.
  *
  * Internal: not exported from the package. It exists as a test seam, so a
- * test can pass a fake `load` and observe the options the client is built
+ * test can pass a fake `load` and observe the options the clients are built
  * with; `defaultDriverFactories.postgres` is this factory with the real
  * loader.
  *
@@ -433,34 +446,115 @@ export function postgresDriverFactory(
 ): DriverFactory {
     return async (url, options) => {
         const { drizzle, postgres } = await loadClient('postgres', load)
-        const client = postgres(url, {
-            onnotice: options?.onNotice ??
-                ((notice) => reportNotice(notice, consoleNoticeReporter)),
-        })
-        const db = drizzle(client)
+        const onnotice = options?.onNotice ??
+            ((notice: unknown) => reportNotice(notice, consoleNoticeReporter))
+        // One builder for every client, so none can miss the notice policy.
+        const build = (dedicated: boolean) =>
+            postgres(
+                url,
+                dedicated
+                    ? { onnotice, max: 1, max_lifetime: null }
+                    : { onnotice },
+            )
+        const client = build(false)
         return {
-            db,
+            db: drizzle(client),
             close: () => client.end(),
             probe: async () => {
                 await client`SELECT 1`
             },
             maintenance: {
-                query: async (sql) => [...await client.unsafe(sql)],
-                execute: (statements) =>
-                    executeInTransaction(
-                        client as unknown as PostgresTransactor,
-                        statements,
-                    ),
-                migrate: async ({ folder, table, schema }) => {
-                    const { migrate } = await loadClient(
-                        'postgres',
-                        () => import('drizzle-orm/postgres-js/migrator'),
+                open: () => {
+                    const dedicated = build(true)
+                    const db = drizzle(dedicated)
+                    return Promise.resolve(postgresConnection({
+                        unsafe: async (sql) => [...await dedicated.unsafe(sql)],
+                        begin: async (isolation, run) => {
+                            await dedicated.begin(isolation, (tx) =>
+                                run({
+                                    unsafe: async (sql) => [
+                                        ...await tx.unsafe(sql),
+                                    ],
+                                }))
+                        },
+                        end: () => dedicated.end(),
+                    }, async ({ folder, table, schema }) => {
+                        const { migrate } = await loadClient(
+                            'postgres',
+                            () => import('drizzle-orm/postgres-js/migrator'),
+                        )
+                        await migrate(db, {
+                            migrationsFolder: folder,
+                            migrationsTable: table,
+                            migrationsSchema: schema,
+                        })
+                    }))
+                },
+            },
+        }
+    }
+}
+
+/**
+ * Loads the MySQL adapter and client — the seam {@link mysqlDriverFactory}
+ * builds its clients through. Internal: a test passes a fake to observe which
+ * object the migrator's `drizzle` wraps (#447).
+ */
+export type MysqlClientLoader = () => Promise<{
+    readonly drizzle: typeof drizzleMysql
+    readonly mysql: typeof mysqlClient
+}>
+
+/** The real loader: both modules, each by its fixed literal specifier (S2). */
+const loadMysqlClient: MysqlClientLoader = async () => ({
+    drizzle: (await import('drizzle-orm/mysql2')).drizzle,
+    mysql: (await import('mysql2/promise')).default,
+})
+
+/**
+ * The MySQL driver factory. A maintenance connection is a connection of its
+ * own, from `createConnection` — never one borrowed from the application's
+ * pool with `getConnection()` (#447). The reset turns `FOREIGN_KEY_CHECKS`
+ * off for its session; a connection that was never a pool member has no next
+ * borrower to hand that to, and drizzle-orm's migrator, given a plain
+ * connection rather than a pool, runs every statement on it.
+ *
+ * Internal: not exported from the package. It exists as a test seam;
+ * `defaultDriverFactories.mysql` is this factory with the real loader.
+ *
+ * @param load - Loads the adapter and client; the real modules by default.
+ *   A load failure becomes a `ClientUnavailableError`.
+ * @returns The factory.
+ */
+export function mysqlDriverFactory(
+    load: MysqlClientLoader = loadMysqlClient,
+): DriverFactory {
+    return async (url) => {
+        const { drizzle, mysql } = await loadClient('mysql', load)
+        const pool = mysql.createPool(url)
+        return {
+            db: drizzle(pool),
+            close: () => pool.end(),
+            probe: async () => {
+                await pool.query('SELECT 1')
+            },
+            maintenance: {
+                open: async () => {
+                    const connection = await mysql.createConnection(url)
+                    const db = drizzle(connection)
+                    return mysqlConnection(
+                        connection,
+                        async ({ folder, table }) => {
+                            const { migrate } = await loadClient(
+                                'mysql',
+                                () => import('drizzle-orm/mysql2/migrator'),
+                            )
+                            await migrate(db, {
+                                migrationsFolder: folder,
+                                migrationsTable: table,
+                            })
+                        },
                     )
-                    await migrate(db, {
-                        migrationsFolder: folder,
-                        migrationsTable: table,
-                        migrationsSchema: schema,
-                    })
                 },
             },
         }
@@ -473,46 +567,7 @@ export function postgresDriverFactory(
  */
 export const defaultDriverFactories: Record<Dialect, DriverFactory> = {
     postgres: postgresDriverFactory(),
-    mysql: async (url) => {
-        const { drizzle, mysql } = await loadClient('mysql', async () => ({
-            drizzle: (await import('drizzle-orm/mysql2')).drizzle,
-            mysql: (await import('mysql2/promise')).default,
-        }))
-        const pool = mysql.createPool(url)
-        const db = drizzle(pool)
-        return {
-            db,
-            close: () => pool.end(),
-            probe: async () => {
-                await pool.query('SELECT 1')
-            },
-            maintenance: {
-                query: async (sql) => {
-                    const [rows] = await pool.query(sql)
-                    return Array.isArray(rows)
-                        ? rows as Record<string, unknown>[]
-                        : []
-                },
-                execute: (statements) =>
-                    executeOnDedicatedSession(
-                        pool as unknown as {
-                            getConnection(): Promise<MysqlSession>
-                        },
-                        statements,
-                    ),
-                migrate: async ({ folder, table }) => {
-                    const { migrate } = await loadClient(
-                        'mysql',
-                        () => import('drizzle-orm/mysql2/migrator'),
-                    )
-                    await migrate(db, {
-                        migrationsFolder: folder,
-                        migrationsTable: table,
-                    })
-                },
-            },
-        }
-    },
+    mysql: mysqlDriverFactory(),
     sqlite: async (url) => {
         const { drizzle, createClient } = await loadClient(
             'sqlite',
@@ -533,29 +588,22 @@ export const defaultDriverFactories: Record<Dialect, DriverFactory> = {
                 await client.execute('SELECT 1')
             },
             maintenance: {
-                query: async (sql) => {
-                    const result = await client.execute(sql)
-                    return result.rows.map((row) =>
-                        Object.fromEntries(
-                            result.columns.map((column, i) => [column, row[i]]),
-                        )
-                    )
-                },
-                // One write batch: libsql runs it as one transaction, so a
-                // failed statement keeps nothing.
-                execute: async (statements) => {
-                    await client.batch([...statements], 'write')
-                },
-                migrate: async ({ folder, table }) => {
-                    const { migrate } = await loadClient(
-                        'sqlite',
-                        () => import('drizzle-orm/libsql/migrator'),
-                    )
-                    await migrate(db, {
-                        migrationsFolder: folder,
-                        migrationsTable: table,
-                    })
-                },
+                // A view over this client, not a client of its own: a
+                // `:memory:` database exists only on the client that opened
+                // it, so a second client would be a second, empty database.
+                open: () =>
+                    Promise.resolve(
+                        libsqlConnection(client, async ({ folder, table }) => {
+                            const { migrate } = await loadClient(
+                                'sqlite',
+                                () => import('drizzle-orm/libsql/migrator'),
+                            )
+                            await migrate(db, {
+                                migrationsFolder: folder,
+                                migrationsTable: table,
+                            })
+                        }),
+                    ),
             },
         }
     },

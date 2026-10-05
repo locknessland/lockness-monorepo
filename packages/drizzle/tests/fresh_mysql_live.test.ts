@@ -1,17 +1,19 @@
 /**
  * @fileoverview #446 — the MySQL reset against a LIVE server: `db:fresh` over
  * an FK chain and a view leaves `DATABASE()` holding the migrated tables only,
- * with one bookkeeping row per journal entry; the dedicated connection the
- * reset runs on is destroyed, never pooled, when it succeeds and when it
- * fails with `FOREIGN_KEY_CHECKS` off; and a system `DATABASE()` is refused
- * before any statement runs.
+ * with one bookkeeping row per journal entry; the maintenance connection the
+ * reset runs on is never a pool member — it is gone once closed, when the
+ * reset succeeds and when it fails with `FOREIGN_KEY_CHECKS` off, and the
+ * pool never lends it; the migrate runs on that same connection (#447); and
+ * a system `DATABASE()` is refused before any statement runs.
  *
  * The pure tests in `reset.test.ts` pin the plan; only a real server proves
  * what a plan test cannot observe — that the qualified DROPs land in the
  * database the catalogue named, that the session setting dies with its
  * connection, and that the refusal holds for the names the server reports.
- * So this suite runs the real default MySQL driver factory, its maintenance
- * capability, `resetDatabase` and the `db:fresh` command against a server.
+ * So this suite runs the real default MySQL driver factory, the maintenance
+ * connection it opens, `resetDatabase` and the `db:fresh` command against a
+ * server.
  *
  * **Skipped unless `LOCKNESS_MYSQL_INTEGRATION=1`.** The `live-mysql` CI job
  * sets it next to a MySQL service; locally, `deno task test:mysql` sets it.
@@ -33,7 +35,13 @@ import {
 import { join } from '@std/path'
 import mysql from 'mysql2/promise'
 import type { Cli } from '@lockness/cli'
-import { defaultDriverFactories, type SchemaMaintenance } from '../drivers.ts'
+import { sql } from 'drizzle-orm'
+import type { MySql2Database } from 'drizzle-orm/mysql2'
+import {
+    defaultDriverFactories,
+    type DriverHandle,
+    type MaintenanceConnection,
+} from '../drivers.ts'
 import { registerDrizzleCommands } from '../cli_commands.ts'
 import { resetDatabase, type ResetScope } from '../reset.ts'
 import { RefusedError } from '../refusal.ts'
@@ -190,18 +198,35 @@ async function live(
 }
 
 /**
- * Open the real MySQL driver handle on `database`, run `body` with its
- * maintenance capability, and always close it.
+ * Open the real MySQL driver handle on `database` and the maintenance
+ * connection it opens, run `body` with both, and always close them: the
+ * connection (again, harmlessly, if `body` closed it), then the handle.
  */
 async function withMaintenance(
     url: string,
     database: string,
-    body: (maintenance: SchemaMaintenance) => Promise<void>,
+    body: (
+        maintenance: MaintenanceConnection,
+        handle: DriverHandle,
+    ) => Promise<void>,
 ): Promise<void> {
     const handle = await defaultDriverFactories.mysql(at(url, database))
     try {
         assert(handle.maintenance, 'the mysql handle has no maintenance')
-        await body(handle.maintenance)
+        const connection = await handle.maintenance.open()
+        let closed = false
+        const once: MaintenanceConnection = {
+            ...connection,
+            close: async () => {
+                closed = true
+                await connection.close()
+            },
+        }
+        try {
+            await body(once, handle)
+        } finally {
+            if (!closed) await connection.close()
+        }
     } finally {
         await handle.close()
     }
@@ -345,24 +370,28 @@ Deno.test({
 })
 
 // -----------------------------------------------------------------------------
-// The dedicated connection is destroyed, never pooled
+// The maintenance connection is never a pool member
 // -----------------------------------------------------------------------------
 
 /** Records the reset connection's id, in the outside database. */
 const PROBE = `INSERT INTO \`${OTHER}\`.probe SELECT CONNECTION_ID()`
 
 /**
- * The real maintenance capability, with the plan passed through `shape` and
+ * The real maintenance connection, with the plan passed through `shape` and
  * prefixed by {@link PROBE}: the statements still run through the real
- * dedicated-session executor, which is what is under test.
+ * connection's `execute`, which is what is under test.
  */
 function probed(
-    maintenance: SchemaMaintenance,
+    maintenance: MaintenanceConnection,
     shape: (plan: readonly string[]) => readonly string[],
-): SchemaMaintenance {
+): MaintenanceConnection {
     return {
         ...maintenance,
-        execute: (plan) => maintenance.execute([PROBE, ...shape(plan)]),
+        execute: (planner) =>
+            maintenance.execute(async (read) => [
+                PROBE,
+                ...shape(await planner(read)),
+            ]),
     }
 }
 
@@ -379,16 +408,17 @@ async function resetConnectionId(admin: Admin): Promise<number> {
 const DISCONNECT_DEADLINE_MS = 10_000
 
 /**
- * The reset's connection is gone from the server, and the pool's next query
- * runs on another connection with FK checks on.
+ * The reset's connection is gone from the server once closed, and the
+ * application pool's next query runs on another connection with FK checks
+ * on.
  *
- * The server-side check decides: a released connection stays open in the
- * pool's free list for as long as the pool lives, so it never leaves the
+ * The server-side check decides: a connection released to a pool stays open
+ * in its free list for as long as the pool lives, so it never leaves the
  * process list, whichever connection the pool lends next.
  */
 async function assertDiscarded(
     admin: Admin,
-    maintenance: SchemaMaintenance,
+    handle: DriverHandle,
     id: number,
 ): Promise<void> {
     const deadline = Date.now() + DISCONNECT_DEADLINE_MS
@@ -405,29 +435,31 @@ async function assertDiscarded(
         )
         await new Promise((resolve) => setTimeout(resolve, 100))
     }
-    const [next] = await maintenance.query(
-        'SELECT CONNECTION_ID() AS id, @@SESSION.foreign_key_checks AS fk',
-    )
+    const [rows] = await (handle.db as MySql2Database).execute(
+        sql`SELECT CONNECTION_ID() AS id, @@SESSION.foreign_key_checks AS fk`,
+    ) as unknown as [Array<{ id: unknown; fk: unknown }>]
+    const [next] = rows
     assert(Number(next.id) !== id, 'the pool lent the reset connection again')
     assertEquals(Number(next.fk), 1, 'the pool lent FOREIGN_KEY_CHECKS = 0')
 }
 
 Deno.test({
     name:
-        '#446 live: the dedicated connection is destroyed after a reset that succeeds',
+        '#446 #447 live: the maintenance connection is gone once closed after a reset that succeeds',
     ignore: !LIVE,
     fn: () =>
         live((admin, url) =>
-            withMaintenance(url, SCOPE, async (maintenance) => {
+            withMaintenance(url, SCOPE, async (maintenance, handle) => {
                 await resetDatabase(
                     probed(maintenance, (plan) => plan),
                     SETTINGS,
                 )
+                await maintenance.close()
 
                 assertEquals(await objectsOf(admin, SCOPE), [])
                 await assertDiscarded(
                     admin,
-                    maintenance,
+                    handle,
                     await resetConnectionId(admin),
                 )
             })
@@ -436,11 +468,11 @@ Deno.test({
 
 Deno.test({
     name:
-        '#446 live: the dedicated connection is destroyed after a reset that fails with FK checks off',
+        '#446 #447 live: the maintenance connection is gone once closed after a reset that fails with FK checks off',
     ignore: !LIVE,
     fn: () =>
         live((admin, url) =>
-            withMaintenance(url, SCOPE, async (maintenance) => {
+            withMaintenance(url, SCOPE, async (maintenance, handle) => {
                 // The plan's first statement turns FK checks off; the next
                 // one fails, so the plan never turns them back on.
                 const failing = probed(maintenance, (plan) => [
@@ -454,6 +486,7 @@ Deno.test({
                 )
 
                 assertStringIncludes(error.message, 'no_such_table')
+                await maintenance.close()
                 assertEquals(
                     (await objectsOf(admin, SCOPE)).length,
                     5,
@@ -461,7 +494,7 @@ Deno.test({
                 )
                 await assertDiscarded(
                     admin,
-                    maintenance,
+                    handle,
                     await resetConnectionId(admin),
                 )
             })
@@ -486,13 +519,12 @@ for (
                     // Never delegated: a regression must fail this test, not
                     // empty a system database of the server it runs on.
                     let executed = false
-                    const spied: SchemaMaintenance = {
+                    const spied: MaintenanceConnection = {
                         ...maintenance,
-                        execute: () => {
+                        execute: async (planner) => {
+                            await planner((sql) => maintenance.query(sql))
                             executed = true
-                            return Promise.reject(
-                                new Error('the plan reached execute'),
-                            )
+                            throw new Error('the plan reached execute')
                         },
                     }
 
@@ -508,3 +540,53 @@ for (
             ),
     })
 }
+
+// -----------------------------------------------------------------------------
+// #447: the migrate runs on the connection the reset ran on
+// -----------------------------------------------------------------------------
+
+Deno.test({
+    name:
+        '#447 live: CONNECTION_ID() read by the planner is the one the migrate leaves behind',
+    ignore: !LIVE,
+    fn: () =>
+        live((admin, url) =>
+            withMaintenance(url, SCOPE, async (maintenance) => {
+                const folder = await Deno.makeTempDir({
+                    prefix: 'lockness_fresh_',
+                })
+                try {
+                    await writeMigrations(folder)
+                    let inside: unknown
+                    await resetDatabase({
+                        execute: (planner) =>
+                            maintenance.execute(async (read) => {
+                                const [row] = await read(
+                                    'SELECT CONNECTION_ID() AS id',
+                                )
+                                inside = row.id
+                                return planner(read)
+                            }),
+                    }, SETTINGS)
+                    await maintenance.migrate({ folder, table: TABLE })
+                    const [after] = await maintenance.query(
+                        'SELECT CONNECTION_ID() AS id, DATABASE() AS db',
+                    )
+
+                    assertEquals(
+                        Number(after.id),
+                        Number(inside),
+                        'the migrate ran on another connection than the reset',
+                    )
+                    assertEquals(after.db, SCOPE)
+                    assertEquals(await objectsOf(admin, SCOPE), [
+                        `${TABLE}:BASE TABLE`,
+                        'migrated_a:BASE TABLE',
+                        'migrated_b:BASE TABLE',
+                    ])
+                } finally {
+                    await Deno.remove(folder, { recursive: true })
+                }
+            })
+        ),
+})

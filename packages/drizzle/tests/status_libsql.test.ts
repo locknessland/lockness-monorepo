@@ -127,10 +127,10 @@ async function inspect(url: string): Promise<{
 }> {
     const handle = await defaultDriverFactories.sqlite(url)
     try {
-        const maintenance = handle.maintenance
-        if (!maintenance) {
+        if (!handle.maintenance) {
             throw new Error('the sqlite factory has no maintenance')
         }
+        const maintenance = await handle.maintenance.open()
         const tables = (await maintenance.query(
             "SELECT name FROM sqlite_master WHERE type = 'table' " +
                 "AND name LIKE 't\\_%' ESCAPE '\\' ORDER BY name",

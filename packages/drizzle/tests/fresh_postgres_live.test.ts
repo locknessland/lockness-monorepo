@@ -7,11 +7,15 @@
  * #454: `db:fresh` run twice prints no raw server notice, and a reporter
  * passed to `connect` receives the `already exists, skipping` notice.
  * #446: the kept schema comes out of a reset with its owner and ACL.
+ * #447: the reset reads at `REPEATABLE READ` on the backend the migrate then
+ * runs on, and an outside object another session drops mid-reset no longer
+ * rolls it back.
  *
  * The pure tests in `reset.test.ts` pin the SQL; only a real server proves
  * that `pg_depend` and `pg_identify_object` classify objects the way the
  * census assumes. So this suite runs the real default postgres driver
- * factory, its maintenance capability and `resetDatabase` against a server.
+ * factory, the maintenance connection it opens and `resetDatabase` against a
+ * server.
  *
  * **Skipped unless `LOCKNESS_POSTGRES_INTEGRATION=1`.** The `live-postgres`
  * CI job sets it next to a `postgres:16` service; locally,
@@ -35,10 +39,9 @@ import { join } from '@std/path'
 import postgres from 'postgres'
 import {
     defaultDriverFactories,
-    executeInTransaction,
-    type PostgresTransactor,
-    type SchemaMaintenance,
+    type MaintenanceConnection,
 } from '../drivers.ts'
+import { postgresConnection } from '../maintenance_connection.ts'
 import type { Cli } from '@lockness/cli'
 import { Database } from '../mod.ts'
 import {
@@ -170,13 +173,14 @@ const FIXTURE = [
 ]
 
 /**
- * Open an admin client and the real driver handle, lay the fixture, run
- * `body`, and always tear down and close.
+ * Open an admin client, the real driver handle and the maintenance
+ * connection it opens, lay the fixture, run `body`, and always tear down and
+ * close.
  */
 async function live(
     body: (
         admin: Client,
-        maintenance: SchemaMaintenance,
+        maintenance: MaintenanceConnection,
         url: string,
     ) => Promise<void>,
 ): Promise<void> {
@@ -186,7 +190,12 @@ async function live(
     try {
         await run(admin, FIXTURE)
         assert(handle.maintenance, 'the postgres handle has no maintenance')
-        await body(admin, handle.maintenance, url)
+        const connection = await handle.maintenance.open()
+        try {
+            await body(admin, connection, url)
+        } finally {
+            await connection.close()
+        }
     } finally {
         try {
             await run(admin, TEARDOWN)
@@ -420,35 +429,32 @@ Deno.test({
 // -----------------------------------------------------------------------------
 
 /**
- * A maintenance capability that runs the plan statement by statement through
- * the real `executeInTransaction`, and has a second connection commit
- * `CREATE TABLE <other>.x` right after the census baseline is taken.
+ * The real postgres maintenance connection over `client`, except that a
+ * second connection commits `meanwhile` right after the census baseline is
+ * taken — between the baseline and the census check of the same
+ * transaction.
  */
 function interleaved(
     client: Client,
     admin: Client,
-): SchemaMaintenance {
-    const transactor: PostgresTransactor = {
-        begin: (body) =>
-            (client as unknown as PostgresTransactor).begin((tx) =>
+    meanwhile = `CREATE TABLE ${OTHER}.x (id integer)`,
+): MaintenanceConnection {
+    return postgresConnection({
+        unsafe: async (sql) => [...await client.unsafe(sql)],
+        begin: async (isolation, body) => {
+            await client.begin(isolation, (tx) =>
                 body({
                     unsafe: async (sql) => {
-                        const result = await tx.unsafe(sql)
+                        const result = [...await tx.unsafe(sql)]
                         if (sql.startsWith('CREATE TEMPORARY TABLE')) {
-                            await admin.unsafe(
-                                `CREATE TABLE ${OTHER}.x (id integer)`,
-                            )
+                            await admin.unsafe(meanwhile)
                         }
                         return result
                     },
-                })
-            ),
-    }
-    return {
-        query: async (sql) => [...await client.unsafe(sql)],
-        execute: (statements) => executeInTransaction(transactor, statements),
-        migrate: () => Promise.reject(new Error('not used')),
-    }
+                }))
+        },
+        end: () => client.end(),
+    }, () => Promise.reject(new Error('not used')))
 }
 
 Deno.test({
@@ -492,6 +498,31 @@ Deno.test({
             assertStringIncludes(error.message, `${OTHER}.v`)
             await assertUntouched(admin)
             assert(await exists(admin, `${OTHER}.x`), 'the concurrent table')
+        }),
+})
+
+Deno.test({
+    name:
+        '#447 R7 live: an outside object another session drops mid-reset does not roll it back, at REPEATABLE READ',
+    ignore: !LIVE,
+    fn: () =>
+        live(async (admin, _maintenance, url) => {
+            // In the baseline; dropped by another session before the check.
+            // At READ COMMITTED the check would see it gone and roll a sound
+            // reset back; the transaction's snapshot still holds it.
+            await run(admin, [`CREATE TABLE ${OTHER}.gone (id integer)`])
+            const client = postgres(url, { max: 1, onnotice: () => {} })
+            try {
+                await resetDatabase(
+                    interleaved(client, admin, `DROP TABLE ${OTHER}.gone`),
+                    SETTINGS,
+                )
+            } finally {
+                await client.end()
+            }
+
+            await assertReset(admin)
+            assertEquals(await exists(admin, `${OTHER}.gone`), false)
         }),
 })
 
@@ -562,6 +593,49 @@ Deno.test({
                 assert(
                     await exists(admin, `${SCOPE}.migrated`),
                     'the migration did not run',
+                )
+            } finally {
+                await Deno.remove(folder, { recursive: true })
+            }
+        }),
+})
+
+// -----------------------------------------------------------------------------
+// #447: one connection — REPEATABLE READ, and the migrate on the same backend
+// -----------------------------------------------------------------------------
+
+Deno.test({
+    name:
+        '#447 live: the planner reads at REPEATABLE READ, and query and migrate run on the same backend',
+    ignore: !LIVE,
+    fn: () =>
+        live(async (_admin, maintenance) => {
+            const folder = await Deno.makeTempDir({ prefix: 'lockness_fresh_' })
+            try {
+                await writeMigration(folder)
+                let inside: Record<string, unknown> | undefined
+                await maintenance.execute(async (read) => {
+                    ;[inside] = await read(
+                        "SELECT current_setting('transaction_isolation') " +
+                            'AS iso, pg_backend_pid() AS pid',
+                    )
+                    return []
+                })
+                await maintenance.migrate({
+                    folder,
+                    table: HISTORY,
+                    schema: BOOKKEEPING,
+                })
+                const [after] = await maintenance.query(
+                    'SELECT pg_backend_pid() AS pid',
+                )
+
+                assert(inside, 'the planner read nothing')
+                assertEquals(inside.iso, 'repeatable read')
+                assertEquals(
+                    after.pid,
+                    inside.pid,
+                    'the migrate ran on another backend than the reset',
                 )
             } finally {
                 await Deno.remove(folder, { recursive: true })
@@ -712,7 +786,17 @@ Deno.test({
                 assert(result.success, result.error)
                 const maintenance = db.maintenance
                 assert(maintenance, 'the postgres handle has no maintenance')
-                return { ...maintenance, close: () => db.close() }
+                const connection = await maintenance.open()
+                return {
+                    ...connection,
+                    close: async () => {
+                        try {
+                            await connection.close()
+                        } finally {
+                            await db.close()
+                        }
+                    },
+                }
             }
 
             await freshTwice(url, open)

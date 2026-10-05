@@ -57,9 +57,13 @@ function recordingFactory(): Recorder {
                 return Promise.resolve()
             },
             maintenance: {
-                query: () => Promise.resolve([]),
-                execute: () => Promise.resolve(),
-                migrate: () => Promise.resolve(),
+                open: () =>
+                    Promise.resolve({
+                        query: () => Promise.resolve([]),
+                        execute: () => Promise.resolve(),
+                        migrate: () => Promise.resolve(),
+                        close: () => Promise.resolve(),
+                    }),
             },
         })
     }

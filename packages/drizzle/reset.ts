@@ -12,10 +12,13 @@
  * | mysql           | every table and view of `DATABASE()`                             |
  * | postgres        | the objects of `schemaFilter`, plus the bookkeeping table        |
  *
- * The mechanism — sessions, transactions, the migrator — lives in
- * `drivers.ts`; this module only decides. Each planner reads the catalogue
- * first and refuses before returning a single statement, so every refusal
- * happens before the first `DROP`. A system target is never in scope: a
+ * The mechanism — the connection, the transaction, the migrator — lives in
+ * `drivers.ts` and `maintenance_connection.ts`; this module only decides. A
+ * policy's planner runs inside the driver's unit (#447): it reads the
+ * catalogue there and refuses or returns its statements, and the driver runs
+ * none of them before it has resolved — so every refusal happens before the
+ * first `DROP` by construction, and on postgres the plan is read in the
+ * transaction it runs in. A system target is never in scope: a
  * MySQL `DATABASE()` naming `mysql`, `sys`, `performance_schema` or
  * `information_schema` — what the session selected, whatever the url says —
  * and a postgres `schemaFilter` or `migrations.schema` naming
@@ -25,7 +28,7 @@
  * @since 0.4.1
  */
 
-import type { Dialect, SchemaMaintenance } from './drivers.ts'
+import type { Dialect, MaintenanceConnection } from './drivers.ts'
 import { DEFAULT_BOOKKEEPING_SCHEMA } from './migration_settings.ts'
 import { RefusedError } from './refusal.ts'
 import { backtick, literal, quote } from './sql_text.ts'
@@ -58,21 +61,28 @@ function bookkeepingSchema(scope: ResetScope): string {
     return scope.schema ?? DEFAULT_BOOKKEEPING_SCHEMA
 }
 
-/** A catalogue row, as `SchemaMaintenance.query` returns it. */
+/** A catalogue row, as a maintenance read returns it. */
 type Row = Readonly<Record<string, unknown>>
 
+/** Reads one catalogue statement inside the driver's unit. */
+type CatalogueReader = (sql: string) => Promise<readonly Row[]>
+
 /**
- * One dialect's policy: the line that names its scope, and the plan — read
- * from the catalogue, refused or returned before anything runs.
+ * One dialect's policy: the line that names its scope, the refusals that need
+ * no database, and the plan — read from the catalogue inside the driver's
+ * unit, refused or returned before anything runs.
  */
 interface ResetPolicy {
     /** The scope, in words, for the one line `db:fresh` prints. */
     describe(scope: ResetScope): string
+    /**
+     * Refuse from the scope alone, before the unit is even opened.
+     *
+     * @throws {RefusedError} When the scope names a target never in scope.
+     */
+    refuseScope?(scope: ResetScope): void
     /** Read the catalogue and return the statements; refuse instead. */
-    plan(
-        maintenance: Pick<SchemaMaintenance, 'query'>,
-        scope: ResetScope,
-    ): Promise<readonly string[]>
+    plan(read: CatalogueReader, scope: ResetScope): Promise<readonly string[]>
 }
 
 // =============================================================================
@@ -134,7 +144,7 @@ const MYSQL_SYSTEM_DATABASES: ReadonlySet<string> = new Set([
 
 /**
  * The database the connection uses and its tables and views, in **one**
- * statement — two reads from a pool may come from two connections. The
+ * statement, so the name and the list cannot come from two states. The
  * anchor row keeps `DATABASE()` in the answer when the database is empty,
  * and when none is selected (then `db` is `NULL`).
  */
@@ -150,19 +160,20 @@ const MYSQL_CATALOGUE = [
  * read names, the bookkeeping table included.
  *
  * Every `DROP` is qualified with that database, so the plan empties the
- * database that was read even if the dedicated session it runs on selects
- * another. The bookkeeping table is dropped first and always, whether the
- * catalogue listed it or not.
+ * database that was read even if a statement in between selected another.
+ * The bookkeeping table is dropped first and always, whether the catalogue
+ * listed it or not.
  *
- * FK checks are turned off for the session so the order does not matter; the
- * session is destroyed afterwards (see `drivers.ts`), never pooled. MySQL DDL
- * auto-commits, so a failure part-way leaves a partial reset — reported, not
- * rolled back.
+ * FK checks are turned off for the session so the order does not matter, and
+ * back on at the end, before the migrate that follows on the same
+ * connection; that connection is never a pool member (see
+ * `maintenance_connection.ts`). MySQL DDL auto-commits, so a failure part-way
+ * leaves a partial reset — reported, not rolled back.
  *
  * @param rows - The rows of the one catalogue read: `db`, and `name` and
  *   `type` (both `NULL` on the anchor row of an empty database).
  * @param table - The bookkeeping table (`migrations.table`).
- * @returns The statements for one dedicated session.
+ * @returns The statements for the maintenance connection.
  * @throws {RefusedError} R5: no database is selected; the rows name more
  *   than one database or none; the database is a system database; or a row
  *   is not of the expected shape.
@@ -264,7 +275,8 @@ export interface PostgresRoutine {
 }
 
 /**
- * The postgres catalogue in scope, read before any DDL. Extension members,
+ * The postgres catalogue in scope, read inside the reset transaction before
+ * any DDL. Extension members,
  * sequences owned by a column, table rowtypes and routines a type owns are
  * already excluded by the queries.
  */
@@ -486,7 +498,8 @@ const CENSUS_CHECK = [
  * 4. raise — rolling everything back — when any object of the census is
  *    gone, naming the first ten of them (R7).
  *
- * @param catalogue - The catalogue in scope, read before any DDL.
+ * @param catalogue - The catalogue in scope, read inside the transaction
+ *   before any DDL.
  * @param scope - The reset scope.
  * @returns The statements for one transaction.
  * @throws {RefusedError} When `schemaFilter` or `migrations.schema`
@@ -644,18 +657,14 @@ const RESET_POLICIES: Record<Dialect, ResetPolicy> = {
         describe: () =>
             'sqlite: every table and view of the main database, ' +
             'the bookkeeping table included',
-        plan: async (maintenance) =>
-            planSqliteReset(await maintenance.query(SQLITE_CATALOGUE)),
+        plan: async (read) => planSqliteReset(await read(SQLITE_CATALOGUE)),
     },
     mysql: {
         describe: () =>
             "mysql: every table and view of the connection's database, " +
             'the bookkeeping table included',
-        plan: async (maintenance, scope) =>
-            planMysqlReset(
-                await maintenance.query(MYSQL_CATALOGUE),
-                scope.table,
-            ),
+        plan: async (read, scope) =>
+            planMysqlReset(await read(MYSQL_CATALOGUE), scope.table),
     },
     postgres: {
         describe: (scope) =>
@@ -664,15 +673,15 @@ const RESET_POLICIES: Record<Dialect, ResetPolicy> = {
             }, plus the bookkeeping table ${quote(bookkeepingSchema(scope))}.${
                 quote(scope.table)
             }`,
-        plan: async (maintenance, scope) => {
-            // Refused before the catalogue is read, as well as in the planner.
-            refuseSystemSchemas(scope)
+        // Refused before the transaction opens, as well as in the planner.
+        refuseScope: refuseSystemSchemas,
+        plan: async (read, scope) => {
             const queries = postgresCatalogueQueries(scope.schemaFilter)
             const [relations, types, routines, extensions] = [
-                await maintenance.query(queries.relations),
-                await maintenance.query(queries.types),
-                await maintenance.query(queries.routines),
-                await maintenance.query(queries.extensions),
+                await read(queries.relations),
+                await read(queries.types),
+                await read(queries.routines),
+                await read(queries.extensions),
             ]
             return planPostgresReset({
                 relations: relations.map((row) => ({
@@ -714,10 +723,16 @@ export function describeResetScope(scope: ResetScope): string {
 }
 
 /**
- * Empty the managed scope: read the catalogue, plan, refuse or run the plan
- * in one dedicated session.
+ * Empty the managed scope: refuse what the scope alone rules out, then hand
+ * the connection a planner that reads the catalogue inside the driver's unit
+ * and refuses or returns the plan, which the driver then runs in that unit.
  *
- * @param maintenance - The connection's maintenance capability.
+ * **A refusal comes back as itself.** Whatever the connection's `execute`
+ * rejects with — a wrapper that redacts, a custom connection that re-wraps
+ * every failure — an error the planner threw is rethrown unchanged, so the
+ * command can still say "Nothing was dropped" for a `RefusedError`.
+ *
+ * @param connection - The maintenance connection.
  * @param scope - The reset scope.
  * @returns Resolves once the scope is empty.
  * @throws {RefusedError} R5, R6, or a system target (a MySQL system
@@ -727,19 +742,33 @@ export function describeResetScope(scope: ResetScope): string {
  *
  * @example
  * ```ts
- * await resetDatabase(maintenance, settings)
- * await maintenance.migrate({ folder: settings.folder, table: settings.table })
+ * await resetDatabase(connection, settings)
+ * await connection.migrate({ folder: settings.folder, table: settings.table })
  * ```
  */
 export async function resetDatabase(
-    maintenance: SchemaMaintenance,
+    connection: Pick<MaintenanceConnection, 'execute'>,
     scope: ResetScope,
 ): Promise<void> {
-    const statements = await RESET_POLICIES[scope.dialect].plan(
-        maintenance,
-        scope,
-    )
-    await maintenance.execute(statements)
+    const policy = RESET_POLICIES[scope.dialect]
+    policy.refuseScope?.(scope)
+    let planned: { readonly error: unknown } | undefined
+    try {
+        await connection.execute(async (read) => {
+            try {
+                return await policy.plan(read, scope)
+            } catch (error) {
+                // Recorded, then re-thrown: the driver must see the planner
+                // fail to roll its unit back.
+                planned = { error }
+                throw error
+            }
+        })
+    } catch (error) {
+        // Not swallowed: re-thrown, as the planner's own error when it
+        // failed, whatever the connection made of it.
+        throw planned ? planned.error : error
+    }
 }
 
 // =============================================================================

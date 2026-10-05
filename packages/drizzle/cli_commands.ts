@@ -30,7 +30,7 @@ import {
     ALLOW_PRODUCTION_FLAG,
     assertNotProduction,
 } from './production_guard.ts'
-import type { SchemaMaintenance } from './drivers.ts'
+import type { MaintenanceConnection } from './drivers.ts'
 import { DRIZZLE_KIT_SPECIFIER } from './generators/dialect_schema.ts'
 import {
     defaultLoadMigrationConfig,
@@ -48,6 +48,7 @@ import {
     renderMigrationStatus,
 } from './migration_status.ts'
 import { RefusedError } from './refusal.ts'
+import { settleInOrder, type SettleStep } from './settle_in_order.ts'
 import { kitFailure, type KitSubcommand } from './kit_outcome.ts'
 import {
     type CommandResult,
@@ -97,27 +98,39 @@ export interface DbConnection {
 }
 
 /**
- * One open connection's schema-maintenance capability, plus the way to close
- * it — what `db:fresh` resets and migrates through (#435), what `db:migrate`
- * migrates through (#442), and what `db:status` reads through (#439).
- */
-export type MaintenanceSession = SchemaMaintenance & {
-    /** Close the connection. Called on every path that opened it. */
-    close(): Promise<void>
-}
-
-/**
- * Opens the connection `db:migrate`, `db:fresh` and `db:status` work on, from
- * the settings read out of `drizzle.config.ts` — its url and dialect.
+ * Opens the one connection `db:migrate`, `db:fresh` and `db:status` work on,
+ * from the settings read out of `drizzle.config.ts` — its url and dialect:
+ * what `db:fresh` resets and migrates through (#435), what `db:migrate`
+ * migrates through (#442), and what `db:status` reads through (#439), all on
+ * one dedicated connection (#447).
+ *
+ * The connection's `close()` releases everything the opener acquired; the
+ * command calls it once, on every path that opened it.
  *
  * @param settings - The validated settings.
- * @returns The open session.
+ * @returns The open connection.
  * @throws When the client cannot be configured, or has no maintenance
  *   capability (a refusal: nothing is changed).
+ *
+ * @example
+ * ```ts
+ * const openMaintenance: MaintenanceOpener = async (settings) => {
+ *     const db = new Database()
+ *     await db.connect(settings.url, { driver: settings.dialect, silent: true })
+ *     const connection = await db.maintenance!.open()
+ *     return {
+ *         ...connection,
+ *         close: async () => {
+ *             await connection.close()
+ *             await db.close()
+ *         },
+ *     }
+ * }
+ * ```
  */
 export type MaintenanceOpener = (
     settings: MigrationSettings,
-) => Promise<MaintenanceSession>
+) => Promise<MaintenanceConnection>
 
 /**
  * The injectable I/O seams of the Drizzle CLI commands.
@@ -240,14 +253,20 @@ async function initDatabase(): Promise<Database> {
 
 /**
  * Production opener: configures the container's `Database` from the
- * `drizzle.config.ts` url and dialect, and hands out its redacting
- * maintenance capability. Being the in-process client, it routes postgres
- * notices through the #454 reporter.
+ * `drizzle.config.ts` url and dialect, and opens one connection through its
+ * redacting maintenance capability. Being the in-process client, it routes
+ * postgres notices through the #454 reporter.
+ *
+ * Whatever it acquired is released on every path, the first failure kept:
+ * the `Database` is closed when the capability is missing or the connection
+ * cannot be opened, and the connection's `close()` closes the connection,
+ * then the `Database`.
  *
  * @param settings - The validated settings.
- * @returns The session; closing it closes the `Database`.
+ * @returns The connection; closing it closes the connection, then the
+ *   `Database`, and rejects with the first close failure.
  * @throws {Error} When the client cannot be configured (the redacted
- *   `ConnectionResult.error`).
+ *   `ConnectionResult.error`), or the connection cannot be opened.
  * @throws {RefusedError} R4, `kitOnly`: the driver offers no maintenance
  *   capability — a custom driver factory need not. The client is closed.
  */
@@ -262,17 +281,58 @@ const defaultOpenMaintenance: MaintenanceOpener = async (settings) => {
             `Database not configured: ${result.error ?? 'unknown error'}`,
         )
     }
+    const closeDatabase = { what: 'close the database', run: () => db.close() }
+    // `error` stays the failure reported; a close failure after it is logged.
+    const failClosing = async (
+        what: string,
+        error: unknown,
+    ): Promise<never> => {
+        await settleInOrder([failWith(what, error), closeDatabase])
+        throw error // settleInOrder has already thrown it; this types `never`
+    }
     const maintenance = db.maintenance
     if (!maintenance) {
-        await db.close()
-        throw new RefusedError(
-            `the '${settings.dialect}' driver offers no schema maintenance ` +
-                '(a custom driver factory?): give the factory a ' +
-                '`maintenance` capability',
-            { kitOnly: true },
+        return failClosing(
+            'refuse',
+            new RefusedError(
+                `the '${settings.dialect}' driver offers no schema maintenance ` +
+                    '(a custom driver factory?): give the factory a ' +
+                    '`maintenance` capability',
+                { kitOnly: true },
+            ),
         )
     }
-    return { ...maintenance, close: () => db.close() }
+    let connection: MaintenanceConnection
+    try {
+        connection = await maintenance.open()
+    } catch (error) {
+        return failClosing('open the maintenance connection', error)
+    }
+    return {
+        query: (sql) => connection.query(sql),
+        execute: (planner) => connection.execute(planner),
+        migrate: (options) => connection.migrate(options),
+        close: () =>
+            settleInOrder([
+                {
+                    what: 'close the maintenance connection',
+                    run: () => connection.close(),
+                },
+                closeDatabase,
+            ]),
+    }
+}
+
+/**
+ * A step that has already failed, so {@link settleInOrder} keeps it as the
+ * first failure and still runs the release steps after it.
+ *
+ * @param what - What failed, as a verb phrase.
+ * @param error - The failure.
+ * @returns The step.
+ */
+function failWith(what: string, error: unknown): SettleStep {
+    return { what, run: () => Promise.reject(error) }
 }
 
 /**
@@ -435,9 +495,9 @@ async function handleMigrate(deps: DrizzleCommandDeps): Promise<void> {
         })
     }
 
-    let session: MaintenanceSession
+    let connection: MaintenanceConnection
     try {
-        session = await deps.openMaintenance(settings)
+        connection = await deps.openMaintenance(settings)
     } catch (error) {
         throw new CommandFailedError(
             failureMessage(
@@ -451,7 +511,7 @@ async function handleMigrate(deps: DrizzleCommandDeps): Promise<void> {
 
     try {
         try {
-            await session.migrate({
+            await connection.migrate({
                 folder: settings.folder,
                 table: settings.table,
                 schema: settings.schema,
@@ -464,13 +524,13 @@ async function handleMigrate(deps: DrizzleCommandDeps): Promise<void> {
         }
         console.log('✅ Migrations applied successfully')
     } finally {
-        await session.close()
+        await connection.close()
     }
 }
 
 /**
  * Handle `db:fresh` — empty the managed scope, then apply every migration,
- * in one process over one connection (#435).
+ * in one process over one connection (#435, #447).
  *
  * Order: the production guard, the settings from `drizzle.config.ts` (R2,
  * R3), the connection (R4), the reset (R5–R7), the migrate; the connection is
@@ -481,7 +541,9 @@ async function handleMigrate(deps: DrizzleCommandDeps): Promise<void> {
  * @param args - Command arguments (optional `--allow-production`).
  * @param deps - The I/O seams.
  * @throws {CommandFailedError} On any failure; a refusal says that nothing
- *   was dropped, and a failed reset that the migrations were not run.
+ *   was dropped, a failed reset that the migrations were not run, and a
+ *   failed migrate that the database was emptied: the reset is committed
+ *   before the migrate runs, on every dialect.
  */
 async function handleFresh(
     args: string[],
@@ -498,9 +560,9 @@ async function handleFresh(
         })
     }
 
-    let session: MaintenanceSession
+    let connection: MaintenanceConnection
     try {
-        session = await deps.openMaintenance(settings)
+        connection = await deps.openMaintenance(settings)
     } catch (error) {
         throw new CommandFailedError(
             failureMessage('db:fresh', error, 'Could not open the database: '),
@@ -511,7 +573,7 @@ async function handleFresh(
     try {
         console.log(`🗑️  Resetting ${describeResetScope(settings)}`)
         try {
-            await resetDatabase(session, settings)
+            await resetDatabase(connection, settings)
         } catch (error) {
             throw new CommandFailedError(
                 failureMessage(
@@ -525,7 +587,7 @@ async function handleFresh(
 
         console.log(`🔄 Applying ${settings.migrations} migration(s)...`)
         try {
-            await session.migrate({
+            await connection.migrate({
                 folder: settings.folder,
                 table: settings.table,
                 schema: settings.schema,
@@ -539,7 +601,7 @@ async function handleFresh(
         }
         console.log('✅ Database refreshed successfully')
     } finally {
-        await session.close()
+        await connection.close()
     }
 }
 
@@ -570,9 +632,9 @@ async function handleStatus(deps: DrizzleCommandDeps): Promise<void> {
         })
     }
 
-    let session: MaintenanceSession
+    let connection: MaintenanceConnection
     try {
-        session = await deps.openMaintenance(settings)
+        connection = await deps.openMaintenance(settings)
     } catch (error) {
         throw new CommandFailedError(
             failureMessage('db:status', error, 'Could not open the database: '),
@@ -582,14 +644,14 @@ async function handleStatus(deps: DrizzleCommandDeps): Promise<void> {
 
     let rows: readonly BookkeepingRow[] | undefined
     try {
-        rows = await readBookkeeping(session, settings)
+        rows = await readBookkeeping(connection, settings)
     } catch (error) {
         throw new CommandFailedError(
             `Could not read the migration status: ${getErrorMessage(error)}`,
             { cause: error },
         )
     } finally {
-        await session.close()
+        await connection.close()
     }
 
     const report = renderMigrationStatus(

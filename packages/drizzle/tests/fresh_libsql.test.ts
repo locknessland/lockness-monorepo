@@ -11,8 +11,11 @@
  * migrations folder is byte- and mtime-identical.
  *
  * A `:memory:` database lives as long as its connection, so the test opens
- * the handle itself and passes its session through the `openMaintenance`
- * seam; the handle is closed at the end, which `test:leaks` checks.
+ * the handle itself and passes its maintenance connection through the
+ * `openMaintenance` seam; the handle is closed at the end, which `test:leaks`
+ * checks. The connection is a view over the handle's client (#447): the
+ * reads and the reset run in one write transaction, the migrate on the same
+ * database.
  *
  * @module @lockness/drizzle/tests/fresh_libsql
  */
@@ -91,20 +94,22 @@ Deno.test('#435 db:fresh on a real libsql :memory: database', async () => {
     const { log } = console
     try {
         await writeMigrations(folder)
-        const maintenance = handle.maintenance
-        if (!maintenance) {
+        if (!handle.maintenance) {
             throw new Error('the sqlite factory has no maintenance')
         }
+        const maintenance = await handle.maintenance.open()
 
         // A database a fresh must empty: migrated, filled, and drifted.
         await maintenance.migrate({ folder, table: '__drizzle_migrations' })
-        await maintenance.execute([
-            "INSERT INTO `users` VALUES (1, 'ada')",
-            'INSERT INTO `posts` (`user_id`) VALUES (1)',
-            'INSERT INTO `comments` VALUES (1, 1)',
-            'CREATE TABLE `stray` (`user_id` integer REFERENCES `users`(`id`))',
-            'INSERT INTO `stray` VALUES (1)',
-        ])
+        await maintenance.execute(() =>
+            Promise.resolve([
+                "INSERT INTO `users` VALUES (1, 'ada')",
+                'INSERT INTO `posts` (`user_id`) VALUES (1)',
+                'INSERT INTO `comments` VALUES (1, 1)',
+                'CREATE TABLE `stray` (`user_id` integer REFERENCES `users`(`id`))',
+                'INSERT INTO `stray` VALUES (1)',
+            ])
+        )
         const [{ fk }] = await maintenance.query(
             'SELECT foreign_keys AS fk FROM pragma_foreign_keys',
         )
