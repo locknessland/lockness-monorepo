@@ -19,6 +19,8 @@
  *   leaves a probe failure rendering with nothing held and the bare password
  *   shown (M10–M12).
  * - **`silent` silences everything, and the CLI uses it** (M14–M19).
+ * - **No default target (#443).** `initDatabase` refuses an unset or blank
+ *   `DATABASE_URL` before any client is built (M20).
  *
  * The rows that strand the instance in `configuring` (M7, M8) would make a
  * `close()` after a failed `connect()` wait forever; the suites close only a
@@ -53,6 +55,17 @@ const RESERVATION = `let settle!: () => void
                 settle = resolve
             }),
         }
+`
+
+/** `initDatabase`'s refusal of an unset or blank `DATABASE_URL` (#443). */
+const REFUSAL = `    if (url === undefined || url.trim() === '') {
+        const state = url === undefined ? 'not set' : 'empty'
+        throw new Error(
+            \`Database not configured: DATABASE_URL is \${state}, so no \` +
+                'database is named; the db:* commands never fall back to a ' +
+                'default database',
+        )
+    }
 `
 
 /** The assignment that makes a built client the configured one. */
@@ -236,8 +249,8 @@ const MUTATIONS: Mutation[] = [
             'M17 initDatabase is not silent — "Database configured" is claimed',
         file: CLI,
         edits: [[
-            "'postgres://localhost:5432/lockness',\n        { silent: true },",
-            "'postgres://localhost:5432/lockness',\n        {},",
+            'await db.connect(url, { silent: true })',
+            'await db.connect(url, {})',
         ]],
         killedBy: '#427 T11',
     },
@@ -256,6 +269,22 @@ const MUTATIONS: Mutation[] = [
             '} catch (error) {\n                console.error(getErrorMessage(error))\n                throw new CommandFailedError(\n                    `Database connection failed:',
         ]],
         killedBy: '#427 T12',
+    },
+
+    // ---- No default target (#443) -----------------------------------------
+    {
+        label:
+            'M20 initDatabase refusal deleted — db:seed and db:check reach a database nobody named',
+        file: CLI,
+        // `?? ''` keeps the mutant type-checking, so it dies in T1, not tsc.
+        edits: [
+            [REFUSAL, ''],
+            [
+                'await db.connect(url, { silent: true })',
+                "await db.connect(url ?? '', { silent: true })",
+            ],
+        ],
+        killedBy: '#443 T1',
     },
 ]
 

@@ -339,16 +339,24 @@ Deno.test('db:check - a connect() that rejects is a CommandFailedError', async (
 
 /**
  * Run `fn` against a fresh container `Database` singleton whose postgres
- * driver is `factory`, with `DATABASE_URL` set — the default connection port
- * (`initDatabase`) with only the client faked. Resets the singleton and the
- * variable before and after.
+ * driver is `factory`, with `DATABASE_URL` set as `env` gives it (deleted when
+ * `undefined`) — the default connection port (`initDatabase`) with only the
+ * client faked. Resets the singleton and the variable before and after.
+ *
+ * An object, not a bare `url = …` parameter: a default parameter would
+ * swallow an explicit `undefined`, the very value the unset case passes.
  */
 async function withDefaultPort(
     factory: Parameters<Database['setDriverFactory']>[1],
     fn: () => Promise<void>,
+    env: { readonly DATABASE_URL: string | undefined } = {
+        DATABASE_URL: 'postgres://u:p@h:5432/app',
+    },
 ): Promise<void> {
     const prevUrl = Deno.env.get('DATABASE_URL')
-    Deno.env.set('DATABASE_URL', 'postgres://u:p@h:5432/app')
+    const url = env.DATABASE_URL
+    if (url === undefined) Deno.env.delete('DATABASE_URL')
+    else Deno.env.set('DATABASE_URL', url)
     container.delete(Database)
     try {
         container.get(Database).setDriverFactory('postgres', factory)
@@ -421,6 +429,56 @@ Deno.test('#427 T12 a real Cli prints a failed db:check once and exits 1', async
         }
     })
 })
+
+/** The refusal `initDatabase` throws when `DATABASE_URL` names nothing. */
+const NO_TARGET = (state: string) =>
+    `Database not configured: DATABASE_URL is ${state}, so no database is ` +
+    'named; the db:* commands never fall back to a default database'
+
+const UNNAMED_TARGETS: ReadonlyArray<
+    readonly [label: string, url: string | undefined, state: string]
+> = [
+    ['unset', undefined, 'not set'],
+    ["''", '', 'empty'],
+    ["'   '", '   ', 'empty'],
+]
+
+for (const command of ['db:seed', 'db:check']) {
+    for (const [label, url, state] of UNNAMED_TARGETS) {
+        Deno.test(`#443 T1 ${command} refuses before connecting when DATABASE_URL is ${label}`, async () => {
+            let built = 0
+            let loaded = false
+            await withDefaultPort(() => {
+                built++
+                return Promise.resolve({
+                    db: {},
+                    probe: () => Promise.resolve(),
+                    close: () => Promise.resolve(),
+                })
+            }, async () => {
+                const cli = new FakeCli()
+                registerDrizzleCommands(cli, {
+                    loadSeeder: () => {
+                        loaded = true
+                        return Promise.resolve({})
+                    },
+                })
+
+                const { error } = await capture(() =>
+                    withAppEnv(undefined, () => cli.run(command))
+                )
+
+                assert(
+                    error instanceof CommandFailedError,
+                    `${command} did not refuse: ${error}`,
+                )
+                assertStringIncludes(error.message, NO_TARGET(state))
+                assertEquals(built, 0, 'a client was built')
+                assertEquals(loaded, false, 'a seeder was loaded')
+            }, { DATABASE_URL: url })
+        })
+    }
+}
 
 // -----------------------------------------------------------------------------
 // db:seed — seeder-loader port only, no dynamic import

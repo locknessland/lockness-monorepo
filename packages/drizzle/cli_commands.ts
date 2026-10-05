@@ -198,6 +198,11 @@ const STUBS_PATH: string = import.meta.url.startsWith('file://')
 /**
  * Configure the container's database client from `DATABASE_URL`.
  *
+ * No default target (#443): an unset or blank variable names no database, so
+ * this refuses before `connect()` rather than seed or probe a database the app
+ * never chose — the same answer `drizzle.config.ts` gives `db:migrate` and
+ * `db:fresh` when it carries no `dbCredentials`.
+ *
  * `connect()` makes no round trip (#420), so its `success: false` — a missing
  * client package, or a URL the client rejects — is the only signal that the
  * configuration is broken. It is turned into a throw here: a command that goes
@@ -208,15 +213,22 @@ const STUBS_PATH: string = import.meta.url.startsWith('file://')
  * a false claim just before a probe that fails.
  *
  * @returns The configured Database instance.
- * @throws {Error} When the client could not be configured; the message is the
- *   redacted `ConnectionResult.error`.
+ * @throws {Error} When `DATABASE_URL` is unset or blank — before any client is
+ *   built — or when the client could not be configured; the message is then
+ *   the redacted `ConnectionResult.error`.
  */
 async function initDatabase(): Promise<Database> {
+    const url = Deno.env.get('DATABASE_URL')
+    if (url === undefined || url.trim() === '') {
+        const state = url === undefined ? 'not set' : 'empty'
+        throw new Error(
+            `Database not configured: DATABASE_URL is ${state}, so no ` +
+                'database is named; the db:* commands never fall back to a ' +
+                'default database',
+        )
+    }
     const db = container.get<Database>(Database)
-    const result = await db.connect(
-        Deno.env.get('DATABASE_URL') || 'postgres://localhost:5432/lockness',
-        { silent: true },
-    )
+    const result = await db.connect(url, { silent: true })
     if (!result.success) {
         throw new Error(
             `Database not configured: ${result.error ?? 'unknown error'}`,

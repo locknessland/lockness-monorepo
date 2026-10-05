@@ -1,11 +1,13 @@
 import { defineConfig } from 'drizzle-kit'
 
+// No fallback, like config/database.ts: unset means `db:migrate` says so and
+// `db:fresh` refuses. A default URL would point a destructive command at a
+// database nobody chose.
+const url = Deno.env.get('DATABASE_URL')
+
 export default defineConfig({
     schema: './app/model/*.ts',
     out: './database/migrations',
     dialect: '{{ dialect }}',
-    dbCredentials: {
-        url: Deno.env.get('DATABASE_URL') ||
-            'postgres://localhost:5432/{{projectName}}',
-    },
+    ...(url ? { dbCredentials: { url } } : {}),
 })
