@@ -56,8 +56,12 @@ export interface DatabaseConfig {
     driver?: 'postgres' | 'mysql' | 'sqlite'
 
     /**
-     * Whether to automatically connect on startup
-     * @default true
+     * Has no effect: nothing has ever read it (#421). Setting it, to any
+     * value, raises a deprecation notice at boot and changes nothing else —
+     * `false` does not keep boot off the database. The client is configured
+     * whenever a URL is available, with no round trip (#420).
+     *
+     * @deprecated Since 0.5.0. Has no effect; removed in v0.6.0. Delete it.
      */
     autoConnect?: boolean
 }

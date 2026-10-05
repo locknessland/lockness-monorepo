@@ -16,7 +16,36 @@ import {
 } from '../optional_packages.ts'
 import { container } from '@lockness/container'
 import { registerHealthCheck, renderError } from '@lockness/contract'
+import { triggerDeprecation } from '@lockness/deprecation-contracts'
+import type { KernelConfig } from '../../kernel_decorators.ts'
 import { SHUTDOWN_PRIORITY } from '../../shutdown_registry.ts'
+
+/**
+ * Report a set `database.autoConnect` — a field nothing has ever read (#421).
+ *
+ * Fires on the field's presence, whatever its value: `false` never kept boot
+ * off the database, so a user relying on it is misled either way. Once per
+ * boot, because the step runs once per `createApp()`. It only reports: boot
+ * behaviour is the same with or without the field.
+ *
+ * @param setting - The kernel's `database` key.
+ * @returns void
+ * @throws {Error} When `STRICT_DEPRECATIONS=true` — the deprecation
+ * package's own contract, which an application opts into.
+ */
+function reportDeprecatedAutoConnect(
+    setting: KernelConfig['database'],
+): void {
+    if (typeof setting !== 'object' || setting.autoConnect === undefined) {
+        return
+    }
+    triggerDeprecation(
+        '@lockness/core',
+        '0.5.0',
+        '`database.autoConnect` has no effect and is removed in v0.6.0 — ' +
+            'delete it from your @Kernel() database config',
+    )
+}
 
 /** The notice reporter port `@lockness/drizzle` declares, structurally. */
 interface NoticeReporter {
@@ -81,6 +110,7 @@ async function buildNoticeReporter(
  * - With `logger: true`, route PostgreSQL server notices to the application's
  *   logger — warnings at `warn`, the rest at `debug` (#454)
  * - Register the `database` readiness check behind `/ready`
+ * - Raise a deprecation notice when `database.autoConnect` is set (#421)
  * - Refuse the boot if `database` is set and the package does not resolve
  */
 export const databaseStep: BootstrapStep = {
@@ -89,6 +119,9 @@ export const databaseStep: BootstrapStep = {
 
     async run(context) {
         const setting = context.config.database
+        // Before the package load, so the notice is raised even on a boot the
+        // loader then refuses.
+        reportDeprecatedAutoConnect(setting)
         const drizzleModule = await loadConfiguredPackage<{
             Database: new () => {
                 connect(

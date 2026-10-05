@@ -2,7 +2,12 @@
  * Tests for @Kernel decorator and createApp() function
  */
 
-import { assertEquals, assertExists, assertThrows } from '@std/assert'
+import {
+    assertEquals,
+    assertExists,
+    assertStringIncludes,
+    assertThrows,
+} from '@std/assert'
 import {
     createApp,
     DeclareGlobalMiddleware,
@@ -15,6 +20,11 @@ import {
 import type { App } from '../app.ts'
 import { container } from '@lockness/container'
 import { Database } from '@lockness/drizzle'
+import {
+    type DeprecationEntry,
+    registerCollector,
+    unregisterCollector,
+} from '@lockness/deprecation-contracts'
 
 /**
  * Close and drop the container's `Database` singleton. A boot with a database
@@ -294,7 +304,6 @@ Deno.test({
         @Kernel({
             database: {
                 url: 'postgres://localhost:5432/test',
-                autoConnect: true,
             },
             controllers: [],
         })
@@ -307,6 +316,78 @@ Deno.test({
         } finally {
             await resetDatabase()
         }
+    },
+})
+
+/** Boot `database`, recording every deprecation notice the boot raises. */
+async function bootRecordingDeprecations(
+    database: KernelConfig['database'],
+): Promise<DeprecationEntry[]> {
+    const entries: DeprecationEntry[] = []
+    registerCollector({ addDeprecation: (entry) => void entries.push(entry) })
+    try {
+        @Kernel({ database, controllers: [] })
+        class TestKernel {}
+        await createApp(TestKernel)
+        return entries
+    } finally {
+        unregisterCollector()
+        await resetDatabase()
+    }
+}
+
+Deno.test({
+    name:
+        'createApp - a set database.autoConnect raises one deprecation notice naming v0.6.0 (#421)',
+    fn: async () => {
+        // `false` on purpose: the value is irrelevant — the field has never
+        // been read, so setting it at all is what the notice reports.
+        const entries = await bootRecordingDeprecations({
+            url: 'postgres://localhost:5432/test',
+            autoConnect: false,
+        })
+
+        assertEquals(entries.length, 1, 'one notice per boot')
+        const [entry] = entries
+        assertEquals(entry.pkg, '@lockness/core')
+        assertEquals(entry.version, '0.5.0')
+        assertStringIncludes(entry.message, 'database.autoConnect')
+        assertStringIncludes(entry.message, 'v0.6.0')
+    },
+})
+
+Deno.test({
+    name:
+        'createApp - database.autoConnect: false still configures the database (#421)',
+    fn: async () => {
+        registerCollector({ addDeprecation: () => {} })
+        try {
+            @Kernel({
+                database: {
+                    url: 'postgres://localhost:5432/test',
+                    autoConnect: false,
+                },
+                controllers: [],
+            })
+            class TestKernel {}
+            await createApp(TestKernel)
+            // A deprecation is a signal, not a behaviour change.
+            assertEquals(container.get(Database).isConnected(), true)
+        } finally {
+            unregisterCollector()
+            await resetDatabase()
+        }
+    },
+})
+
+Deno.test({
+    name:
+        'createApp - a database config without autoConnect raises no deprecation notice (#421)',
+    fn: async () => {
+        const entries = await bootRecordingDeprecations({
+            url: 'postgres://localhost:5432/test',
+        })
+        assertEquals(entries, [])
     },
 })
 
