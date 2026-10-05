@@ -93,6 +93,22 @@ Anything not listed is internal and free to change.
   DSN's values and withholds a message that echoes one (#438). Add a stem or a
   code qualifier there, never a second list beside a caller — two lists drift on
   the first vendor name somebody adds to only one.
+- **`renderMessage` renders text, `renderError` renders an error, and both share
+  one redaction chain** (#436). `renderMessage(text)` (`logging/sanitize.ts`,
+  exported on `@lockness/contract/logging/internal` only) is what
+  `@lockness/cli` prints after `❌` for a failure: DSN userinfo, then credential
+  pairs, then `safeForLog` — control and format characters encoded, so a newline
+  cannot forge a second line, and bounded at 512 code points. No name, no code,
+  no cause: the CLI renders a failure's `cause` with `renderError` after it.
+  Breaks when:
+  - it gets its own redaction steps — the chain is private to `sanitize.ts` and
+    shared with `renderOne`/`renderFrame`, so a message and an error can never
+    disagree about what is a credential;
+  - it moves to the root — `core` re-exports the root to every app, and this is
+    a helper for packages;
+  - a caller pre-renders a caught error into the message — the error belongs in
+    `cause`, rendered once by the printer. Its blind spots are `renderError`'s
+    (next item).
 - **Short numeric secrets are stems, and `code` needs a qualifier** (#497).
   `pin`, `otp`, `cvv` and `cvc` are ends-with stems with no digit exemption
   (`pin=4821` masks; `max_pins=8` is never a count); the pinned over-match is

@@ -172,6 +172,11 @@ Options:
 - `--title <title>`: API title (default: `Lockness API`)
 - `--version <version>`: API version (default: `1.0.0`)
 
+If a controller file fails to load, or `app/controller` cannot be read, the
+command writes no file, prints `❌ Could not scan the controllers` followed by
+the error that stopped the scan (which names the file), and exits `1`: a
+document missing a controller would look complete.
+
 ## API Documentation Metadata
 
 The `@ApiDoc()` decorator accepts the following properties:

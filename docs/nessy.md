@@ -13,7 +13,9 @@ deno task cli nessy:install
 ```
 
 This creates a `nessy` script (or `nessy.cmd` on Windows) in your project root
-and makes it executable. The script is automatically added to `.gitignore`.
+and makes it executable, replacing any earlier copy. If your `.gitignore` does
+not mention `nessy`, the command reminds you to add it. Run it from the
+directory that holds `cli.ts`: elsewhere it writes nothing and exits `1`.
 
 ## Basic Usage
 
@@ -236,11 +238,29 @@ CI step:
 ./nessy db:migrate && ./nessy start   # start only if the migration succeeded
 ```
 
-A command that succeeds exits `0`. A command that fails prints `❌ <message>`
-once on stderr and exits non-zero, `1` unless the command sets another code. An
-unknown command also exits `1`; `./nessy` with no command lists the commands and
-exits `0`. Command authors report a failure by throwing `CommandFailedError` —
-see the [CLI docs](../packages/cli/docs/DOCS.md#exit-codes).
+A command that succeeds exits `0`. A command that fails prints one line on
+stderr, `❌ <message>`, followed on the same line by `caused by: <error>` when
+another error caused it, and exits non-zero: `1` unless the command sets another
+code. This holds for every built-in command and every `make:*` generator. An
+error the command did not expect prints `❌ <command> failed:` with its stack
+frames, credentials redacted, and exits `1`. An unknown command also exits `1`;
+`./nessy` with no command lists the commands and exits `0`.
+
+The wrapper's own shortcuts follow the same rule:
+
+- `init`, `dev`, `build`, `compile`, `start`, `test`, `check`, `watch`,
+  `install <pkg>` and `bump <version>` run one `deno` command and exit with its
+  status, so `./nessy compile` fails a script or a container build when
+  compilation fails.
+- `./nessy install` with no package prints
+  `❌ Please specify a package to install.` and its usage on stderr and exits
+  `1`; `./nessy bump` with no version does the same (`bump` exists in the Unix
+  `nessy` script only).
+- `fresh`, `clean` and `status` end on a summary line, so they exit `0` even
+  when one of their steps failed: read their output rather than their status.
+
+Command authors report a failure by throwing `CommandFailedError` — see the
+[CLI docs](../packages/cli/docs/DOCS.md#exit-codes).
 
 ## Examples
 

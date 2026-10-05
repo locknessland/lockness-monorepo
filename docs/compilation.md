@@ -15,8 +15,8 @@ order:
 1. **Kernel lookup**: Reads the `@Kernel` from `app/kernel.ts`, the file
    `lockness init` and every kit ship. `app/kernel.tsx` also works. If both
    exist, `app/kernel.ts` wins and the `.tsx` is not read. `ssg:build` uses the
-   same lookup. If neither file exists, `compile` prints both paths it tried and
-   builds nothing.
+   same lookup. If neither file exists, `compile` prints both paths it tried,
+   builds nothing and exits `1`.
 2. **Preparation**: Ensures the output directory (default: `_dist`) exists.
 3. **Routes Generation**: Automatically scans your controllers and generates
    `app/routes.ts`. This ensures all routes are statically available for the
@@ -28,6 +28,33 @@ order:
    directory alongside the binary.
 6. **Compilation**: Executes the native `deno compile` command with your
    configured flags.
+
+## When a step fails
+
+`compile` exits `0` only when the binary was built. Any failed step stops it
+**before `deno compile` runs**, so no binary is built from stale routes, without
+a declared asset, or after a failed script. It prints one line on stderr and
+exits `1`, so `deno task compile && deploy`, a CI step or a
+`RUN deno task cli compile` line in a Dockerfile fails with it:
+
+| Step that fails                                                                            | What `compile` prints                                                          |
+| :----------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------- |
+| No kernel file                                                                             | `❌ Kernel file not found (tried app/kernel.ts, app/kernel.tsx)`               |
+| Routes generation                                                                          | `❌ Failed to generate ./app/routes.ts from ./app/controller caused by: …`     |
+| A pre-compile script exits non-zero                                                        | `❌ Pre-compile script "<script>" failed (<program> exited <code>)`            |
+| A declared asset does not exist                                                            | `❌ Declared asset not found: <source>`                                        |
+| `deno compile` exits non-zero                                                              | `❌ Compilation failed (deno compile exited <code>)`                           |
+| Anything else (a kernel that fails to load, a copy that fails, a script that cannot start) | `❌ compile failed:` and the error with its stack frames, credentials redacted |
+
+- **A child process's output passes through as it is written.** Pre-compile
+  scripts and `deno compile` write straight to the terminal, so their own error
+  is on screen above the `❌` line, which names only the step and the exit code.
+- **Scripts stop at the first failure.** A later script, the asset copy and
+  `deno compile` do not run.
+- **What earlier steps did stays.** The output directory exists, `app/routes.ts`
+  may have been regenerated, and earlier scripts and assets have run or been
+  copied. A binary left at the `output` path by an earlier successful run is not
+  removed, so judge a build by the exit status, not by the file being there.
 
 ## Configuration
 
