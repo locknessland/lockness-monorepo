@@ -255,6 +255,11 @@ text, which may quote the DSN. There is no countdown any more.
 deno task cli db:push
 ```
 
+`db:generate` and `db:push` fail when drizzle-kit exits 0 after writing to
+stderr: a prompt that found no TTY, or a statement the server rejected. A failed
+push may leave the schema partly pushed. See
+[`db:generate` and `db:push` without a terminal](docs/DOCS.md#dbgenerate-and-dbpush-without-a-terminal).
+
 ### Database Management
 
 **Test connection:**
@@ -278,14 +283,14 @@ failure once on stderr, so scripts and CI can stop on it:
 deno task cli db:migrate && deno task start
 ```
 
-| Command                               | Exits `1` when                                                                                        |
-| :------------------------------------ | :---------------------------------------------------------------------------------------------------- |
-| `db:generate`, `db:push`, `db:studio` | the `drizzle-kit` subcommand exits non-zero                                                           |
-| `db:migrate`                          | it is refused, the client cannot be configured, or the migrator fails                                 |
-| `db:status`                           | `drizzle-kit check` exits non-zero (it validates the migrations folder only)                          |
-| `db:check`                            | the client cannot be configured or the `SELECT 1` probe fails                                         |
-| `db:fresh`                            | it is refused, the reset fails (migrations are then not run), or the migrate step fails               |
-| `db:seed`                             | production without `--allow-production`, no client, no seeder to load, or the seeder's `run()` throws |
+| Command                               | Exits `1` when                                                                                                             |
+| :------------------------------------ | :------------------------------------------------------------------------------------------------------------------------- |
+| `db:generate`, `db:push`, `db:studio` | the `drizzle-kit` subcommand exits non-zero; for `db:generate` and `db:push`, also when it exits 0 after writing to stderr |
+| `db:migrate`                          | it is refused, the client cannot be configured, or the migrator fails                                                      |
+| `db:status`                           | `drizzle-kit check` exits non-zero (it validates the migrations folder only)                                               |
+| `db:check`                            | the client cannot be configured or the `SELECT 1` probe fails                                                              |
+| `db:fresh`                            | it is refused, the reset fails (migrations are then not run), or the migrate step fails                                    |
+| `db:seed`                             | production without `--allow-production`, no client, no seeder to load, or the seeder's `run()` throws                      |
 
 Details: [docs/DOCS.md](docs/DOCS.md#exit-codes).
 
@@ -559,9 +564,10 @@ await database.db.transaction(async (tx) => {
 
 ## Upgrading to v0.5.0
 
-Three items. **Migration steps:** if your `drizzle.config.ts` uses anything but
+Four items. **Migration steps:** if your `drizzle.config.ts` uses anything but
 `dbCredentials: { url }`, rewrite it as a url (item 2); if it falls back to a
-default url, remove the fallback (item 3).
+default url, remove the fallback (item 3); if you override `runCommand`, return
+`{ code, stderr }` (item 4).
 
 ### 1. PostgreSQL server notices no longer print as raw objects
 
@@ -639,6 +645,31 @@ export default defineConfig({
 ```
 
 See [When `DATABASE_URL` is unset](#when-database_url-is-unset).
+
+### 4. `db:generate` and `db:push` fail on errors drizzle-kit swallows
+
+drizzle-kit prints some failures to stderr and still exits 0: a rename or
+data-loss prompt with no TTY, or an `ALTER` the server rejects during `db:push`.
+Both commands used to report success on those runs. Now a run fails if
+drizzle-kit wrote anything to stderr, even with exit 0. On a terminal, prompts
+work as before (#445).
+
+- **CI:** a `db:generate` or `db:push` that hit a rename without a TTY used to
+  pass and write nothing. It now exits 1. Run it in a terminal and commit the
+  migration; for CI, use `db:generate` locally and `db:migrate` in CI.
+- **Output:** the closing `✅ Migrations generated successfully` and
+  `✅ Schema pushed successfully` lines are gone. drizzle-kit's own last line
+  reports the outcome. If a script grepped for them, check the exit status
+  instead.
+- **TypeScript:** `CommandRunner` now resolves a `CommandResult`
+  (`{ code,
+  stderr }`) instead of a number. A test or wrapper that overrides
+  `runCommand` in `registerDrizzleCommands` must return that shape.
+- **mysql:** `db:push` on mysql is not covered: drizzle-kit prints its errors to
+  stdout there (#561).
+
+See
+[`db:generate` and `db:push` without a terminal](docs/DOCS.md#dbgenerate-and-dbpush-without-a-terminal).
 
 ## Dependencies
 

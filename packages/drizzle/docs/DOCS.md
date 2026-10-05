@@ -707,18 +707,81 @@ deno task cli db:migrate && deno task start
 
 A failure is printed once on stderr as `❌ <message>`; for the commands that run
 `drizzle-kit`, its own output comes first and the message ends with
-`(drizzle-kit <subcommand> exited <n>)`.
+`(drizzle-kit <subcommand> exited <n>)`. `db:generate` and `db:push` also fail
+when drizzle-kit exits 0 after writing to stderr; see
+[`db:generate` and `db:push` without a terminal](#dbgenerate-and-dbpush-without-a-terminal).
 
 | Command       | Exits `1` when                                                                                                                                                                                                                              |
 | :------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `db:generate` | `drizzle-kit generate` exits non-zero                                                                                                                                                                                                       |
+| `db:generate` | `drizzle-kit generate` exits non-zero, or exits 0 after writing to stderr (#445)                                                                                                                                                            |
 | `db:migrate`  | it is refused (see [`db:migrate`](#dbmigrate)), the client cannot be configured, or the migrator fails                                                                                                                                      |
-| `db:push`     | `drizzle-kit push` exits non-zero                                                                                                                                                                                                           |
+| `db:push`     | `drizzle-kit push` exits non-zero, or exits 0 after writing to stderr (#445)                                                                                                                                                                |
 | `db:studio`   | `drizzle-kit studio` exits non-zero                                                                                                                                                                                                         |
 | `db:status`   | `drizzle-kit check` exits non-zero. It validates the migrations folder only (snapshot versions, malformed snapshots, collisions); it reads neither the schema nor the database, so it reports no drift and no pending migrations            |
 | `db:check`    | `DATABASE_URL` is unset or blank, the client cannot be configured, or the `SELECT 1` probe fails. The message ends with a hint to check `DATABASE_URL`                                                                                      |
 | `db:fresh`    | it is refused (see [`db:fresh`](#dbfresh)), the reset fails — migrations are then **not** run — or the migrate step fails                                                                                                                   |
 | `db:seed`     | the environment is production without `--allow-production`, `DATABASE_URL` is unset or blank, the client cannot be configured, the seeder file is missing or exports no seeder, or the seeder's own `run()` throws (printed with its stack) |
+
+### `db:generate` and `db:push` without a terminal
+
+drizzle-kit 0.31.10's exit code does not report what `generate` and `push` did.
+On postgres and sqlite, their catch-alls print the error to **stderr** and exit
+**0**. The same happens when a prompt finds no TTY: a column rename ("rename or
+create?") or a data-loss confirmation. So Lockness judges these two commands on
+two signals. **A run passes only if drizzle-kit exits 0 and writes nothing but
+whitespace to stderr.** Measured with no TTY:
+
+| Run                                   | drizzle-kit exit | drizzle-kit stderr                             | Lockness                                     |
+| :------------------------------------ | :--------------- | :--------------------------------------------- | :------------------------------------------- |
+| `generate`, no schema change          | 0                | empty                                          | exit 0                                       |
+| `generate`, a column renamed          | 0                | `Interactive prompts require a TTY terminal …` | exit 1, says a terminal is needed; no file   |
+| `push`, clean (postgres)              | 0                | empty                                          | exit 0                                       |
+| `push`, a column renamed (postgres)   | 0                | `Interactive prompts require a TTY terminal …` | exit 1, says a terminal is needed; no change |
+| `push`, an `ALTER` the server rejects | 0                | `PostgresError: …`                             | exit 1, says the schema may be partly pushed |
+| `push`, `DATABASE_URL` unset          | 1                | empty (the message is on stdout)               | exit 1                                       |
+
+**Neither command hangs without a TTY.** drizzle-kit refuses a prompt whenever
+stdin or stdout is not a terminal. Lockness keeps both inherited, so on a
+terminal the prompt appears and can be answered as before. Only stderr is piped:
+Lockness forwards it live and keeps a copy to judge.
+
+**What a refusal tells you.** The refusal sentence picks only the wording of the
+failure, never whether the run failed:
+
+- `db:generate`: run it in a terminal and commit the migration. generate has no
+  non-interactive option for renames.
+- `db:push`: run it in a terminal. For CI, run `db:generate` locally and
+  `db:migrate` in CI.
+
+Any other stderr after an exit 0 fails with
+`(drizzle-kit <sub> exited 0 after reporting an error; see above)`. For
+`db:push` the message adds that **the schema may be partly pushed**: drizzle-kit
+runs its statements one at a time, outside a transaction, and Lockness cannot
+roll them back.
+
+**Why drizzle-kit is spawned with `deno run -q`.** Without `-q`, Deno writes to
+stderr itself on a project's first run: the npm `Initialize …` lines, the
+deprecated-package warning and "Ignored build scripts". The stderr rule would
+then fail a run that worked. The command a `db:migrate` refusal suggests you
+type omits `-q`; nothing judges that run.
+
+**There is no closing ✅ line any more.** Lockness cannot observe the outcome.
+drizzle-kit's own last line reports it: `No schema changes, nothing to migrate`,
+`[✓] Changes applied`, or `[x] All changes were aborted`.
+
+**Not covered:**
+
+- **`db:push` on mysql.** drizzle-kit's `mysqlPush` catch-all prints to
+  **stdout**, so its swallowed errors (a TTY refusal included) still exit 0 and
+  the stderr rule cannot see them. Tracked in #561.
+- **"No, abort" on a terminal still exits 0.** Only a person at a terminal can
+  choose it, and drizzle-kit's `[x] All changes were aborted` is the last line.
+- **`db:status` and `db:studio`** keep the exit-code rule: their stderr is
+  shown, not judged.
+- **A drizzle-kit pin that prints harmless text to stderr on success** makes
+  these commands fail, showing the text. That is deliberate: a loud false
+  failure beats a silent false success. `deno task kits:smoke` and
+  `deno task test:postgres` are the early warning on a pin bump.
 
 ### When `DATABASE_URL` is unset
 

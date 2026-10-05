@@ -319,6 +319,16 @@ runs a probe inside the app — the README's `POST /auth/token` must authenticat
 `GET /auth/me`, only the token's hash may be stored, and an unknown, expired or
 revoked token must be refused.
 
+And `scripts/kit_push_live_test.ts` (#445): it scaffolds the web kit on its own
+throwaway database (`lockness_kit_push_<random>`) and runs `db:push` with no
+TTY. A clean push must exit 0 with an empty stderr. A column rename must fail
+with the TTY wording and leave the table unchanged. A `text` → `integer` change
+on a row holding `'x'` must fail, say the schema may be partly pushed, and leave
+the column's type alone. drizzle-kit swallows both failures and exits 0, so this
+suite is the only witness that `pgPush` still reports them on stderr. The server
+must send English messages (`lc_messages=C`, the `postgres:16` default): the
+#454 notice test matches their text.
+
 And `scripts/remember_me_live_test.ts` (#457): on its own throwaway database
 (`lockness_remember_<random>`) it wires the real `SessionGuard` to the real
 `DrizzleSessionProvider`. Login with remember must store only the token's hash,
