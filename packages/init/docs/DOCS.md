@@ -46,7 +46,8 @@ deno run -A jsr:@lockness/init my-app --kit slim
 
 An unrecognised `--kit` is refused rather than falling back to the default:
 someone who typed `--kit=slm` and silently received a full Tailwind scaffold has
-no way to tell why.
+no way to tell why. The refusal writes nothing and exits `1` (see
+[Exit codes](#exit-codes)).
 
 ## How a kit is defined
 
@@ -116,12 +117,21 @@ deno run -A jsr:@lockness/init@0.1.10 my-app --use 0.1.8
 
 ## Version Format Reference
 
-| Format   | Description   | Example   | Result in deno.json |
-| -------- | ------------- | --------- | ------------------- |
-| `X.Y.Z`  | Exact version | `0.1.15`  | `^0.1.15`           |
-| `^X.Y.Z` | Caret range   | `^0.1.0`  | `^0.1.0`            |
-| `~X.Y.Z` | Tilde range   | `~0.1.20` | `~0.1.20`           |
-| `latest` | Latest stable | `latest`  | `^0.1.22`           |
+| Format   | Description       | Example   | Result in deno.json |
+| -------- | ----------------- | --------- | ------------------- |
+| `X.Y.Z`  | Exact version     | `0.1.15`  | `^0.1.15`           |
+| `^X.Y.Z` | Caret range       | `^0.1.0`  | `^0.1.0`            |
+| `~X.Y.Z` | Tilde range       | `~0.1.20` | `~0.1.20`           |
+| `latest` | This init release | `latest`  | `^<init version>`   |
+
+`latest`, like omitting `--use`, resolves to the version of the `@lockness/init`
+you ran, read from its own `deno.json`: `jsr:@lockness/init@0.5.0` writes
+`^0.5.0`. If that version cannot be read, init fails before writing anything.
+There is no fallback: the one it replaced answered a hard-coded version and
+scaffolded a project pinned to a framework release its stubs did not match.
+
+Any other `--use` value is refused before anything is written:
+`❌ Invalid version format: "0.1". Expected X.Y.Z, ^X.Y.Z, ~X.Y.Z or "latest", e.g. 0.1.15, ^0.1.0, ~0.1.20`.
 
 ### Caret (^)
 
@@ -155,6 +165,30 @@ deno run -A jsr:@lockness/init --help
 # Show init package version
 deno run -A jsr:@lockness/init --version
 ```
+
+`--version` reads the same `deno.json` as `latest`, and fails the same way when
+it cannot.
+
+## Exit codes
+
+`init` exits `0` when the project was scaffolded, and otherwise prints one `❌`
+line on stderr and exits `1`. It behaves the same run standalone
+(`deno run jsr:@lockness/init`, through `runEntry` from `@lockness/cli/entry`)
+and as `./nessy init` (through `Cli.dispatch()`): both run one function,
+`runInit`, which throws and never touches process state.
+
+| What fails                        | What is written                 | Printed                                                                                                                  |
+| :-------------------------------- | :------------------------------ | :----------------------------------------------------------------------------------------------------------------------- |
+| `--kit` names no kit              | nothing                         | `❌ Unknown kit "slm". Available kits: web, api, slim.`                                                                  |
+| `--use` is malformed              | nothing                         | `❌ Invalid version format: …`                                                                                           |
+| init's own version cannot be read | nothing                         | `❌ Could not read the @lockness/init version (HTTP <status>)`, or `❌ init failed:` and the fetch error with its frames |
+| One or more scaffold steps fail   | every step that could still run | `❌ 1 of 5 steps failed: .env caused by: …`                                                                              |
+
+The scaffold steps are the base stubs, the kit's stubs, each binary file (local
+checkout only), the runtime directories, `.env` and `.env.production.local`.
+When one fails, the others still run, and the failure names each step that did
+not complete, so you know which part of the project is missing. The first
+failure's error is printed after the message; a later one is named only.
 
 ## Generated Structure
 
@@ -598,12 +632,14 @@ Verify `DATABASE_URL` in `.env` and ensure PostgreSQL is running:
 
 ## Upgrading to v0.5.0
 
-Eight items. The first and third are for `web` and `api` apps scaffolded from
+Eleven items. The first and third are for `web` and `api` apps scaffolded from
 v0.4.x; `slim` has no database and is not affected by them. The second, fourth,
 fifth and eighth are for every app, of any kit, scaffolded before v0.5.0. If you
 take item 4, which replaces the `Dockerfile`, item 2 is already done. The sixth
 is for `web` and `api` apps, and **without it they do not boot on v0.5.0**. The
-seventh is for `web` apps only, whose stylesheet never ran through Tailwind.
+seventh is for `web` apps only, whose stylesheet never ran through Tailwind. The
+ninth to eleventh are not about scaffolded apps: they are for code that imports
+`@lockness/init` and for scripts that run it.
 
 For item 1, **migration step:** add the drizzle wiring to `deno.json` and
 `drizzle.config.ts`, then regenerate the migrations (database never migrated) or
@@ -1091,6 +1127,36 @@ If you kept the commented `'deno task css:build'` example in the
 `compile.scripts` list of an `api` or `slim` app's `config/compile.ts`, change
 it to `'deno task build'`: those kits have no `css:build` task. v0.5.0 scaffolds
 write `'deno task build'` in every kit.
+
+### 9. `resolveKit` throws `CommandFailedError` instead of `TypeError`
+
+The exported `resolveKit` refuses a value that names no kit by throwing a
+`CommandFailedError` (from `@lockness/cli/command-failure`, `exitCode` `1`)
+rather than a `TypeError` (#436). Validating the user's `--kit` is its job, so
+the CLI prints its one line and exits `1` with no translation in between. The
+message is unchanged. `CommandFailedError` extends `Error`, not `TypeError`, so
+a `catch (e) { if (e instanceof TypeError) … }` around it no longer matches.
+**The fix:** test for `CommandFailedError`, or for any `Error`.
+
+### 10. `latest` and `--version` no longer fall back to `0.1.22`
+
+When init could not read its own version, `--use latest` (and no `--use` at all)
+scaffolded a project pinned to `^0.1.22`, a framework release its stubs do not
+match, and `--version` printed `@lockness/init v0.1.22` or `(version unknown)`
+and exited `0` (#436). There is no fallback now: init reads the version from its
+own `deno.json`, and when that read fails it writes nothing and exits `1`, with
+the HTTP status or the fetch error. **No step is required** for an app; a script
+that ran init offline and accepted the `^0.1.22` pin now fails instead, so pass
+an explicit `--use <version>`.
+
+### 11. A failed scaffold step fails the run
+
+A remote run (`deno run jsr:@lockness/init`) skipped any stub file it could not
+fetch with a warning and exited `0`, so a project could be missing files with
+nothing to say so. A failed binary copy or `.env.production.local` write did the
+same (#436). Now every step still runs, then init exits `1` naming the steps
+that failed (`1 of 5 steps failed: base stubs`). **The fix:** re-run init into
+an empty directory once the cause, printed after the message, is fixed.
 
 ## See Also
 

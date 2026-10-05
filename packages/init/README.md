@@ -79,12 +79,17 @@ deno run -A jsr:@lockness/init@0.1.10 my-app --use 0.1.8
 
 ### Version Format Reference
 
-| Format   | Description   | Example   | Result in deno.json |
-| -------- | ------------- | --------- | ------------------- |
-| `X.Y.Z`  | Exact version | `0.1.15`  | `^0.1.15`           |
-| `^X.Y.Z` | Caret range   | `^0.1.0`  | `^0.1.0`            |
-| `~X.Y.Z` | Tilde range   | `~0.1.20` | `~0.1.20`           |
-| `latest` | Latest stable | `latest`  | `^0.1.22`           |
+| Format   | Description       | Example   | Result in deno.json |
+| -------- | ----------------- | --------- | ------------------- |
+| `X.Y.Z`  | Exact version     | `0.1.15`  | `^0.1.15`           |
+| `^X.Y.Z` | Caret range       | `^0.1.0`  | `^0.1.0`            |
+| `~X.Y.Z` | Tilde range       | `~0.1.20` | `~0.1.20`           |
+| `latest` | This init release | `latest`  | `^<init version>`   |
+
+`latest`, like omitting `--use`, resolves to the version of the `@lockness/init`
+you ran: `jsr:@lockness/init@0.5.0` writes `^0.5.0`. If that version cannot be
+read, init fails before writing anything; it never falls back to a hard-coded
+version.
 
 **Caret (`^`)**: Allows patch and minor updates (recommended)
 
@@ -114,6 +119,17 @@ deno run -A jsr:@lockness/init --help
 # Show init package version
 deno run -A jsr:@lockness/init --version
 ```
+
+### When init fails
+
+A failed init prints one `❌` line on stderr and exits `1`, run standalone or as
+`./nessy init`:
+
+- An unknown `--kit` or a malformed `--use` is refused before anything is
+  written: `❌ Unknown kit "slm". Available kits: web, api, slim.`
+- When one scaffold step fails, the others still run, then init names the steps
+  that failed (`1 of 5 steps failed: .env`), so you know which part of the
+  project is missing.
 
 ### What Gets Scaffolded
 
