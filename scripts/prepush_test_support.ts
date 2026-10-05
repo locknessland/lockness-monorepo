@@ -15,7 +15,7 @@
  * @module
  */
 
-import { join } from '@std/path'
+import { dirname, join } from '@std/path'
 
 /** The all-zero sha git uses for "this ref does not exist (yet/anymore)". */
 export const ZERO = '0'.repeat(40)
@@ -25,6 +25,9 @@ export const ZERO = '0'.repeat(40)
  * suites runs with — the test's own helper AND the code under test: `HOME`
  * is the fixture directory, and neither the global nor the system git config
  * is read. Nothing here sees the developer's real `HOME` or `~/.gitconfig`.
+ * Repository discovery stops at `home`'s parent (`GIT_CEILING_DIRECTORIES`),
+ * so a fixture that is not a repository can never resolve to one that happens
+ * to enclose the temp directory.
  *
  * @param home - The fixture directory, used as `HOME`.
  * @returns The environment.
@@ -35,6 +38,7 @@ export function isolatedEnv(home: string): Record<string, string> {
         PATH: Deno.env.get('PATH') ?? '/usr/bin:/bin',
         GIT_CONFIG_GLOBAL: '/dev/null',
         GIT_CONFIG_NOSYSTEM: '1',
+        GIT_CEILING_DIRECTORIES: dirname(home),
     }
 }
 

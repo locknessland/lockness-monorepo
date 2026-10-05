@@ -24,6 +24,7 @@ import {
     type PrepushDeps,
     runPrepush,
     SKIP_REASON,
+    spawnScan,
 } from './prepush.ts'
 import {
     git,
@@ -359,17 +360,20 @@ await Deno.writeTextFile('gate_record.json', JSON.stringify({ stdin: input, fifo
 }
 
 /**
- * A ref line the scan's parser rejects before it installs gitleaks, so the
- * test needs no gitleaks binary. The decision rejects it too (rule 1), so the
- * gate runs first.
+ * Two ref lines, the LAST one malformed. The scan's parser rejects it before
+ * it installs gitleaks, so the test needs no gitleaks binary, and the decision
+ * rejects it too (rule 1), so the gate runs first. Putting the malformed line
+ * last means a handoff that drops anything after the first line cannot pass:
+ * the scan would see a lone delete and exit 0.
  */
-const MALFORMED = 'refs/heads/main only-two-fields\n'
+const MALFORMED = `refs/heads/old ${ZERO} refs/heads/old ${'a'.repeat(40)}\n` +
+    'refs/heads/main only-two-fields\n'
 
 Deno.test('prepush end to end: the scan program receives the ref-update bytes', async () => {
     await withTempDir('prepush-e2e-scan-', async (dir) => {
         const run = await runHook(dir, MALFORMED)
-        // Handed nothing, the scan would print "no ref updates on stdin;
-        // nothing to scan" and exit 0.
+        // Handed nothing, or only the first line, the scan would exit 0
+        // ("nothing to scan", or a skipped delete).
         assert(run.code !== 0, run.output)
         assertStringIncludes(
             run.output,
@@ -390,5 +394,17 @@ Deno.test('prepush end to end: the gate runs with no stdin, never the ref-update
         // Inherited, the gate would read the hook's (drained) pipe; it must
         // be handed /dev/null instead.
         assertEquals(run.gate.fifo, false)
+    })
+})
+
+Deno.test('spawnScan: a scan that exits 0 without reading its stdin is a refusal, not a pass', async () => {
+    await withTempDir('prepush-unread-', async (dir) => {
+        const stub = join(dir, 'scan_stub.ts')
+        await Deno.writeTextFile(stub, 'Deno.exit(0)\n')
+        // Well past any pipe buffer, so the write cannot complete before the
+        // stub exits: it fails with a broken pipe.
+        const input = new Uint8Array(1024 * 1024).fill(0x61)
+        assert(input.length > 64 * 1024)
+        assertEquals(await spawnScan(input, stub), 1)
     })
 })
