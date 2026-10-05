@@ -21,7 +21,7 @@ every commit, which is why the lint plugin lands last.
 
 ## Phase 1: Setup
 
-- [ ] T001 `chore(deps)`: widen `deps.policy.jsonc` — `ui` → `["cli","hono","markdown"]`,
+- [X] T001 `chore(deps)`: widen `deps.policy.jsonc` — `ui` → `["cli","hono","markdown"]`,
   `upgrade` → `["cli"]`, `deprecation-contracts` → `["cli"]`; declare `"@lockness/cli":
   "jsr:@lockness/cli@^<current>"` pinned in `packages/{ui,upgrade,deprecation-contracts}/deno.json`;
   correct the stale cycle comment at `packages/deprecation-contracts/install.ts:16-17` and the
@@ -32,7 +32,7 @@ every commit, which is why the lint plugin lands last.
 
 ## Phase 2: Foundational (blocks every story)
 
-- [ ] T002 `feat(contract)`: add `renderMessage(text): string` in
+- [X] T002 `feat(contract)`: add `renderMessage(text): string` in
   `packages/contract/logging/sanitize.ts`. It runs DSN-userinfo redaction, then credential-pair
   redaction, then `safeForLog` (512 code points; `\n` → `\x0a`). Extract the two redactions into one
   private chain shared with `renderOne` and `renderFrame` (home: plan §5 "How a failure message is
@@ -44,7 +44,7 @@ every commit, which is why the lint plugin lands last.
   credential pair, control and format characters, newline, length bound. Repair the anchors in
   `packages/contract/tests/mutations/dsn_redaction_301_303.ts:182,193` and
   `query_credentials_478.ts:728,739`, then re-prove each row live.
-- [ ] T003 `feat(cli)`: add `packages/cli/report.ts` (internal, not in `exports`). `reportThrown(label,
+- [X] T003 `feat(cli)`: add `packages/cli/report.ts` (internal, not in `exports`). `reportThrown(label,
   error): number` is `Cli.dispatch`'s catch block extracted: both branches plus the raw-errors switch.
   The failure branch prints `❌ ${renderMessage(message)}`, then ` caused by: ${renderError(cause)}`
   when a cause exists, with no frames. It never throws, even for a getter that throws on
@@ -55,19 +55,19 @@ every commit, which is why the lint plugin lands last.
   `packages/cli/tests/`: a fake credential built at run time, in both message and cause, is absent
   from captured stderr; an escape character is encoded; exactly one `console.error` per failure; a
   throwing getter does not escape. (Home: plan §5 rows 1 and 7.)
-- [ ] T004 `feat(cli)`: add `packages/cli/entry.ts` with `runEntry(label: string, main: () => void |
+- [X] T004 `feat(cli)`: add `packages/cli/entry.ts` with `runEntry(label: string, main: () => void |
   Promise<void>): Promise<number>`, exported as `./entry` in `packages/cli/deno.json`. It imports
   `report.ts` only, never the barrel, and catches **any** throw. Full JSDoc with `@example` `if
   (import.meta.main) await runEntry('tool', () => main(Deno.args))`. Tests: in-process (a failure
   gives status 1 and one `❌` line; a `TypeError` goes through the catch-all branch) plus a subprocess
   fixture under `packages/cli/tests/fixtures/` (non-zero exit, a fake credential in message and cause
   absent from stderr, no `error: Uncaught`). (Home: plan §5 "How a standalone entry runs its work".)
-- [ ] T005 [P] `feat(cli)`: add `runSteps(steps: readonly CommandStep[]): Promise<void>` and the
+- [X] T005 [P] `feat(cli)`: add `runSteps(steps: readonly CommandStep[]): Promise<void>` and the
   `CommandStep` type to `packages/cli/command_failure.ts`, with no new imports. It runs every step,
   then throws one `CommandFailedError` (`<n> of <m> steps failed: <labels>`) with the first failure as
   `cause`; it resolves when all steps pass. JSDoc and tests. (Home: plan §5 "Finish the steps, then
   fail".)
-- [ ] T006 `fix(drizzle)`: following T003, the 15 cause-carrying `CommandFailedError` sites in
+- [X] T006 `fix(drizzle)`: following T003, the 15 cause-carrying `CommandFailedError` sites in
   `packages/drizzle/cli_commands.ts` drop the cause text from their message (`failureMessage`'s
   non-refusal branch becomes the prefix alone), or drop the cause where the message already says
   everything (`:385`, `:679`, `:719`). The message at `:936` becomes one line. Repair the
