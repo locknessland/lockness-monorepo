@@ -21,6 +21,10 @@ const ERROR_HANDLER = new URL(
     '../../../cli/stubs/make/error_handler.stub',
     import.meta.url,
 )
+const SLIM_ERROR_HANDLER = new URL(
+    '../../stubs/kits/slim/app/view/pages/errors/error_handler.tsx.stub',
+    import.meta.url,
+)
 const DOCKERFILE = new URL('../../stubs/init/Dockerfile.stub', import.meta.url)
 const SUITES = [new URL('../env_signal.test.ts', import.meta.url).pathname]
 
@@ -60,6 +64,16 @@ const MUTATIONS: Mutation[] = [
         label:
             'the make:error-handler stub shows details whenever env is unset',
         file: ERROR_HANDLER,
+        edits: [[
+            'const showDetails = isExplicitlyDevelopment()',
+            'const showDetails = isDevelopment()',
+        ]],
+        killedBy: 'show details only under explicit development',
+    },
+    {
+        label:
+            "the slim kit's JSON error handler shows the message whenever env is unset (#479)",
+        file: SLIM_ERROR_HANDLER,
         edits: [[
             'const showDetails = isExplicitlyDevelopment()',
             'const showDetails = isDevelopment()',

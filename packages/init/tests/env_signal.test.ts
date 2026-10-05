@@ -25,6 +25,16 @@ const CONFIG = join(INIT_STUBS, 'init', 'config')
 const ERROR_HANDLERS = [
     join(INIT_STUBS, 'optional', 'errors', 'error_handler.tsx.stub'),
     join(CLI_STUBS, 'make', 'error_handler.stub'),
+    join(
+        INIT_STUBS,
+        'kits',
+        'slim',
+        'app',
+        'view',
+        'pages',
+        'errors',
+        'error_handler.tsx.stub',
+    ),
 ]
 
 /** Every stub file under the init and cli stub trees. */

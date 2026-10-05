@@ -68,13 +68,14 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-5 test files for 2 source files:
+6 test files for 2 source files:
 
 - `packages/init/tests/app_key.test.ts`
 - `packages/init/tests/consistency.test.ts`
 - `packages/init/tests/env_signal.test.ts`
 - `packages/init/tests/init.test.ts`
 - `packages/init/tests/kits.test.ts`
+- `packages/init/tests/slim_error_handler.test.ts`
 
 1 mutation battery — **`deno test` does not run these.** Each is an executable
 that mutates a source file and re-runs the suites that should notice. Run them
@@ -97,7 +98,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 5 test files directly —
+Then, specific to this package: run its 6 test files directly —
 
 ```bash
 deno test -A packages/init/
