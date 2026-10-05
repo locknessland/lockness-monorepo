@@ -85,10 +85,12 @@ out", which reads like success. Run the files instead.
 
 ### The pre-push hook
 
-`deno task hooks:install` writes the `pre-push` hook, which runs
-`deno task gate`, then a ranged gitleaks scan of exactly the commits being
-pushed (`scripts/prepush_secret_scan.ts`, over `remote_sha..local_sha` — or
-`origin/main..local_sha` for a new branch). It is the last thing between a
+`deno task hooks:install` writes the `pre-push` hook. Its one entry point,
+`scripts/prepush.ts`, runs `deno task gate`, except for a push that publishes
+nothing `origin/main` has not already published, such as a package mirror push
+(#433). It then runs a ranged gitleaks scan of exactly the commits being pushed
+(`scripts/prepush_secret_scan.ts`, over `remote_sha..local_sha` — or
+`origin/main..local_sha` for a new branch) on every path. It is the last thing between a
 broken tree (or a leaked secret) and origin. Hooks are shared by every
 worktree, so the installer writes into the repository's common hooks directory
 whether it runs from the main checkout or a linked worktree. The scan installs

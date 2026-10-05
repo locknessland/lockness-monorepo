@@ -719,10 +719,14 @@ app.use('*', actingAs(fakeUser({ id: 1, isAdmin: true })))
   backstop, not the policy — and it is not the only one:
   `deno task
   hooks:install` also wires a **local** pre-push scan
-  (`scripts/prepush_secret_scan.ts`) that runs after `deno task gate`, over
-  exactly the commits about to be pushed (`remote_sha..local_sha`, or
-  `origin/main..local_sha` for a new branch). Both share one pinned gitleaks
-  release (`scripts/gitleaks_manifest.json`, installed locally by
+  (`scripts/prepush_secret_scan.ts`) that runs after the gate, when the gate
+  runs. The hook's entry point is `scripts/prepush.ts`: it reads git's
+  ref-update lines once, skips the gate for a push that publishes nothing new
+  (see [releasing.md](releasing.md#read-only-package-mirrors)), and hands the
+  same bytes to the scan on every path. The scan covers exactly the commits
+  about to be pushed (`remote_sha..local_sha`, or `origin/main..local_sha` for a
+  new branch). Both share one pinned gitleaks release
+  (`scripts/gitleaks_manifest.json`, installed locally by
   `scripts/install_gitleaks.ts` — CI reads the same JSON with `jq`, no Deno
   setup needed for a scan-only job) and the same fail-closed rules: an ERR/FTL
   log line, a report that cannot be read, or a non-empty report paired with a

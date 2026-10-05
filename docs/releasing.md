@@ -216,6 +216,21 @@ admits it as publishing nothing new (see
 [testing.md](testing.md#sanitizers-and-fixtures)). **Never push a mirror with
 `--no-verify`.** A refusal names what is missing. Fix that, then re-run.
 
+The same rule lets a mirror push skip the pre-push **gate** (#433). The hook's
+one entry point, `scripts/prepush.ts`, runs `deno task gate` unless every ref
+update in the push publishes nothing `origin/main` has not already published.
+That is the scan's own predicate, imported rather than copied. Skipping is safe
+because the gate checks the checkout, not the pushed content. During a mirror
+push it would test the working tree, never the release tag's `packages/<name>`
+subtree. The content itself already went through the gated route to reach
+`origin/main`: the pre-push gate on its push to `origin`, and `test.yml` on
+every push to `main`. Every other push still runs the gate, and so does anything
+the hook cannot decide: an unreadable ref line, an empty push, a delete, a
+missing `origin/main`, or a git failure. The full rule table is in the module
+doc of `scripts/prepush.ts`. A clone whose hooks were installed before this
+change still runs the gate on every mirror push; run `deno task hooks:install`
+again to pick up the new hook.
+
 **Re-runs are safe.** Each mirror's head is fetched first, into
 `refs/mirrors/<name>/main`, so the parent is present even in a fresh clone. The
 script then pushes only the refs that differ:
@@ -338,7 +353,9 @@ deno task gate
 
 That is the one versioned gate — the pre-push hook and CI's `test` job run the
 same task, and its step list lives in `scripts/gate.ts` only, so there is no
-copy here to drift. Judge it by its exit status.
+copy here to drift. The hook has one exception: a push that publishes nothing
+new, such as a package mirror push, skips the gate (see
+[the rule](#read-only-package-mirrors)). Judge the gate by its exit status.
 
 `publish.yml` runs that same versioned gate — `deno task gate --registry` —
 before it publishes (#396). It runs in a `gate` job of its own, which `publish`

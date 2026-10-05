@@ -9,6 +9,14 @@
  * new host) exposes nothing that was not exposed before. Every other update is
  * scanned exactly as before by `scripts/prepush_secret_scan.ts`.
  *
+ * The pre-push gate decision (`scripts/prepush.ts`, #433) is the second
+ * consumer of the same predicate: a push whose every ref update is admitted
+ * here also skips `deno task gate`. That coupling is intended.
+ * `origin/main` is both the scanned door (`secret-scan.yml`) and the gated
+ * one (`test.yml`), so "already published" and "already gated" are the same
+ * set. Widening what {@link published} counts widens the gate skip too, so
+ * revisit both consumers before doing it.
+ *
  * - {@link published}: every object reachable from `refs/remotes/origin/main`
  *   (`git rev-list --objects`). Empty when that ref does not resolve.
  * - {@link outgoing}: the trees and blobs a ref update would send
