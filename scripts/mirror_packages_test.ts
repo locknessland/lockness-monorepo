@@ -17,10 +17,14 @@ import { assert, assertEquals, assertNotEquals } from '@std/assert'
 import { join } from '@std/path'
 import {
     type CommandOutput,
+    ghCli,
+    ghEnv,
     type GhRunner,
+    type MirrorOptions,
     mirrorPackages,
     type MirrorRun,
 } from './mirror_packages.ts'
+import { runPrepushScan } from './prepush_secret_scan.ts'
 
 /** The environment every git call in these tests runs with. */
 function hermeticEnv(home: string): Record<string, string> {
@@ -91,6 +95,8 @@ interface Fixture {
     viewFailure: string | null
     /** When set, `repo edit` fails with this stderr. */
     editFailure: string | null
+    /** When set, `run list` fails with this stderr. */
+    runListFailure: string | null
     /** Every `gh` invocation the script made. */
     ghCalls: string[][]
     /** The fake `gh`. */
@@ -137,6 +143,32 @@ async function release(
 }
 
 /**
+ * Create one empty bare mirror whose `post-receive` hook logs every push.
+ *
+ * @param base - The fixture root (`HOME` for git).
+ * @param mirrors - The directory holding the mirrors.
+ * @param pushLog - The log the hook appends to.
+ * @param name - The package (and repository) name.
+ */
+async function createMirror(
+    base: string,
+    mirrors: string,
+    pushLog: string,
+    name: string,
+): Promise<void> {
+    const bare = join(mirrors, `${name}.git`)
+    await git(base, base, 'init', '-q', '--bare', '-b', 'main', bare)
+    const hook = join(bare, 'hooks', 'post-receive')
+    await Deno.writeTextFile(
+        hook,
+        `#!/bin/sh\n{ echo "PUSH ${name}"; cat; } >> ${
+            JSON.stringify(pushLog)
+        }\n`,
+    )
+    await Deno.chmod(hook, 0o755)
+}
+
+/**
  * Build the fixture: an origin with one pre-release commit and a `v1.0.0`
  * release, a clone of it, two empty mirrors that log every push, and a fake
  * `gh` reporting a green scan on the release commit.
@@ -161,16 +193,7 @@ async function fixture(base: string): Promise<Fixture> {
 
     await Deno.mkdir(mirrors)
     for (const name of PACKAGES) {
-        const bare = join(mirrors, `${name}.git`)
-        await run(base, 'init', '-q', '--bare', '-b', 'main', bare)
-        const hook = join(bare, 'hooks', 'post-receive')
-        await Deno.writeTextFile(
-            hook,
-            `#!/bin/sh\n{ echo "PUSH ${name}"; cat; } >> ${
-                JSON.stringify(pushLog)
-            }\n`,
-        )
-        await Deno.chmod(hook, 0o755)
+        await createMirror(base, mirrors, pushLog, name)
     }
 
     const f: Fixture = {
@@ -183,6 +206,7 @@ async function fixture(base: string): Promise<Fixture> {
         extraRuns: [],
         viewFailure: null,
         editFailure: null,
+        runListFailure: null,
         ghCalls: [],
         gh: (args) => fakeGh(f, args),
         git: run,
@@ -230,7 +254,15 @@ async function fakeGh(f: Fixture, args: string[]): Promise<CommandOutput> {
                 `the name '${args[2]}'. (repository)`,
         }
     }
+    if (args[0] === 'repo' && args[1] === 'create') {
+        assert(args.includes('--public'), `mirror not created public: ${args}`)
+        await createMirror(f.base, f.mirrors, f.pushLog, args[2].split('/')[1])
+        return ok()
+    }
     if (args[0] === 'run' && args[1] === 'list') {
+        if (f.runListFailure !== null) {
+            return { ok: false, stdout: '', stderr: f.runListFailure }
+        }
         assert(args.includes('Secret scan'), `unexpected run list: ${args}`)
         assert(args.includes('main'), `run list not scoped to main: ${args}`)
         const status = args.indexOf('--status')
@@ -266,13 +298,15 @@ async function fakeGh(f: Fixture, args: string[]): Promise<CommandOutput> {
  *
  * @param f - The fixture.
  * @param root - The clone to run from. Defaults to the fixture's.
- * @param flags - Extra options (`dryRun`).
+ * @param flags - Extra options (`dryRun`, `create`, `flatten`, `gitEnv`).
  * @returns The run's outcome and its log.
  */
 function mirror(
     f: Fixture,
     root: string = f.mono,
-    flags: { dryRun?: boolean } = {},
+    flags: Partial<
+        Pick<MirrorOptions, 'dryRun' | 'create' | 'flatten' | 'gitEnv'>
+    > = {},
 ): Promise<MirrorRun> {
     return mirrorPackages({
         root,
@@ -756,4 +790,389 @@ Deno.test('mirror: the real repository was never touched', async () => {
     }).output()
     const value = new TextDecoder().decode(bare.stdout).trim()
     assert(value === '' || value === 'false', `core.bare is ${value}`)
+})
+
+// ---------------------------------------------------------------------------
+// #434 — every fail-closed branch, the flatten and create paths, the headSha
+// filter, the gh environment, and the mirror's pushes through the scan.
+// ---------------------------------------------------------------------------
+
+/**
+ * A `git` shim placed first on `PATH`: it fails with exit 128 when its
+ * arguments contain `pattern`, and runs the real git otherwise.
+ *
+ * @param f - The fixture.
+ * @param pattern - A fragment of the space-joined arguments to refuse.
+ * @returns The `gitEnv` to run the mirror with.
+ */
+async function gitShim(
+    f: Fixture,
+    pattern: string,
+): Promise<Record<string, string>> {
+    const path = Deno.env.get('PATH') ?? '/usr/bin:/bin'
+    let real = ''
+    for (const dir of path.split(':')) {
+        if (await Deno.stat(join(dir, 'git')).then(() => true, () => false)) {
+            real = join(dir, 'git')
+            break
+        }
+    }
+    assert(real !== '', 'no git on PATH')
+    const shimDir = join(f.base, 'shim')
+    await Deno.mkdir(shimDir, { recursive: true })
+    await Deno.writeTextFile(
+        join(shimDir, 'git'),
+        `#!/bin/sh\ncase " $* " in\n  *${JSON.stringify(pattern)}*) ` +
+            `echo "shim refuses: ${pattern}" >&2; exit 128 ;;\nesac\n` +
+            `exec ${JSON.stringify(real)} "$@"\n`,
+    )
+    await Deno.chmod(join(shimDir, 'git'), 0o755)
+    return { ...hermeticEnv(f.base), PATH: `${shimDir}:${path}` }
+}
+
+/**
+ * A fake `gitleaks` that must never run: it writes a marker and exits 99.
+ *
+ * @param f - The fixture.
+ * @returns The binary and the marker it writes when invoked.
+ */
+async function forbiddenGitleaks(
+    f: Fixture,
+): Promise<{ bin: string; marker: string }> {
+    const marker = join(f.base, 'gitleaks-was-called')
+    const bin = join(f.base, 'gitleaks-forbidden')
+    await Deno.writeTextFile(
+        bin,
+        `#!/bin/sh\necho called > ${JSON.stringify(marker)}\nexit 99\n`,
+    )
+    await Deno.chmod(bin, 0o755)
+    return { bin, marker }
+}
+
+Deno.test('mirror: refuses when deno.jsonc has no version', async () => {
+    await withFixture(async (f) => {
+        await Deno.writeTextFile(join(f.mono, 'deno.jsonc'), '{}\n')
+        await assertRefused(f, await mirror(f), 'no "version" in deno.jsonc')
+    })
+})
+
+Deno.test('mirror: refuses a tag whose deno.jsonc carries another version', async () => {
+    await withFixture(async (f) => {
+        // v1.1.0 is cut on a commit still saying 1.0.0; the working tree
+        // says 1.1.0, so that tag is selected and its own config disagrees.
+        await f.git(f.mono, 'commit', '-q', '--allow-empty', '-m', 'mistag')
+        await f.git(f.mono, 'tag', '-a', 'v1.1.0', '-m', 'v1.1.0')
+        await f.git(f.mono, 'push', '-q', 'origin', 'main', 'refs/tags/v1.1.0')
+        f.greenHeads.push(await f.git(f.mono, 'rev-parse', 'HEAD'))
+        await Deno.writeTextFile(
+            join(f.mono, 'deno.jsonc'),
+            JSON.stringify({ version: '1.1.0' }) + '\n',
+        )
+        await assertRefused(
+            f,
+            await mirror(f),
+            'tag v1.1.0 carries version 1.0.0 in deno.jsonc',
+        )
+    })
+})
+
+Deno.test('mirror: refuses when git fetch origin fails', async () => {
+    await withFixture(async (f) => {
+        await f.git(
+            f.mono,
+            'remote',
+            'set-url',
+            'origin',
+            join(f.base, 'gone.git'),
+        )
+        await assertRefused(f, await mirror(f), 'git fetch origin failed')
+    })
+})
+
+Deno.test('mirror: refuses when git ls-remote origin fails', async () => {
+    await withFixture(async (f) => {
+        const gitEnv = await gitShim(f, 'ls-remote --tags origin')
+        const result = await mirror(f, f.mono, { gitEnv })
+        await assertRefused(f, result, 'git ls-remote origin refs/tags/v1.0.0')
+        assert(result.lines.some((l) => l.includes('shim refuses')))
+    })
+})
+
+Deno.test('mirror: refuses when merge-base cannot compare the tag with origin/main', async () => {
+    await withFixture(async (f) => {
+        const gitEnv = await gitShim(
+            f,
+            `merge-base --is-ancestor ${f.greenHeads[0]} ` +
+                'refs/remotes/origin/main',
+        )
+        const result = await mirror(f, f.mono, { gitEnv })
+        await assertRefused(
+            f,
+            result,
+            'could not compare v1.0.0 with origin/main',
+        )
+        assert(result.lines.some((l) => l.includes('shim refuses')))
+    })
+})
+
+Deno.test('mirror: refuses when gh run list fails', async () => {
+    await withFixture(async (f) => {
+        f.runListFailure = 'HTTP 401: Bad credentials'
+        const result = await mirror(f)
+        await assertRefused(f, result, 'gh run list (Secret scan) failed')
+        assert(result.lines.some((l) => l.includes('HTTP 401')))
+    })
+})
+
+Deno.test('mirror: a malformed green-run headSha is never accepted', async () => {
+    await withFixture(async (f) => {
+        const [tagCommit] = f.greenHeads
+        f.greenHeads.length = 0
+        // Handed to git, each of these resolves to the tag commit or to
+        // origin/main itself; only a full object id is a run's head.
+        for (
+            const headSha of [
+                tagCommit.slice(0, 12),
+                'refs/remotes/origin/main',
+                'HEAD',
+                `${tagCommit}\n`,
+            ]
+        ) {
+            f.extraRuns.push({
+                headSha,
+                event: 'push',
+                headBranch: 'main',
+                conclusion: 'success',
+            })
+        }
+        await assertRefused(f, await mirror(f), 'no green Secret scan run')
+    })
+})
+
+Deno.test('mirror: --flatten replaces a parented head with one parentless commit', async () => {
+    await withFixture(async (f) => {
+        assertEquals((await mirror(f)).ok, true)
+        f.greenHeads.push(
+            await release(f, f.mono, '1.1.0', {
+                'realtime/mod.ts': 'export const realtime = 2\n',
+            }),
+        )
+        assertEquals((await mirror(f)).ok, true)
+        assert((await mirrorRef(f, 'realtime', 'main^')) !== null)
+        const mailHead = await mirrorRef(f, 'mail', 'main')
+        await clearPushes(f)
+
+        const result = await mirror(f, f.mono, { flatten: true })
+        assertEquals(result.ok, true, result.lines.join('\n'))
+        // realtime's head holds the tree but has a parent: rebuilt bare.
+        assertEquals(await mirrorRef(f, 'realtime', 'main^'), null)
+        assertEquals(
+            await mirrorRef(f, 'realtime', 'main^{tree}'),
+            await f.git(
+                f.mono,
+                'rev-parse',
+                'v1.1.0^{commit}:packages/realtime',
+            ),
+        )
+        assertEquals(
+            await mirrorRef(f, 'realtime', 'refs/tags/v1.1.0'),
+            await mirrorRef(f, 'realtime', 'main'),
+        )
+        // mail's head is already parentless with the release tree: reused.
+        assertEquals(await mirrorRef(f, 'mail', 'main'), mailHead)
+        assertEquals(await pushes(f), [{
+            mirror: 'realtime',
+            refs: ['refs/heads/main', 'refs/tags/v1.1.0'],
+        }])
+    })
+})
+
+Deno.test('mirror: --create creates a missing repository, then syncs it', async () => {
+    await withFixture(async (f) => {
+        await Deno.remove(join(f.mirrors, 'mail.git'), { recursive: true })
+
+        const dry = await mirror(f, f.mono, { create: true, dryRun: true })
+        assertEquals(dry.ok, true, dry.lines.join('\n'))
+        assertEquals(f.ghCalls.filter((c) => c[1] === 'create'), [])
+
+        const result = await mirror(f, f.mono, { create: true })
+        assertEquals(result.ok, true, result.lines.join('\n'))
+        assertEquals(
+            f.ghCalls.filter((c) => c[1] === 'create').map((c) => c[2]),
+            ['locknessland/mail'],
+        )
+        assertEquals(
+            await mirrorRef(f, 'mail', 'main^{tree}'),
+            await f.git(f.mono, 'rev-parse', 'v1.0.0^{commit}:packages/mail'),
+        )
+        assert((await mirrorRef(f, 'mail', 'refs/tags/v1.0.0')) !== null)
+    })
+})
+
+Deno.test("mirror: the mirror's own pushes pass runPrepushScan by admission, end to end", async () => {
+    await withFixture(async (f) => {
+        // Record exactly what git hands the pre-push hook on every push to a
+        // mirror ($2 is the URL); the release's own push to origin is not.
+        const recorded = join(f.base, 'prepush.stdin')
+        const hook = join(f.mono, '.git', 'hooks', 'pre-push')
+        await Deno.writeTextFile(
+            hook,
+            `#!/bin/sh\ncase "$2" in\n  ${JSON.stringify(f.mirrors)}/*) ` +
+                `cat >> ${JSON.stringify(recorded)} ;;\n` +
+                '  *) cat > /dev/null ;;\nesac\n',
+        )
+        await Deno.chmod(hook, 0o755)
+        assertEquals((await mirror(f)).ok, true)
+        f.greenHeads.push(
+            await release(f, f.mono, '1.1.0', {
+                'realtime/mod.ts': 'export const realtime = 2\n',
+            }),
+        )
+        assertEquals((await mirror(f)).ok, true)
+
+        // Root commits + tags, a parented branch update, a tag-only push.
+        const stdin = await Deno.readTextFile(recorded)
+        const count = stdin.trim().split('\n').length
+        assert(count >= 7, stdin)
+        const { bin, marker } = await forbiddenGitleaks(f)
+        const options = {
+            installGitleaks: () => Promise.resolve(bin),
+            gitEnv: hermeticEnv(f.base),
+        }
+
+        const scanned = await runPrepushScan(stdin, f.mono, options)
+        assertEquals(scanned.ok, true, scanned.lines.join('\n'))
+        assertEquals(
+            scanned.lines.filter((l) =>
+                l.includes('publishes nothing origin/main has not')
+            ).length,
+            count,
+            scanned.lines.join('\n'),
+        )
+        assertEquals(
+            await Deno.stat(marker).then(() => true, () => false),
+            false,
+            'gitleaks was invoked',
+        )
+
+        // Control: without origin/main nothing is admitted, so the same
+        // pushes reach gitleaks (here a binary that refuses).
+        await f.git(f.mono, 'update-ref', '-d', 'refs/remotes/origin/main')
+        const control = await runPrepushScan(stdin, f.mono, options)
+        assertEquals(control.ok, false, control.lines.join('\n'))
+    })
+})
+
+/**
+ * Clone the fixture's origin with `cloneArgs` and release nothing new.
+ *
+ * @param f - The fixture.
+ * @param cloneArgs - Extra `git clone` arguments.
+ * @returns The clone's directory.
+ */
+async function cloneOrigin(f: Fixture, cloneArgs: string[]): Promise<string> {
+    await f.git(f.origin, 'config', 'uploadpack.allowFilter', 'true')
+    const clone = join(f.base, 'shaped')
+    // file:// so the transport honours --depth and --filter on a local path.
+    await f.git(
+        f.base,
+        'clone',
+        '-q',
+        ...cloneArgs,
+        `file://${f.origin}`,
+        clone,
+    )
+    await f.git(
+        clone,
+        'fetch',
+        '-q',
+        'origin',
+        'refs/tags/v1.0.0:refs/tags/v1.0.0',
+    )
+    return clone
+}
+
+Deno.test('mirror: from a shallow clone whose tip is the release it syncs', async () => {
+    await withFixture(async (f) => {
+        const clone = await cloneOrigin(f, ['--depth', '1'])
+        assertEquals(
+            await f.git(clone, 'rev-parse', '--is-shallow-repository'),
+            'true',
+        )
+        const result = await mirror(f, clone)
+        assertEquals(result.ok, true, result.lines.join('\n'))
+        assertEquals(
+            await mirrorRef(f, 'realtime', 'main^{tree}'),
+            await f.git(
+                f.mono,
+                'rev-parse',
+                'v1.0.0^{commit}:packages/realtime',
+            ),
+        )
+    })
+})
+
+Deno.test('mirror: from a shallow clone that cut the release off its history it refuses', async () => {
+    await withFixture(async (f) => {
+        // origin/main moves past the release, and the depth-1 clone holds
+        // only the new tip: the tag's ancestry cannot be proven from it.
+        await f.git(f.mono, 'commit', '-q', '--allow-empty', '-m', 'later')
+        await f.git(f.mono, 'push', '-q', 'origin', 'main')
+        f.greenHeads.push(await f.git(f.mono, 'rev-parse', 'HEAD'))
+        const clone = await cloneOrigin(f, ['--depth', '1'])
+        await assertRefused(f, await mirror(f, clone), 'provenance refused')
+    })
+})
+
+Deno.test('mirror: from a blobless partial clone it syncs, fetching blobs on demand', async () => {
+    await withFixture(async (f) => {
+        const clone = await cloneOrigin(f, ['--filter=blob:none'])
+        const result = await mirror(f, clone)
+        assertEquals(result.ok, true, result.lines.join('\n'))
+        assertEquals(
+            await mirrorRef(f, 'mail', 'main^{tree}'),
+            await f.git(f.mono, 'rev-parse', 'v1.0.0^{commit}:packages/mail'),
+        )
+    })
+})
+
+Deno.test('ghCli runs gh with an explicit environment: a stray GH_HOST cannot redirect it', async () => {
+    const dir = await Deno.realPath(
+        await Deno.makeTempDir({ prefix: 'gh-env-' }),
+    )
+    try {
+        await Deno.writeTextFile(join(dir, 'gh'), '#!/bin/sh\nenv\n')
+        await Deno.chmod(join(dir, 'gh'), 0o755)
+        const run = await ghCli(dir, {
+            PATH: `${dir}:${Deno.env.get('PATH') ?? '/usr/bin:/bin'}`,
+            HOME: dir,
+            GH_TOKEN: 'fixture-token',
+            GH_HOST: 'gh.example.invalid',
+            GH_REPO: 'evil/repo',
+            GH_ENTERPRISE_TOKEN: 'enterprise',
+            GIT_DIR: '/decoy/.git',
+            UNRELATED: 'x',
+        })(['api', 'rate_limit'])
+        assertEquals(run.ok, true, run.stderr)
+        const seen = run.stdout.split('\n')
+        assert(seen.includes('GH_HOST=github.com'), run.stdout)
+        assert(seen.includes('GH_TOKEN=fixture-token'), run.stdout)
+        assert(seen.includes(`HOME=${dir}`), run.stdout)
+        for (
+            const key of [
+                'GH_REPO',
+                'GH_ENTERPRISE_TOKEN',
+                'GIT_DIR',
+                'UNRELATED',
+            ]
+        ) {
+            assert(
+                !seen.some((l) => l.startsWith(`${key}=`)),
+                `${key} reached gh:\n${run.stdout}`,
+            )
+        }
+    } finally {
+        await Deno.remove(dir, { recursive: true })
+    }
+    assertEquals(ghEnv({ GH_HOST: 'x' }).GH_HOST, 'github.com')
 })

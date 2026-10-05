@@ -10,27 +10,95 @@
 
 import { assert, assertEquals } from '@std/assert'
 import { join } from '@std/path'
+import { install as installGitleaks } from './install_gitleaks.ts'
+import * as scan from './prepush_secret_scan.ts'
 import {
-    commitCount,
-    createScanWorktree,
     isDelete,
     parseRefUpdates,
-    readIgnoreAtBase,
+    type PrepushResult,
+    type PrepushScanOptions,
     type RefUpdate,
-    removeScanWorktree,
-    resolveBase,
-    resolveRange,
-    runPrepushScan,
-    scanRange,
+    type ScanResult,
     writeBaseIgnoreFile,
 } from './prepush_secret_scan.ts'
+import * as objects from './published_objects.ts'
 import {
-    outgoing,
-    published,
+    type OutgoingUpdate,
     publishesNothingNew,
 } from './published_objects.ts'
 
 const ZERO = '0'.repeat(40)
+
+/**
+ * The isolated environment every git (and gitleaks) subprocess in this file
+ * runs with — the test's own helper AND the code under test: `HOME` is the
+ * fixture directory, and neither the global nor the system git config is
+ * read. Nothing here sees the developer's real `HOME` or `~/.gitconfig`.
+ *
+ * @param home - The fixture directory, used as `HOME`.
+ * @returns The environment.
+ */
+function isolatedEnv(home: string): Record<string, string> {
+    return {
+        HOME: home,
+        PATH: Deno.env.get('PATH') ?? '/usr/bin:/bin',
+        GIT_CONFIG_GLOBAL: '/dev/null',
+        GIT_CONFIG_NOSYSTEM: '1',
+    }
+}
+
+// The code under test, bound to {@link isolatedEnv} with the repository as
+// `HOME`. Each wrapper only appends the environment argument.
+const resolveBase = (update: RefUpdate, cwd: string) =>
+    scan.resolveBase(update, cwd, isolatedEnv(cwd))
+const resolveRange = (update: RefUpdate, cwd: string) =>
+    scan.resolveRange(update, cwd, isolatedEnv(cwd))
+const commitCount = (range: string, cwd: string) =>
+    scan.commitCount(range, cwd, isolatedEnv(cwd))
+const readIgnoreAtBase = (base: string | null, cwd: string) =>
+    scan.readIgnoreAtBase(base, cwd, isolatedEnv(cwd))
+const createScanWorktree = (localSha: string, cwd: string) =>
+    scan.createScanWorktree(localSha, cwd, isolatedEnv(cwd))
+const removeScanWorktree = (worktreeDir: string, cwd: string) =>
+    scan.removeScanWorktree(worktreeDir, cwd, isolatedEnv(cwd))
+const scanRange = (
+    range: string,
+    cwd: string,
+    gitleaksPath: string,
+    expected: number,
+): Promise<ScanResult> =>
+    scan.scanRange(range, cwd, gitleaksPath, expected, isolatedEnv(cwd))
+const published = (cwd: string) => objects.published(cwd, isolatedEnv(cwd))
+const outgoing = (update: OutgoingUpdate, cwd: string) =>
+    objects.outgoing(update, cwd, isolatedEnv(cwd))
+
+/**
+ * The real, verified gitleaks binary, resolved once. The installer's cache
+ * lookup reads the real `HOME` — here, in the test harness, never inside the
+ * code under test, which is handed the resolved path.
+ */
+let realGitleaks: Promise<string> | null = null
+
+/**
+ * {@link scan.runPrepushScan} with an isolated `gitEnv` and, unless the test
+ * hands in its own, the real gitleaks binary resolved by the harness.
+ *
+ * @param stdin - The hook's stdin.
+ * @param cwd - The repository root, also `HOME`.
+ * @param options - Overrides (`installGitleaks`, `gitEnv`).
+ * @returns The scan's outcome.
+ */
+function runPrepushScan(
+    stdin: string,
+    cwd: string,
+    options: PrepushScanOptions = {},
+): Promise<PrepushResult> {
+    return scan.runPrepushScan(stdin, cwd, {
+        installGitleaks: () => (realGitleaks ??= installGitleaks()),
+        gitEnv: isolatedEnv(cwd),
+        ...options,
+    })
+}
 
 /** Run git in `cwd` with a hermetic identity, failing loudly. */
 async function git(cwd: string, ...args: string[]): Promise<string> {
@@ -46,11 +114,7 @@ async function git(cwd: string, ...args: string[]): Promise<string> {
         ],
         cwd,
         clearEnv: true,
-        env: {
-            HOME: cwd,
-            GIT_CONFIG_GLOBAL: '/dev/null',
-            GIT_CONFIG_NOSYSTEM: '1',
-        },
+        env: isolatedEnv(cwd),
         stdout: 'piped',
         stderr: 'piped',
     }).output()
@@ -377,15 +441,97 @@ Deno.test('runPrepushScan refuses when .gitleaks.toml is present', async () => {
 Deno.test('runPrepushScan skips deletes and empty ranges without invoking gitleaks', async () => {
     await withTempDir('prepush-skip-', async (dir) => {
         await git(dir, 'init', '-q')
-        await git(dir, 'commit', '-q', '--allow-empty', '-m', 'root')
+        await Deno.writeTextFile(join(dir, 'a.txt'), 'a\n')
+        await git(dir, 'add', 'a.txt')
+        await git(dir, 'commit', '-q', '-m', 'root')
         const head = await git(dir, 'rev-parse', 'HEAD')
-        // remote == local: an empty, non-delete range.
+        const { bin, marker } = await forbiddenGitleaks(dir)
+        // A delete (zero local sha) of a remote branch whose tip this clone
+        // does not even hold — a delete sends nothing, so nothing is read —
+        // then remote == local: an empty, non-delete range.
+        const gone = 'deadbeef'.repeat(5)
         const result = await runPrepushScan(
-            `refs/heads/x ${head} refs/heads/x ${head}\n`,
+            `(delete) ${ZERO} refs/heads/old ${gone}\n` +
+                `refs/heads/x ${head} refs/heads/x ${head}\n`,
             dir,
+            { installGitleaks: () => Promise.resolve(bin) },
         )
-        assertEquals(result.ok, true)
-        assert(result.lines.some((l) => l.includes('nothing to scan')))
+        assertEquals(result.ok, true, result.lines.join('\n'))
+        assertEquals(result.lines, [
+            '(delete): delete, skipped',
+            `refs/heads/x: ${head}..${head} is empty, nothing to scan`,
+        ])
+        assertEquals(await exists(marker), false, 'gitleaks was invoked')
+    })
+})
+
+Deno.test('runPrepushScan refuses an option-shaped sha instead of passing it to git', async () => {
+    await withTempDir('prepush-option-sha-', async (dir) => {
+        await git(dir, 'init', '-q')
+        await Deno.writeTextFile(join(dir, 'a.txt'), 'a\n')
+        await git(dir, 'add', 'a.txt')
+        await git(dir, 'commit', '-q', '-m', 'root')
+        const head = await git(dir, 'rev-parse', 'HEAD')
+        await git(dir, 'update-ref', 'refs/remotes/origin/main', head)
+        const { bin, marker } = await forbiddenGitleaks(dir)
+        for (
+            const line of [
+                `refs/heads/x ${head} refs/heads/x --all`,
+                `refs/heads/x --all refs/heads/x ${ZERO}`,
+                `refs/heads/x ${head} refs/heads/x ${head.slice(0, 12)}`,
+                `refs/heads/x ${head} refs/heads/x origin/main`,
+            ]
+        ) {
+            const result = await runPrepushScan(`${line}\n`, dir, {
+                installGitleaks: () => Promise.resolve(bin),
+            })
+            assertEquals(
+                result.ok,
+                false,
+                `${line}\n${result.lines.join('\n')}`,
+            )
+            assertEquals(result.lines.length, 1, result.lines.join('\n'))
+            assert(
+                result.lines[0].includes('is not a full object id; refused'),
+                `${line}\n${result.lines.join('\n')}`,
+            )
+        }
+        assertEquals(await exists(marker), false, 'gitleaks was invoked')
+    })
+})
+
+Deno.test('runPrepushScan runs git with the environment it is given, never the process one', async () => {
+    await withTempDir('prepush-env-', async (dir) => {
+        const { m2 } = await publishedFixture(dir)
+        const commit = await subtreeCommit(dir, m2)
+        const stdin = `refs/heads/main ${commit} refs/heads/main ${ZERO}\n`
+        const { bin, marker } = await forbiddenGitleaks(dir)
+
+        // Admitted under the isolated environment.
+        const admitted = await runPrepushScan(stdin, dir, {
+            installGitleaks: () => Promise.resolve(bin),
+        })
+        assertEquals(admitted.ok, true, admitted.lines.join('\n'))
+
+        // A global config git cannot parse makes every git call fail. Handed
+        // in as gitEnv, it must reach git: admission then cannot be computed,
+        // nothing is admitted, and the push is refused.
+        const broken = join(dir, 'broken.gitconfig')
+        await Deno.writeTextFile(broken, '[core\n')
+        const refused = await runPrepushScan(stdin, dir, {
+            installGitleaks: () => Promise.resolve(bin),
+            gitEnv: { ...isolatedEnv(dir), GIT_CONFIG_GLOBAL: broken },
+        })
+        assertEquals(refused.ok, false, refused.lines.join('\n'))
+        assert(!refused.lines.some((l) => l.includes(ADMITTED)))
+        assertEquals(
+            await objects.published(dir, {
+                ...isolatedEnv(dir),
+                GIT_CONFIG_GLOBAL: broken,
+            }),
+            new Set(),
+        )
+        assertEquals(await exists(marker), false, 'gitleaks was invoked')
     })
 })
 
@@ -405,19 +551,15 @@ Deno.test('runPrepushScan: an inherited GIT_DIR cannot redirect git at another r
         const before = await git(decoy, 'for-each-ref')
         const { bin, marker } = await forbiddenGitleaks(root)
 
-        const previous = Deno.env.get('GIT_DIR')
-        Deno.env.set('GIT_DIR', join(decoy, '.git'))
-        let result
-        try {
-            result = await runPrepushScan(
-                `refs/heads/x ${head} refs/heads/x ${head}\n`,
-                dir,
-                { installGitleaks: () => Promise.resolve(bin) },
-            )
-        } finally {
-            if (previous === undefined) Deno.env.delete('GIT_DIR')
-            else Deno.env.set('GIT_DIR', previous)
-        }
+        // Inherited from the caller's environment, as a hook would pass it.
+        const result = await runPrepushScan(
+            `refs/heads/x ${head} refs/heads/x ${head}\n`,
+            dir,
+            {
+                installGitleaks: () => Promise.resolve(bin),
+                gitEnv: { ...isolatedEnv(dir), GIT_DIR: join(decoy, '.git') },
+            },
+        )
         assertEquals(result.ok, true, result.lines.join('\n'))
         assert(result.lines.some((l) => l.includes('nothing to scan')))
         assertEquals(await git(decoy, 'for-each-ref'), before)
@@ -1075,6 +1217,108 @@ Deno.test('admission: outgoing leaves out commit ids but keeps trees and blobs',
             out.has(await git(dir, 'rev-parse', `${m2}:packages/a/docs`)),
             false,
             'an object the remote tip already has was listed as outgoing',
+        )
+    })
+})
+
+// ---------------------------------------------------------------------------
+// #434 — shallow and partial clones. `published` / `outgoing` either work or
+// fail closed: a clone shape may narrow what is admitted, never widen it.
+// ---------------------------------------------------------------------------
+
+/**
+ * A {@link publishedFixture} pushed to a bare `origin` that serves filters,
+ * plus a clone of it made with `cloneArgs`.
+ *
+ * @param root - An empty temp directory.
+ * @param cloneArgs - Extra `git clone` arguments (`--depth 1`, `--filter=…`).
+ * @returns The full source, the clone, and the fixture's commits.
+ */
+async function clonedFixture(
+    root: string,
+    cloneArgs: string[],
+): Promise<PublishedFixture & { clone: string; origin: string }> {
+    const src = join(root, 'src')
+    const origin = join(root, 'origin.git')
+    const clone = join(root, 'clone')
+    await Deno.mkdir(src)
+    const fixture = await publishedFixture(src)
+    await git(root, 'init', '-q', '--bare', '-b', 'main', origin)
+    await git(origin, 'config', 'uploadpack.allowFilter', 'true')
+    await git(src, 'push', '-q', origin, `${fixture.m2}:refs/heads/main`)
+    // file:// so the transport honours --depth and --filter on a local path.
+    await git(root, 'clone', '-q', ...cloneArgs, `file://${origin}`, clone)
+    return { ...fixture, clone, origin }
+}
+
+Deno.test('admission: a shallow clone narrows the published set, never widens it', async () => {
+    await withTempDir('prepush-shallow-', async (root) => {
+        const f = await clonedFixture(root, ['--depth', '1'])
+        assertEquals(
+            await git(f.clone, 'rev-parse', '--is-shallow-repository'),
+            'true',
+        )
+        const full = await published(f.dir)
+        const shallow = await published(f.clone)
+        assert(shallow.size > 0, 'origin/main resolved to nothing')
+        assert(shallow.size < full.size, 'the shallow set was not narrower')
+        for (const id of shallow) assert(full.has(id), `${id} is not published`)
+
+        // The tip's subtree is inside the boundary: still admitted.
+        const tip = await subtreeCommit(f.clone, f.m2)
+        assertEquals(
+            publishesNothingNew(
+                await outgoing({ localSha: tip, remoteSha: ZERO }, f.clone),
+                shallow,
+            ),
+            true,
+        )
+        // m1's blob of packages/a/mod.ts is beyond the boundary: not in the
+        // shallow published set, so a push carrying it would be scanned.
+        const oldBlob = await git(
+            f.dir,
+            'rev-parse',
+            `${f.m1}:packages/a/mod.ts`,
+        )
+        assert(full.has(oldBlob) && !shallow.has(oldBlob))
+        // A remote tip beyond the boundary cannot be walked: null, refused.
+        assertEquals(
+            await outgoing({ localSha: tip, remoteSha: f.m1 }, f.clone),
+            null,
+        )
+    })
+})
+
+Deno.test('admission: a blobless partial clone fetches what rev-list needs, or admits nothing', async () => {
+    await withTempDir('prepush-partial-', async (root) => {
+        const f = await clonedFixture(root, ['--filter=blob:none'])
+        assertEquals(
+            await git(f.clone, 'config', 'remote.origin.promisor'),
+            'true',
+        )
+        // With its promisor unreachable, rev-list cannot complete the walk
+        // over the missing blobs: published is empty and nothing is admitted.
+        await git(
+            f.clone,
+            'remote',
+            'set-url',
+            'origin',
+            join(root, 'gone.git'),
+        )
+        assertEquals(await published(f.clone), new Set())
+
+        // With the promisor reachable, rev-list fetches the missing blobs
+        // on demand and the published set is complete.
+        await git(f.clone, 'remote', 'set-url', 'origin', `file://${f.origin}`)
+        const full = await published(f.dir)
+        assertEquals(await published(f.clone), full)
+        const tip = await subtreeCommit(f.clone, f.m2)
+        assertEquals(
+            publishesNothingNew(
+                await outgoing({ localSha: tip, remoteSha: ZERO }, f.clone),
+                full,
+            ),
+            true,
         )
     })
 })
