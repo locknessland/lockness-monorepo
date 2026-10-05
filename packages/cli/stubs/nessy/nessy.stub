@@ -93,8 +93,8 @@ case "$COMMAND" in
     install)
         shift
         if [ -z "$1" ]; then
-            echo "❌ Please specify a package to install"
-            echo "   Usage: ./nessy install <package>"
+            echo "❌ Please specify a package to install. Usage: ./nessy install <package>" >&2
+            exit 1
         else
             echo "📦 Installing $1..."
             deno add "$@"
@@ -104,8 +104,8 @@ case "$COMMAND" in
     bump)
         shift
         if [ -z "$1" ]; then
-            echo "❌ Please specify a version"
-            echo "   Usage: ./nessy bump 0.2.0"
+            echo "❌ Please specify a version. Usage: ./nessy bump 0.2.0" >&2
+            exit 1
         else
             echo "🚀 Bumping version to $1..."
             deno task bump "$1"
