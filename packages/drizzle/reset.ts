@@ -26,6 +26,7 @@
  */
 
 import type { Dialect, SchemaMaintenance } from './drivers.ts'
+import { DEFAULT_BOOKKEEPING_SCHEMA } from './migration_settings.ts'
 import { RefusedError } from './refusal.ts'
 
 /**
@@ -42,6 +43,18 @@ export interface ResetScope {
     readonly schemaFilter: readonly string[]
     /** Every migration statement, read to find the schemas they create. */
     readonly statements: readonly string[]
+}
+
+/**
+ * The postgres bookkeeping schema of a scope: the configured one, or the
+ * default drizzle-orm's migrator writes to. The settings always fill it in for
+ * postgres; the fallback keeps one default rather than a second one (#448).
+ *
+ * @param scope - The reset scope.
+ * @returns The schema holding the bookkeeping table.
+ */
+function bookkeepingSchema(scope: ResetScope): string {
+    return scope.schema ?? DEFAULT_BOOKKEEPING_SCHEMA
 }
 
 /** A catalogue row, as `SchemaMaintenance.query` returns it. */
@@ -509,13 +522,12 @@ export function planPostgresReset(
         )
     }
 
-    const bookkeeping = `${quote(scope.schema ?? 'public')}.${
-        quote(scope.table)
-    }`
+    const schema = bookkeepingSchema(scope)
+    const bookkeeping = `${quote(schema)}.${quote(scope.table)}`
     const kept = <T extends { schema: string }>(objects: readonly T[]) =>
         objects.filter((o) => !dropped.has(o.schema))
     const relations = kept(catalogue.relations).filter((r) =>
-        !(r.schema === (scope.schema ?? 'public') && r.name === scope.table)
+        !(r.schema === schema && r.name === scope.table)
     )
     return [
         `DROP TABLE IF EXISTS ${bookkeeping}`,
@@ -557,7 +569,7 @@ function isSystemSchema(schema: string): boolean {
  *   names a system schema.
  */
 function refuseSystemSchemas(scope: ResetScope): void {
-    const named = [...scope.schemaFilter, scope.schema ?? 'public']
+    const named = [...scope.schemaFilter, bookkeepingSchema(scope)]
         .filter(isSystemSchema)
     if (named.length > 0) {
         throw new RefusedError(
@@ -648,7 +660,7 @@ const RESET_POLICIES: Record<Dialect, ResetPolicy> = {
         describe: (scope) =>
             `postgres: every table, view, sequence, type and routine in schema ${
                 scope.schemaFilter.map(quote).join(', ')
-            }, plus the bookkeeping table ${quote(scope.schema ?? 'public')}.${
+            }, plus the bookkeeping table ${quote(bookkeepingSchema(scope))}.${
                 quote(scope.table)
             }`,
         plan: async (maintenance, scope) => {

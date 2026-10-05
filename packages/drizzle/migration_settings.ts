@@ -100,8 +100,12 @@ export interface FreshSettings extends MigrationSettings {
 /** The bookkeeping table drizzle-kit and drizzle-orm default to. */
 const DEFAULT_TABLE = '__drizzle_migrations'
 
-/** The postgres bookkeeping schema drizzle-kit and drizzle-orm default to. */
-const DEFAULT_SCHEMA = 'drizzle'
+/**
+ * The postgres bookkeeping schema drizzle-kit and drizzle-orm default to. The
+ * one place it is defined: `db:fresh` names the same table when a scope leaves
+ * the schema unset (#448).
+ */
+export const DEFAULT_BOOKKEEPING_SCHEMA = 'drizzle'
 
 /** The postgres scope drizzle-kit defaults `schemaFilter` to. */
 const DEFAULT_SCHEMA_FILTER: readonly string[] = ['public']
@@ -313,7 +317,7 @@ function parseConfig(
     const table = optionalName(migrations.table, '`migrations.table`') ??
         DEFAULT_TABLE
     const schema = optionalName(migrations.schema, '`migrations.schema`') ??
-        DEFAULT_SCHEMA
+        DEFAULT_BOOKKEEPING_SCHEMA
     return {
         dialect: DIALECT_FROM_KIT[kitDialect as KitDialect],
         kitDialect: kitDialect as KitDialect,

@@ -528,6 +528,35 @@ Deno.test('#435 postgres plan honours migrations.table and migrations.schema', (
     assertEquals(plan[0], 'DROP TABLE IF EXISTS "meta"."history"')
 })
 
+Deno.test('#448 an unset migrations.schema means the default bookkeeping schema, everywhere', () => {
+    // The settings always fill it in for postgres; the fallback must still
+    // name the table drizzle-orm writes to, not a second default.
+    const unset = scope('postgres', { schema: undefined })
+
+    assertEquals(
+        planPostgresReset(EMPTY, unset)[0],
+        'DROP TABLE IF EXISTS "drizzle"."__drizzle_migrations"',
+    )
+    assertStringIncludes(
+        describeResetScope(unset),
+        'plus the bookkeeping table "drizzle"."__drizzle_migrations"',
+    )
+    const plan = planPostgresReset({
+        ...EMPTY,
+        relations: [{
+            schema: 'public',
+            name: '__drizzle_migrations',
+            kind: 'r',
+        }],
+    }, { ...unset, schemaFilter: ['public'] })
+    assertEquals(
+        plan.filter((s) => s.includes('"public"."__drizzle_migrations"'))
+            .length,
+        1,
+        'a public table of the same name is application data, dropped once',
+    )
+})
+
 Deno.test('#435 postgres plan skips the bookkeeping table when it lives in scope', () => {
     const plan = planPostgresReset({
         ...EMPTY,
