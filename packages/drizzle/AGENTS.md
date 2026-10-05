@@ -159,12 +159,13 @@ Anything not listed is internal and free to change.
 - `packages/drizzle/tests/status_mysql_live.test.ts`
 - `packages/drizzle/tests/status_postgres_live.test.ts`
 
-1 mutation battery — **`deno test` does not run these.** Each is an executable
+2 mutation batteries — **`deno test` does not run these.** Each is an executable
 that mutates a source file and re-runs the suites that should notice. Run them
 with `deno task mutate` (all of them, one at a time) or
 `deno task mutate <name>` (one); nightly CI runs the full sweep. See
 [testing.md](../../docs/testing.md#mutation-batteries).
 
+- `packages/drizzle/tests/mutations/fresh_447.ts`
 - `packages/drizzle/tests/mutations/lifecycle_427.ts`
 
 <!-- /generated:tests -->

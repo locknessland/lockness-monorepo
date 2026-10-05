@@ -9,6 +9,8 @@
  * `begin`, each `read`, each statement, then `commit` or `rollback` — a
  * refusal must leave reads followed by a rollback, and no statement.
  *
+ * The rows of `tests/mutations/fresh_447.ts` name tests in this file.
+ *
  * @module @lockness/drizzle/tests/reset
  */
 
