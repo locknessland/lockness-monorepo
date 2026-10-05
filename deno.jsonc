@@ -137,6 +137,9 @@
         "@lockness/contract": "jsr:@lockness/contract@^0.4.0",
         "@lockness/drizzle": "jsr:@lockness/drizzle@^0.4.0",
         "@lockness/ui": "jsr:@lockness/ui@^0.4.0",
+        // Hard-rule-2 exception: Tailwind v4 is not on JSR. The web kit's
+        // deno.json.stub pins the same two specifiers (#506), held equal by
+        // scripts/kit_stylesheet_test.ts.
         "tailwindcss": "npm:tailwindcss@^4.1.18",
         "@tailwindcss/cli": "npm:@tailwindcss/cli@^4.1.18",
         "clsx": "npm:clsx@2.1.1",
