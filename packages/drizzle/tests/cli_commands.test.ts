@@ -7,8 +7,8 @@
  * maintenance opener — so no test opens a real database, spawns a real
  * process, or hits the network. The four shell-out commands are validated by
  * asserting the **constructed `drizzle-kit` argv**, never by executing it.
- * `db:fresh` (#435) and `db:migrate` (#442) spawn nothing: their tests run
- * with a runner that throws if called.
+ * `db:fresh` (#435), `db:migrate` (#442) and `db:status` (#439) spawn
+ * nothing: their tests run with a runner that throws if called.
  *
  * @module @lockness/drizzle/tests/cli_commands
  */
@@ -37,6 +37,7 @@ import {
 import { defaultRunCommand, RETAINED_STDERR_BYTES } from '../command_runner.ts'
 import type { MigrateOptions } from '../drivers.ts'
 import type { MigrationSettings } from '../migration_settings.ts'
+import { RefusedError } from '../refusal.ts'
 import { DRIZZLE_KIT_SPECIFIER } from '../generators/dialect_schema.ts'
 
 // -----------------------------------------------------------------------------
@@ -124,6 +125,7 @@ Deno.test('registerDrizzleCommands - registers the full db:* / make:* set', () =
         'db:seed',
         'db:status',
         'db:studio',
+        'db:validate',
         'make:factory',
         'make:model',
         'make:seeder',
@@ -138,7 +140,7 @@ const shellCommands: ReadonlyArray<readonly [string, string]> = [
     ['db:generate', 'generate'],
     ['db:push', 'push'],
     ['db:studio', 'studio'],
-    ['db:status', 'check'],
+    ['db:validate', 'check'],
 ]
 
 // -----------------------------------------------------------------------------
@@ -181,7 +183,7 @@ for (const [command, subcommand] of shellCommands) {
     })
 }
 
-Deno.test('db:status - only claims migration-history consistency, never drift', async () => {
+Deno.test('#439 db:validate - only claims a valid migrations folder, never drift or pending migrations', async () => {
     const lines: string[] = []
     const { log } = console
     console.log = (...args: unknown[]) => void lines.push(args.join(' '))
@@ -190,25 +192,28 @@ Deno.test('db:status - only claims migration-history consistency, never drift', 
         registerDrizzleCommands(cli, {
             runCommand: fakeRunner([exited(0)]).run,
         })
-        await cli.run('db:status')
+        await cli.run('db:validate')
 
         const failing = new FakeCli()
         registerDrizzleCommands(failing, {
             runCommand: fakeRunner([exited(2)]).run,
         })
         const error = await assertRejects(
-            () => failing.run('db:status'),
+            () => failing.run('db:validate'),
             CommandFailedError,
         )
         assertEquals(
             error.message,
-            'Migration history check failed (drizzle-kit check exited 2)',
+            'Migration validation failed (drizzle-kit check exited 2)',
         )
     } finally {
         console.log = log
     }
-    assertStringIncludes(lines.join('\n'), 'Migration history is consistent')
-    assert(!/up to date|schema changes/i.test(lines.join('\n')))
+    assertStringIncludes(
+        lines.join('\n'),
+        'The migrations folder is consistent',
+    )
+    assert(!/up to date|schema changes|pending|applied/i.test(lines.join('\n')))
 })
 
 Deno.test('wiring - a real Cli exits 1 on a failed db:migrate, printing one error line', async () => {
@@ -450,7 +455,11 @@ const VERDICTS: ReadonlyArray<{
     },
     // check and studio keep the exit-code rule: their stderr is shown, not
     // judged, until someone measures them.
-    { command: 'db:status', result: exited(0, 'noise\n'), failure: undefined },
+    {
+        command: 'db:validate',
+        result: exited(0, 'noise\n'),
+        failure: undefined,
+    },
     { command: 'db:studio', result: exited(0, 'noise\n'), failure: undefined },
 ]
 
@@ -2333,5 +2342,345 @@ Deno.test('#442 db:fresh frames a kit-only refusal as before, with no drizzle-ki
                 'postgres.js, mysql2 and libsql only. Nothing was dropped.',
         )
         assertEquals(error.message.includes('drizzle-kit'), false)
+    })
+})
+
+// -----------------------------------------------------------------------------
+// db:status (#439) — the journal against the bookkeeping table, in-process
+// -----------------------------------------------------------------------------
+
+/** The one migration `withMigrations` writes, and its drizzle-orm hash. */
+const INIT_SQL = 'CREATE TABLE "users" ("id" integer);'
+
+/** The lowercase hex SHA-256 of `text`, the hash drizzle-orm records. */
+async function sha256(text: string): Promise<string> {
+    const digest = await crypto.subtle.digest(
+        'SHA-256',
+        new TextEncoder().encode(text),
+    )
+    return [...new Uint8Array(digest)]
+        .map((byte) => byte.toString(16).padStart(2, '0'))
+        .join('')
+}
+
+/** A postgresql config over `folder`, the bookkeeping location defaulted. */
+const statusConfig = (folder: string): Record<string, unknown> => ({
+    dialect: 'postgresql',
+    out: folder,
+    dbCredentials: { url: 'postgres://app@localhost/app' },
+})
+
+/** The catalogue row naming the default postgres bookkeeping table. */
+const BOOKKEEPING_ROW = { schema: 'drizzle', name: '__drizzle_migrations' }
+
+/**
+ * The `db:status` seams around a fake session whose `query` answers the
+ * catalogue with `catalogue` and the bookkeeping read with `rows`, and
+ * records every call. `runCommand` records and throws: `db:status` must spawn
+ * nothing. `failQuery` makes the n-th query (1-based) reject.
+ */
+function statusDeps(
+    config: unknown,
+    options: {
+        readonly catalogue?: Record<string, unknown>[]
+        readonly rows?: Record<string, unknown>[]
+        readonly failQuery?: number
+        readonly openError?: unknown
+    } = {},
+) {
+    const calls: string[] = []
+    const queries: string[] = []
+    const spawned: CommandSpec[] = []
+    const session: MaintenanceSession = {
+        query: (sql) => {
+            calls.push('query')
+            queries.push(sql)
+            if (queries.length === options.failQuery) {
+                return Promise.reject(new Error('relation read failed'))
+            }
+            return Promise.resolve(
+                queries.length === 1
+                    ? options.catalogue ?? [BOOKKEEPING_ROW]
+                    : options.rows ?? [],
+            )
+        },
+        execute: () => {
+            calls.push('execute')
+            return Promise.resolve()
+        },
+        migrate: () => {
+            calls.push('migrate')
+            return Promise.resolve()
+        },
+        close: () => {
+            calls.push('close')
+            return Promise.resolve()
+        },
+    }
+    const deps: Partial<DrizzleCommandDeps> = {
+        runCommand: (spec) => {
+            spawned.push(spec)
+            throw new Error('db:status spawned a process')
+        },
+        loadMigrationConfig: () => Promise.resolve(config),
+        openMaintenance: () => {
+            calls.push('open')
+            return options.openError === undefined
+                ? Promise.resolve(session)
+                : Promise.reject(options.openError)
+        },
+    }
+    return { calls, queries, spawned, deps }
+}
+
+Deno.test('#439 db:status - all applied: lists them, ends on one ✅ line, exits 0, spawns nothing', async () => {
+    await withMigrations(async (folder) => {
+        const { calls, queries, spawned, deps } = statusDeps(
+            statusConfig(folder),
+            { rows: [{ hash: await sha256(INIT_SQL), created_at: '1' }] },
+        )
+
+        const { lines, error } = await invoke('db:status', deps)
+
+        assertEquals(error, undefined)
+        assertEquals(lines, [
+            '📊 Migration status (bookkeeping table "drizzle"."__drizzle_migrations")',
+            '  applied        0000_init',
+            '✅ The one migration is applied',
+        ])
+        assertEquals(calls, ['open', 'query', 'query', 'close'])
+        assertEquals(queries, [
+            'SELECT schemaname AS schema, tablename AS name FROM pg_catalog.pg_tables',
+            'SELECT hash, created_at FROM "drizzle"."__drizzle_migrations" ORDER BY created_at',
+        ])
+        assertEquals(spawned, [], 'db:status spawned drizzle-kit')
+    })
+})
+
+Deno.test('#439 db:status - a pending migration exits 1 with the count as its message', async () => {
+    await withMigrations(async (folder) => {
+        const { calls, deps } = statusDeps(statusConfig(folder), { rows: [] })
+
+        const { lines, error } = await invoke('db:status', deps)
+
+        assert(error instanceof CommandFailedError, String(error))
+        assertEquals(error.exitCode, 1)
+        assertEquals(
+            error.message,
+            '1 of 1 migration is not applied: 1 pending',
+        )
+        assertEquals(lines.at(-1), '  pending        0000_init')
+        assertEquals(calls.at(-1), 'close')
+    })
+})
+
+Deno.test('#439 db:status - never migrated: every migration pending, and no row query runs', async () => {
+    await withMigrations(async (folder) => {
+        const { queries, deps } = statusDeps(statusConfig(folder), {
+            catalogue: [{ schema: 'public', name: 'users' }],
+        })
+
+        const { lines, error } = await invoke('db:status', deps)
+
+        assert(error instanceof CommandFailedError, String(error))
+        assertEquals(
+            error.message,
+            '1 of 1 migration is not applied: 1 pending',
+        )
+        assertStringIncludes(lines.join('\n'), 'has never been migrated')
+        assertEquals(queries.length, 1)
+    })
+})
+
+Deno.test('#439 db:status - an edited applied migration warns and still exits 0', async () => {
+    await withMigrations(async (folder) => {
+        const { deps } = statusDeps(statusConfig(folder), {
+            rows: [{ hash: 'an-older-hash', created_at: 1 }],
+        })
+
+        const { lines, error } = await invoke('db:status', deps)
+
+        assertEquals(error, undefined)
+        assertStringIncludes(lines.join('\n'), '⚠️ edited after it was applied')
+        assertEquals(lines.at(-1), '✅ The one migration is applied')
+    })
+})
+
+Deno.test('#439 db:status - a refusal is framed for db:status, before any connection', async () => {
+    await withMigrations(async (folder) => {
+        const { calls, deps } = statusDeps({
+            ...statusConfig(folder),
+            dbCredentials: { url: '' },
+        })
+
+        const { error } = await invoke('db:status', deps)
+
+        assert(error instanceof CommandFailedError, String(error))
+        assert(
+            error.message.startsWith('db:status refused: drizzle.config.ts: '),
+            error.message,
+        )
+        assert(
+            error.message.endsWith('. No migration status was read.'),
+            error.message,
+        )
+        assertEquals(calls, [], 'the connection was opened after a refusal')
+    })
+})
+
+Deno.test('#439 db:status - a kit-only refusal names no drizzle-kit fallback: it has no status command', async () => {
+    await withMigrations(async (folder) => {
+        const { deps } = statusDeps({
+            ...statusConfig(folder),
+            dbCredentials: {
+                url: 'postgres://app@localhost/app',
+                ssl: { ca: 'certificate' },
+            },
+        })
+
+        const { error } = await invoke('db:status', deps)
+
+        assert(error instanceof CommandFailedError, String(error))
+        assert(error.message.startsWith('db:status refused: '), error.message)
+        assert(
+            error.message.endsWith('. No migration status was read.'),
+            error.message,
+        )
+        assertEquals(error.message.includes('drizzle-kit'), false)
+    })
+})
+
+Deno.test('#439 db:status - a missing journal is refused before connecting', async () => {
+    const folder = await Deno.makeTempDir()
+    try {
+        const { calls, deps } = statusDeps(statusConfig(folder))
+
+        const { error } = await invoke('db:status', deps)
+
+        assert(error instanceof CommandFailedError, String(error))
+        assertStringIncludes(
+            error.message,
+            'db:status refused: the migrations',
+        )
+        assertEquals(calls, [])
+    } finally {
+        await Deno.remove(folder, { recursive: true })
+    }
+})
+
+Deno.test('#439 db:status - a connection that cannot be opened exits 1', async () => {
+    await withMigrations(async (folder) => {
+        const { deps } = statusDeps(statusConfig(folder), {
+            openError: new Error('Database not configured: no client'),
+        })
+
+        const { lines, error } = await invoke('db:status', deps)
+
+        assert(error instanceof CommandFailedError, String(error))
+        assertEquals(
+            error.message,
+            'Could not open the database: Database not configured: no client',
+        )
+        assertEquals(lines, [])
+    })
+})
+
+Deno.test('#439 db:status - an R4 refusal from the opener is framed, with no drizzle-kit clause', async () => {
+    await withMigrations(async (folder) => {
+        const { deps } = statusDeps(statusConfig(folder), {
+            openError: new RefusedError('the driver offers no maintenance', {
+                kitOnly: true,
+            }),
+        })
+
+        const { error } = await invoke('db:status', deps)
+
+        assert(error instanceof CommandFailedError, String(error))
+        assertEquals(
+            error.message,
+            'db:status refused: the driver offers no maintenance. ' +
+                'No migration status was read.',
+        )
+    })
+})
+
+for (
+    const [label, failQuery] of [['catalogue', 1], ['bookkeeping', 2]] as const
+) {
+    Deno.test(`#439 db:status - a failed ${label} query exits 1 and closes the session`, async () => {
+        await withMigrations(async (folder) => {
+            const { calls, deps } = statusDeps(statusConfig(folder), {
+                failQuery,
+            })
+
+            const { lines, error } = await invoke('db:status', deps)
+
+            assert(error instanceof CommandFailedError, String(error))
+            assertEquals(
+                error.message,
+                'Could not read the migration status: relation read failed',
+            )
+            assertEquals(calls.at(-1), 'close', 'the session was not closed')
+            assertEquals(lines, [])
+        })
+    })
+}
+
+Deno.test('#439 db:status - a malformed bookkeeping row exits 1 and closes the session', async () => {
+    await withMigrations(async (folder) => {
+        const { calls, deps } = statusDeps(statusConfig(folder), {
+            rows: [{ hash: 'h', created_at: null }],
+        })
+
+        const { error } = await invoke('db:status', deps)
+
+        assert(error instanceof CommandFailedError, String(error))
+        assertEquals(
+            error.message,
+            'Could not read the migration status: the bookkeeping table ' +
+                '"drizzle"."__drizzle_migrations" holds a row whose ' +
+                'created_at is not an integer',
+        )
+        assertEquals(calls.at(-1), 'close')
+    })
+})
+
+Deno.test('#439 db:status - reads, never writes: no execute, no migrate', async () => {
+    await withMigrations(async (folder) => {
+        const { calls, deps } = statusDeps(statusConfig(folder), { rows: [] })
+
+        await invoke('db:status', deps)
+
+        assertEquals(calls.includes('execute'), false)
+        assertEquals(calls.includes('migrate'), false)
+    })
+})
+
+Deno.test('#439 db:status runs in production without --allow-production: it is the deploy gate', async () => {
+    await withMigrations(async (folder) => {
+        const { deps } = statusDeps(statusConfig(folder), {
+            rows: [{ hash: await sha256(INIT_SQL), created_at: '1' }],
+        })
+        const cli = new FakeCli()
+        registerDrizzleCommands(cli, deps)
+
+        const { error } = await capture(() =>
+            withAppEnv('production', () => cli.run('db:status'))
+        )
+
+        assertEquals(error, undefined)
+    })
+})
+
+Deno.test('#439 wiring - a real Cli exits 1 on a pending db:status, the count its last line', async () => {
+    await withMigrations(async (folder) => {
+        const { deps } = statusDeps(statusConfig(folder), { rows: [] })
+
+        const { status, errors } = await dispatchReal(deps, ['db:status'])
+
+        assertEquals(status, 1)
+        assertEquals(errors, [[
+            '❌ 1 of 1 migration is not applied: 1 pending',
+        ]])
     })
 })

@@ -41,6 +41,12 @@ import {
     type MigrationSettings,
 } from './migration_settings.ts'
 import { describeResetScope, resetDatabase } from './reset.ts'
+import {
+    type BookkeepingRow,
+    computeMigrationStatus,
+    readBookkeeping,
+    renderMigrationStatus,
+} from './migration_status.ts'
 import { RefusedError } from './refusal.ts'
 import { kitFailure, type KitSubcommand } from './kit_outcome.ts'
 import {
@@ -92,8 +98,8 @@ export interface DbConnection {
 
 /**
  * One open connection's schema-maintenance capability, plus the way to close
- * it — what `db:fresh` resets and migrates through (#435), and what
- * `db:migrate` migrates through (#442).
+ * it — what `db:fresh` resets and migrates through (#435), what `db:migrate`
+ * migrates through (#442), and what `db:status` reads through (#439).
  */
 export type MaintenanceSession = SchemaMaintenance & {
     /** Close the connection. Called on every path that opened it. */
@@ -101,8 +107,8 @@ export type MaintenanceSession = SchemaMaintenance & {
 }
 
 /**
- * Opens the connection `db:migrate` and `db:fresh` work on, from the settings
- * read out of `drizzle.config.ts` — its url and dialect.
+ * Opens the connection `db:migrate`, `db:fresh` and `db:status` work on, from
+ * the settings read out of `drizzle.config.ts` — its url and dialect.
  *
  * @param settings - The validated settings.
  * @returns The open session.
@@ -129,9 +135,15 @@ export interface DrizzleCommandDeps {
     readonly runCommand: CommandRunner
     /** Seeder-loader port replacing `db:seed`'s dynamic import. */
     readonly loadSeeder: SeederLoader
-    /** `db:migrate` and `db:fresh`: loads the `drizzle.config.ts` default export. */
+    /**
+     * `db:migrate`, `db:fresh` and `db:status`: loads the `drizzle.config.ts`
+     * default export.
+     */
     readonly loadMigrationConfig: MigrationConfigLoader
-    /** `db:migrate` and `db:fresh`: opens the connection they migrate through. */
+    /**
+     * `db:migrate`, `db:fresh` and `db:status`: opens the connection they
+     * migrate or read through.
+     */
     readonly openMaintenance: MaintenanceOpener
 }
 
@@ -153,7 +165,7 @@ const DRIZZLE_KIT_ARGS = ['run', '-A', DRIZZLE_KIT_SPECIFIER] as const
 
 /**
  * The same command as spawned for `db:generate`, `db:push`, `db:studio` and
- * `db:status`, with `-q` (#445). The flag is load-bearing: without it Deno
+ * `db:validate`, with `-q` (#445). The flag is load-bearing: without it Deno
  * itself writes to stderr — the npm `Initialize` lines and the
  * "Ignored build scripts" warning on a project's first run — and the stderr
  * rule in `kit_outcome.ts` would fail a run that worked.
@@ -341,11 +353,16 @@ function refuseInProduction(command: string, args: readonly string[]): void {
  * shared loader never has to know which command called it (#442).
  *
  * `db:fresh` never names the fallback: drizzle-kit has no equivalent, and
- * `drizzle-kit drop` deletes migration files.
+ * `drizzle-kit drop` deletes migration files. Nor does `db:status`:
+ * drizzle-kit has no command that reads the bookkeeping table (#439).
  */
 const REFUSAL_FRAME = {
     'db:migrate': { outcome: 'No migration was applied', kitFallback: true },
     'db:fresh': { outcome: 'Nothing was dropped', kitFallback: false },
+    'db:status': {
+        outcome: 'No migration status was read',
+        kitFallback: false,
+    },
 } as const
 
 /** A command that frames a {@link RefusedError}. */
@@ -527,6 +544,65 @@ async function handleFresh(
 }
 
 /**
+ * Handle `db:status` — list each journal entry as applied, pending or out of
+ * order against the database, and fail while any is not applied (#439).
+ *
+ * It reads through the settings loader and the maintenance opener
+ * `db:migrate` uses, so it reports on the database and the migrations
+ * `db:migrate` would act on; the policy (drizzle-orm's high-water rule, the
+ * catalogue check, the rendering) lives in `migration_status.ts`. Order: the
+ * settings (R2, R3), the connection (R4), the read, closed on every path that
+ * opened it; then the report. Read-only, so there is no production guard: it
+ * is the deploy gate. Nothing is spawned.
+ *
+ * @param deps - The I/O seams.
+ * @throws {CommandFailedError} With the count of unapplied migrations when
+ *   any is pending or out of order; or when the check could not run — a
+ *   refusal says that no migration status was read.
+ */
+async function handleStatus(deps: DrizzleCommandDeps): Promise<void> {
+    let settings: MigrationSettings
+    try {
+        settings = await loadMigrationSettings(deps.loadMigrationConfig)
+    } catch (error) {
+        throw new CommandFailedError(failureMessage('db:status', error), {
+            cause: error,
+        })
+    }
+
+    let session: MaintenanceSession
+    try {
+        session = await deps.openMaintenance(settings)
+    } catch (error) {
+        throw new CommandFailedError(
+            failureMessage('db:status', error, 'Could not open the database: '),
+            { cause: error },
+        )
+    }
+
+    let rows: readonly BookkeepingRow[] | undefined
+    try {
+        rows = await readBookkeeping(session, settings)
+    } catch (error) {
+        throw new CommandFailedError(
+            `Could not read the migration status: ${getErrorMessage(error)}`,
+            { cause: error },
+        )
+    } finally {
+        await session.close()
+    }
+
+    const report = renderMigrationStatus(
+        computeMigrationStatus(settings.entries, rows),
+        settings,
+    )
+    for (const line of report.lines) console.log(line)
+    if (report.failure !== undefined) {
+        throw new CommandFailedError(report.failure)
+    }
+}
+
+/**
  * Handle db:seed command - run database seeders.
  *
  * Refuses to run against a production environment unless the
@@ -670,7 +746,9 @@ async function loadDatabaseSeeder(
  * - `db:migrate` - Run pending database migrations, in-process
  * - `db:push` - Push schema changes directly to database
  * - `db:studio` - Open Drizzle Studio GUI
- * - `db:status` - Check the migration history for consistency
+ * - `db:status` - List each migration as applied or pending against the
+ *   database, in-process; exits `1` while any is not applied
+ * - `db:validate` - Validate the migrations folder (`drizzle-kit check`)
  * - `db:check` - Test database connection
  * - `db:fresh` - Empty the managed scope and apply every migration
  * - `db:seed` - Seed the database with test data
@@ -686,8 +764,8 @@ async function loadDatabaseSeeder(
  * @param overrides - Optional I/O-seam overrides for testing; each unset field
  *   defaults to real I/O (the container-resolved connection, `Deno.Command`,
  *   a dynamic seeder import, the `drizzle.config.ts` import, and the
- *   container's `Database` opened from it). `db:migrate` runs through the
- *   last two, not the command runner.
+ *   container's `Database` opened from it). `db:migrate`, `db:fresh` and
+ *   `db:status` run through the last two, not the command runner.
  *
  * @example
  * ```ts
@@ -776,17 +854,26 @@ export function registerDrizzleCommands(
         'Open Drizzle Studio (database GUI)',
     )
 
-    // `drizzle-kit check` validates the migrations folder only — snapshot
-    // versions, malformed snapshots, collisions. It never reads the schema or
-    // the database, so this command must not claim to detect drift.
     cli.register(
         'db:status',
+        () => handleStatus(deps),
+        'List each migration as applied or pending against the database; ' +
+            'exits 1 while any is not applied',
+    )
+
+    // `drizzle-kit check` validates the migrations folder only — snapshot
+    // versions, malformed snapshots, collisions. It never reads the schema or
+    // the database, so this command must not claim to detect drift or
+    // pending migrations: that is db:status (#439).
+    cli.register(
+        'db:validate',
         async () => {
-            console.log('📊 Checking migration history...')
-            await runKitOrFail('check', 'Migration history check failed')
-            console.log('✅ Migration history is consistent')
+            console.log('🔎 Validating the migrations folder...')
+            await runKitOrFail('check', 'Migration validation failed')
+            console.log('✅ The migrations folder is consistent')
         },
-        'Check the migration history for consistency (drizzle-kit check)',
+        'Validate the migrations folder (drizzle-kit check): snapshot ' +
+            'versions, malformed snapshots, collisions. Reads no database.',
     )
 
     // -------------------------------------------------------------------------
