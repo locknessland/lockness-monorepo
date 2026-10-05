@@ -1163,6 +1163,11 @@ Deno.test('#526 the accepted cost: what a bracketed name still shows', () => {
         [`password=${HEAD},Q7W[y8]zi.SiG-=${TAIL}`]:
             'password=***,Q7W[y8]zi.SiG-=***',
     })
+    // A query name with a bracket before its field segment takes URL mode
+    // too, so the text after the next `&` renders where `main` masked it.
+    const out = redactQueryCredentials(`&a[b]password=${M}&next`)
+    assertEquals(out, '&a[b]password=***&next')
+    assertNoMarker(out)
 })
 
 Deno.test('#526 the scan stays linear on bracketed names', () => {
