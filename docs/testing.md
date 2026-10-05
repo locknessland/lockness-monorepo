@@ -309,6 +309,11 @@ The suite creates and drops only schemas named `lockness_fresh_*` — with the
 `citext` extension inside one of them — and one event trigger,
 `lockness_fresh_ddl`, and it needs a superuser for that event trigger.
 
+The whole `test:postgres` task needs a server that sends English messages
+(`lc_messages=C`, the `postgres:16` image's default). The #454 notice tests in
+`packages/drizzle/tests/fresh_postgres_live.test.ts` match the
+`already exists, skipping` text, so a localised server fails them.
+
 The same task runs `scripts/kit_migrations_live_test.ts` (#444): it scaffolds
 the web and api kits, points each at a throwaway database it creates and drops
 (`lockness_kit_<kit>_<random>`), and runs `db:migrate` twice and `db:fresh`.
@@ -325,9 +330,7 @@ TTY. A clean push must exit 0 with an empty stderr. A column rename must fail
 with the TTY wording and leave the table unchanged. A `text` → `integer` change
 on a row holding `'x'` must fail, say the schema may be partly pushed, and leave
 the column's type alone. drizzle-kit swallows both failures and exits 0, so this
-suite is the only witness that `pgPush` still reports them on stderr. The server
-must send English messages (`lc_messages=C`, the `postgres:16` default): the
-#454 notice test matches their text.
+suite is the only witness that `pgPush` still reports them on stderr.
 
 And `scripts/remember_me_live_test.ts` (#457): on its own throwaway database
 (`lockness_remember_<random>`) it wires the real `SessionGuard` to the real
