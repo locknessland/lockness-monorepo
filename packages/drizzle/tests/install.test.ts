@@ -436,3 +436,130 @@ Deno.test('testDatabaseConnection - probes and always closes the client', async 
         else Deno.env.set('DATABASE_URL', previous)
     }
 })
+
+/**
+ * A write-only file cannot be read but can still be overwritten — the exact
+ * shape in which "unreadable" taken as "absent" destroys it. Root reads
+ * through the mode bits, and Windows has none, so both skip.
+ */
+const NO_UNREADABLE_FILE = Deno.build.os === 'windows' || Deno.uid() === 0
+
+Deno.test({
+    name:
+        'updateSingleEnvFile - an unreadable .env is left intact and the call fails',
+    ignore: NO_UNREADABLE_FILE,
+    fn: async () => {
+        await withTempCwd(async () => {
+            const original = 'APP_KEY=synthetic\nOTHER=kept\n'
+            await Deno.writeTextFile('./.env', original)
+            await Deno.chmod('./.env', 0o200)
+            try {
+                await assertRejects(
+                    () => updateSingleEnvFile('./.env'),
+                    Deno.errors.PermissionDenied,
+                )
+            } finally {
+                await Deno.chmod('./.env', 0o600)
+            }
+            assertEquals(await Deno.readTextFile('./.env'), original)
+        })
+    },
+})
+
+Deno.test({
+    name:
+        '#436 install - an unreadable .env fails the .env step and stays intact',
+    ignore: NO_UNREADABLE_FILE,
+    fn: async () => {
+        await withoutDatabaseUrl(() =>
+            withTempCwd(async () => {
+                await arrangeProject()
+                const original = 'APP_KEY=synthetic\n'
+                await Deno.writeTextFile('./.env', original)
+                await Deno.chmod('./.env', 0o200)
+                try {
+                    await assertRejects(
+                        () => install(),
+                        CommandFailedError,
+                        '1 of 9 steps failed: .env files',
+                    )
+                } finally {
+                    await Deno.chmod('./.env', 0o600)
+                }
+                assertEquals(await Deno.readTextFile('./.env'), original)
+            })
+        )
+    },
+})
+
+Deno.test("checkProjectStructure - a path that cannot be stat'ed is not reported missing", async () => {
+    await withTempCwd(async () => {
+        // A symlink to itself: stat fails with ELOOP, not NotFound.
+        await Deno.symlink('src', './src')
+        await Deno.writeTextFile('./deno.json', '{}')
+
+        const error = await assertRejects(
+            () => checkProjectStructure(),
+            ProjectStructureError,
+        )
+        assert(!error.message.includes('Missing'), error.message)
+        assertStringIncludes(error.message, 'src directory')
+        assert(
+            error.cause instanceof Deno.errors.FilesystemLoop,
+            'the stat error is the cause',
+        )
+    })
+})
+
+Deno.test("createDrizzleConfig - a config that cannot be stat'ed is not overwritten", async () => {
+    await withTempCwd(async () => {
+        await Deno.symlink('drizzle.config.ts', './drizzle.config.ts')
+        // The stat error itself propagates — not a later write attempt.
+        await assertRejects(
+            () => createDrizzleConfig(),
+            Deno.errors.FilesystemLoop,
+            "stat './drizzle.config.ts'",
+        )
+    })
+})
+
+Deno.test("createDatabaseSeeder - a seeder that cannot be stat'ed is not overwritten", async () => {
+    await withTempCwd(async () => {
+        await Deno.mkdir('./database/seeders', { recursive: true })
+        const path = './database/seeders/database_seeder.ts'
+        await Deno.symlink('database_seeder.ts', path)
+        await assertRejects(
+            () => createDatabaseSeeder(),
+            Deno.errors.FilesystemLoop,
+            `stat '${path}'`,
+        )
+    })
+})
+
+Deno.test('testDatabaseConnection - the failure warning redacts a credential in the error', async () => {
+    // Assembled at run time: no credential-shaped literal in the source.
+    const secret = ['s3', 'cr3t', 'Pw'].join('-')
+    const dsn = `postgres://app:${secret}@db.invalid:5432/app`
+    const sql = Object.assign(
+        (_s: TemplateStringsArray, ..._v: unknown[]) =>
+            Promise.reject(new Error(`connect failed for ${dsn}`)),
+        { end: () => Promise.resolve() },
+    )
+    const connect: SqlConnector = () => sql
+    const previous = Deno.env.get('DATABASE_URL')
+    Deno.env.set('DATABASE_URL', 'postgres://user:pass@localhost:5432/db')
+    const lines: string[] = []
+    const { log } = console
+    console.log = (...args: unknown[]) => void lines.push(args.join(' '))
+    try {
+        await testDatabaseConnection(connect)
+    } finally {
+        console.log = log
+        if (previous === undefined) Deno.env.delete('DATABASE_URL')
+        else Deno.env.set('DATABASE_URL', previous)
+    }
+    const warning = lines.find((l) => l.includes('connection failed'))
+    assert(warning !== undefined, lines.join('\n'))
+    assert(!warning.includes(secret), warning)
+    assertStringIncludes(warning, 'db.invalid')
+})

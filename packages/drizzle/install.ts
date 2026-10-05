@@ -29,6 +29,7 @@ import {
     runSteps,
 } from '@lockness/cli/command-failure'
 import { runEntry } from '@lockness/cli/entry'
+import { renderError } from '@lockness/contract'
 import { dirname, fromFileUrl, join } from '@std/path'
 import postgres from 'postgres'
 import { resolveDialect } from './drivers.ts'
@@ -97,6 +98,27 @@ function resolveStubsDir(): string {
 // =============================================================================
 
 /**
+ * Whether `path` exists.
+ *
+ * Only `NotFound` means absent. Any other stat failure — permission denied, a
+ * symlink loop — is re-thrown: a helper that took it for absence would go on
+ * to write over a file it merely could not inspect.
+ *
+ * @param path - The path to stat.
+ * @returns True if the path exists, false if it does not.
+ * @throws Any stat error other than `Deno.errors.NotFound`.
+ */
+async function exists(path: string): Promise<boolean> {
+    try {
+        await Deno.stat(path)
+        return true
+    } catch (error) {
+        if (error instanceof Deno.errors.NotFound) return false
+        throw error
+    }
+}
+
+/**
  * Create the drizzle.config.ts configuration file.
  *
  * Skips creation if the file already exists. The `drizzle-kit` dialect is
@@ -105,31 +127,29 @@ function resolveStubsDir(): string {
  * database rather than always assuming PostgreSQL.
  *
  * @returns True if the file was created, false if it already existed
+ * @throws When the path exists but cannot be stat'ed, or the write fails.
  */
 export async function createDrizzleConfig(): Promise<boolean> {
     const configPath = './drizzle.config.ts'
 
-    try {
-        await Deno.stat(configPath)
+    if (await exists(configPath)) {
         console.log('ℹ️  drizzle.config.ts already exists, skipping...')
         return false
-    } catch {
-        const stubsDir = resolveStubsDir()
-        const dialect = resolveDialect(
-            undefined,
-            Deno.env.get('DATABASE_URL') ?? '',
-        )
-        const content = await Stub.renderFrom(
-            stubsDir,
-            '',
-            'drizzle.config.ts',
-            { dialect: DRIZZLE_KIT_DIALECT[dialect] },
-        )
-
-        await Deno.writeTextFile(configPath, content)
-        console.log('✓ Created drizzle.config.ts')
-        return true
     }
+    const dialect = resolveDialect(
+        undefined,
+        Deno.env.get('DATABASE_URL') ?? '',
+    )
+    const content = await Stub.renderFrom(
+        resolveStubsDir(),
+        '',
+        'drizzle.config.ts',
+        { dialect: DRIZZLE_KIT_DIALECT[dialect] },
+    )
+
+    await Deno.writeTextFile(configPath, content)
+    console.log('✓ Created drizzle.config.ts')
+    return true
 }
 
 /**
@@ -202,27 +222,25 @@ export async function createDirectories(): Promise<void> {
  * Skips creation if the file already exists.
  *
  * @returns True if the file was created, false if it already existed
+ * @throws When the path exists but cannot be stat'ed, or the write fails.
  */
 export async function createDatabaseSeeder(): Promise<boolean> {
     const seederPath = './database/seeders/database_seeder.ts'
 
-    try {
-        await Deno.stat(seederPath)
+    if (await exists(seederPath)) {
         console.log('ℹ️  database_seeder.ts already exists, skipping...')
         return false
-    } catch {
-        const stubsDir = resolveStubsDir()
-        const content = await Stub.renderFrom(
-            stubsDir,
-            '',
-            'database_seeder',
-            {},
-        )
-
-        await Deno.writeTextFile(seederPath, content)
-        console.log('✓ Created database/seeders/database_seeder.ts')
-        return true
     }
+    const content = await Stub.renderFrom(
+        resolveStubsDir(),
+        '',
+        'database_seeder',
+        {},
+    )
+
+    await Deno.writeTextFile(seederPath, content)
+    console.log('✓ Created database/seeders/database_seeder.ts')
+    return true
 }
 
 /**
@@ -238,36 +256,54 @@ async function updateEnvFile(): Promise<void> {
 /**
  * Update a single environment file with DATABASE_URL.
  *
+ * A missing file is created. A file that exists but cannot be read is left
+ * exactly as it is and the call fails: writing it as if it were absent would
+ * replace the user's settings with the one `DATABASE_URL` line.
+ *
  * @param envPath - Path to the environment file
+ * @throws Any read error other than `Deno.errors.NotFound`, or a write error.
  */
 export async function updateSingleEnvFile(envPath: string): Promise<void> {
     const isExample = envPath.includes('.example')
     const fileLabel = isExample ? '.env.example' : '.env'
 
-    try {
-        const envContent = await Deno.readTextFile(envPath)
-
-        if (envContent.includes('DATABASE_URL')) {
-            console.log(`ℹ️  DATABASE_URL already exists in ${fileLabel}`)
-        } else {
-            await Deno.writeTextFile(
-                envPath,
-                `${envContent}\n\n# Database\n${DEFAULT_DATABASE_URL}\n`,
-            )
-            console.log(`✓ Added DATABASE_URL to ${fileLabel}`)
-        }
-    } catch {
-        // Create file if it doesn't exist
+    const envContent = await readIfPresent(envPath)
+    if (envContent === undefined) {
         await Deno.writeTextFile(
             envPath,
             `# Database\n${DEFAULT_DATABASE_URL}\n`,
         )
         console.log(`✓ Created ${fileLabel} with DATABASE_URL`)
+    } else if (envContent.includes('DATABASE_URL')) {
+        console.log(`ℹ️  DATABASE_URL already exists in ${fileLabel}`)
+    } else {
+        await Deno.writeTextFile(
+            envPath,
+            `${envContent}\n\n# Database\n${DEFAULT_DATABASE_URL}\n`,
+        )
+        console.log(`✓ Added DATABASE_URL to ${fileLabel}`)
     }
 }
 
 /**
- * Raised when the project is missing a file the installer requires.
+ * Read a text file, or `undefined` when it does not exist.
+ *
+ * @param path - The file to read.
+ * @returns Its contents, or `undefined` on `Deno.errors.NotFound`.
+ * @throws Any other read error.
+ */
+async function readIfPresent(path: string): Promise<string | undefined> {
+    try {
+        return await Deno.readTextFile(path)
+    } catch (error) {
+        if (error instanceof Deno.errors.NotFound) return undefined
+        throw error
+    }
+}
+
+/**
+ * Raised when the project is missing a file the installer requires, or when
+ * the installer cannot tell whether it is there.
  *
  * A {@link CommandFailedError}, so whoever runs the installer — `runEntry`
  * standalone, or `Cli.dispatch` — prints its one-line message once and exits
@@ -275,11 +311,16 @@ export async function updateSingleEnvFile(envPath: string): Promise<void> {
  */
 export class ProjectStructureError extends CommandFailedError {
     /**
-     * @param name - Human-readable name of the missing file/directory.
+     * @param name - Human-readable name of the file/directory.
+     * @param options - The stat error, when the path could not be checked;
+     *   the message then says so instead of calling it missing.
      */
-    constructor(name: string) {
+    constructor(name: string, options: { readonly cause?: unknown } = {}) {
         super(
-            `Missing ${name}. Please run this command from your project root.`,
+            options.cause === undefined
+                ? `Missing ${name}. Please run this command from your project root.`
+                : `Could not check ${name}.`,
+            options,
         )
         this.name = 'ProjectStructureError'
     }
@@ -288,17 +329,18 @@ export class ProjectStructureError extends CommandFailedError {
 /**
  * Verify the project has the required structure.
  *
- * @throws {ProjectStructureError} If a required file/directory is missing.
+ * @throws {ProjectStructureError} If a required file/directory is missing,
+ *   or cannot be stat'ed — then with the stat error as its `cause`.
  */
 export async function checkProjectStructure(): Promise<void> {
     for (const check of STRUCTURE_CHECKS) {
+        let present: boolean
         try {
-            await Deno.stat(check.path)
-        } catch {
-            // Not swallowed: a path that cannot be stat'ed is the failure
-            // reported here, as the missing file it names.
-            throw new ProjectStructureError(check.name)
+            present = await exists(check.path)
+        } catch (error) {
+            throw new ProjectStructureError(check.name, { cause: error })
         }
+        if (!present) throw new ProjectStructureError(check.name)
     }
 }
 
@@ -374,10 +416,9 @@ export async function testDatabaseConnection(
         await sql`SELECT 1`
         console.log('✓ Database connection successful!')
     } catch (error) {
-        console.log(
-            '✗ Database connection failed:',
-            error instanceof Error ? error.message : String(error),
-        )
+        // A driver error can embed the DSN, password included: rendered,
+        // never interpolated raw.
+        console.log(`✗ Database connection failed: ${renderError(error)}`)
         console.log(
             '\n💡 Make sure your database is running and DATABASE_URL is correct',
         )
