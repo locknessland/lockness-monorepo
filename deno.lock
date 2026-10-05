@@ -4583,8 +4583,16 @@
       "packages/cli": {
         "dependencies": [
           "jsr:@lockness/contract@0.4",
+          "jsr:@lockness/core@0.4",
+          "jsr:@lockness/drizzle@0.4",
           "jsr:@lockness/events@0.4",
+          "jsr:@lockness/features@0.4",
+          "jsr:@lockness/i18n@0.4",
+          "jsr:@lockness/mail@0.4",
+          "jsr:@lockness/notification@0.4",
+          "jsr:@lockness/openapi@0.4",
           "jsr:@lockness/queue@0.4",
+          "jsr:@lockness/search@0.4",
           "jsr:@std/assert@1",
           "jsr:@std/fs@1",
           "jsr:@std/jsonc@1",
