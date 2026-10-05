@@ -264,9 +264,12 @@ const MUTATIONS: Mutation[] = [
         label:
             'M19 db:check logs its failure itself, then the Cli prints it again',
         file: CLI,
+        // Re-anchored when #436 made the db:check message one line, with the
+        // reason in the cause: the mutant still prints the reason itself
+        // before throwing.
         edits: [[
-            '} catch (error) {\n                throw new CommandFailedError(\n                    `Database connection failed:',
-            '} catch (error) {\n                console.error(getErrorMessage(error))\n                throw new CommandFailedError(\n                    `Database connection failed:',
+            "} catch (error) {\n                throw new CommandFailedError(\n                    'Database connection failed.",
+            "} catch (error) {\n                console.error(getErrorMessage(error))\n                throw new CommandFailedError(\n                    'Database connection failed.",
         ]],
         killedBy: '#427 T12',
     },

@@ -21,7 +21,6 @@ import { dirname, fromFileUrl, join } from '@std/path'
 // configured, and the barrel would pull every built-in command in with it.
 import { CommandFailedError } from '@lockness/cli/command-failure'
 import { container } from '@lockness/container'
-import { renderError } from '@lockness/contract'
 import { Database } from './mod.ts'
 import { handleMakeFactory } from './generators/factory_generator.ts'
 import { handleMakeModel } from './generators/model_generator.ts'
@@ -382,7 +381,9 @@ function refuseInProduction(command: string, args: readonly string[]): void {
     try {
         assertNotProduction(command, args.includes(ALLOW_PRODUCTION_FLAG))
     } catch (error) {
-        throw new CommandFailedError(getErrorMessage(error), { cause: error })
+        // `assertNotProduction` wrote the whole message, so it is the
+        // failure's message; a cause would print the same text again.
+        throw new CommandFailedError(getErrorMessage(error))
     }
 }
 
@@ -430,23 +431,30 @@ function refusalMessage(command: RefusingCommand, error: RefusedError): string {
 
 /**
  * The message for a failure caught while a command reads its settings or
- * opens its connection: a refusal framed for the command, anything else
- * prefixed with what was being done.
+ * opens its connection: a refusal framed for the command, anything else the
+ * step that failed. The caught error's text is never part of it: the command
+ * throws it as the `cause`, which the CLI prints rendered after the message
+ * (#436).
  *
  * @param command - The command that failed.
  * @param error - Whatever was thrown.
- * @param prefix - Prepended to a failure that is not a refusal.
+ * @param step - What was being done, the message for a failure that is not a
+ *   refusal.
  * @returns The message the command fails with.
  */
 function failureMessage(
     command: RefusingCommand,
     error: unknown,
-    prefix = '',
+    step: string,
 ): string {
-    return error instanceof RefusedError
-        ? refusalMessage(command, error)
-        : `${prefix}${getErrorMessage(error)}`
+    return error instanceof RefusedError ? refusalMessage(command, error) : step
 }
+
+/** The step a settings failure names: reading `drizzle.config.ts`. */
+const SETTINGS_STEP = 'Could not load the migration settings'
+
+/** The step an opener failure names. */
+const OPEN_STEP = 'Could not open the database'
 
 /**
  * Handle `db:migrate` — apply every pending migration in-process, through the
@@ -470,9 +478,10 @@ async function handleMigrate(deps: DrizzleCommandDeps): Promise<void> {
     try {
         settings = await loadMigrationSettings(deps.loadMigrationConfig)
     } catch (error) {
-        throw new CommandFailedError(failureMessage('db:migrate', error), {
-            cause: error,
-        })
+        throw new CommandFailedError(
+            failureMessage('db:migrate', error, SETTINGS_STEP),
+            { cause: error },
+        )
     }
 
     let connection: MaintenanceConnection
@@ -480,11 +489,7 @@ async function handleMigrate(deps: DrizzleCommandDeps): Promise<void> {
         connection = await deps.openMaintenance(settings)
     } catch (error) {
         throw new CommandFailedError(
-            failureMessage(
-                'db:migrate',
-                error,
-                'Could not open the database: ',
-            ),
+            failureMessage('db:migrate', error, OPEN_STEP),
             { cause: error },
         )
     }
@@ -497,10 +502,9 @@ async function handleMigrate(deps: DrizzleCommandDeps): Promise<void> {
                 schema: settings.schema,
             })
         } catch (error) {
-            throw new CommandFailedError(
-                `Failed to apply migrations: ${getErrorMessage(error)}`,
-                { cause: error },
-            )
+            throw new CommandFailedError('Failed to apply migrations', {
+                cause: error,
+            })
         }
         console.log('✅ Migrations applied successfully')
     } finally {
@@ -535,9 +539,10 @@ async function handleFresh(
     try {
         settings = await loadFreshSettings(deps.loadMigrationConfig)
     } catch (error) {
-        throw new CommandFailedError(failureMessage('db:fresh', error), {
-            cause: error,
-        })
+        throw new CommandFailedError(
+            failureMessage('db:fresh', error, SETTINGS_STEP),
+            { cause: error },
+        )
     }
 
     let connection: MaintenanceConnection
@@ -545,7 +550,7 @@ async function handleFresh(
         connection = await deps.openMaintenance(settings)
     } catch (error) {
         throw new CommandFailedError(
-            failureMessage('db:fresh', error, 'Could not open the database: '),
+            failureMessage('db:fresh', error, OPEN_STEP),
             { cause: error },
         )
     }
@@ -559,7 +564,7 @@ async function handleFresh(
                 failureMessage(
                     'db:fresh',
                     error,
-                    'Failed to empty the database; migrations were not run: ',
+                    'Failed to empty the database; migrations were not run',
                 ),
                 { cause: error },
             )
@@ -574,8 +579,7 @@ async function handleFresh(
             })
         } catch (error) {
             throw new CommandFailedError(
-                'The database was emptied, but the migrations failed: ' +
-                    getErrorMessage(error),
+                'The database was emptied, but the migrations failed',
                 { cause: error },
             )
         }
@@ -607,9 +611,10 @@ async function handleStatus(deps: DrizzleCommandDeps): Promise<void> {
     try {
         settings = await loadMigrationSettings(deps.loadMigrationConfig)
     } catch (error) {
-        throw new CommandFailedError(failureMessage('db:status', error), {
-            cause: error,
-        })
+        throw new CommandFailedError(
+            failureMessage('db:status', error, SETTINGS_STEP),
+            { cause: error },
+        )
     }
 
     let connection: MaintenanceConnection
@@ -617,7 +622,7 @@ async function handleStatus(deps: DrizzleCommandDeps): Promise<void> {
         connection = await deps.openMaintenance(settings)
     } catch (error) {
         throw new CommandFailedError(
-            failureMessage('db:status', error, 'Could not open the database: '),
+            failureMessage('db:status', error, OPEN_STEP),
             { cause: error },
         )
     }
@@ -626,10 +631,9 @@ async function handleStatus(deps: DrizzleCommandDeps): Promise<void> {
     try {
         rows = await readBookkeeping(connection, settings)
     } catch (error) {
-        throw new CommandFailedError(
-            `Could not read the migration status: ${getErrorMessage(error)}`,
-            { cause: error },
-        )
+        throw new CommandFailedError('Could not read the migration status', {
+            cause: error,
+        })
     } finally {
         await connection.close()
     }
@@ -676,7 +680,9 @@ async function handleSeed(
     try {
         db = await deps.connect()
     } catch (error) {
-        throw new CommandFailedError(getErrorMessage(error), { cause: error })
+        // `initDatabase` wrote the whole message (its driver part already
+        // redacted), so a cause would print the same text again.
+        throw new CommandFailedError(getErrorMessage(error))
     }
     const specificSeeder = args.find((a) => !a.startsWith('-'))
 
@@ -707,22 +713,22 @@ async function loadSeederModule(
     try {
         return await loadSeeder(path)
     } catch (error) {
-        // The raw text decides only whether the file is missing; what is
-        // SHOWN is rendered (#478), so a credential or a source excerpt in
-        // the load failure never reaches the terminal.
+        // The raw text decides only whether the file is missing; it is never
+        // shown. A missing file is fully explained by the message; any other
+        // load failure travels as the cause, which the CLI prints rendered
+        // (#478, #436), so a credential or a source excerpt in it never
+        // reaches the terminal raw.
         if (
             path.endsWith('/database_seeder.ts') &&
             getErrorMessage(error).includes('Module not found')
         ) {
             throw new CommandFailedError(
                 'No database_seeder.ts found. Run `deno task cli make:seeder Database` first.',
-                { cause: error },
             )
         }
-        throw new CommandFailedError(
-            `Failed to load seeder ${path}: ${renderError(error)}`,
-            { cause: error },
-        )
+        throw new CommandFailedError(`Failed to load seeder ${path}`, {
+            cause: error,
+        })
     }
 }
 
@@ -933,8 +939,7 @@ export function registerDrizzleCommands(
                 console.log('✅ Database connection successful')
             } catch (error) {
                 throw new CommandFailedError(
-                    `Database connection failed: ${getErrorMessage(error)}\n` +
-                        '💡 Check your DATABASE_URL in .env',
+                    'Database connection failed. Check your DATABASE_URL in .env',
                     { cause: error },
                 )
             } finally {

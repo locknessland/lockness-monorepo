@@ -235,10 +235,9 @@ Deno.test('wiring - a real Cli exits 1 on a failed db:migrate, printing one erro
             const status = await cli.dispatch(['db:migrate'])
 
             assertEquals(status, 1)
-            // The printer renders the cause after the message (#436).
+            // The cause is printed once, rendered, after the message (#436).
             assertEquals(errors, [[
-                '❌ Failed to apply migrations: migrate failed caused by: ' +
-                'Error: migrate failed',
+                '❌ Failed to apply migrations caused by: Error: migrate failed',
             ]])
         } finally {
             console.log = log
@@ -599,11 +598,12 @@ Deno.test('db:check - a failed probe rejects with one message, and still closes'
             CommandFailedError,
         )
 
+        // One line, and the probe's own error travels as the cause (#436).
         assertEquals(
             error.message,
-            'Database connection failed: unreachable\n' +
-                '💡 Check your DATABASE_URL in .env',
+            'Database connection failed. Check your DATABASE_URL in .env',
         )
+        assertEquals((error.cause as Error).message, 'unreachable')
         assertEquals(events, ['probe', 'close'])
     } finally {
         restore()
@@ -622,7 +622,11 @@ Deno.test('db:check - a connect() that rejects is a CommandFailedError', async (
             () => cli.run('db:check'),
             CommandFailedError,
         )
-        assertStringIncludes(error.message, 'no client')
+        assertEquals(
+            error.message,
+            'Database connection failed. Check your DATABASE_URL in .env',
+        )
+        assertEquals((error.cause as Error).message, 'no client')
     } finally {
         restore()
     }
@@ -712,13 +716,12 @@ Deno.test('#427 T12 a real Cli prints a failed db:check once and exits 1', async
             const status = await cli.dispatch(['db:check'])
 
             assertEquals(status, 1)
-            // The printer encodes the newline and renders the cause (#436).
-            const withheld = 'Database not configured: ' +
-                "The 'postgres' driver could not be configured (Error); its " +
-                'message is withheld because it may contain the DSN'
+            // One line; the reason is printed once, as the cause (#436).
             assertEquals(errors, [[
-                `❌ Database connection failed: ${withheld}\\x0a` +
-                `💡 Check your DATABASE_URL in .env caused by: Error: ${withheld}`,
+                '❌ Database connection failed. Check your DATABASE_URL in ' +
+                '.env caused by: Error: Database not configured: ' +
+                "The 'postgres' driver could not be configured (Error); its " +
+                'message is withheld because it may contain the DSN',
             ]])
         } finally {
             console.log = log
@@ -868,7 +871,14 @@ for (const command of ['db:seed', 'db:check']) {
                     error instanceof CommandFailedError,
                     `${command} did not refuse: ${error}`,
                 )
-                assertStringIncludes(error.message, NO_TARGET(state))
+                // db:seed fails with the refusal as its message; db:check
+                // names its own step and carries the refusal as the cause.
+                assertStringIncludes(
+                    command === 'db:check'
+                        ? (error.cause as Error).message
+                        : error.message,
+                    NO_TARGET(state),
+                )
                 assertEquals(built, 0, 'a client was built')
                 assertEquals(loaded, false, 'a seeder was loaded')
             }, { DATABASE_URL: url })
@@ -1053,10 +1063,15 @@ Deno.test('#478 db:seed - a seeder load failure is rendered, never embedded raw'
             CommandFailedError,
         )
 
-        assertStringIncludes(error.message, 'Failed to load seeder')
-        assertStringIncludes(error.message, 'token=***')
+        // The load failure travels as the cause, rendered by the printer;
+        // the message never carries its text (#436).
+        assertEquals(
+            error.message,
+            'Failed to load seeder ./database/seeders/user_seeder.ts',
+        )
         assert(!error.message.includes(head), error.message)
         assert(!error.message.includes(tail), error.message)
+        assert(error.cause instanceof Error)
     } finally {
         restore()
     }
@@ -1076,7 +1091,10 @@ Deno.test('db:seed <name> - a module that fails to load is a CommandFailedError 
             CommandFailedError,
         )
 
-        assertStringIncludes(error.message, 'Unexpected token')
+        assertEquals(
+            error.message,
+            'Failed to load seeder ./database/seeders/user_seeder.ts',
+        )
         assertEquals(error.cause, syntax)
         assertEquals(events, ['close'])
     } finally {
@@ -1453,7 +1471,10 @@ for (const failAt of ['read', 'execute', 'migrate'] as const) {
             )
 
             assert(error instanceof CommandFailedError, String(error))
-            assertStringIncludes(error.message, `${failAt} failed`)
+            // The step's own error travels as the cause, never in the
+            // message (#436).
+            assert(!error.message.includes(`${failAt} failed`), error.message)
+            assertStringIncludes(String(error.cause), `${failAt} failed`)
             assertEquals(lines.join('\n').includes('refreshed'), false)
             assertEquals(calls.at(-1), 'close', 'the connection was not closed')
         })
@@ -1491,7 +1512,11 @@ Deno.test('db:fresh - a connection that cannot be opened is a CommandFailedError
         )
 
         assert(error instanceof CommandFailedError, String(error))
-        assertStringIncludes(error.message, 'Database not configured')
+        assertEquals(error.message, 'Could not open the database')
+        assertEquals(
+            (error.cause as Error).message,
+            'Database not configured',
+        )
         assertEquals(lines.join('\n').includes('refreshed'), false)
     })
 })
@@ -1886,8 +1911,8 @@ Deno.test('#447 the default opener closes the Database when the connection canno
             })
 
         assert(error instanceof CommandFailedError, String(error))
-        assertStringIncludes(error.message, 'Could not open the database')
-        assertStringIncludes(error.message, 'open failed')
+        assertEquals(error.message, 'Could not open the database')
+        assertStringIncludes(String(error.cause), 'open failed')
         assertEquals(events, ['open', 'close:database'])
         assertEquals(stillConnected, false)
         assert(
@@ -2480,10 +2505,8 @@ Deno.test('#442 a failed db:migrate exits 1, prints no success line, and closes'
         const { lines, error } = await invoke('db:migrate', deps)
 
         assert(error instanceof CommandFailedError, String(error))
-        assertEquals(
-            error.message,
-            'Failed to apply migrations: migrate failed',
-        )
+        assertEquals(error.message, 'Failed to apply migrations')
+        assertEquals((error.cause as Error).message, 'migrate failed')
         assertEquals(error.exitCode, 1)
         assertEquals(lines.join('\n').includes('applied successfully'), false)
         assertEquals(calls.at(-1), 'close', 'the connection was not closed')
@@ -2501,9 +2524,10 @@ Deno.test('#442 db:migrate on a client that cannot be configured exits 1', async
         const { lines, error } = await invoke('db:migrate', deps)
 
         assert(error instanceof CommandFailedError, String(error))
+        assertEquals(error.message, 'Could not open the database')
         assertEquals(
-            error.message,
-            'Could not open the database: Database not configured: no client',
+            (error.cause as Error).message,
+            'Database not configured: no client',
         )
         assertEquals(lines.join('\n').includes('applied successfully'), false)
     })
@@ -2758,9 +2782,10 @@ Deno.test('#439 db:status - a connection that cannot be opened exits 1', async (
         const { lines, error } = await invoke('db:status', deps)
 
         assert(error instanceof CommandFailedError, String(error))
+        assertEquals(error.message, 'Could not open the database')
         assertEquals(
-            error.message,
-            'Could not open the database: Database not configured: no client',
+            (error.cause as Error).message,
+            'Database not configured: no client',
         )
         assertEquals(lines, [])
     })
@@ -2797,9 +2822,10 @@ for (
             const { lines, error } = await invoke('db:status', deps)
 
             assert(error instanceof CommandFailedError, String(error))
+            assertEquals(error.message, 'Could not read the migration status')
             assertEquals(
-                error.message,
-                'Could not read the migration status: relation read failed',
+                (error.cause as Error).message,
+                'relation read failed',
             )
             assertEquals(calls.at(-1), 'close', 'the connection was not closed')
             assertEquals(lines, [])
@@ -2816,11 +2842,11 @@ Deno.test('#439 db:status - a malformed bookkeeping row exits 1 and closes the s
         const { error } = await invoke('db:status', deps)
 
         assert(error instanceof CommandFailedError, String(error))
+        assertEquals(error.message, 'Could not read the migration status')
         assertEquals(
-            error.message,
-            'Could not read the migration status: the bookkeeping table ' +
-                '"drizzle"."__drizzle_migrations" holds a row whose ' +
-                'created_at is not an integer',
+            (error.cause as Error).message,
+            'the bookkeeping table "drizzle"."__drizzle_migrations" holds a ' +
+                'row whose created_at is not an integer',
         )
         assertEquals(calls.at(-1), 'close')
     })
