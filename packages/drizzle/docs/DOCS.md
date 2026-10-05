@@ -189,6 +189,54 @@ throws, and the boot fails. To point the instance at another database, call
 | Client package missing, or URL the client rejects | `connect()` returns `success: false` and, unless `silent: true`, logs a `❌` line: the package and import error (withheld if it holds a credential), or the client's message withheld (error name only). Boot continues. | `/ready` returns `503` with `database: down`. `db:seed` and `db:check` print the error once and exit 1.                               |
 | Host unreachable, bad credentials, database down  | Nothing is sent, so nothing is reported.                                                                                                                                                                                 | `/ready` returns `503` within 3 s. The first query gets the driver's error. `db:check` reports it, withheld if it holds a credential. |
 
+### Server notices
+
+PostgreSQL sends _notices_ alongside query results: a `WARNING` such as
+`there is no transaction in progress`, or a `NOTICE` such as
+`schema "drizzle" already exists, skipping` on every idempotent
+`CREATE … IF NOT EXISTS`. Left to itself, postgres.js prints each one as a raw
+object on stdout. Every client this package opens (the `Database` service,
+`db:fresh`, `db:seed`, `db:check` and the installer's connection probe) routes
+them by severity instead:
+
+| Severity                         | Goes to          | Without a logger (the default)                                              | With `logger: true` on the kernel |
+| :------------------------------- | :--------------- | :-------------------------------------------------------------------------- | :-------------------------------- |
+| `WARNING`                        | `reporter.warn`  | one stderr line: `⚠️  PostgreSQL warning: <message>`, plus `— hint: <hint>` | `logger().warn(message, fields)`  |
+| `NOTICE`, `INFO`, `LOG`, `DEBUG` | `reporter.debug` | **discarded**, the same outcome as a logger at its default level            | `logger().debug(message, fields)` |
+| unrecognised or missing          | `reporter.warn`  | as `WARNING`: it errs toward being visible                                  | as `WARNING`                      |
+
+- **Fields.** `fields` holds whichever of `severity`, `code`, `detail`, `hint`
+  and `where` the notice carries. The message and every field are encoded with
+  `safeForLog`, because a notice can carry user data (a `RAISE NOTICE` in a SQL
+  function, for example).
+- **`silent: true` does not hide warnings.** It governs only `connect()`'s own
+  status line. The `db:*` commands connect silently, and a real warning still
+  reaches you.
+- **The CLI never has a logger.** The `db:*` commands do not boot the kernel, so
+  they always use the console fallback: warnings are printed, the rest are
+  discarded.
+- **Your own reporter.** Outside the kernel, pass one to `connect()`:
+
+  ```typescript
+  import { Database, type NoticeReporter } from '@lockness/drizzle'
+
+  const notices: NoticeReporter = {
+      warn: (message, fields) => console.warn(message, fields),
+      debug: (message, fields) => console.debug(message, fields),
+  }
+  await new Database().connect(Deno.env.get('DATABASE_URL')!, { notices })
+  ```
+
+  The reporter is synchronous and must not throw: it runs inside postgres.js's
+  socket handler.
+- **A custom driver factory** receives the routed callback as
+  `options.onNotice`, its optional second parameter. A factory that takes only
+  the url keeps working, and its notices are its own business.
+- **Not covered.** `db:migrate`, `db:generate`, `db:push` and `db:status` run
+  `drizzle-kit` in a subprocess, which opens its own client with no notice
+  handler; on an already-migrated database `db:migrate` still prints the raw
+  object (tracked by #442). MySQL and SQLite warnings are not routed.
+
 ### Monitoring: `/health` for liveness, `/ready` for readiness
 
 The framework serves two endpoints:

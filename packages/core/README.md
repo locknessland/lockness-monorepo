@@ -572,7 +572,8 @@ v0.5.0 core imports an optional package only when the kernel names it.
  @Kernel({
      // …
 +    telemetry: true, // request spans; still a no-op unless OTEL_DENO is set
-+    logger: true,    // scheduler failures go to logger(), not console.error
++    logger: true,    // scheduler failures go to logger(), not console.error;
++                     // PostgreSQL warnings (warn) and notices (debug) too
  })
 ```
 

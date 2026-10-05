@@ -75,6 +75,12 @@ client is lazy: no round trip happens at boot, so a bad database surfaces on
 `/ready` or on the first query. Call `Database.probe()` in an `@OnBoot` hook if
 you want boot to fail fast.
 
+PostgreSQL server notices never reach the console as raw objects. A `WARNING` is
+printed as one stderr line; `NOTICE`, `INFO`, `LOG` and `DEBUG` are discarded.
+With `logger: true` on the kernel, both go to `@lockness/logger`, warnings at
+`warn` and the rest at `debug`. See
+[Server notices](docs/DOCS.md#server-notices).
+
 ```typescript
 // app/kernel.ts
 import { Kernel } from '@lockness/core'
@@ -509,6 +515,25 @@ await database.db.transaction(async (tx) => {
 - ✅ Create migrations for all schema changes
 - ✅ Use seeders for test data
 - ✅ Leverage TypeScript types from Drizzle
+
+## Upgrading to v0.5.0
+
+One item. **No migration step is required.**
+
+### 1. PostgreSQL server notices no longer print as raw objects
+
+Until v0.5.0 every postgres client printed each server notice as a raw object on
+stdout, so `db:fresh` dumped `schema "drizzle" already exists, skipping` with
+its severity, file, line and routine (#454). Now a `WARNING` is one stderr line
+(`⚠️  PostgreSQL warning: <message>`), and `NOTICE`, `INFO`, `LOG` and `DEBUG`
+are discarded unless the kernel sets `logger: true`, which sends them to
+`@lockness/logger` at `debug`. If you watched stdout for a notice, read it from
+the logger instead, or pass `ConnectionOptions.notices` to `connect()`.
+
+`DriverFactory` gained an optional second parameter, `options.onNotice`. A
+factory written for one parameter still compiles. `db:migrate` runs
+`drizzle-kit`, which still prints raw notices (#442). See
+[Server notices](docs/DOCS.md#server-notices).
 
 ## Dependencies
 

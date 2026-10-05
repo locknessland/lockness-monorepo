@@ -37,13 +37,13 @@ application installs it, or the feature stays off.
 
 <!-- generated:surface -->
 
-| Kind      | Exports                                                                                                                                                                                                                                                             |
-| :-------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| class     | `Database`, `Factory`, `MalformedCursorError`                                                                                                                                                                                                                       |
-| function  | `assertNotProduction`, `decodeCursor`, `encodeCursor`, `paginate`, `registerDrizzleCommands`, `resolveDialect`                                                                                                                                                      |
-| interface | `CommandSpec`, `ConnectionOptions`, `ConnectionResult`, `CursorPaginateOptions`, `DbConnection`, `DecodedCursor`, `DriverHandle`, `DrizzleCommandDeps`, `FactoryCreateOptions`, `MigrateOptions`, `MigrationSettings`, `OffsetPaginateOptions`, `SchemaMaintenance` |
-| typeAlias | `CommandRunner`, `DatabaseSchema`, `Dialect`, `DialectDatabase`, `DriverFactory`, `KitDialect`, `MaintenanceOpener`, `MaintenanceSession`, `MigrationConfigLoader`, `SeederLoader`                                                                                  |
-| variable  | `ALLOW_PRODUCTION_FLAG`, `CLIENT_PACKAGE`                                                                                                                                                                                                                           |
+| Kind      | Exports                                                                                                                                                                                                                                                                                                |
+| :-------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| class     | `Database`, `Factory`, `MalformedCursorError`                                                                                                                                                                                                                                                          |
+| function  | `assertNotProduction`, `decodeCursor`, `encodeCursor`, `paginate`, `registerDrizzleCommands`, `resolveDialect`                                                                                                                                                                                         |
+| interface | `CommandSpec`, `ConnectionOptions`, `ConnectionResult`, `CursorPaginateOptions`, `DbConnection`, `DecodedCursor`, `DriverHandle`, `DriverOptions`, `DrizzleCommandDeps`, `FactoryCreateOptions`, `MigrateOptions`, `MigrationSettings`, `NoticeReporter`, `OffsetPaginateOptions`, `SchemaMaintenance` |
+| typeAlias | `CommandRunner`, `DatabaseSchema`, `Dialect`, `DialectDatabase`, `DriverFactory`, `KitDialect`, `MaintenanceOpener`, `MaintenanceSession`, `MigrationConfigLoader`, `SeederLoader`                                                                                                                     |
+| variable  | `ALLOW_PRODUCTION_FLAG`, `CLIENT_PACKAGE`                                                                                                                                                                                                                                                              |
 
 Anything not listed is internal and free to change.
 
@@ -102,7 +102,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-18 test files for 16 source files:
+20 test files for 17 source files:
 
 - `packages/drizzle/tests/app_file.test.ts`
 - `packages/drizzle/tests/cli_commands.test.ts`
@@ -118,6 +118,8 @@ Anything not listed is internal and free to change.
 - `packages/drizzle/tests/make_model_dialect.test.ts`
 - `packages/drizzle/tests/migration_settings.test.ts`
 - `packages/drizzle/tests/multi_db.test.ts`
+- `packages/drizzle/tests/notice.test.ts`
+- `packages/drizzle/tests/notice_wiring.test.ts`
 - `packages/drizzle/tests/paginate.test.ts`
 - `packages/drizzle/tests/production_guard.test.ts`
 - `packages/drizzle/tests/query_credentials.test.ts`
@@ -144,7 +146,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 18 test files directly —
+Then, specific to this package: run its 20 test files directly —
 
 ```bash
 deno test -A packages/drizzle/
