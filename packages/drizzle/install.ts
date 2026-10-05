@@ -463,10 +463,10 @@ function showNextSteps(): void {
  * 6. Test database connection
  * 7. Show next steps
  *
- * Steps 2 to 5 run with `runSteps`: each runs whatever the one before it did,
- * then one failure names those that failed (#436, finish then fail), and the
- * connection test and next steps are skipped. A failed connection test is
- * only a warning: the installation itself succeeded.
+ * Steps 2 to 5 run with `runSteps`: each step runs whether or not the one
+ * before it failed; then one failure names those that failed (#436, finish
+ * then fail), and the connection test and next steps are skipped. A failed
+ * connection test is only a warning: the installation itself succeeded.
  *
  * @returns A promise that resolves once the project is set up.
  * @throws {ProjectStructureError} When `./src` or `./deno.json` is missing.

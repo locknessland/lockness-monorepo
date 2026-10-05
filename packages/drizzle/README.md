@@ -601,12 +601,13 @@ await database.db.transaction(async (tx) => {
 
 ## Upgrading to v0.5.0
 
-Six items. **Migration steps:** if your `drizzle.config.ts` uses anything but
+Seven items. **Migration steps:** if your `drizzle.config.ts` uses anything but
 `dbCredentials: { url }`, rewrite it as a url (item 2); if it falls back to a
 default url, remove the fallback (item 3); if you override `runCommand`, return
 `{ code, stderr }` (item 4); if a script ran `db:status` for the folder-only
 check, run `db:validate` instead (item 5); if a script matches a `db:*` failure
-line, match its first part only (item 6).
+line, match its first part only (item 6); if your code calls the installer's
+helpers from `@lockness/drizzle/install`, handle what they now throw (item 7).
 
 ### 1. PostgreSQL server notices no longer print as raw objects
 
@@ -754,6 +755,26 @@ behind it follows on the same line, rendered with credentials redacted (#436):
   stack frames, its `detail` and `hint`, and anything past two cause links.
   `LOCKNESS_CLI_RAW_ERRORS` does not change these lines: it applies only to an
   error a command did not expect.
+
+### 7. The installer's helpers report a failure by throwing it
+
+`@lockness/drizzle/install` reports a failure by throwing, and its runner prints
+it once and exits 1 (#436). Only code that imports the helpers directly is
+affected; `package:install drizzle` and the standalone installer need nothing.
+
+- **`createDirectories()`** attempts every directory, then rejects with one
+  `CommandFailedError` naming those it could not create. It used to log each
+  failure and resolve.
+- **`checkProjectStructure()`** no longer prints its `✗ Missing …` line before
+  rejecting. It rejects with `ProjectStructureError`, which now extends
+  `CommandFailedError` (from `@lockness/cli/command-failure`), so `exitCode` is
+  `1`. A path that exists but cannot be stat'ed rejects with
+  `Could not check <name>.` and the stat error as `cause`, instead of being
+  reported missing.
+- **`createDrizzleConfig()`, `createDatabaseSeeder()` and
+  `updateSingleEnvFile()`** treat only a missing file as absent. A file they
+  cannot read or stat is left as it is and the call rejects; before, it was
+  overwritten, and a `.env` lost everything but `DATABASE_URL`.
 
 ## Dependencies
 
