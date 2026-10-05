@@ -769,8 +769,9 @@ it reads the config or connects.
   - sqlite and turso: a `file:` URL with no path (`file:`, `file://`) is
     refused. A remote URL (`libsql://`, `https://`) names its database by host,
     and `:memory:` is accepted.
-- The migrations journal (`meta/_journal.json`), or a file it lists, is missing:
-  a database is never wiped that could not then be migrated.
+- The migrations journal (`meta/_journal.json`), or a file it lists, is missing,
+  or a journal entry's `when` is not an integer: a database is never wiped that
+  could not then be migrated.
 - The driver offers no schema maintenance (a custom `DriverFactory` need not).
 - MySQL: the connection has no database selected (`DATABASE()` is `NULL`), the
   catalogue read names more than one database, or it selects a system database —

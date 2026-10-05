@@ -51,24 +51,24 @@ Anything not listed is internal and free to change.
 
 ## Where to work
 
-| Concern                                                     | Path                    |
-| ----------------------------------------------------------- | ----------------------- |
-| Service and public API                                      | `mod.ts`                |
-| DSN check run before any driver factory (#425)              | `dsn.ts`                |
-| What a withheld failure may show: the vetted error name     | `error_name.ts`         |
-| Dialects, default driver factories, `loadClient`            | `drivers.ts`            |
-| `db:*` command wiring, seams and the production guard       | `cli_commands.ts`       |
-| Command-runner port and its default `Deno.Command` runner   | `command_runner.ts`     |
-| Seeder-loader port and its default `importAppFile` loader   | `seeder_loader.ts`      |
-| Verdict on a drizzle-kit run: exit code plus stderr (#445)  | `kit_outcome.ts`        |
-| `db:fresh` reset policy: scope, planners, refusals (#435)   | `reset.ts`              |
-| `db:status` policy: catalogue read, high-water rule (#439)  | `migration_status.ts`   |
-| SQL quoting (`quote`, `backtick`, `literal`), one owner     | `sql_text.ts`           |
-| `db:migrate` / `db:fresh` settings from `drizzle.config.ts` | `migration_settings.ts` |
-| The shared refusal (`RefusedError`), framed per command     | `refusal.ts`            |
-| `make:model` / `make:seeder` / `make:factory` generators    | `generators/`           |
-| Project bootstrap                                           | `install.ts`            |
-| Generated file templates                                    | `stubs/`                |
+| Concern                                                                   | Path                    |
+| ------------------------------------------------------------------------- | ----------------------- |
+| Service and public API                                                    | `mod.ts`                |
+| DSN check run before any driver factory (#425)                            | `dsn.ts`                |
+| What a withheld failure may show: the vetted error name                   | `error_name.ts`         |
+| Dialects, default driver factories, `loadClient`                          | `drivers.ts`            |
+| `db:*` command wiring, seams and the production guard                     | `cli_commands.ts`       |
+| Command-runner port and its default `Deno.Command` runner                 | `command_runner.ts`     |
+| Seeder-loader port and its default `importAppFile` loader                 | `seeder_loader.ts`      |
+| Verdict on a drizzle-kit run: exit code plus stderr (#445)                | `kit_outcome.ts`        |
+| `db:fresh` reset policy: scope, planners, refusals (#435)                 | `reset.ts`              |
+| `db:status` policy: catalogue read, high-water rule (#439)                | `migration_status.ts`   |
+| SQL quoting (`quote`, `backtick`, `literal`), one owner                   | `sql_text.ts`           |
+| `db:migrate` / `db:fresh` / `db:status` settings from `drizzle.config.ts` | `migration_settings.ts` |
+| The shared refusal (`RefusedError`), framed per command                   | `refusal.ts`            |
+| `make:model` / `make:seeder` / `make:factory` generators                  | `generators/`           |
+| Project bootstrap                                                         | `install.ts`            |
+| Generated file templates                                                  | `stubs/`                |
 
 ## Pitfalls
 

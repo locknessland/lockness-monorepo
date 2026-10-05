@@ -268,13 +268,13 @@ unset `DB_NAME` yields, or a `file:` URL with no path; MySQL included, checked
 before it connects; on postgres, when the URL carries a `database` query key or
 an encoded comma in its host, either of which lets the driver pick a database
 other than the path's; when the migrations journal or a file it lists is
-missing; when the driver has no schema-maintenance support; when MySQL has no
-database selected, or selects a system database (`mysql`, `sys`,
-`performance_schema`, `information_schema`); and, on postgres, when
-`schemaFilter` or `migrations.schema` names a system schema
-(`information_schema` or any `pg_*`), or a migration creates a schema outside
-`schemaFilter`. A config that cannot be imported is refused without its error
-text, which may quote the DSN. There is no countdown any more.
+missing, or a journal entry's `when` is not an integer; when the driver has no
+schema-maintenance support; when MySQL has no database selected, or selects a
+system database (`mysql`, `sys`, `performance_schema`, `information_schema`);
+and, on postgres, when `schemaFilter` or `migrations.schema` names a system
+schema (`information_schema` or any `pg_*`), or a migration creates a schema
+outside `schemaFilter`. A config that cannot be imported is refused without its
+error text, which may quote the DSN. There is no countdown any more.
 
 **Push schema (no migrations):**
 
@@ -716,6 +716,10 @@ exits `1` while any is not applied (#439).
   ```bash
   deno task cli db:migrate && deno task cli db:status && deno task start
   ```
+
+- **Also refused now:** `db:migrate`, `db:fresh` and `db:status` refuse a
+  migrations journal whose entry `when` is not an integer. drizzle-kit always
+  writes one, so only a hand-edited journal is affected.
 
 See [`db:status`: pending migrations](docs/DOCS.md#dbstatus-pending-migrations).
 
