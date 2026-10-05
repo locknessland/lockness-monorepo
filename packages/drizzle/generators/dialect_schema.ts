@@ -34,7 +34,7 @@ export const DRIZZLE_KIT_DIALECT: Record<Dialect, string> = {
  * Hard-rule-2 exception: drizzle-kit publishes no JSR build, so `npm:` is
  * the only registry that ships it. It is pinned **exactly**, not to a range:
  * the `db:*` exit contract (#428) maps drizzle-kit's exit codes straight to
- * the command's status, and `db:status`'s wording rests on what
+ * the command's status, and `db:validate`'s wording rests on what
  * `drizzle-kit check` does in this version — a release that changes either
  * must not reach an app silently. The 1.0 betas are out of scope until 1.0 is
  * stable.

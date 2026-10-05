@@ -190,11 +190,36 @@ path: the refusal names `deno run -A npm:drizzle-kit@0.31.10 migrate` instead.
 `out` must be set, and only `drizzle.config.ts` is read. A url that names no
 database is refused, as for `db:fresh` below.
 
-**Check the migrations folder for consistency** (snapshots and collisions; it
-does not detect schema drift):
+**List which migrations the database has applied:**
 
 ```bash
 deno task cli db:status
+```
+
+`db:status` reads the same `drizzle.config.ts` settings as `db:migrate` and
+connects to the same database. It reads drizzle-orm's bookkeeping table, never
+writes, and lists every journal entry:
+
+```
+📊 Migration status (bookkeeping table "drizzle"."__drizzle_migrations")
+  applied        0000_init
+  applied        0001_users     ⚠️ edited after it was applied; db:migrate will not re-run it
+  pending        0002_posts
+  out of order   0003_tags      ⚠️ older than the latest applied migration; db:migrate will not apply it
+  ⚠️ 1 applied migration is not in the journal (recorded at 2026-09-30T10:00:00.000Z)
+❌ 2 of 4 migrations are not applied: 1 pending, 1 out of order
+```
+
+It exits `1` while any migration is pending or out of order, so a deploy can
+gate on it after `db:migrate`; an edited migration and an unknown row are
+warnings only. The states, and what to do about an out-of-order migration, are
+in [docs/DOCS.md](docs/DOCS.md#dbstatus-pending-migrations).
+
+**Validate the migrations folder** (snapshot versions, malformed snapshots,
+collisions; it reads no database and detects no schema drift):
+
+```bash
+deno task cli db:validate
 ```
 
 **Empty the database and apply every migration from scratch:**
@@ -289,7 +314,8 @@ deno task cli db:migrate && deno task start
 | :------------------------------------ | :------------------------------------------------------------------------------------------------------------------------- |
 | `db:generate`, `db:push`, `db:studio` | the `drizzle-kit` subcommand exits non-zero; for `db:generate` and `db:push`, also when it exits 0 after writing to stderr |
 | `db:migrate`                          | it is refused, the client cannot be configured, or the migrator fails                                                      |
-| `db:status`                           | `drizzle-kit check` exits non-zero (it validates the migrations folder only)                                               |
+| `db:status`                           | a migration is pending or out of order, or the status could not be read (refused, no client, a failed query)               |
+| `db:validate`                         | `drizzle-kit check` exits non-zero (it validates the migrations folder only)                                               |
 | `db:check`                            | the client cannot be configured or the `SELECT 1` probe fails                                                              |
 | `db:fresh`                            | it is refused, the reset fails (migrations are then not run), or the migrate step fails                                    |
 | `db:seed`                             | production without `--allow-production`, no client, no seeder to load, or the seeder's `run()` throws                      |
@@ -302,10 +328,10 @@ No `db:*` command falls back to a default database (#443). `DATABASE_URL` is the
 only source of a target, so unset or blank it names none:
 
 - `db:seed` and `db:check` refuse before connecting.
-- `db:migrate` and `db:fresh` refuse: `drizzle.config.ts` carries no
-  `dbCredentials`.
+- `db:migrate`, `db:fresh` and `db:status` refuse: `drizzle.config.ts` carries
+  no `dbCredentials`.
 - `db:push` and `db:studio` fail with drizzle-kit's own message.
-- `db:generate` and `db:status` need no database and run as usual.
+- `db:generate` and `db:validate` need no database and run as usual.
 - The app boots without connecting.
 
 ### Drizzle Studio
@@ -621,9 +647,9 @@ that apply to your config:
     `registerDrizzleCommands` now has to override `loadMigrationConfig` and
     `openMaintenance`.
 
-No action needed: `db:generate`, `db:push`, `db:studio` and `db:status` still
-run drizzle-kit. drizzle-kit's own progress lines are gone, and a PostgreSQL
-notice is no longer printed as a raw object.
+No action needed: `db:generate`, `db:push`, `db:studio` and `db:validate` (the
+former `db:status`, see 5) still run drizzle-kit. drizzle-kit's own progress
+lines are gone, and a PostgreSQL notice is no longer printed as a raw object.
 
 ### 3. No `db:*` command supplies a default database
 
@@ -673,11 +699,31 @@ work as before (#445).
 See
 [`db:generate` and `db:push` without a terminal](docs/DOCS.md#dbgenerate-and-dbpush-without-a-terminal).
 
+### 5. `db:status` reports pending migrations against the database
+
+`db:status` used to run `drizzle-kit check`, which validates the migrations
+folder and never reads the database. It now lists each migration as applied,
+pending or out of order against the database `drizzle.config.ts` names, and
+exits `1` while any is not applied (#439).
+
+- **Who is affected:** any script or CI step that runs `db:status`. It now
+  connects to the database `drizzle.config.ts` names, needs `dbCredentials.url`,
+  and exits 1 while any migration is pending or out of order. That includes a
+  step placed after `db:generate` and before `db:migrate`.
+- **What to do:** for the old folder-only check, run `db:validate`. To gate a
+  deploy, run `db:status` after `db:migrate`:
+
+  ```bash
+  deno task cli db:migrate && deno task cli db:status && deno task start
+  ```
+
+See [`db:status`: pending migrations](docs/DOCS.md#dbstatus-pending-migrations).
+
 ## Dependencies
 
 - `drizzle-orm` - ORM library
 - `drizzle-kit` - CLI tools for migrations, pinned to exactly `0.31.10`
-  (`db:generate`, `db:push`, `db:studio` and `db:status` run it, and
+  (`db:generate`, `db:push`, `db:studio` and `db:validate` run it, and
   `install.ts` maps it in your `deno.json`)
 - `drizzle-zod` - Zod schema generation
 - `postgres` - PostgreSQL client

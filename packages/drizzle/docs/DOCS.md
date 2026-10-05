@@ -272,8 +272,8 @@ probe) routes them by severity instead:
 - **A custom driver factory** receives the routed callback as
   `options.onNotice`, its optional second parameter. A factory that takes only
   the url keeps working, and its notices are its own business.
-- **Not covered.** `db:generate`, `db:push` and `db:status` run `drizzle-kit` in
-  a subprocess, which opens its own client with no notice handler. MySQL and
+- **Not covered.** `db:generate`, `db:push` and `db:validate` run `drizzle-kit`
+  in a subprocess, which opens its own client with no notice handler. MySQL and
   SQLite warnings are not routed.
 
 ### Monitoring: `/health` for liveness, `/ready` for readiness
@@ -541,8 +541,11 @@ deno task cli db:generate
 # Apply pending migrations
 deno task cli db:migrate
 
-# Check the migrations folder for consistency (not schema drift)
+# List which migrations the database has applied; exits 1 while any is pending
 deno task cli db:status
+
+# Validate the migrations folder (drizzle-kit check; reads no database)
+deno task cli db:validate
 
 # Empty the managed scope and apply every migration (see below)
 deno task cli db:fresh
@@ -587,6 +590,70 @@ journal is refused before connecting. The command prints
 successfully`, and a
 failure as `Could not open the database: …` or `Failed to
 apply migrations: …`.
+
+### `db:status`: pending migrations
+
+`db:status` answers "which migrations has this database not applied?" (#439). It
+loads the same `drizzle.config.ts` settings as `db:migrate`, with the same
+refusals (url-only `dbCredentials`, no default database, a readable journal),
+and opens the same connection, so it reports on exactly the database and the
+migrations `db:migrate` would act on. It reads and never writes: it does not
+create the bookkeeping table, spawns nothing, and has no production guard, since
+it is the deploy gate.
+
+```
+📊 Migration status (bookkeeping table "drizzle"."__drizzle_migrations")
+  applied        0000_init
+  applied        0001_users     ⚠️ edited after it was applied; db:migrate will not re-run it
+  pending        0002_posts
+  out of order   0003_tags      ⚠️ older than the latest applied migration; db:migrate will not apply it
+  ⚠️ 1 applied migration is not in the journal (recorded at 2026-09-30T10:00:00.000Z)
+❌ 2 of 4 migrations are not applied: 1 pending, 1 out of order
+```
+
+With nothing left to apply it ends on `✅ All 4 migrations are applied`; an
+empty journal prints `✅ The journal lists no migrations`. The last line is
+always the count. The url is never printed.
+
+**How it decides.** drizzle-orm's migrator records each applied migration as a
+row holding the journal entry's `when` as `created_at` and the file's SHA-256 as
+`hash`. On the next run it applies every entry whose `when` is greater than the
+**latest** `created_at`, and never compares hashes. `db:status` uses the same
+rule, and a libsql test running the real migrator pins that the two agree:
+
+| State           | Rule                                                                                 | Exit       |
+| :-------------- | :----------------------------------------------------------------------------------- | :--------- |
+| applied         | a row has `created_at` equal to the entry's `when`                                   | 0          |
+| applied, edited | applied, but the file's hash changed since: it is not re-run                         | 0, warning |
+| pending         | newer than every row (or no row at all): `db:migrate` applies it                     | **1**      |
+| out of order    | no row, but older than the latest row: `db:migrate` never applies it                 | **1**      |
+| unknown row     | a row no journal entry matches: applied from another branch, or its file was deleted | 0, warning |
+
+A database never migrated has no bookkeeping table: every migration is pending,
+and that is not an error. Whether the table exists is asked of the catalogue
+(`pg_catalog.pg_tables`, `information_schema.tables` under `DATABASE()`,
+`sqlite_master`) with fixed SQL; the names from `migrations.table` and
+`migrations.schema` are compared in code, never written into SQL as literals.
+
+**An out-of-order migration** usually comes from a branch merge: another branch
+applied a newer migration first. `db:migrate` will skip it for good. Regenerate
+it so it gets a later timestamp (delete the file and its journal entry, then
+`db:generate`), or apply its SQL by hand. `db:validate` catches the collision at
+merge time, before any database sees it.
+
+It exits `1` when a migration is pending or out of order, or when the status
+could not be read: a refusal
+(`db:status refused: …. No migration status was
+read.`), a client that cannot be
+configured, a failed query, or a bookkeeping row whose `created_at` is not an
+integer. A configuration only drizzle-kit can run (an `ssl` certificate, a
+drizzle-kit-only driver) is refused with no fallback: drizzle-kit has no status
+command.
+
+**`db:validate`** is the folder-only check `db:status` used to be:
+`drizzle-kit check` validates snapshot versions, malformed snapshots and
+collisions, reads no database, and needs no `DATABASE_URL`, so a pre-merge CI
+job can run it.
 
 ### `db:fresh`
 
@@ -753,7 +820,8 @@ when drizzle-kit exits 0 after writing to stderr; see
 | `db:migrate`  | it is refused (see [`db:migrate`](#dbmigrate)), the client cannot be configured, or the migrator fails                                                                                                                                      |
 | `db:push`     | `drizzle-kit push` exits non-zero, or exits 0 after writing to stderr (#445)                                                                                                                                                                |
 | `db:studio`   | `drizzle-kit studio` exits non-zero                                                                                                                                                                                                         |
-| `db:status`   | `drizzle-kit check` exits non-zero. It validates the migrations folder only (snapshot versions, malformed snapshots, collisions); it reads neither the schema nor the database, so it reports no drift and no pending migrations            |
+| `db:status`   | a migration is pending or out of order, or the status could not be read: it is refused (see [`db:status`](#dbstatus-pending-migrations)), the client cannot be configured, a query fails, or a bookkeeping row is malformed                 |
+| `db:validate` | `drizzle-kit check` exits non-zero. It validates the migrations folder only (snapshot versions, malformed snapshots, collisions); it reads neither the schema nor the database, so it reports no drift and no pending migrations            |
 | `db:check`    | `DATABASE_URL` is unset or blank, the client cannot be configured, or the `SELECT 1` probe fails. The message ends with a hint to check `DATABASE_URL`                                                                                      |
 | `db:fresh`    | it is refused (see [`db:fresh`](#dbfresh)), the reset fails — migrations are then **not** run — or the migrate step fails                                                                                                                   |
 | `db:seed`     | the environment is production without `--allow-production`, `DATABASE_URL` is unset or blank, the client cannot be configured, the seeder file is missing or exports no seeder, or the seeder's own `run()` throws (printed with its stack) |
@@ -812,7 +880,7 @@ drizzle-kit's own last line reports it: `No schema changes, nothing to migrate`,
   the stderr rule cannot see them. Tracked in #561.
 - **"No, abort" on a terminal still exits 0.** Only a person at a terminal can
   choose it, and drizzle-kit's `[x] All changes were aborted` is the last line.
-- **`db:status` and `db:studio`** keep the exit-code rule: their stderr is
+- **`db:validate` and `db:studio`** keep the exit-code rule: their stderr is
   shown, not judged.
 - **A drizzle-kit pin that prints harmless text to stderr on success** makes
   these commands fail, showing the text. That is deliberate: a loud false
@@ -827,10 +895,10 @@ only source of a target, so unset or blank it names none:
 - `db:seed` and `db:check` refuse before connecting:
   `Database not configured: DATABASE_URL is not set, so no database is named; the db:* commands never fall back to a default database`
   (`is empty` for a blank value).
-- `db:migrate` and `db:fresh` refuse: `drizzle.config.ts` carries no
-  `dbCredentials` (see [`db:fresh`](#dbfresh)).
+- `db:migrate`, `db:fresh` and `db:status` refuse: `drizzle.config.ts` carries
+  no `dbCredentials` (see [`db:fresh`](#dbfresh)).
 - `db:push` and `db:studio` fail with drizzle-kit's own message.
-- `db:generate` and `db:status` need no database and run as usual.
+- `db:generate` and `db:validate` need no database and run as usual.
 - The app boots without connecting.
 
 A `drizzle.config.ts` you edit to read another variable, or to hard-code a URL,

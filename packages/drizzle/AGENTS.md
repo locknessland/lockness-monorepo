@@ -62,6 +62,8 @@ Anything not listed is internal and free to change.
 | Seeder-loader port and its default `importAppFile` loader   | `seeder_loader.ts`      |
 | Verdict on a drizzle-kit run: exit code plus stderr (#445)  | `kit_outcome.ts`        |
 | `db:fresh` reset policy: scope, planners, refusals (#435)   | `reset.ts`              |
+| `db:status` policy: catalogue read, high-water rule (#439)  | `migration_status.ts`   |
+| SQL quoting (`quote`, `backtick`, `literal`), one owner     | `sql_text.ts`           |
 | `db:migrate` / `db:fresh` settings from `drizzle.config.ts` | `migration_settings.ts` |
 | The shared refusal (`RefusedError`), framed per command     | `refusal.ts`            |
 | `make:model` / `make:seeder` / `make:factory` generators    | `generators/`           |
@@ -86,9 +88,13 @@ Anything not listed is internal and free to change.
   call it. The `drizzle-kit` the other commands run is pinned exactly at
   `DRIZZLE_KIT_SPECIFIER` (#437); the init kits and the root `deno.jsonc` must
   map the same one, and a test checks it.
-- `drizzle-kit check` (behind `db:status`) validates the migrations folder only;
-  it never reads the schema or the database. Do not word `db:status` as a drift
-  or pending-migrations check.
+- `db:status` mirrors drizzle-orm's high-water rule
+  (`pending ⇔ when >
+  max(created_at)`), and the libsql parity test
+  (`tests/status_libsql.test.ts`) pins it: a drizzle-orm bump that changes the
+  rule fails there. It reads, never writes, and never calls the migrator (which
+  creates the table before reading). `db:validate` is the folder-only check
+  (`drizzle-kit check`): never word it as a drift or pending-migrations check.
 - A `Database` configures once per open (#427): a second `connect()` throws
   until `close()`, and `db` throws before `connect()` and after `close()`. Tests
   that touch the container singleton (`createApp` with `database`, the default
@@ -170,12 +176,13 @@ every such suite is destructive. The precedent is `@lockness/redis`'s
 changes them too: `scripts/kit_migrations_live_test.ts`,
 `scripts/kit_token_flow_live_test.ts`, `scripts/kit_push_live_test.ts` (#445)
 and `scripts/remember_me_live_test.ts` (#450). Inside the package:
-`tests/fresh_postgres_live.test.ts`.
+`tests/fresh_postgres_live.test.ts` and `tests/status_postgres_live.test.ts`
+(#439).
 
 ### The live-mysql harness (`tests/live_mysql.ts`)
 
 The same two decisions for a real MySQL (#446), read by
-`tests/fresh_mysql_live.test.ts` only.
+`tests/fresh_mysql_live.test.ts` and `tests/status_mysql_live.test.ts` (#439).
 
 | Export                | What it decides                                                                                                    |
 | :-------------------- | :----------------------------------------------------------------------------------------------------------------- |

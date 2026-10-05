@@ -309,6 +309,11 @@ The suite creates and drops only schemas named `lockness_fresh_*` — with the
 `citext` extension inside one of them — and one event trigger,
 `lockness_fresh_ddl`, and it needs a superuser for that event trigger.
 
+The same task runs `packages/drizzle/tests/status_postgres_live.test.ts` (#439):
+`db:status` beside the real `db:migrate`, which proves what a fake cannot —
+postgres.js returns `int8` as a string. It creates and drops only the database
+`lockness_status`.
+
 The whole `test:postgres` task needs a server that sends English messages
 (`lc_messages=C`, the `postgres:16` image's default). The #454 notice tests in
 `packages/drizzle/tests/fresh_postgres_live.test.ts` match the
@@ -372,9 +377,12 @@ docker stop lockness-it-mysql
 
 The suite creates and drops only the databases `lockness_fresh_mysql` and
 `lockness_fresh_mysql_other`; the url's own database, if it names one, is never
-touched. It points the driver at each system database (`mysql`, `sys`,
-`performance_schema`, `information_schema`) to prove the refusal, and never lets
-a statement run there.
+touched. The same task runs `packages/drizzle/tests/status_mysql_live.test.ts`
+(#439), `db:status` beside the real `db:migrate` against a real `BIGINT`
+`created_at`; it creates and drops only `lockness_status_mysql`. It points the
+driver at each system database (`mysql`, `sys`, `performance_schema`,
+`information_schema`) to prove the refusal, and never lets a statement run
+there.
 
 ## Mutation batteries
 
