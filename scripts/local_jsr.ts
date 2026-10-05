@@ -24,7 +24,14 @@
  * | `GET /@lockness/<p>/meta.json` | the versions it received |
  * | `GET /@lockness/<p>/<v>_meta.json` | sha256 manifest of every file, plus `exports` |
  * | `GET /@lockness/<p>/<v>/<file>` | the file, as uploaded |
- * | any other scope | passed through to jsr.io, read-only |
+ * | any other scope | passed through to jsr.io, read-only, never following a redirect |
+ *
+ * **Publishing closes once.** {@link LocalJsr.closePublishing} seals the
+ * store as soon as `deno publish` has exited; every later upload is a 403,
+ * whatever token it carries. The token is in `deno publish`'s argv while it
+ * runs, so another local user could read it from `ps`; after the seal it
+ * opens nothing. The gate then checks that the store holds exactly the
+ * workspace members at the expected version (#475).
  *
  * **A `@lockness/*` package it did not receive is a 404, never a fallback to
  * jsr.io.** A silent fallback would let a kit resolve the last release and
@@ -48,6 +55,11 @@
  * - A request whose `Host` is not a loopback literal is refused, which stops
  *   DNS rebinding. `localhost` is refused on purpose: it is a name, and a name
  *   can be made to resolve elsewhere.
+ *
+ * **The passthrough never leaves jsr.io.** {@link upstreamTarget} builds every
+ * upstream URL and refuses one whose origin is not the upstream's, and the
+ * fetch uses `redirect: 'manual'`: an upstream 3xx is answered 502 here, never
+ * followed, so a redirect cannot carry the request to another host.
  *
  * What it does not model, and the post-publish `/ship` check covers instead:
  * server-side dependency data in `_meta.json`, `createdAt` (so Deno's minimum
@@ -127,6 +139,25 @@ export interface PackageMeta {
  */
 export class LocalJsrStore {
     readonly #packages = new Map<string, Map<string, PublishedPackage>>()
+    #sealed = false
+
+    /** Whether {@link seal} was called: the store takes no more uploads. */
+    get sealed(): boolean {
+        return this.#sealed
+    }
+
+    /**
+     * Take no more uploads, for good. Reads keep working. Idempotent.
+     *
+     * @example
+     * ```ts
+     * store.seal()
+     * store.add('core', '9.9.9', pkg) // throws
+     * ```
+     */
+    seal(): void {
+        this.#sealed = true
+    }
 
     /**
      * Keep one uploaded version.
@@ -134,10 +165,16 @@ export class LocalJsrStore {
      * @param name - Package name without the scope (`core`).
      * @param version - Its version.
      * @param pkg - The bundle.
-     * @throws {Error} When that version was already received — a registry
-     * version is immutable, and a second upload is a bug in the caller.
+     * @throws {Error} When the store is sealed, or that version was already
+     * received — a registry version is immutable, and a second upload is a bug
+     * in the caller.
      */
     add(name: string, version: string, pkg: PublishedPackage): void {
+        if (this.#sealed) {
+            throw new Error(
+                `@${LOCAL_JSR_SCOPE}/${name}@${version}: publishing is closed`,
+            )
+        }
         const versions = this.#packages.get(name) ?? new Map()
         if (versions.has(version)) {
             throw new Error(`@${LOCAL_JSR_SCOPE}/${name}@${version} exists`)
@@ -566,6 +603,42 @@ export function packageMeta(
     }
 }
 
+/**
+ * The upstream URL a passthrough request goes to, or `undefined` when it would
+ * leave the upstream's origin.
+ *
+ * `new URL(path, upstream)` treats a protocol-relative path (`//evil.com/x`)
+ * or an absolute URL as a new origin, not as a path. `parseRoute` never
+ * classifies such a path as `upstream`, so through the handler this is a
+ * second check behind it; it is exported so that check is tested on its own.
+ *
+ * @param pathAndSearch - The request's path and query (`/@std/path/meta.json?x=1`).
+ * @param upstream - The upstream base URL, {@link JSR_UPSTREAM} by default.
+ * @returns The target, always on `upstream`'s origin; `undefined` otherwise.
+ *
+ * @example
+ * ```ts
+ * upstreamTarget('/@std/path/meta.json')?.href // 'https://jsr.io/@std/path/meta.json'
+ * upstreamTarget('//evil.com/x')               // undefined
+ * ```
+ */
+export function upstreamTarget(
+    pathAndSearch: string,
+    upstream: string | URL = JSR_UPSTREAM,
+): URL | undefined {
+    const base = new URL(upstream)
+    let target: URL
+    try {
+        target = new URL(pathAndSearch, base)
+    } catch {
+        return undefined
+    }
+    return target.origin === base.origin ? target : undefined
+}
+
+/** Statuses `fetch` would follow; the passthrough refuses them instead. */
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308])
+
 /** A JSR-style JSON error. */
 function apiError(status: number, code: string, message: string): Response {
     return Response.json({ code, message }, { status })
@@ -635,17 +708,38 @@ export function createLocalJsrHandler(
         if (request.method !== 'GET' && request.method !== 'HEAD') {
             return apiError(405, 'methodNotAllowed', 'read-only passthrough')
         }
-        const target = new URL(url.pathname + url.search, upstream)
         // Belt and braces behind parseRoute: whatever the path, the request
         // goes to the upstream's origin or nowhere.
-        if (target.origin !== upstream.origin) {
+        const target = upstreamTarget(url.pathname + url.search, upstream)
+        if (target === undefined) {
             log(`400 ${url.pathname}: would leave ${upstream.origin}`)
             return apiError(400, 'offOrigin', 'passthrough stays on jsr.io')
         }
         try {
+            // `manual`: a redirect is never followed, so it cannot carry the
+            // request off the upstream's origin. jsr.io answers the paths
+            // Deno reads directly; a 3xx fails loudly rather than being
+            // trusted or forwarded for the client to follow (#475).
             const response = await fetchUpstream(target, {
                 method: request.method,
+                redirect: 'manual',
             })
+            if (
+                response.type === 'opaqueredirect' ||
+                REDIRECT_STATUSES.has(response.status)
+            ) {
+                await response.body?.cancel()
+                log(
+                    `502 ${target.href}: upstream redirect to ${
+                        response.headers.get('location') ?? '(no location)'
+                    } not followed`,
+                )
+                return apiError(
+                    502,
+                    'upstreamRedirect',
+                    'the passthrough does not follow redirects',
+                )
+            }
             // `fetch` already decoded the body, so the encoding headers no
             // longer describe it; forwarding them breaks the client.
             const headers = new Headers(response.headers)
@@ -668,6 +762,12 @@ export function createLocalJsrHandler(
         route: Extract<Route, { kind: 'publish' }>,
     ): Promise<Response> => {
         const { scope, name, version } = route
+        // Before the token: once publishing is closed, no token opens it.
+        if (store.sealed) {
+            await request.body?.cancel()
+            log(`403 POST @${scope}/${name}@${version}: publishing is closed`)
+            return apiError(403, 'publishingClosed', 'publishing is closed')
+        }
         // Never logged: neither the expected value nor what was sent.
         if (request.headers.get('authorization') !== expectedAuthorization) {
             log(`401 POST @${scope}/${name}@${version}: no valid publish token`)
@@ -814,6 +914,11 @@ export interface LocalJsr {
     readonly token: string
     /** What it has received. */
     readonly store: LocalJsrStore
+    /**
+     * Refuse every later upload with 403, token or not. Call it as soon as
+     * `deno publish` has exited. Reads keep working. Idempotent.
+     */
+    closePublishing(): void
     /** Stop listening and wait until it has. Safe to call twice. */
     shutdown(): Promise<void>
 }
@@ -875,6 +980,7 @@ export function startLocalJsr(options: StartLocalJsrOptions = {}): LocalJsr {
         url: `http://${host}:${server.addr.port}`,
         token,
         store,
+        closePublishing: () => store.seal(),
         shutdown: () => {
             stopped ??= server.shutdown()
             return stopped

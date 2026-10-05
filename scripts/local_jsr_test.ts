@@ -22,6 +22,7 @@ import {
     readTarball,
     startLocalJsr,
     TarballTooLargeError,
+    upstreamTarget,
     versionMeta,
 } from './local_jsr.ts'
 
@@ -452,24 +453,82 @@ Deno.test('the passthrough reaches jsr.io only, and only for /@<scope>/ paths', 
     assertEquals(upstream, ['https://jsr.io/@std/path/1.1.4/mod.ts'])
 })
 
-Deno.test('a passthrough target off the upstream origin is refused', async () => {
-    const reached: string[] = []
+Deno.test('upstreamTarget keeps every path on the upstream origin (#475)', () => {
+    assertEquals(
+        upstreamTarget('/@std/path/meta.json?x=1')?.href,
+        'https://jsr.io/@std/path/meta.json?x=1',
+    )
+    assertEquals(
+        upstreamTarget('/@std/path/1.1.4/mod.ts', 'https://jsr.io/')?.href,
+        'https://jsr.io/@std/path/1.1.4/mod.ts',
+    )
+    for (
+        const path of [
+            '//evil.com/x',
+            '//evil.com',
+            '///evil.com/x',
+            '/\\evil.com/x',
+            '\\\\evil.com/x',
+            '//jsr.io.evil.com/x',
+            '//user@evil.com/x',
+            'https://evil.com/x',
+            'http://jsr.io/x',
+            'https://jsr.io:8443/x',
+            'HTTPS://EVIL.COM/x',
+            'file:///etc/passwd',
+            'data:text/plain,x',
+            'javascript:alert(1)',
+        ]
+    ) {
+        assertEquals(upstreamTarget(path), undefined, path)
+    }
+})
+
+Deno.test('the passthrough never follows an upstream redirect (#475)', async () => {
+    const inits: RequestInit[] = []
     const handler = createLocalJsrHandler({
         store: new LocalJsrStore(),
         publishToken: TOKEN,
-        // An upstream with a path: a relative join could still escape it.
-        upstream: 'https://jsr.io/',
-        fetchUpstream: (url) => {
-            reached.push(url.href)
-            return Promise.resolve(new Response('ok'))
+        fetchUpstream: (_url, init) => {
+            inits.push(init)
+            return Promise.resolve(
+                new Response(null, {
+                    status: 302,
+                    headers: { location: 'https://evil.example/x' },
+                }),
+            )
         },
     })
     const response = await handler(
         new Request('http://127.0.0.1:4507/@std/path/meta.json'),
     )
-    await response.body?.cancel()
-    assertEquals(response.status, 200)
-    assert(reached.every((href) => href.startsWith('https://jsr.io/')))
+    const body = await response.json()
+    assertEquals(response.status, 502)
+    assertEquals(body.code, 'upstreamRedirect')
+    assertEquals(response.headers.get('location'), null)
+    assertEquals(inits.map((init) => init.redirect), ['manual'])
+})
+
+Deno.test('a later POST is refused once publishing is closed, token or not (#475)', async () => {
+    const { at, store } = harness()
+    assertEquals((await publishCore(at)).status, 202)
+    store.seal()
+    const late = await at(
+        '/api/scopes/lockness/packages/core/versions/0.4.1?config=/deno.json',
+        { method: 'POST', body: tarball(CORE), headers: AUTH },
+    )
+    assertEquals(late.status, 403)
+    assertEquals((await late.json()).code, 'publishingClosed')
+    assertEquals(store.versions('core'), ['0.4.0'])
+    // Reads still work after the seal.
+    const meta = await at('/@lockness/core/meta.json')
+    assertEquals(meta.status, 200)
+    await meta.body?.cancel()
+    assertThrows(
+        () => store.add('core', '0.4.2', { files: new Map(), exports: {} }),
+        Error,
+        'publishing is closed',
+    )
 })
 
 Deno.test('uploads are refused outside the scope, twice, or without exports', async () => {
@@ -612,6 +671,27 @@ Deno.test('startLocalJsr hands out a fresh per-run token', async () => {
     } finally {
         await a.shutdown()
         await b.shutdown()
+    }
+})
+
+Deno.test('startLocalJsr closePublishing refuses a later POST over the socket (#475)', async () => {
+    const jsr = startLocalJsr()
+    try {
+        jsr.closePublishing()
+        jsr.closePublishing()
+        const response = await fetch(
+            `${jsr.url}/api/scopes/lockness/packages/core/versions/0.4.0`,
+            {
+                method: 'POST',
+                body: tarball(CORE),
+                headers: { authorization: `Bearer ${jsr.token}` },
+            },
+        )
+        await response.body?.cancel()
+        assertEquals(response.status, 403)
+        assertEquals(jsr.store.names(), [])
+    } finally {
+        await jsr.shutdown()
     }
 })
 

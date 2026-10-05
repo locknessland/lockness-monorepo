@@ -1045,6 +1045,36 @@ export function missingFromRegistry(
 }
 
 /**
+ * What the registry holds beyond the expected members at their versions.
+ *
+ * After the publish the store must hold exactly the workspace members at the
+ * release version: the kits boot against it, and anything extra means
+ * something other than this run's `deno publish` published into it (#475).
+ *
+ * @param expected - What should have been published.
+ * @param store - What the registry holds.
+ * @returns `@lockness/<name>@<version>` of every stored version not expected,
+ *   sorted by name.
+ *
+ * @example
+ * ```ts
+ * unexpectedInRegistry([{ name: '@lockness/core', version: '0.4.0' }], store)
+ * // ['@lockness/core@9.9.9'] when a second version slipped in
+ * ```
+ */
+export function unexpectedInRegistry(
+    expected: readonly PublishableMember[],
+    store: LocalJsrStore,
+): string[] {
+    const wanted = new Set(expected.map((m) => `${m.name}@${m.version}`))
+    return store.names().flatMap((name) =>
+        store.versions(name)
+            .map((version) => `@lockness/${name}@${version}`)
+            .filter((id) => !wanted.has(id))
+    )
+}
+
+/**
  * Who answers {@link MISSING_PATH} in each kit.
  *
  * - `default-view`: core's HTML 404 page, rendered at runtime — the module
@@ -1466,6 +1496,8 @@ async function smokeAgainstRegistry(
             denoDir,
             jsr.token,
         )
+        // The token was in deno publish's argv; from here it opens nothing.
+        jsr.closePublishing()
         if (!published.ok) {
             console.log(`  ❌ deno publish\n${tail(published.output, 30)}`)
             return false
@@ -1474,6 +1506,15 @@ async function smokeAgainstRegistry(
         const missing = missingFromRegistry(expected, jsr.store)
         if (missing.length > 0) {
             console.log(`  ❌ deno publish skipped ${missing.join(', ')}`)
+            return false
+        }
+        const unexpected = unexpectedInRegistry(expected, jsr.store)
+        if (unexpected.length > 0) {
+            console.log(
+                `  ❌ the registry holds more than this run published: ${
+                    unexpected.join(', ')
+                }`,
+            )
             return false
         }
         console.log(

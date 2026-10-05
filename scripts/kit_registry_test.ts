@@ -25,6 +25,7 @@ import {
     publishToRegistry,
     removeDockerObject,
     ROUTER_LIST_ROUTE,
+    unexpectedInRegistry,
 } from './kit_smoke.ts'
 import { LocalJsrStore } from './local_jsr.ts'
 
@@ -77,6 +78,22 @@ Deno.test('missingFromRegistry names every member that never arrived', () => {
         ], store),
         ['@lockness/core@0.4.1', '@lockness/auth@0.4.0'],
     )
+})
+
+Deno.test('unexpectedInRegistry names every stored version beyond the expected members (#475)', () => {
+    const store = new LocalJsrStore()
+    const pkg = { files: new Map(), exports: { '.': './m.ts' } }
+    store.add('core', '0.4.0', pkg)
+    const expected = [{ name: '@lockness/core', version: '0.4.0' }]
+    assertEquals(unexpectedInRegistry(expected, store), [])
+
+    // A second version of a member, and a package that is no member at all.
+    store.add('core', '9.9.9', pkg)
+    store.add('evil', '0.4.0', pkg)
+    assertEquals(unexpectedInRegistry(expected, store), [
+        '@lockness/core@9.9.9',
+        '@lockness/evil@0.4.0',
+    ])
 })
 
 Deno.test('judgeNotFound passes only an HTML 404 from the default view', () => {
