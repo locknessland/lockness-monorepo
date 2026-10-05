@@ -41,7 +41,9 @@ import { rawErrorsHint, readRawErrorsSwitch } from './raw_errors.ts'
  * error — so a getter that throws on `message`, `cause` or `exitCode` must not
  * replace the error being reported. An unreadable `message` or `cause` prints
  * a placeholder in its place; anything else that throws while reporting falls
- * back to one line naming `label`.
+ * back to one line naming `label`, and when even that line cannot be printed
+ * the status is still returned. `label` is rendered with `renderMessage` on
+ * every branch.
  *
  * @param label - What failed, for the non-failure branch: a command name, or a
  *   standalone tool's name.
@@ -67,8 +69,22 @@ export function reportThrown(label: string, error: unknown): number {
     } catch {
         // The sentinel is printed, never swallowed: the user still sees that
         // `label` failed, and the status is still a failure.
-        console.error(`❌ ${renderMessage(label)} failed: [unreportable error]`)
+        printFallback(label)
         return MIN_FAILURE_STATUS
+    }
+}
+
+/**
+ * The one fallback line, guarded on its own: when stderr itself is what
+ * broke, there is nowhere left to print, and {@link reportThrown} must still
+ * return a failure status rather than throw out of a `catch` block.
+ */
+function printFallback(label: string): void {
+    try {
+        console.error(`❌ ${renderMessage(label)} failed: [unreportable error]`)
+    } catch {
+        // Nothing to log to: stderr is the thing that failed. The non-zero
+        // status the caller returns is the report.
     }
 }
 
@@ -140,15 +156,17 @@ function reportUnexpected(label: string, error: unknown): number {
     const raw = readRawErrorsSwitch()
     if (raw.state === 'on') {
         console.error(
-            `⚠️ LOCKNESS_CLI_RAW_ERRORS is on: the error below is unredacted.\n❌ ${label} failed:`,
+            `⚠️ LOCKNESS_CLI_RAW_ERRORS is on: the error below is unredacted.\n❌ ${
+                renderMessage(label)
+            } failed:`,
             error,
         )
         return MIN_FAILURE_STATUS
     }
     console.error(
-        `❌ ${label} failed: ${renderError(error, { frames: 10 })}\n${
-            rawErrorsHint(raw)
-        }`,
+        `❌ ${renderMessage(label)} failed: ${
+            renderError(error, { frames: 10 })
+        }\n${rawErrorsHint(raw)}`,
     )
     return MIN_FAILURE_STATUS
 }

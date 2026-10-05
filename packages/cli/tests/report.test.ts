@@ -192,3 +192,65 @@ Deno.test('reportThrown - a failure without a cause prints its message alone', a
     assertEquals(result, 1)
     assertEquals(onlyLine(error), '❌ No kit named "x"')
 })
+
+Deno.test('reportThrown - the label is rendered on the catch-all branch', async () => {
+    const { error } = await withRawErrors(
+        undefined,
+        () =>
+            captureErrors(() =>
+                reportThrown('tool\x1b[2J', new TypeError('boom'))
+            ),
+    )
+    const line = onlyLine(error)
+    assert(line.startsWith('❌ tool\\x1b[2J failed: '), line)
+})
+
+Deno.test('reportThrown - the label is rendered on the raw branch', async () => {
+    const { error } = await withRawErrors(
+        '1',
+        () =>
+            captureErrors(() =>
+                reportThrown('tool\x1b[2J', new TypeError('boom'))
+            ),
+    )
+    assertEquals(error.length, 1)
+    const banner = String(error[0][0])
+    assert(!banner.includes('\x1b'), banner)
+    assertStringIncludes(banner, '❌ tool\\x1b[2J failed:')
+})
+
+Deno.test('reportThrown - a broken stderr does not make it throw', () => {
+    const original = console.error
+    console.error = () => {
+        throw new Error('stderr is closed')
+    }
+    try {
+        assertEquals(reportThrown('tool', new TypeError('boom')), 1)
+        assertEquals(
+            reportThrown(
+                'tool',
+                new CommandFailedError('nope', { exitCode: 4 }),
+            ),
+            1,
+        )
+    } finally {
+        console.error = original
+    }
+})
+
+/** Run `fn` with `LOCKNESS_CLI_RAW_ERRORS` set to `value`, or unset. */
+async function withRawErrors<T>(
+    value: string | undefined,
+    fn: () => Promise<T>,
+): Promise<T> {
+    const original = Deno.env.get('LOCKNESS_CLI_RAW_ERRORS')
+    if (value === undefined) Deno.env.delete('LOCKNESS_CLI_RAW_ERRORS')
+    else Deno.env.set('LOCKNESS_CLI_RAW_ERRORS', value)
+    try {
+        return await fn()
+    } finally {
+        if (original === undefined) {
+            Deno.env.delete('LOCKNESS_CLI_RAW_ERRORS')
+        } else Deno.env.set('LOCKNESS_CLI_RAW_ERRORS', original)
+    }
+}
