@@ -13,7 +13,7 @@ import {
     assertRejects,
     assertStrictEquals,
 } from '@std/assert'
-import { settleInOrder } from '../settle_in_order.ts'
+import { rejectAfter, settleInOrder } from '../settle_in_order.ts'
 import { RefusedError } from '../refusal.ts'
 
 /** Capture every `console.warn` line `fn` writes, and what it rejected with. */
@@ -112,4 +112,22 @@ Deno.test('#447 settleInOrder renders a later failure head-only, without its cau
     assertEquals(lines.length, 1)
     assert(lines[0].includes('outer'))
     assertEquals(lines[0].includes('inner detail'), false)
+})
+
+Deno.test('#447 rejectAfter runs the release steps, then throws the given failure, logging a release failure', async () => {
+    const ran: string[] = []
+    const failure = new RefusedError('refused first')
+
+    const { lines, error } = await warnings(() =>
+        rejectAfter(failure, [
+            step(ran, 'close the connection', new Error('close failed')),
+            step(ran, 'close the database'),
+        ])
+    )
+
+    assertStrictEquals(error, failure)
+    assertEquals(ran, ['close the connection', 'close the database'])
+    assertEquals(lines, [
+        '⚠️  Could not close the connection either: Error: close failed',
+    ])
 })

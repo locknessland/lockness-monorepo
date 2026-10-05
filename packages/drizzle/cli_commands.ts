@@ -48,7 +48,7 @@ import {
     renderMigrationStatus,
 } from './migration_status.ts'
 import { RefusedError } from './refusal.ts'
-import { settleInOrder, type SettleStep } from './settle_in_order.ts'
+import { rejectAfter, settleInOrder } from './settle_in_order.ts'
 import { kitFailure, type KitSubcommand } from './kit_outcome.ts'
 import {
     type CommandResult,
@@ -282,31 +282,23 @@ const defaultOpenMaintenance: MaintenanceOpener = async (settings) => {
         )
     }
     const closeDatabase = { what: 'close the database', run: () => db.close() }
-    // `error` stays the failure reported; a close failure after it is logged.
-    const failClosing = async (
-        what: string,
-        error: unknown,
-    ): Promise<never> => {
-        await settleInOrder([failWith(what, error), closeDatabase])
-        throw error // settleInOrder has already thrown it; this types `never`
-    }
     const maintenance = db.maintenance
     if (!maintenance) {
-        return failClosing(
-            'refuse',
+        return rejectAfter(
             new RefusedError(
                 `the '${settings.dialect}' driver offers no schema maintenance ` +
                     '(a custom driver factory?): give the factory a ' +
                     '`maintenance` capability',
                 { kitOnly: true },
             ),
+            [closeDatabase],
         )
     }
     let connection: MaintenanceConnection
     try {
         connection = await maintenance.open()
     } catch (error) {
-        return failClosing('open the maintenance connection', error)
+        return rejectAfter(error, [closeDatabase])
     }
     return {
         query: (sql) => connection.query(sql),
@@ -321,18 +313,6 @@ const defaultOpenMaintenance: MaintenanceOpener = async (settings) => {
                 closeDatabase,
             ]),
     }
-}
-
-/**
- * A step that has already failed, so {@link settleInOrder} keeps it as the
- * first failure and still runs the release steps after it.
- *
- * @param what - What failed, as a verb phrase.
- * @param error - The failure.
- * @returns The step.
- */
-function failWith(what: string, error: unknown): SettleStep {
-    return { what, run: () => Promise.reject(error) }
 }
 
 /**

@@ -64,3 +64,36 @@ export async function settleInOrder(
     }
     if (first !== undefined) throw first.error
 }
+
+/**
+ * Run the release steps after a failure that has already happened, then
+ * throw that failure, unchanged — never a release failure in its place, which
+ * is logged at WARN as {@link settleInOrder} logs any later failure.
+ *
+ * @param error - The failure to report.
+ * @param steps - The release steps, in the order they run.
+ * @returns Never resolves.
+ * @throws `error`, after every step ran.
+ *
+ * @example
+ * ```ts
+ * try {
+ *     db = drizzle(connection)
+ * } catch (error) {
+ *     return rejectAfter(error, [
+ *         { what: 'close the maintenance connection', run: () => connection.end() },
+ *     ])
+ * }
+ * ```
+ */
+export async function rejectAfter(
+    error: unknown,
+    steps: readonly SettleStep[],
+): Promise<never> {
+    await settleInOrder([
+        { what: 'fail', run: () => Promise.reject(error) },
+        ...steps,
+    ])
+    // settleInOrder has already thrown `error`; this line only types `never`.
+    throw error
+}
