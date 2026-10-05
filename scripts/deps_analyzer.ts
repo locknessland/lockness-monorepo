@@ -26,6 +26,7 @@
  * @module
  */
 
+import { parse as parseJsonc } from '@std/jsonc'
 import { fromFileUrl, join } from '@std/path'
 
 /** How one package reaches another. */
@@ -78,15 +79,24 @@ const POLICY_PATH = join(ROOT, 'deps.policy.jsonc')
 const OUTPUT_PATH = join(ROOT, 'docs', 'dependencies.md')
 
 /**
- * Strip comments from a JSONC source so `JSON.parse` accepts it.
+ * Parse the text of `deps.policy.jsonc`.
+ *
+ * `@std/jsonc`, the parser `publish:check` reads the same file with, so the
+ * two tools cannot disagree about whether the policy is valid (#469). A
+ * hand-rolled comment stripper used to cut any `//` inside a string, so a
+ * `runtimeImports` reason holding one broke this script while `publish:check`
+ * read it fine.
  *
  * @param source - The JSONC text.
- * @returns Equivalent JSON text.
+ * @returns The policy, cast unvalidated to its expected shape.
+ * @throws {SyntaxError} When the text is not valid JSONC.
+ * @example
+ * ```ts
+ * parsePolicy('{ "tiers": {}, "packages": {} } // a comment').packages // {}
+ * ```
  */
-function stripJsonc(source: string): string {
-    return source
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .replace(/(^|[^:"'\\])\/\/.*$/gm, '$1')
+export function parsePolicy(source: string): Policy {
+    return parseJsonc(source) as unknown as Policy
 }
 
 /**
@@ -551,7 +561,7 @@ async function main(): Promise<void> {
         const policyRaw = await Deno.readTextFile(POLICY_PATH).catch(() => null)
         const parsed: Policy | null = policyRaw === null
             ? null
-            : JSON.parse(stripJsonc(policyRaw))
+            : parsePolicy(policyRaw)
         console.log(JSON.stringify({
             packages: [...packages.values()].map((p) => ({
                 name: p.name,
@@ -576,7 +586,7 @@ async function main(): Promise<void> {
 
     let policy: Policy
     try {
-        policy = JSON.parse(stripJsonc(await Deno.readTextFile(POLICY_PATH)))
+        policy = parsePolicy(await Deno.readTextFile(POLICY_PATH))
     } catch (error) {
         console.error(
             `❌ Cannot read deps.policy.jsonc: ${(error as Error).message}`,
