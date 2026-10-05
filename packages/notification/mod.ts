@@ -75,7 +75,6 @@ export {
 export {
     type Cli,
     createFile,
-    handleMakeNotification,
     notificationNaming,
     processStub,
     registerNotificationCommands,

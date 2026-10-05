@@ -4725,6 +4725,7 @@
       },
       "packages/notification": {
         "dependencies": [
+          "jsr:@lockness/cli@0.4",
           "jsr:@lockness/container@0.4",
           "jsr:@lockness/contract@0.4",
           "jsr:@std/assert@1",

@@ -30,6 +30,18 @@ export interface Cli {
     register(name: string, handler: CommandHandler, description?: string): void
 }
 
+/**
+ * A failed notification command. `@lockness/cli` recognises a failure by its
+ * shape — an integer `exitCode` — so notification raises one without importing
+ * the CLI: the dispatcher prints the message once and exits with this status.
+ * Deliberately not exported (#436, D1).
+ */
+class NotificationCommandError extends Error {
+    /** The process exit status the dispatcher maps this failure to. */
+    readonly exitCode = 1
+    override readonly name = 'NotificationCommandError'
+}
+
 /** Resolved path to this package's stubs directory (local or JSR). */
 const STUBS_PATH: string = import.meta.url.startsWith('file://')
     ? join(dirname(fromFileUrl(import.meta.url)), 'stubs')
@@ -88,27 +100,29 @@ export function notificationNaming(
  * `make:notification` handler — scaffolds a `Notification` subclass under
  * `./app/notification`.
  *
+ * Internal: reached through `registerNotificationCommands`, not the package
+ * barrel.
+ *
  * @param args - CLI args; the first non-flag token is the notification name.
- * @returns The path written, or `undefined` when the name was missing.
+ * @returns The path written.
+ * @throws {NotificationCommandError} When the name is missing or malformed.
  */
 export async function handleMakeNotification(
     args: string[],
-): Promise<string | undefined> {
+): Promise<string> {
     const name = args.find((a) => !a.startsWith('-'))
     if (!name) {
-        console.error(
-            '❌ Please provide a notification name (e.g. InvoicePaid)',
+        throw new NotificationCommandError(
+            'Please provide a notification name (e.g. InvoicePaid)',
         )
-        return undefined
     }
     // A scaffolder writes a file whose path derives from this name — reject a
     // name that could escape ./app/notification (path traversal), even though
     // this is a dev-time command.
     if (!/^[A-Za-z][A-Za-z0-9]*$/.test(name)) {
-        console.error(
-            `❌ Invalid notification name "${name}" — use letters and digits only (e.g. InvoicePaid)`,
+        throw new NotificationCommandError(
+            `Invalid notification name "${name}" — use letters and digits only (e.g. InvoicePaid)`,
         )
-        return undefined
     }
 
     const { className, fileName } = notificationNaming(name)
