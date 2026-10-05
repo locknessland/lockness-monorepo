@@ -103,6 +103,18 @@ Deno.test("judgeNotFound passes only the app handler's JSON 404 when one is ship
     assert(!judgeNotFound(500, json, '{"error":"Not Found"}', handler).ok)
 })
 
+Deno.test('judgeNotFound rejects a message in the app handler 404 under production (#479)', () => {
+    const handler = 'app-handler'
+    const json = 'application/json'
+    const bare = '{"error":"Not Found","status":404}'
+    const detailed = '{"error":"Not Found","status":404,"message":"Not Found"}'
+    const production = { production: true }
+    assert(judgeNotFound(404, json, bare, handler, production).ok)
+    assert(!judgeNotFound(404, json, detailed, handler, production).ok)
+    // Outside production the message is the developer's to see.
+    assert(judgeNotFound(404, json, detailed, handler).ok)
+})
+
 Deno.test('NOT_FOUND_ANSWER expects the app handler exactly where a kit ships one (#479)', async () => {
     for (const kit of Object.keys(KITS) as KitName[]) {
         const stub = new URL(

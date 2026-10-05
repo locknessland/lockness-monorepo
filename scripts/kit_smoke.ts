@@ -919,7 +919,22 @@ async function smoke(
     console.log(
         `  ${booted.ok ? '✅' : '❌'} boots — ${booted.detail}`,
     )
-    return await bootLogAndCache(kit, dir, booted)
+    if (!await bootLogAndCache(kit, dir, booted)) return false
+    if (NOT_FOUND_ANSWER[kit] !== 'app-handler') return true
+
+    // The kit's own error handler gates the error message behind an explicit
+    // development signal. A deployed app runs under APP_ENV=production, and
+    // its error bodies must carry no message there (#479).
+    const production = await boots(dir, freePort(), {
+        env: { APP_ENV: 'production', APP_KEY: generateAppKey() },
+        probe: notFoundProbe(kit, { production: true }),
+    })
+    console.log(
+        `  ${
+            production.ok ? '✅' : '❌'
+        } boots under APP_ENV=production — ${production.detail}`,
+    )
+    return production.ok
 }
 
 // ---------------------------------------------------------------------------
@@ -1050,8 +1065,11 @@ export const NOT_FOUND_ANSWER: Readonly<
  * @param contentType - The `content-type` header, if any.
  * @param body - The body.
  * @param expected - Who should answer (see {@link NOT_FOUND_ANSWER}).
+ * @param options - `production`: the app ran under `APP_ENV=production`, so
+ * the app handler's body must carry no `message` key.
  * @returns Pass only for a 404 served as `text/html` from the default view,
- * or as JSON naming `Not Found` from the app's handler.
+ * or as JSON naming `Not Found` from the app's handler (with no `message`
+ * under production).
  *
  * @example
  * ```ts
@@ -1065,10 +1083,13 @@ export function judgeNotFound(
     contentType: string | null,
     body: string,
     expected: 'default-view' | 'app-handler',
+    options: { readonly production?: boolean } = {},
 ): StepResult {
     const type = contentType ?? 'no content-type'
     const want = expected === 'default-view'
         ? 'an HTML 404'
+        : options.production
+        ? "the app handler's JSON 404, with no message under production"
         : "the app handler's JSON 404"
     if (status === 404 && expected === 'default-view') {
         if (type.toLowerCase().includes('text/html')) {
@@ -1076,14 +1097,17 @@ export function judgeNotFound(
         }
     }
     if (status === 404 && expected === 'app-handler') {
+        const parsed = jsonObject(body)
         if (
             type.toLowerCase().includes('application/json') &&
-            jsonError(body) === 'Not Found'
+            parsed?.error === 'Not Found' &&
+            !(options.production && 'message' in parsed)
         ) {
+            const note = options.production ? ', no message' : ''
             return {
                 ok: true,
                 detail:
-                    `${MISSING_PATH} → JSON 404 from the app's error handler`,
+                    `${MISSING_PATH} → JSON 404 from the app's error handler${note}`,
             }
         }
     }
@@ -1094,12 +1118,13 @@ export function judgeNotFound(
     }
 }
 
-/** The `error` field of a JSON object body, or `undefined`. */
-function jsonError(body: string): unknown {
+/** A body parsed as a JSON object, or `undefined` when it is not one. */
+function jsonObject(body: string): Record<string, unknown> | undefined {
     try {
         const parsed: unknown = JSON.parse(body)
-        return typeof parsed === 'object' && parsed !== null
-            ? (parsed as { error?: unknown }).error
+        return typeof parsed === 'object' && parsed !== null &&
+                !Array.isArray(parsed)
+            ? parsed as Record<string, unknown>
             : undefined
     } catch (error) {
         // Not JSON is a verdict, not a fault: the caller reports the body.
@@ -1239,9 +1264,13 @@ function reportLeaks(
  * should answer it in that kit.
  *
  * @param kit - The kit being probed.
+ * @param options - Passed to {@link judgeNotFound}.
  * @returns The probe {@link boots} runs once the kit answers `/`.
  */
-function notFoundProbe(kit: KitName): (origin: string) => Promise<StepResult> {
+function notFoundProbe(
+    kit: KitName,
+    options: { readonly production?: boolean } = {},
+): (origin: string) => Promise<StepResult> {
     return async (origin) => {
         const response = await fetch(`${origin}${MISSING_PATH}`)
         return judgeNotFound(
@@ -1249,6 +1278,7 @@ function notFoundProbe(kit: KitName): (origin: string) => Promise<StepResult> {
             response.headers.get('content-type'),
             await response.text(),
             NOT_FOUND_ANSWER[kit],
+            options,
         )
     }
 }
