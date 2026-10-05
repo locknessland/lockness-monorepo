@@ -36,6 +36,11 @@ import {
     type SchemaMaintenance,
 } from './drivers.ts'
 import { inspectDsn, INVALID_DSN_MESSAGE } from './dsn.ts'
+import {
+    consoleNoticeReporter,
+    type NoticeReporter,
+    reportNotice,
+} from './notice.ts'
 import { holdsSecret, shownName, UNREADABLE_NAME } from './error_name.ts'
 
 export { registerDrizzleCommands } from './cli_commands.ts'
@@ -77,9 +82,11 @@ export type {
     DialectDatabase,
     DriverFactory,
     DriverHandle,
+    DriverOptions,
     MigrateOptions,
     SchemaMaintenance,
 } from './drivers.ts'
+export type { NoticeReporter } from './notice.ts'
 
 // =============================================================================
 // Types
@@ -95,6 +102,10 @@ export interface ConnectionOptions {
      * `silent: true` it prints neither; a failure is still returned as
      * `success: false`, so a caller that silences it reports it itself
      * (#427).
+     *
+     * It governs only that status line. A PostgreSQL `WARNING` the server
+     * sends later still reaches {@link ConnectionOptions.notices} — the `db:*`
+     * commands connect silently, and a real warning must still reach the user.
      */
     readonly silent?: boolean
     /**
@@ -104,6 +115,15 @@ export interface ConnectionOptions {
      * inference.
      */
     readonly driver?: Dialect
+    /**
+     * Where the PostgreSQL server notices this connection raises go (#454):
+     * a `WARNING` (or an unrecognised severity) to `warn`, `NOTICE`, `INFO`,
+     * `LOG` and `DEBUG` to `debug`. When omitted, the console fallback
+     * applies — one stderr line per warning, and the rest discarded. A kernel
+     * that sets `logger: true` passes `@lockness/logger` here. MySQL and
+     * SQLite ignore it.
+     */
+    readonly notices?: NoticeReporter
 }
 
 /**
@@ -291,7 +311,10 @@ export class Database<D extends Dialect = 'postgres'> {
         }
         try {
             // Inside the try: a custom factory may throw synchronously.
-            const handle = await this.#factories[dialect](url)
+            const notices = options.notices ?? consoleNoticeReporter
+            const handle = await this.#factories[dialect](url, {
+                onNotice: (notice) => reportNotice(notice, notices),
+            })
             this.#state = { kind: 'configured', client: { handle, held } }
         } catch (error) {
             this.#state = IDLE

@@ -22,6 +22,7 @@ import { addPackage, Stub } from '@lockness/cli'
 import { dirname, fromFileUrl, join } from '@std/path'
 import postgres from 'postgres'
 import { resolveDialect } from './drivers.ts'
+import { consoleNoticeReporter, reportNotice } from './notice.ts'
 import {
     DRIZZLE_KIT_DIALECT,
     DRIZZLE_KIT_SPECIFIER,
@@ -293,18 +294,26 @@ interface SqlProbe {
  * tested without a real database.
  *
  * @param url - The PostgreSQL connection string.
+ * @param options - The client options the probe decides: its `onnotice`
+ *   (#454). A connector that takes only the url still type-checks.
  * @returns A minimal SQL client.
  */
-export type SqlConnector = (url: string) => SqlProbe
+export type SqlConnector = (
+    url: string,
+    options: { readonly onnotice: (notice: unknown) => void },
+) => SqlProbe
 
-/** Production connector: the real postgres.js client. */
-const defaultConnector: SqlConnector = (url) =>
-    postgres(url) as unknown as SqlProbe
+/** Production connector: the real postgres.js client, options passed through. */
+const defaultConnector: SqlConnector = (url, options) =>
+    postgres(url, options) as unknown as SqlProbe
 
 /**
  * Test the database connection using the configured DATABASE_URL.
  *
- * Prints connection status to the console.
+ * Prints connection status to the console. A server notice the probe raises
+ * follows the console notice policy (#454): a `WARNING` is one stderr line,
+ * anything quieter is discarded. The installer boots no kernel, so there is
+ * no logger to route to.
  *
  * @param connect - SQL connector to use; defaults to the real postgres client.
  */
@@ -322,7 +331,9 @@ export async function testDatabaseConnection(
 
     console.log('\n🔌 Testing database connection...')
 
-    const sql = connect(databaseUrl)
+    const sql = connect(databaseUrl, {
+        onnotice: (notice) => reportNotice(notice, consoleNoticeReporter),
+    })
     try {
         await sql`SELECT 1`
         console.log('✓ Database connection successful!')

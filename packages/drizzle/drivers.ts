@@ -16,9 +16,14 @@
  * @since 0.2.1
  */
 
-import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
+import type {
+    drizzle as drizzlePostgres,
+    PostgresJsDatabase,
+} from 'drizzle-orm/postgres-js'
+import type postgresClient from 'postgres'
 import type { MySql2Database } from 'drizzle-orm/mysql2'
 import type { LibSQLDatabase } from 'drizzle-orm/libsql'
+import { consoleNoticeReporter, reportNotice } from './notice.ts'
 
 /**
  * Database schema type for Drizzle ORM — the generic constraint the dialect
@@ -222,6 +227,9 @@ export async function executeInTransaction(
  * not once the database has answered.
  *
  * @param url - The connection URL / DSN for the target database.
+ * @param options - Per-connection options; see {@link DriverOptions}. A
+ * factory written for one parameter still type-checks, and a dialect whose
+ * client raises no server notices ignores it.
  * @returns A promise resolving to the {@link DriverHandle} for the client.
  * @throws If the client package is missing or the client constructor rejects
  * the URL. `Database.connect()` shows only the error's name, never its message,
@@ -245,7 +253,29 @@ export async function executeInTransaction(
  * }
  * ```
  */
-export type DriverFactory = (url: string) => Promise<DriverHandle>
+export type DriverFactory = (
+    url: string,
+    options?: DriverOptions,
+) => Promise<DriverHandle>
+
+/**
+ * What `Database.connect` hands a {@link DriverFactory} besides the url.
+ *
+ * @example
+ * ```ts
+ * await factory(url, { onNotice: (n) => reportNotice(n, reporter) })
+ * ```
+ */
+export interface DriverOptions {
+    /**
+     * Receives every server notice the client raises (#454) — postgres only;
+     * MySQL and SQLite ignore it. The postgres factory installs it as
+     * postgres.js's `onnotice`, and falls back to the console notice policy
+     * when it is absent, so a client never prints postgres.js's raw notice
+     * object.
+     */
+    readonly onNotice?: (notice: unknown) => void
+}
 
 /** The client package name per dialect, for the missing-driver error message. */
 export const CLIENT_PACKAGE: Record<Dialect, string> = {
@@ -357,19 +387,48 @@ export function resolveDialect(
 }
 
 /**
- * The real driver factories — one per dialect, each loading its adapter + client
- * on demand via a fixed-literal `import()`.
+ * Loads the postgres adapter and client — the seam {@link postgresDriverFactory}
+ * builds its client through. Internal: a test passes a fake to observe the
+ * options the client is constructed with (#454), since drizzle-orm 0.36 exposes
+ * no `$client` on a finished handle.
  */
-export const defaultDriverFactories: Record<Dialect, DriverFactory> = {
-    postgres: async (url) => {
-        const { drizzle, postgres } = await loadClient(
-            'postgres',
-            async () => ({
-                drizzle: (await import('drizzle-orm/postgres-js')).drizzle,
-                postgres: (await import('postgres')).default,
-            }),
-        )
-        const client = postgres(url)
+export type PostgresClientLoader = () => Promise<{
+    readonly drizzle: typeof drizzlePostgres
+    readonly postgres: typeof postgresClient
+}>
+
+/** The real loader: both modules, each by its fixed literal specifier (S2). */
+const loadPostgresClient: PostgresClientLoader = async () => ({
+    drizzle: (await import('drizzle-orm/postgres-js')).drizzle,
+    postgres: (await import('postgres')).default,
+})
+
+/**
+ * The postgres driver factory. Every client it builds reports server notices
+ * through {@link DriverOptions.onNotice} — or, when the caller gives none,
+ * through the console fallback — never through postgres.js's own default,
+ * which dumps the raw notice object on stdout (#454).
+ *
+ * @param load - Loads the adapter and client; the real modules by default.
+ *   A load failure becomes a `ClientUnavailableError`.
+ * @returns The factory.
+ *
+ * @example
+ * ```ts
+ * const handle = await postgresDriverFactory()(url, {
+ *     onNotice: (n) => reportNotice(n, myReporter),
+ * })
+ * ```
+ */
+export function postgresDriverFactory(
+    load: PostgresClientLoader = loadPostgresClient,
+): DriverFactory {
+    return async (url, options) => {
+        const { drizzle, postgres } = await loadClient('postgres', load)
+        const client = postgres(url, {
+            onnotice: options?.onNotice ??
+                ((notice) => reportNotice(notice, consoleNoticeReporter)),
+        })
         const db = drizzle(client)
         return {
             db,
@@ -397,7 +456,15 @@ export const defaultDriverFactories: Record<Dialect, DriverFactory> = {
                 },
             },
         }
-    },
+    }
+}
+
+/**
+ * The real driver factories — one per dialect, each loading its adapter + client
+ * on demand via a fixed-literal `import()`.
+ */
+export const defaultDriverFactories: Record<Dialect, DriverFactory> = {
+    postgres: postgresDriverFactory(),
     mysql: async (url) => {
         const { drizzle, mysql } = await loadClient('mysql', async () => ({
             drizzle: (await import('drizzle-orm/mysql2')).drizzle,
