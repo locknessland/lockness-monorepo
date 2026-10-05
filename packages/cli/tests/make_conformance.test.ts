@@ -6,7 +6,8 @@
  * `@lockness/cli`: they meet the exit contract by shape, through a local
  * failure class. This one table proves the contract holds across all of them
  * through the real `Cli.dispatch()`: a non-zero status and exactly one
- * `console.error`.
+ * `console.error`, the command's own `❌ <reason>` rather than the
+ * dispatcher's catch-all.
  *
  * The commands are discovered by their `make:` prefix from what each
  * package registers, so a `make:*` added later is covered without touching
@@ -94,8 +95,12 @@ Deno.test('every make:* with no name exits non-zero, printed once', async (t) =>
         .filter((name) => name.startsWith('make:'))
         .filter((name) => !TAKES_NO_NAME.has(name))
         .sort()
-    // Discovery that finds nothing would pass every row vacuously.
-    assert(makes.length > 0, 'no make:* command was discovered')
+    // Discovery that finds too little would pass the missing rows
+    // vacuously; 22 is how many take a name today.
+    assert(
+        makes.length >= 22,
+        `only ${makes.length} make:* commands were discovered`,
+    )
 
     for (const name of makes) {
         await t.step(name, async () => {
@@ -111,6 +116,12 @@ Deno.test('every make:* with no name exits non-zero, printed once', async (t) =>
                     JSON.stringify(error)
                 }`,
             )
+            // The command's own failure, not the dispatcher's catch-all
+            // (`❌ <name> failed: <error>`), which means it threw something
+            // other than a failure.
+            const line = String(error[0][0])
+            assert(line.startsWith('❌ '), `${name}: ${line}`)
+            assert(!line.includes(' failed: '), `${name}: ${line}`)
         })
     }
 })

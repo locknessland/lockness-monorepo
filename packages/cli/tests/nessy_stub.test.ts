@@ -73,11 +73,13 @@ Deno.test('nessy.cmd install with no argument exits 1', async () => {
     assert(start >= 0, 'the install branch exists')
     const branch = script.slice(start, script.indexOf('\n)', start))
 
-    assertStringIncludes(branch, 'IF "%~2"=="" (')
-    const empty = branch.slice(
-        branch.indexOf('IF "%~2"=="" ('),
-        branch.indexOf(') ELSE ('),
-    )
+    // Both markers must exist: `slice` with a -1 bound would silently cut
+    // the wrong text, and the assertions below would read it.
+    const emptyStart = branch.indexOf('IF "%~2"=="" (')
+    const emptyEnd = branch.indexOf(') ELSE (')
+    assert(emptyStart >= 0, 'the empty-argument branch exists')
+    assert(emptyEnd >= 0, 'the ELSE branch exists')
+    const empty = branch.slice(emptyStart, emptyEnd)
     assertStringIncludes(empty, '❌ ')
     assertStringIncludes(empty, 'EXIT /B 1')
 })

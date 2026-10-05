@@ -11,6 +11,7 @@
  */
 
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
+import { fromFileUrl } from '@std/path'
 import { CommandFailedError } from '../command_failure.ts'
 import { runEntry } from '../entry.ts'
 
@@ -128,7 +129,7 @@ for (const kind of ['failure', 'unexpected'] as const) {
         const { code, stdout, stderr } = await new Deno.Command(
             Deno.execPath(),
             {
-                args: ['run', fixture.pathname, kind, inMessage, inCause],
+                args: ['run', fromFileUrl(fixture), kind, inMessage, inCause],
                 env: { NO_COLOR: '1' },
                 stdout: 'piped',
                 stderr: 'piped',
