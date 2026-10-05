@@ -716,17 +716,52 @@ Deno.test('#427 T12 a real Cli prints a failed db:check once and exits 1', async
     })
 })
 
+/**
+ * A fake postgres DSN with a user and password distinct per call, assembled at
+ * run time so no secret scanner reads a credential into the source.
+ */
+function fakeDsn(): {
+    readonly dsn: string
+    readonly user: string
+    readonly password: string
+} {
+    const tag = crypto.randomUUID().slice(0, 8)
+    const user = ['fx', 'user', tag].join('-')
+    const password = ['fx', 'pass', tag].join('-')
+    const dsn = ['postgres://', user, ':', password, '@db.example:5432/app']
+        .join('')
+    return { dsn, user, password }
+}
+
+/**
+ * Assert that neither credential appears in `error`, anywhere down its `cause`
+ * chain (a non-`Error` cause is read with `String`), or in `lines`.
+ */
+function assertNoCredential(
+    error: unknown,
+    lines: readonly string[],
+    credentials: { readonly user: string; readonly password: string },
+): void {
+    const texts: string[] = [...lines]
+    for (
+        let e: unknown = error;
+        e !== undefined;
+        e = e instanceof Error ? e.cause : undefined
+    ) {
+        texts.push(e instanceof Error ? e.message : String(e))
+    }
+    for (const text of texts) {
+        assertEquals(text.includes(credentials.password), false, text)
+        assertEquals(text.includes(credentials.user), false, text)
+    }
+}
+
 // The driver's own error quotes the full DSN, credentials included. Neither
 // db:check nor db:seed may carry it into the thrown error, its `cause` chain,
-// or the console (#440(b)). The DSN is assembled at run time, distinct per run,
-// so no secret scanner reads a credential into the source.
+// or the console (#440(b)).
 for (const command of ['db:check', 'db:seed']) {
     Deno.test(`#440 ${command} - a driver error quoting the DSN reaches neither the error chain nor the console`, async () => {
-        const tag = crypto.randomUUID().slice(0, 8)
-        const user = ['fx', 'user', tag].join('-')
-        const password = ['fx', 'pass', tag].join('-')
-        const dsn = ['postgres://', user, ':', password, '@db.example:5432/app']
-            .join('')
+        const { dsn, user, password } = fakeDsn()
         let loaded = false
         await withDefaultPort(() => {
             throw new Error(`connect to ${dsn} failed: password rejected`)
@@ -744,18 +779,41 @@ for (const command of ['db:check', 'db:seed']) {
             )
 
             assert(error instanceof CommandFailedError, String(error))
-            const chain: string[] = []
-            for (let e: unknown = error; e instanceof Error; e = e.cause) {
-                chain.push(e.message)
-            }
-            for (const text of [...chain, ...lines]) {
-                assertEquals(text.includes(password), false, text)
-                assertEquals(text.includes(user), false, text)
-            }
+            assertNoCredential(error, lines, { user, password })
             assertEquals(loaded, false, 'a seeder was loaded')
         }, { DATABASE_URL: dsn })
     })
 }
+
+// The usual wrong-password case: the client builds, and the probe's round trip
+// rejects quoting the DSN. Only db:check probes; db:seed makes no round trip
+// of its own before the seeder runs (#420), so it has no probe path to pin.
+Deno.test('#440 db:check - a probe error quoting the DSN reaches neither the error chain nor the console', async () => {
+    const { dsn, user, password } = fakeDsn()
+    let probed = false
+    await withDefaultPort(() =>
+        Promise.resolve({
+            db: {},
+            probe: () => {
+                probed = true
+                return Promise.reject(
+                    new Error(`password authentication failed for ${dsn}`),
+                )
+            },
+            close: () => Promise.resolve(),
+        }), async () => {
+        const cli = new FakeCli()
+        registerDrizzleCommands(cli, {})
+
+        const { lines, error } = await capture(() =>
+            withAppEnv(undefined, () => cli.run('db:check'))
+        )
+
+        assert(error instanceof CommandFailedError, String(error))
+        assertEquals(probed, true, 'the probe never ran')
+        assertNoCredential(error, lines, { user, password })
+    }, { DATABASE_URL: dsn })
+})
 
 /** The refusal `initDatabase` throws when `DATABASE_URL` names nothing. */
 const NO_TARGET = (state: string) =>
@@ -1261,15 +1319,20 @@ async function withoutPrompts(fn: () => Promise<void>): Promise<void> {
     }
 }
 
-/** Capture every console line of `fn`, and what it rejected with. */
+/**
+ * Capture every `console.log` / `console.warn` / `console.error` line of `fn`,
+ * and what it rejected with.
+ */
 async function capture(fn: () => Promise<void>): Promise<{
     readonly lines: string[]
     readonly error: unknown
 }> {
     const lines: string[] = []
-    const { log, error: err } = console
-    console.log = (...args: unknown[]) => void lines.push(args.join(' '))
-    console.error = (...args: unknown[]) => void lines.push(args.join(' '))
+    const { log, warn, error: err } = console
+    const record = (...args: unknown[]) => void lines.push(args.join(' '))
+    console.log = record
+    console.warn = record
+    console.error = record
     try {
         await fn()
         return { lines, error: undefined }
@@ -1277,6 +1340,7 @@ async function capture(fn: () => Promise<void>): Promise<{
         return { lines, error }
     } finally {
         console.log = log
+        console.warn = warn
         console.error = err
     }
 }
