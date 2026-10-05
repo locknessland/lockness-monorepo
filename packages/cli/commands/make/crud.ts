@@ -118,10 +118,8 @@ export const makeCrud: MakeCommand = {
                         STUBS_PATH,
                         'make',
                         'controller',
-                        {
-                            className: `${modelName}Controller`,
-                            route: route,
-                        },
+                        // The stub appends `Controller` itself.
+                        { className: modelName, route },
                     )
                     await Deno.mkdir('./app/controller', { recursive: true })
                     await Deno.writeTextFile(controllerPath, controllerContent)

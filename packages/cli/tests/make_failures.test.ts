@@ -299,6 +299,20 @@ Deno.test('make:crud finishes, then fails', async (t) => {
         assertEquals(result, 0)
         assertEquals(error.length, 0)
     })
+
+    await t.step('the controller class is PostController', async () => {
+        await inTempDir(async () => {
+            await captureConsole(() =>
+                makeCli().dispatch(['make:crud', 'Post'])
+            )
+
+            const controller = await Deno.readTextFile(
+                'app/controller/post_controller.tsx',
+            )
+            assertStringIncludes(controller, 'export class PostController {')
+            assert(!controller.includes('ControllerController'), controller)
+        })
+    })
 })
 
 Deno.test('make:controller when the routes registry cannot be written', async (t) => {
