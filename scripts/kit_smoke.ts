@@ -13,7 +13,8 @@
  * a kit with a `css:build` task must have written Tailwind's output, not a
  * copy of its entry file (#506, {@link judgeStylesheet}). A kit that ships
  * migrations also runs its `db:generate` before booting, which must report no
- * schema changes (#444).
+ * schema changes (#444). It must also refuse a column rename it cannot ask
+ * about without a TTY: exit non-zero and write nothing (#445).
  *
  * **Booting is judged by what it printed, too (#505).** {@link judgeBootLog}
  * fails a kit whose boot log carries an optional-package line — the old
@@ -73,6 +74,7 @@ import { parseArgs } from '@std/cli'
 import { parse as parseJsonc } from '@std/jsonc'
 import { fromFileUrl, join } from '@std/path'
 import { generateAppKey, type KitName, KITS } from '@lockness/init'
+import { NEEDED_A_TERMINAL } from '../packages/drizzle/kit_outcome.ts'
 import {
     diffTree,
     MIGRATIONS_DIR,
@@ -726,6 +728,10 @@ async function bootLogAndCache(
  * re-create `users` and fail. It also proves the command is registered at all:
  * without `lockness.packages`, `db:generate` is an unknown command.
  *
+ * It also catches false failures (#445). `db:generate` now fails on any
+ * stderr from drizzle-kit, so a future pin that prints something harmless
+ * there on success turns this step red, with the text shown.
+ *
  * @param dir - The scaffolded project.
  * @returns Whether drizzle-kit reported no changes and left the folder
  * byte-for-byte unchanged; otherwise every added, removed or changed path.
@@ -752,6 +758,75 @@ async function generatesNothing(dir: string): Promise<StepResult> {
         return { ok: false, detail: `wrote ${written.join(', ')}` }
     }
     return { ok: true, detail: 'no schema changes' }
+}
+
+/** The schema file {@link refusesRename} edits, relative to the project. */
+const RENAMED_SCHEMA = 'app/model/user.ts'
+
+/**
+ * The column {@link refusesRename} renames: the first `text('name')` in the
+ * schema is `users.name` in every kit that ships migrations.
+ */
+const RENAME = { from: "text('name')", to: "text('display_name')" } as const
+
+/**
+ * Rename one column's SQL name and require `db:generate` to refuse it (#445).
+ *
+ * One column disappearing while another appears in the same table is what
+ * makes drizzle-kit ask "rename or create?". Without a TTY it cannot ask. It
+ * prints its refusal to stderr and exits 0, so only Lockness's stderr rule
+ * fails the run. `generate` never connects, so no database is needed. The
+ * schema file is restored on every path.
+ *
+ * @param dir - The scaffolded project.
+ * @returns Whether `db:generate` exited non-zero, said a terminal was needed,
+ * and left the migrations folder byte-for-byte unchanged.
+ */
+async function refusesRename(dir: string): Promise<StepResult> {
+    const schema = join(dir, RENAMED_SCHEMA)
+    const original = await Deno.readTextFile(schema)
+    if (!original.includes(RENAME.from)) {
+        return {
+            ok: false,
+            detail: `${RENAMED_SCHEMA} has no ${RENAME.from} to rename`,
+        }
+    }
+    const folder = join(dir, MIGRATIONS_DIR)
+    const before = await readTree(folder)
+    await Deno.writeTextFile(schema, original.replace(RENAME.from, RENAME.to))
+    try {
+        const generate = await runCommand(
+            Deno.execPath(),
+            ['task', 'cli', 'db:generate'],
+            dir,
+        )
+        if (generate.ok) {
+            return {
+                ok: false,
+                detail: `exited 0 on a rename it could not ask about\n${
+                    tail(generate.output)
+                }`,
+            }
+        }
+        if (!generate.output.includes(NEEDED_A_TERMINAL)) {
+            return {
+                ok: false,
+                detail: `failed without saying a terminal was needed\n${
+                    tail(generate.output)
+                }`,
+            }
+        }
+        const written = diffTree(before, await readTree(folder))
+        if (written.length > 0) {
+            return { ok: false, detail: `wrote ${written.join(', ')}` }
+        }
+        return {
+            ok: true,
+            detail: 'a rename without a TTY fails and writes nothing',
+        }
+    } finally {
+        await Deno.writeTextFile(schema, original)
+    }
 }
 
 /**
@@ -918,6 +993,12 @@ async function smoke(
             `  ${generated.ok ? '✅' : '❌'} db:generate — ${generated.detail}`,
         )
         if (!generated.ok) return false
+
+        const refused = await refusesRename(dir)
+        console.log(
+            `  ${refused.ok ? '✅' : '❌'} db:generate — ${refused.detail}`,
+        )
+        if (!refused.ok) return false
     }
 
     const booted = await boots(dir, port)
