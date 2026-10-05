@@ -469,6 +469,35 @@ Deno.test('#445 defaultRunCommand - forwards all of stderr but retains a bounded
     assertEquals(result.stderr, 'a'.repeat(RETAINED_STDERR_BYTES))
 })
 
+Deno.test('#445 defaultRunCommand - a failed forward kills and reaps the child, then surfaces the error', async () => {
+    const dir = await Deno.makeTempDir({ prefix: 'lockness-445-sink-' })
+    const marker = `${dir}/finished`
+    try {
+        // The child reports on stderr, then finishes its work a second
+        // later: a push that would complete unwatched if it were not killed.
+        const script = "console.error('x'); await new Promise((r) => " +
+            `setTimeout(r, 1000)); Deno.writeTextFileSync(${
+                JSON.stringify(marker)
+            }, 'done')`
+        const broken = new Error('stderr closed')
+        const error = await assertRejects(() =>
+            defaultRunCommand({
+                cmd: Deno.execPath(),
+                args: ['eval', script],
+            }, { write: () => Promise.reject(broken) })
+        )
+        assertEquals(error, broken)
+        await new Promise((r) => setTimeout(r, 1500))
+        const finished = await Deno.stat(marker).then(() => true, (e) => {
+            if (e instanceof Deno.errors.NotFound) return false
+            throw e
+        })
+        assertEquals(finished, false, 'the child ran on after the failure')
+    } finally {
+        await Deno.remove(dir, { recursive: true })
+    }
+})
+
 // -----------------------------------------------------------------------------
 // db:check — connection port only, always closes
 // -----------------------------------------------------------------------------

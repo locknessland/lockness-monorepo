@@ -302,7 +302,8 @@ interface StderrSink {
  *   default.
  * @returns The exit code, and the first {@link RETAINED_STDERR_BYTES} bytes of
  *   stderr.
- * @throws Whatever spawning the process, or writing to the sink, throws.
+ * @throws Whatever spawning the process, or writing to the sink, throws; a
+ *   failed write first kills and reaps the child.
  * @internal Exported for tests.
  *
  * @example
@@ -326,13 +327,22 @@ export async function defaultRunCommand(
     }).spawn()
     const kept = new Uint8Array(RETAINED_STDERR_BYTES)
     let size = 0
-    for await (const chunk of child.stderr) {
-        for (let written = 0; written < chunk.length;) {
-            written += await sink.write(chunk.subarray(written))
+    try {
+        for await (const chunk of child.stderr) {
+            for (let written = 0; written < chunk.length;) {
+                written += await sink.write(chunk.subarray(written))
+            }
+            const room = Math.min(RETAINED_STDERR_BYTES - size, chunk.length)
+            kept.set(chunk.subarray(0, room), size)
+            size += room
         }
-        const room = Math.min(RETAINED_STDERR_BYTES - size, chunk.length)
-        kept.set(chunk.subarray(0, room), size)
-        size += room
+    } catch (error) {
+        // Forwarding failed (stderr closed, `| head` gone: EPIPE). Nobody
+        // can see the child's report any more, so it must not finish a push
+        // unwatched: kill it, reap it, then surface the failure.
+        child.kill()
+        await child.status
+        throw error
     }
     const { code } = await child.status
     return { code, stderr: new TextDecoder().decode(kept.subarray(0, size)) }
