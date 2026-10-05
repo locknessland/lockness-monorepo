@@ -55,7 +55,8 @@ does not scaffold.
 
 `drizzle.config.ts` above is the web and api kits' copy (no URL fallback);
 `packages/drizzle/stubs/drizzle.config.ts.stub` is what `@lockness/drizzle`'s
-installer writes into an existing project.
+installer writes into an existing project — the same shape, with no fallback
+either and the dialect filled in (#555).
 
 `packages/init/stubs/kits/slim/app/view/pages/errors/error_handler.tsx.stub` has
 no root twin either: it is the slim kit's JSON error handler, at the path core

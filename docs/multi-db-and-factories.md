@@ -23,7 +23,7 @@ change):
 import type { DatabaseConfig } from '@lockness/core'
 
 export const databaseConfig: DatabaseConfig = {
-    url: Deno.env.get('DATABASE_URL') || 'postgres://localhost:5432/lockness',
+    url: Deno.env.get('DATABASE_URL'), // no fallback: unset boots without a database
     driver: 'postgres', // 'postgres' | 'mysql' | 'sqlite'
 }
 ```
