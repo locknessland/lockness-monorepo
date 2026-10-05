@@ -303,8 +303,22 @@ export type SqlConnector = (
     options: { readonly onnotice: (notice: unknown) => void },
 ) => SqlProbe
 
-/** Production connector: the real postgres.js client, options passed through. */
-const defaultConnector: SqlConnector = (url, options) =>
+/**
+ * Production connector: the real postgres.js client, options passed through.
+ * Constructing it opens no connection.
+ *
+ * @param url - The PostgreSQL connection string.
+ * @param options - Forwarded to postgres.js as they are.
+ * @returns The postgres.js client, as a {@link SqlProbe}.
+ * @internal Exported for tests (#454): a connector that drops `options`
+ *   brings back postgres.js's raw notice dump.
+ *
+ * @example
+ * ```ts
+ * const sql = defaultConnector(url, { onnotice: () => {} })
+ * ```
+ */
+export const defaultConnector: SqlConnector = (url, options) =>
     postgres(url, options) as unknown as SqlProbe
 
 /**

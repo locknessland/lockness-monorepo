@@ -19,7 +19,11 @@ import {
     type PostgresClientLoader,
     postgresDriverFactory,
 } from '../drivers.ts'
-import { type SqlConnector, testDatabaseConnection } from '../install.ts'
+import {
+    defaultConnector,
+    type SqlConnector,
+    testDatabaseConnection,
+} from '../install.ts'
 import type { NoticeReporter } from '../notice.ts'
 
 /** A connection url with no credential, assembled at run time. */
@@ -193,5 +197,18 @@ Deno.test('#454 testDatabaseConnection - the probe client gets an onnotice, and 
     } finally {
         if (previous === undefined) Deno.env.delete('DATABASE_URL')
         else Deno.env.set('DATABASE_URL', previous)
+    }
+})
+
+Deno.test('#454 defaultConnector - forwards options.onnotice to the postgres.js client', async () => {
+    const onnotice = (_notice: unknown) => {}
+    // postgres.js is lazy: constructing the client opens no connection.
+    const sql = defaultConnector(URL_UNDER_TEST, { onnotice })
+    try {
+        const options = (sql as unknown as { options: { onnotice: unknown } })
+            .options
+        assertEquals(options.onnotice, onnotice)
+    } finally {
+        await sql.end()
     }
 })
