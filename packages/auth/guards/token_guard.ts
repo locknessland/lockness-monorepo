@@ -202,7 +202,22 @@ export class TokenGuard<
     }
 
     /**
-     * Generate a new token for a user (typically after login)
+     * Verify a user's credentials, then mint an access token for them —
+     * typically the login endpoint of a token-authenticated API. Emits
+     * `token:created` on success.
+     *
+     * @param email - The submitted email.
+     * @param password - The submitted password.
+     * @param tokenName - A label for the token (default: `'default'`).
+     * @param expiresIn - Lifetime in **milliseconds**, the unit of the
+     * `TokenUserProvider.createToken` contract. When omitted, the provider's
+     * own default applies (one year for the providers in
+     * `@lockness/auth-provider`).
+     * @returns The token, its plaintext in `value` — the only time it is
+     * available.
+     * @throws {InvalidTokenError} When the credentials match no user.
+     * @throws {RangeError} From the provider, when `expiresIn` is not a
+     * finite positive number of milliseconds.
      *
      * @example
      * const token = await guard.generate('user@example.com', 'password', 'mobile-app')
@@ -231,7 +246,21 @@ export class TokenGuard<
     }
 
     /**
-     * Generate a token for a user by ID (useful after registration)
+     * Mint an access token for a user known by id, without checking
+     * credentials — useful right after registration. Emits `token:created`
+     * on success.
+     *
+     * @param userId - The user's id.
+     * @param tokenName - A label for the token (default: `'default'`).
+     * @param expiresIn - Lifetime in **milliseconds**, the unit of the
+     * `TokenUserProvider.createToken` contract. When omitted, the provider's
+     * own default applies (one year for the providers in
+     * `@lockness/auth-provider`).
+     * @returns The token, its plaintext in `value` — the only time it is
+     * available.
+     * @throws {InvalidTokenError} When no user has that id.
+     * @throws {RangeError} From the provider, when `expiresIn` is not a
+     * finite positive number of milliseconds.
      *
      * @example
      * const token = await guard.generateForUser(userId, 'web-app')
