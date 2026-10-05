@@ -82,3 +82,54 @@ export function withDatabase(url: string, database: string): string {
     parsed.pathname = `/${database}`
     return parsed.href
 }
+
+/**
+ * The slice of a postgres.js admin client {@link releaseDatabase} uses —
+ * structural, so the cleanup is testable without a server.
+ */
+export interface AdminConnection {
+    /** Run a raw statement. */
+    unsafe(query: string): Promise<unknown>
+    /** Close the connection. */
+    end(): Promise<unknown>
+}
+
+/**
+ * Drop a suite's throwaway database, close the admin connection and remove
+ * the suite's temp directory — every step attempted even when an earlier one
+ * throws (#450). A leaked database or directory poisons the next run, and
+ * the run that most needs cleaning up is the failing one. An error is
+ * re-thrown once everything has been attempted.
+ *
+ * @param admin - The admin connection that created the database.
+ * @param database - The database to drop.
+ * @param workdir - The suite's temp directory, when it made one.
+ * @throws {Error} Whatever the drop, the close or the removal threw; when
+ * several fail, the last one's error is the one that surfaces.
+ *
+ * @example
+ * ```ts
+ * try {
+ *     // … the test …
+ * } finally {
+ *     await releaseDatabase(admin, database, workdir)
+ * }
+ * ```
+ */
+export async function releaseDatabase(
+    admin: AdminConnection,
+    database: string,
+    workdir?: string,
+): Promise<void> {
+    try {
+        await admin.unsafe(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`)
+    } finally {
+        try {
+            await admin.end()
+        } finally {
+            if (workdir !== undefined) {
+                await Deno.remove(workdir, { recursive: true })
+            }
+        }
+    }
+}

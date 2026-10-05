@@ -31,7 +31,7 @@ import {
     LIVE_POSTGRES,
     liveUrl,
 } from '../packages/drizzle/tests/live_postgres.ts'
-import { inApp, withDatabase } from './kit_live.ts'
+import { inApp, releaseDatabase, withDatabase } from './kit_live.ts'
 import { migratingKits, shippedKitMigrations } from './kit_migrations.ts'
 import { scaffoldKit } from './kit_smoke.ts'
 
@@ -162,11 +162,7 @@ for (const kit of migratingKits()) {
                     await db.end()
                 }
             } finally {
-                await admin.unsafe(
-                    `DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`,
-                )
-                await admin.end()
-                await Deno.remove(workdir, { recursive: true })
+                await releaseDatabase(admin, database, workdir)
             }
         },
     })

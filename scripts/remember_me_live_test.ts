@@ -31,7 +31,7 @@ import {
     LIVE_POSTGRES,
     liveUrl,
 } from '../packages/drizzle/tests/live_postgres.ts'
-import { withDatabase } from './kit_live.ts'
+import { releaseDatabase, withDatabase } from './kit_live.ts'
 
 const users = pgTable('users', {
     id: serial('id').primaryKey(),
@@ -281,11 +281,11 @@ Deno.test({
                 },
             )
         } finally {
-            await sql.end()
-            await admin.unsafe(
-                `DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`,
-            )
-            await admin.end()
+            try {
+                await sql.end()
+            } finally {
+                await releaseDatabase(admin, database)
+            }
         }
     },
 })
