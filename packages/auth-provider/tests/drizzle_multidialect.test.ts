@@ -165,3 +165,9 @@ Deno.test('the default (unparameterised) instantiation stays Postgres — no bre
     const _assertDefaultIsPg: DrizzleDatabase<'pg'> = pgDb
     assert(_assertDefaultIsPg === pgDb)
 })
+
+Deno.test('the drizzle entry exports no table assertion — the provider runs it (#460)', async () => {
+    const entry: Record<string, unknown> = await import('../drizzle/mod.ts')
+    assert(!('assertAccessTokensTable' in entry))
+    assert(!('assertDrizzleTable' in entry))
+})

@@ -81,10 +81,11 @@ Anything not listed is internal and free to change.
   (see issue #26) — it targets the library directly.
 - `DrizzleTokenProvider` reads the application's table through its property
   names (`id`, `userId`, `name`, `hash`, `expiresAt`, `lastUsedAt`,
-  `createdAt`); `assertAccessTokensTable` refuses anything else at construction.
-  The `db` handle is viewed through one `unknown` cast to the builder subset pg,
-  mysql and sqlite share — mysql and sqlite are type-checked, never executed
-  live.
+  `createdAt`); the internal `assertAccessTokensTable` (over the shared
+  `drizzle/assert_table.ts`) refuses anything else at construction. The `db`
+  handle is viewed through one cast, in `drizzle/query_handle.ts`, to the
+  builder subset pg, mysql and sqlite share — mysql and sqlite are type-checked,
+  never executed live.
 - `db` is a resolver (`db: () => database.db`), called on every lookup and
   **never in a constructor** — not even to cache it. Guards build a provider per
   request, and `Database.db` throws while no database is connected, so an eager
@@ -100,7 +101,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-5 test files for 16 source files:
+5 test files for 18 source files:
 
 - `packages/auth-provider/tests/deny_paths.test.ts`
 - `packages/auth-provider/tests/drizzle_multidialect.test.ts`

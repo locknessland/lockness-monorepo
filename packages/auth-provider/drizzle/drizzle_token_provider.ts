@@ -12,7 +12,7 @@
 import type { Authenticatable } from '@lockness/auth'
 // Hard-rule-#2 exception: drizzle-orm is not published on JSR. The range
 // matches `@lockness/drizzle` and the kits, so an app resolves one copy.
-import { and, eq, type SQL, type Table } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import {
     type NewStoredAccessToken,
     type StoredAccessToken,
@@ -20,6 +20,7 @@ import {
 } from '../base/token_provider_base.ts'
 import { assertDbResolver } from '../base/assert_db_resolver.ts'
 import type { DrizzleDatabase, DrizzleDialect } from './database.ts'
+import { asQueryHandle, type QueryHandle } from './query_handle.ts'
 import {
     assertAccessTokensTable,
     type DrizzleAccessTokensTable,
@@ -77,31 +78,6 @@ export interface DrizzleTokenProviderOptions<
 }
 
 /**
- * The subset of the Drizzle query builder the storage steps use — the part
- * the pg, mysql and sqlite builders share. No `RETURNING`: mysql lacks it.
- */
-interface TokenQueryHandle {
-    insert(table: Table): {
-        values(row: NewStoredAccessToken): PromiseLike<unknown>
-    }
-    select(fields: Readonly<Record<string, unknown>>): {
-        from(table: Table): {
-            where(condition: SQL | undefined): {
-                limit(count: number): PromiseLike<StoredAccessToken[]>
-            }
-        }
-    }
-    update(table: Table): {
-        set(values: { lastUsedAt: Date }): {
-            where(condition: SQL | undefined): PromiseLike<unknown>
-        }
-    }
-    delete(table: Table): {
-        where(condition: SQL | undefined): PromiseLike<unknown>
-    }
-}
-
-/**
  * Drizzle-based user provider for token authentication.
  *
  * @example
@@ -154,13 +130,8 @@ export class DrizzleTokenProvider<
      * through the builder subset it uses — never cached, so a reconnect is
      * followed and a provider built without a connection touches nothing.
      */
-    get #query(): TokenQueryHandle {
-        // The one cast in this provider. `DrizzleDatabase<D>` is a deferred
-        // conditional type, and the union of the three dialect builders it
-        // resolves to has no callable `insert`/`select` — TypeScript cannot
-        // unify their overloads. Every builder implements the subset above,
-        // so the handle is viewed through it, here and nowhere else.
-        return this.#options.db() as unknown as TokenQueryHandle
+    get #query(): QueryHandle<NewStoredAccessToken, StoredAccessToken> {
+        return asQueryHandle(this.#options.db())
     }
 
     /**
