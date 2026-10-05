@@ -15,7 +15,7 @@ import {
     loadConfiguredPackage,
 } from '../optional_packages.ts'
 import { container } from '@lockness/container'
-import { registerHealthCheck } from '@lockness/contract'
+import { registerHealthCheck, renderError } from '@lockness/contract'
 import { SHUTDOWN_PRIORITY } from '../../shutdown_registry.ts'
 
 /** The notice reporter port `@lockness/drizzle` declares, structurally. */
@@ -53,10 +53,19 @@ async function buildNoticeReporter(
 
     const { logger } = loggerModule
     // The port is synchronous; the logger's methods are async. Not awaited:
-    // the reporter runs inside postgres.js's socket handler.
+    // the reporter runs inside postgres.js's socket handler. A rejected sink
+    // (a full disk, a network transport that is down) is reported on stderr:
+    // left unhandled, it would end the process when a notice arrived.
+    const settle = (sent: Promise<void>): void => {
+        sent.catch((error) =>
+            console.error(`logger failed: ${renderError(error)}`)
+        )
+    }
     return {
-        warn: (message, fields) => void logger().warn(message, { ...fields }),
-        debug: (message, fields) => void logger().debug(message, { ...fields }),
+        warn: (message, fields) =>
+            settle(logger().warn(message, { ...fields })),
+        debug: (message, fields) =>
+            settle(logger().debug(message, { ...fields })),
     }
 }
 

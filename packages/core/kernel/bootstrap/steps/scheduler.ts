@@ -11,7 +11,7 @@ import {
     importRequiredPackage,
     loadConfiguredPackage,
 } from '../optional_packages.ts'
-import { registerDisposable } from '@lockness/contract'
+import { registerDisposable, renderError } from '@lockness/contract'
 import { SHUTDOWN_PRIORITY } from '../../shutdown_registry.ts'
 
 /**
@@ -53,9 +53,16 @@ async function buildReporter(context: BootstrapContext): Promise<
     const { logger } = loggerModule
     // The reporter contract is synchronous; the logger's methods are async.
     // Failures are reported, not awaited — a slow sink must never delay a task.
+    // A rejected sink (a full disk, a network transport that is down) is
+    // reported on stderr: left unhandled, it would end the process.
+    const settle = (sent: Promise<void>): void => {
+        sent.catch((error) =>
+            console.error(`logger failed: ${renderError(error)}`)
+        )
+    }
     return {
-        error: (message, fields) => void logger().error(message, fields),
-        warn: (message, fields) => void logger().warn(message, fields),
+        error: (message, fields) => settle(logger().error(message, fields)),
+        warn: (message, fields) => settle(logger().warn(message, fields)),
     }
 }
 
