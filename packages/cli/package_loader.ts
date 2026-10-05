@@ -155,11 +155,13 @@ export async function addPackage(packageName: string): Promise<void> {
         if ((denoJson as any).lockness.packages.includes(normalizedName)) {
             console.log(`✓ Package ${normalizedName} is already registered`)
             return
-        } // Add package
+        }
 
-        ;(denoJson as any).lockness.packages.push(normalizedName)(
-            denoJson as any,
-        ).lockness.packages.sort()
+        // Separate statements: a leading-paren line once joined the sort onto
+        // push(), so the call ran on push's numeric return value.
+        const packages: string[] = (denoJson as any).lockness.packages
+        packages.push(normalizedName)
+        packages.sort()
 
         // Write back to file
         await Deno.writeTextFile(
