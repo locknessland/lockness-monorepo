@@ -260,5 +260,5 @@ SMTP_USER=your-email@gmail.com
 SMTP_PASS=your-app-password
 
 # Resend
-RESEND_API_KEY=re_123456789
+RESEND_API_KEY=<your-resend-api-key>
 ```

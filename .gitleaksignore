@@ -4,6 +4,8 @@
 # - .github/rules/**: lines copied verbatim from the public Hono docs
 #   (an example JWT and an example env file).
 # - packages/mail/llms.txt: a sequential placeholder API key in a docs example.
+#   The live copy (packages/mail/docs/DOCS.md) now reads <your-resend-api-key>
+#   (#432), but the full-history scan still walks the commit that added it.
 # - packages/realtime/tests/presence_roster_wrong_type_414.test.ts: the fixture
 #   value 'corrupted-by-414' written to a Redis key by a wrong-type test; the
 #   rule matches the `key, '<value>'` argument shape.
