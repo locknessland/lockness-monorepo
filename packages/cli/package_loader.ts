@@ -125,7 +125,8 @@ export async function loadPackageCommands(cli: Cli): Promise<void> {
  * Normalizes package names and prevents duplicates.
  *
  * @param packageName - Package name (with or without @lockness/ prefix)
- * @throws {Error} When deno.json cannot be read or written
+ * @throws {Error} When deno.json cannot be read or written; the caught error
+ *   is the `cause`
  *
  * @example
  * ```ts
@@ -171,11 +172,8 @@ export async function addPackage(packageName: string): Promise<void> {
 
         console.log(`✓ Added ${normalizedName} to lockness.packages`)
     } catch (error) {
-        throw new Error(
-            `Failed to add package: ${
-                error instanceof Error ? error.message : error
-            }`,
-        )
+        // The caught error is the cause, never copied into the message (D4).
+        throw new Error('Failed to add package', { cause: error })
     }
 }
 
@@ -183,7 +181,8 @@ export async function addPackage(packageName: string): Promise<void> {
  * Remove a package from the deno.json lockness.packages list.
  *
  * @param packageName - Package name (with or without @lockness/ prefix)
- * @throws {Error} When deno.json cannot be read or written
+ * @throws {Error} When deno.json cannot be read or written; the caught error
+ *   is the `cause`
  *
  * @example
  * ```ts
@@ -223,10 +222,7 @@ export async function removePackage(packageName: string): Promise<void> {
 
         console.log(`✓ Removed ${normalizedName} from lockness.packages`)
     } catch (error) {
-        throw new Error(
-            `Failed to remove package: ${
-                error instanceof Error ? error.message : error
-            }`,
-        )
+        // The caught error is the cause, never copied into the message (D4).
+        throw new Error('Failed to remove package', { cause: error })
     }
 }

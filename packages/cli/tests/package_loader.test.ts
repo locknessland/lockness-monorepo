@@ -1,10 +1,11 @@
 /**
- * @fileoverview Tests for `addPackage`, which records a package in the
- * project's `lockness.packages` list.
+ * @fileoverview Tests for `addPackage` and `removePackage`, which record a
+ * package in, and drop it from, the project's `lockness.packages` list.
  */
 
-import { assertEquals } from '@std/assert'
-import { addPackage } from '../package_loader.ts'
+import { assertEquals, assertInstanceOf, assertRejects } from '@std/assert'
+import { addPackage, removePackage } from '../package_loader.ts'
+import { inTempDir } from './helpers.ts'
 
 async function inProject<T>(
     denoJson: unknown,
@@ -47,4 +48,29 @@ Deno.test('addPackage leaves an already registered package alone', async () => {
         await addPackage('drizzle')
         assertEquals(await packagesIn(dir), ['drizzle'])
     })
+})
+
+Deno.test('addPackage and removePackage keep a caught error as the cause', async (t) => {
+    const cases = [
+        {
+            name: 'addPackage',
+            run: addPackage,
+            message: 'Failed to add package',
+        },
+        {
+            name: 'removePackage',
+            run: removePackage,
+            message: 'Failed to remove package',
+        },
+    ]
+    for (const { name, run, message } of cases) {
+        await t.step(name, async () => {
+            // No deno.json nor deno.jsonc: the read fails.
+            await inTempDir(async () => {
+                const error = await assertRejects(() => run('drizzle'), Error)
+                assertEquals(error.message, message)
+                assertInstanceOf(error.cause, Deno.errors.NotFound)
+            })
+        })
+    }
 })
