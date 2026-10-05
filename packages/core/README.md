@@ -529,7 +529,7 @@ export class UserController {
 
 ## Upgrading to v0.5.0
 
-Six items. **Migration step:** for every optional feature your `@Kernel()`
+Seven items. **Migration step:** for every optional feature your `@Kernel()`
 configures, make sure the package is in your `deno.json`; add `telemetry: true`
 and `logger: true` if you relied on those packages switching on by presence;
 give a `schedulerLock` with `driver: 'redis'` its `redis` connection; and fix or
@@ -644,6 +644,16 @@ ScheduleLoadError: Schedule file "app/schedule/purge_tokens.ts" could not be loa
 - **The fix:** repair the file named in the error. If your `✓ Scheduler started`
   line counted fewer tasks than you declared, a schedule file was already being
   dropped.
+
+### 7. `declaredMiddlewares` is filled at order 550 instead of 400
+
+`middlewaresDir` was discovered twice per boot: by a bootstrap step at order
+400, and again by `App.init` at order 550, so a broken middleware file was
+imported and logged twice (#479). The order-400 step is gone; `App.init` is the
+one owner, as it already was for an app booted without a kernel. **No step is
+required** unless your code reads `declaredMiddlewares` during the boot:
+listener registration (410) or a `KernelBooted` listener (500) now finds it
+empty. Read it after `createApp()` returns.
 
 ## 📚 Technical Reference
 
