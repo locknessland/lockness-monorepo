@@ -26,8 +26,11 @@ jobs:
                 # local platform. Windows is intentionally not yet in the matrix
                 # (unverified path assumptions) — tracked as follow-up.
                 os: [ubuntu-latest, macos-latest]
-                # Latest v2 plus a pinned floor for reproducibility.
-                deno-version: ['v2.x', '2.9.6']
+                # `v2.x` floats to the newest 2.x, to catch a new release
+                # early. `pinned` is the exact version in .dvmrc: the one
+                # publish.yml checks and publishes with (#481). The version is
+                # stated in that file only, so the two cannot drift.
+                deno: ['v2.x', 'pinned']
 
         steps:
             - name: Checkout code
@@ -35,8 +38,12 @@ jobs:
 
             - name: Setup Deno
               uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2
+              # setup-deno gives `deno-version-file` precedence over
+              # `deno-version` when it is non-empty, so the `pinned` lane reads
+              # .dvmrc and never parses the word `pinned` as a version.
               with:
-                  deno-version: ${{ matrix.deno-version }}
+                  deno-version: ${{ matrix.deno }}
+                  deno-version-file: ${{ matrix.deno == 'pinned' && '.dvmrc' || '' }}
 
             - name: Cache dependencies
               uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
