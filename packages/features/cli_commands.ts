@@ -19,6 +19,18 @@ export interface Cli {
     register(name: string, handler: CommandHandler, description?: string): void
 }
 
+/**
+ * A failed features command. `@lockness/cli` recognises a failure by its shape
+ * — an integer `exitCode` — so features raises one without importing the CLI:
+ * the dispatcher prints the message once and exits with this status.
+ * Deliberately not exported (#436, D1).
+ */
+class FeaturesCommandError extends Error {
+    /** The process exit status the dispatcher maps this failure to. */
+    readonly exitCode = 1
+    override readonly name = 'FeaturesCommandError'
+}
+
 /** Where flag modules are scaffolded. */
 export const FLAGS_DIR = './app/features'
 /** Flag-name shape allowlist (letters, digits, `-`/`_`). */
@@ -48,26 +60,26 @@ async function processStub(
 /**
  * `make:flag <name>` — scaffold a flag definition module.
  *
+ * Internal: reached through `registerFeaturesCommands`, not the package barrel.
+ *
  * @param args - CLI args; first non-flag token is the flag name.
- * @returns The path written, or `undefined` when rejected.
+ * @returns The path written.
+ * @throws {FeaturesCommandError} When the name is missing or malformed, or its
+ *   path would leave {@link FLAGS_DIR}.
  */
-export async function handleMakeFlag(
-    args: string[],
-): Promise<string | undefined> {
+export async function handleMakeFlag(args: string[]): Promise<string> {
     const name = args.find((a) => !a.startsWith('-'))
     if (!name || !NAME_RE.test(name)) {
-        console.error(
-            `❌ Invalid flag name${
+        throw new FeaturesCommandError(
+            `Invalid flag name${
                 name ? ` "${name}"` : ''
             } — letters, digits, - and _ only`,
         )
-        return undefined
     }
     const fileName = `${name.replaceAll('-', '_')}_flag.ts`
     const filePath = join(FLAGS_DIR, fileName)
     if (!isContained(FLAGS_DIR, filePath)) {
-        console.error(`❌ Refusing to write outside ${FLAGS_DIR}`)
-        return undefined
+        throw new FeaturesCommandError(`Refusing to write outside ${FLAGS_DIR}`)
     }
     const content = await processStub('flag', { name })
     await Deno.mkdir(dirname(filePath), { recursive: true })

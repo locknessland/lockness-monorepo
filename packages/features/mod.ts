@@ -31,7 +31,6 @@ export { inRollout, stableHash } from './rollout.ts'
 export {
     type Cli,
     FLAGS_DIR,
-    handleMakeFlag,
     isContained,
     registerFeaturesCommands,
 } from './cli_commands.ts'

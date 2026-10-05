@@ -4,7 +4,7 @@
  * @module @lockness/features/tests/features
  */
 
-import { assert, assertEquals } from '@std/assert'
+import { assert, assertEquals, assertRejects } from '@std/assert'
 import { configureFeatures, features, resetFeatures } from '../features.ts'
 import { handleMakeFlag, isContained } from '../cli_commands.ts'
 
@@ -120,8 +120,13 @@ Deno.test('SC-007: make:flag scaffolds + rejects a traversal name', async () => 
         const path = await handleMakeFlag(['new-ui'])
         assertEquals(path, 'app/features/new_ui_flag.ts')
         assert(await Deno.readTextFile(`${dir}/app/features/new_ui_flag.ts`))
-        assertEquals(await handleMakeFlag(['../../etc/x']), undefined)
-        assertEquals(await handleMakeFlag(['bad/slash']), undefined)
+        for (const bad of ['../../etc/x', 'bad/slash']) {
+            const error = await assertRejects(
+                () => handleMakeFlag([bad]),
+                Error,
+            )
+            assertEquals((error as Error & { exitCode?: unknown }).exitCode, 1)
+        }
     } finally {
         Deno.chdir(prev)
         await Deno.remove(dir, { recursive: true })

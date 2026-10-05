@@ -40,13 +40,13 @@ application installs it, or the feature stays off.
 
 <!-- generated:surface -->
 
-| Kind      | Exports                                                                                                                                              |
-| :-------- | :--------------------------------------------------------------------------------------------------------------------------------------------------- |
-| class     | `MemoryFlagDriver`                                                                                                                                   |
-| function  | `configureFeatures`, `features`, `handleMakeFlag`, `inRollout`, `isContained`, `registerFeaturesCommands`, `resetFeatures`, `scopeKey`, `stableHash` |
-| interface | `Cli`, `Features`, `FeaturesConfig`, `FlagDriver`                                                                                                    |
-| typeAlias | `FlagDefinition`                                                                                                                                     |
-| variable  | `FLAGS_DIR`                                                                                                                                          |
+| Kind      | Exports                                                                                                                            |
+| :-------- | :--------------------------------------------------------------------------------------------------------------------------------- |
+| class     | `MemoryFlagDriver`                                                                                                                 |
+| function  | `configureFeatures`, `features`, `inRollout`, `isContained`, `registerFeaturesCommands`, `resetFeatures`, `scopeKey`, `stableHash` |
+| interface | `Cli`, `Features`, `FeaturesConfig`, `FlagDriver`                                                                                  |
+| typeAlias | `FlagDefinition`                                                                                                                   |
+| variable  | `FLAGS_DIR`                                                                                                                        |
 
 Anything not listed is internal and free to change.
 
@@ -71,8 +71,9 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-1 test file for 5 source files:
+2 test files for 5 source files:
 
+- `packages/features/tests/cli_commands.test.ts`
 - `packages/features/tests/features.test.ts`
 
 <!-- /generated:tests -->
@@ -88,7 +89,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 1 test file directly —
+Then, specific to this package: run its 2 test files directly —
 
 ```bash
 deno test -A packages/features/
