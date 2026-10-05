@@ -95,8 +95,9 @@
             }
         },
         // `deprecation-contracts` reaches `cli` from its installer only
-        // (`install.ts`: `runEntry` and `CommandFailedError`, #436); `mod.ts`
-        // imports nothing, so `core` and `realtime` still load no `cli` code.
+        // (`install.ts`: `runEntry` and `CommandFailedError`, #436, and
+        // `addPackage` from the barrel, #580); `mod.ts` imports nothing, so
+        // `core` and `realtime` still load no `cli` code.
         "deprecation-contracts": {
             "tier": "implementation",
             "allow": ["cli"]

@@ -55,26 +55,72 @@ Deno.test('install - outside a project it throws a one-line failure and leaves t
         const failure = await assertRejects(
             () => install(),
             CommandFailedError,
-            'deno.json not found. Are you in a Lockness project?',
+            'No deno.json or deno.jsonc found. Are you in a Lockness project?',
         )
         assertEquals(failure.exitCode, 1)
     })
     assertEquals(exitCode, 0)
 })
 
-Deno.test('install - a deno.json it cannot update fails with the parse error as cause', async () => {
+/** A config with a comment and a trailing comma: valid JSONC, invalid JSON. */
+const COMMENTED_CONFIG = '{\n    // the app\'s own note\n    "tasks": {},\n}\n'
+
+Deno.test('#580 install - registers into a deno.json with comments', async () => {
     await inProject(async (dir) => {
-        await Deno.writeTextFile(
-            join(dir, 'deno.json'),
-            '{\n    // a comment JSON.parse rejects\n}\n',
+        await Deno.writeTextFile(join(dir, 'deno.json'), COMMENTED_CONFIG)
+
+        await install()
+
+        const config = JSON.parse(
+            await Deno.readTextFile(join(dir, 'deno.json')),
         )
+        assertEquals(config.tasks, {})
+        assertEquals(config.lockness.packages, ['deprecation-contracts'])
+    })
+})
+
+Deno.test('#580 install - registers into a deno.jsonc with comments when there is no deno.json', async () => {
+    await inProject(async (dir) => {
+        await Deno.writeTextFile(join(dir, 'deno.jsonc'), COMMENTED_CONFIG)
+
+        await install()
+
+        const config = JSON.parse(
+            await Deno.readTextFile(join(dir, 'deno.jsonc')),
+        )
+        assertEquals(config.lockness.packages, ['deprecation-contracts'])
+        await assertRejects(
+            () => Deno.stat(join(dir, 'deno.json')),
+            Deno.errors.NotFound,
+        )
+    })
+})
+
+Deno.test('#580 install - an already registered package leaves the config untouched', async () => {
+    await inProject(async (dir) => {
+        const original = '{\n    "lockness": {\n        "packages": [\n' +
+            '            "deprecation-contracts"\n        ]\n    }\n}\n'
+        await Deno.writeTextFile(join(dir, 'deno.json'), original)
+
+        await install()
+
+        assertEquals(
+            await Deno.readTextFile(join(dir, 'deno.json')),
+            original,
+        )
+    })
+})
+
+Deno.test('install - a config that is not even JSONC fails with the error as cause', async () => {
+    await inProject(async (dir) => {
+        await Deno.writeTextFile(join(dir, 'deno.json'), '{ "tasks": }\n')
 
         const failure = await assertRejects(() => install(), CommandFailedError)
         assertEquals(
             failure.message,
-            'Could not add deprecation-contracts to lockness.packages in deno.json',
+            'Could not add deprecation-contracts to lockness.packages',
         )
-        assertInstanceOf(failure.cause, SyntaxError)
+        assertInstanceOf(failure.cause, Error)
     })
 })
 
@@ -128,7 +174,7 @@ Deno.test('install - run as a subprocess outside a project, it exits non-zero wi
         assert(!out.includes('error: Uncaught'), out)
         assertStringIncludes(
             out,
-            '❌ deno.json not found. Are you in a Lockness project?',
+            '❌ No deno.json or deno.jsonc found. Are you in a Lockness project?',
         )
     } finally {
         await Deno.remove(dir, { recursive: true })

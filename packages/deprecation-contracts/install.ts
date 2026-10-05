@@ -19,8 +19,10 @@
 
 // `@lockness/cli` may be imported here: `cli` never reaches `core` or this
 // package, and only this installer imports it, so `core` -> `mod.ts` loads none
-// of it (deps.policy.jsonc). Only the two light subpaths are used, never the
-// barrel, which would load every built-in command.
+// of it (deps.policy.jsonc). The barrel is imported for `addPackage`, the one
+// implementation of package registration (#580); it loads every built-in
+// command, a cost paid only by this standalone installer process.
+import { addPackage } from '@lockness/cli'
 import { CommandFailedError } from '@lockness/cli/command-failure'
 import { runEntry } from '@lockness/cli/entry'
 
@@ -58,18 +60,55 @@ async function readIfExists(path: string): Promise<string | undefined> {
 }
 
 /**
- * Check that the current directory is a Lockness project.
+ * Whether `path` exists; only `NotFound` means it does not.
  *
- * @throws {CommandFailedError} When `deno.json` does not exist.
+ * @param path - The path to stat.
+ * @returns True if the path exists, false if it does not.
+ * @throws {Error} Any other stat error.
+ * @internal
+ */
+async function exists(path: string): Promise<boolean> {
+    try {
+        await Deno.stat(path)
+        return true
+    } catch (error) {
+        if (error instanceof Deno.errors.NotFound) return false
+        throw error
+    }
+}
+
+/**
+ * Check that the current directory is a Lockness project: it has the
+ * `deno.json` or `deno.jsonc` that `addPackage` registers the package in.
+ *
+ * @throws {CommandFailedError} When neither config file exists.
  * @internal
  */
 async function assertProjectStructure(): Promise<void> {
+    if (await exists('./deno.json') || await exists('./deno.jsonc')) return
+    throw new CommandFailedError(
+        'No deno.json or deno.jsonc found. Are you in a Lockness project?',
+    )
+}
+
+/**
+ * Register the package in `lockness.packages` through cli's `addPackage`.
+ *
+ * cli's failure is a plain `Error`, which the printer would report as
+ * unexpected; it is wrapped here so the step is named and the error follows
+ * as the `cause`.
+ *
+ * @throws {CommandFailedError} When the config cannot be read, parsed or
+ *   written; cli's error is the `cause`.
+ * @internal
+ */
+async function registerPackage(): Promise<void> {
     try {
-        await Deno.stat('./deno.json')
+        await addPackage('deprecation-contracts')
     } catch (error) {
-        if (!(error instanceof Deno.errors.NotFound)) throw error
         throw new CommandFailedError(
-            'deno.json not found. Are you in a Lockness project?',
+            'Could not add deprecation-contracts to lockness.packages',
+            { cause: error },
         )
     }
 }
@@ -94,47 +133,6 @@ async function updateEnvFile(): Promise<void> {
     }
 }
 
-/**
- * Add a package to `lockness.packages` in `deno.json` (or `deno.jsonc`).
- *
- * @param packageName - The package to register, e.g. `deprecation-contracts`.
- * @throws {CommandFailedError} When the config exists but cannot be parsed or
- *   written; the error that stopped it is the `cause`.
- * @internal
- */
-async function addPackage(packageName: string): Promise<void> {
-    let configPath = 'deno.json'
-    let text = await readIfExists(configPath)
-    if (text === undefined) {
-        configPath = 'deno.jsonc'
-        text = await readIfExists(configPath)
-    }
-    if (text === undefined) return // No config to update
-
-    try {
-        // JSON.parse, not a JSONC parser: this installer keeps its imports to
-        // the two `@lockness/cli` subpaths, so a commented config fails here.
-        const config = JSON.parse(text)
-        if (!config.lockness) config.lockness = {}
-        if (!config.lockness.packages) config.lockness.packages = []
-
-        if (!config.lockness.packages.includes(packageName)) {
-            config.lockness.packages.push(packageName)
-            config.lockness.packages.sort()
-            await Deno.writeTextFile(
-                configPath,
-                JSON.stringify(config, null, 4) + '\n',
-            )
-            console.log(`✓ Added ${packageName} to lockness.packages`)
-        }
-    } catch (error) {
-        throw new CommandFailedError(
-            `Could not add ${packageName} to lockness.packages in ${configPath}`,
-            { cause: error },
-        )
-    }
-}
-
 // =============================================================================
 // Main
 // =============================================================================
@@ -149,8 +147,8 @@ async function addPackage(packageName: string): Promise<void> {
  * decides how a failure is printed and which status the process exits with.
  *
  * @returns A promise that resolves once the package is installed.
- * @throws {CommandFailedError} When the current directory has no `deno.json`,
- *   or the config cannot be updated.
+ * @throws {CommandFailedError} When the current directory has neither
+ *   `deno.json` nor `deno.jsonc`, or the config cannot be updated.
  * @throws {Error} When an existing `.env` or `.env.exemple` cannot be read or
  *   written.
  *
@@ -165,7 +163,7 @@ export default async function install(): Promise<void> {
     console.log('🌊 Installing @lockness/deprecation-contracts...\n')
 
     await assertProjectStructure()
-    await addPackage('deprecation-contracts')
+    await registerPackage()
     await updateEnvFile()
 
     console.log(
