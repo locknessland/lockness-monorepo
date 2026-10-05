@@ -2,10 +2,20 @@
  * Tests for the `lockness-exit` lint plugin (#436, D5): `process-exit` and
  * `printed-failure` — the shapes each flags, the shapes that stay clean, the
  * owner list and the file scoping.
+ *
+ * Scope is decided on the path relative to the repository root, so every file
+ * linted through the plugin sits under the real root (`ROOT`, computed here
+ * independently of the rule). The scope helpers take the root as a parameter,
+ * which is how the checkout-location cases are tested.
  */
 
 import { assertEquals } from '@std/assert'
+import { fromFileUrl } from '@std/path'
 import plugin, { inCommandScope, inPackageScope } from './exit_contract.ts'
+
+/** The repository this test file lives in, with forward slashes and a trailing `/`. */
+const ROOT = fromFileUrl(new URL('../../', import.meta.url))
+    .replaceAll('\\', '/')
 
 /** Lint `source` as `file` and return the hit count of `rule`. */
 function hits(
@@ -22,7 +32,7 @@ function hits(
 // ---------------------------------------------------------------------------
 
 /** A package file no owner list names. */
-const PACKAGE_FILE = '/repo/packages/x/mod.ts'
+const PACKAGE_FILE = `${ROOT}packages/x/mod.ts`
 
 const EXIT_POSITIVES: ReadonlyArray<readonly [string, string]> = [
     ['Deno.exit(1)', 'Deno.exit(1)'],
@@ -30,6 +40,15 @@ const EXIT_POSITIVES: ReadonlyArray<readonly [string, string]> = [
     ['Deno.exit inside a handler', 'async function h() { Deno.exit(code) }'],
     ['an assignment to Deno.exitCode', 'Deno.exitCode = 1'],
     ['a compound assignment to Deno.exitCode', 'Deno.exitCode ||= 1'],
+    ['an increment of Deno.exitCode', 'Deno.exitCode++'],
+    ['a prefix decrement of Deno.exitCode', '--Deno.exitCode'],
+    ['a computed Deno.exit call', "Deno['exit'](1)"],
+    ['a computed template Deno.exit call', 'Deno[`exit`](1)'],
+    ['a computed Deno.exitCode assignment', "Deno['exitCode'] = 1"],
+    ['exit destructured from Deno', 'const { exit } = Deno'],
+    ['exit destructured and renamed', 'const { exit: quit } = Deno'],
+    ['exit destructured by a string key', "const { 'exit': quit } = Deno"],
+    ['exit destructured in an assignment', 'let exit; ({ exit } = Deno)'],
 ]
 
 for (const [label, source] of EXIT_POSITIVES) {
@@ -43,6 +62,13 @@ const EXIT_NEGATIVES: ReadonlyArray<readonly [string, string]> = [
     ['a look-alike object', 'process.exit(1); proc.exitCode = 1'],
     ['an unrelated Deno call', 'Deno.exitSignal?.()'],
     ['a returned status', 'return 1'],
+    ['an increment of a look-alike', 'proc.exitCode++'],
+    ['a computed read of another member', "Deno['env'].get('X')"],
+    ['a computed member with a variable key', 'Deno[key](1)'],
+    ['other members destructured from Deno', 'const { env, args } = Deno'],
+    // A copy of the status, not a write to it.
+    ['exitCode destructured from Deno', 'const { exitCode } = Deno'],
+    ['exit destructured from another object', 'const { exit } = process'],
 ]
 
 for (const [label, source] of EXIT_NEGATIVES) {
@@ -51,18 +77,44 @@ for (const [label, source] of EXIT_NEGATIVES) {
     })
 }
 
+// The rule matches `Deno` by name. A second name for the namespace, or
+// reaching it through `globalThis`, is a shape it does not follow: tracking
+// aliases needs scope analysis, and none of these appears in the repository.
+Deno.test('process-exit - known gap: an alias of Deno is not followed', () => {
+    for (
+        const source of [
+            'const d = Deno; d.exit(1)',
+            'globalThis.Deno.exit(1)',
+            'const { exit } = globalThis.Deno',
+        ]
+    ) {
+        assertEquals(hits('process-exit', source, PACKAGE_FILE), 0, source)
+    }
+})
+
 Deno.test('process-exit - Deno.exit is allowed only in its two owners', () => {
     const source = 'Deno.exit(1)'
     assertEquals(
-        hits('process-exit', source, '/repo/packages/core/http/server.ts'),
+        hits('process-exit', source, `${ROOT}packages/core/http/server.ts`),
         0,
     )
     assertEquals(
-        hits('process-exit', source, '/repo/packages/core/kernel/signals.ts'),
+        hits('process-exit', source, `${ROOT}packages/core/kernel/signals.ts`),
         0,
     )
     assertEquals(
-        hits('process-exit', source, '/repo/packages/cli/report.ts'),
+        hits('process-exit', source, `${ROOT}packages/cli/report.ts`),
+        1,
+    )
+})
+
+Deno.test('process-exit - an owner is a repository path, not a suffix', () => {
+    assertEquals(
+        hits(
+            'process-exit',
+            'Deno.exit(1)',
+            `${ROOT}packages/x/vendor/packages/core/http/server.ts`,
+        ),
         1,
     )
 })
@@ -70,28 +122,42 @@ Deno.test('process-exit - Deno.exit is allowed only in its two owners', () => {
 Deno.test('process-exit - Deno.exitCode is allowed only in cli/report.ts', () => {
     const source = 'Deno.exitCode = status'
     assertEquals(
-        hits('process-exit', source, '/repo/packages/cli/report.ts'),
+        hits('process-exit', source, `${ROOT}packages/cli/report.ts`),
         0,
     )
     assertEquals(
-        hits('process-exit', source, '/repo/packages/core/http/server.ts'),
+        hits(
+            'process-exit',
+            'Deno.exitCode++',
+            `${ROOT}packages/cli/report.ts`,
+        ),
+        0,
+    )
+    assertEquals(
+        hits('process-exit', source, `${ROOT}packages/core/http/server.ts`),
         1,
     )
-    assertEquals(hits('process-exit', source, '/repo/packages/cli/entry.ts'), 1)
+    assertEquals(
+        hits('process-exit', source, `${ROOT}packages/cli/entry.ts`),
+        1,
+    )
 })
 
 Deno.test('process-exit - reports nothing in tests, stubs or outside packages', () => {
     const source = 'Deno.exit(1)'
-    assertEquals(hits('process-exit', source, '/repo/packages/x/tests/a.ts'), 0)
-    assertEquals(hits('process-exit', source, '/repo/packages/x/a.test.ts'), 0)
-    assertEquals(hits('process-exit', source, '/repo/packages/x/a_test.ts'), 0)
-    assertEquals(hits('process-exit', source, '/repo/packages/x/a.test.tsx'), 0)
-    assertEquals(
-        hits('process-exit', source, '/repo/packages/x/stubs/make/a.ts'),
-        0,
-    )
-    assertEquals(hits('process-exit', source, '/repo/scripts/gate.ts'), 0)
-    assertEquals(hits('process-exit', source, '/repo/app/kernel.ts'), 0)
+    for (
+        const file of [
+            'packages/x/tests/a.ts',
+            'packages/x/a.test.ts',
+            'packages/x/a_test.ts',
+            'packages/x/a.test.tsx',
+            'packages/x/stubs/make/a.ts',
+            'scripts/gate.ts',
+            'app/kernel.ts',
+        ]
+    ) {
+        assertEquals(hits('process-exit', source, `${ROOT}${file}`), 0, file)
+    }
 })
 
 // ---------------------------------------------------------------------------
@@ -99,7 +165,7 @@ Deno.test('process-exit - reports nothing in tests, stubs or outside packages', 
 // ---------------------------------------------------------------------------
 
 /** A command file inside the rule's scope. */
-const COMMAND_FILE = '/repo/packages/x/cli_commands.ts'
+const COMMAND_FILE = `${ROOT}packages/x/cli_commands.ts`
 
 const PRINT_POSITIVES: ReadonlyArray<readonly [string, string]> = [
     ['console.error with a ❌ string', "console.error('❌ Failed')"],
@@ -141,19 +207,19 @@ Deno.test('printed-failure - reports in every command-code path', () => {
     const source = "console.error('❌ Failed')"
     for (
         const file of [
-            '/repo/packages/cli/commands/make/action.ts',
-            '/repo/packages/cli/commands/queue_commands.ts',
-            '/repo/packages/mail/cli_commands.ts',
-            '/repo/packages/openapi/install.ts',
-            '/repo/packages/drizzle/generators/model_generator.ts',
-            '/repo/packages/cli/core_commands.ts',
-            '/repo/packages/core/cli/compile_command.ts',
-            '/repo/packages/ui/mod.ts',
-            '/repo/packages/upgrade/mod.ts',
-            '/repo/packages/init/mod.ts',
+            'packages/cli/commands/make/action.ts',
+            'packages/cli/commands/queue_commands.ts',
+            'packages/mail/cli_commands.ts',
+            'packages/openapi/install.ts',
+            'packages/drizzle/generators/model_generator.ts',
+            'packages/cli/core_commands.ts',
+            'packages/core/cli/compile_command.ts',
+            'packages/ui/mod.ts',
+            'packages/upgrade/mod.ts',
+            'packages/init/mod.ts',
         ]
     ) {
-        assertEquals(hits('printed-failure', source, file), 1, file)
+        assertEquals(hits('printed-failure', source, `${ROOT}${file}`), 1, file)
     }
 })
 
@@ -161,19 +227,19 @@ Deno.test('printed-failure - reports nothing outside command code', () => {
     const source = "console.error('❌ Failed')"
     for (
         const file of [
-            '/repo/packages/cli/mod.ts',
-            '/repo/packages/cli/report.ts',
-            '/repo/packages/core/mod.ts',
-            '/repo/packages/core/exceptions/formatter.ts',
-            '/repo/packages/queue/worker.ts',
-            '/repo/packages/drizzle/mod.ts',
-            '/repo/packages/cli/tests/commands/a.ts',
-            '/repo/packages/x/commands/a.test.ts',
-            '/repo/packages/cli/stubs/commands/a.ts',
-            '/repo/scripts/commands/a.ts',
+            'packages/cli/mod.ts',
+            'packages/cli/report.ts',
+            'packages/core/mod.ts',
+            'packages/core/exceptions/formatter.ts',
+            'packages/queue/worker.ts',
+            'packages/drizzle/mod.ts',
+            'packages/cli/tests/commands/a.ts',
+            'packages/x/commands/a.test.ts',
+            'packages/cli/stubs/commands/a.ts',
+            'scripts/commands/a.ts',
         ]
     ) {
-        assertEquals(hits('printed-failure', source, file), 0, file)
+        assertEquals(hits('printed-failure', source, `${ROOT}${file}`), 0, file)
     }
 })
 
@@ -181,9 +247,59 @@ Deno.test('printed-failure - reports nothing outside command code', () => {
 // scoping helpers
 // ---------------------------------------------------------------------------
 
+Deno.test('exit-contract - the scopes default to this repository', () => {
+    assertEquals(inPackageScope(`${ROOT}packages/x/mod.ts`), true)
+    assertEquals(inCommandScope(`${ROOT}packages/x/cli_commands.ts`), true)
+})
+
 Deno.test('exit-contract - the scopes read Windows separators', () => {
-    assertEquals(inPackageScope('C:\\repo\\packages\\x\\mod.ts'), true)
-    assertEquals(inPackageScope('C:\\repo\\packages\\x\\tests\\a.ts'), false)
-    assertEquals(inCommandScope('C:\\repo\\packages\\x\\cli_commands.ts'), true)
-    assertEquals(inCommandScope('C:\\repo\\packages\\x\\mod.ts'), false)
+    const root = 'C:\\repo\\'
+    assertEquals(inPackageScope('C:\\repo\\packages\\x\\mod.ts', root), true)
+    assertEquals(
+        inPackageScope('C:\\repo\\packages\\x\\tests\\a.ts', root),
+        false,
+    )
+    assertEquals(
+        inCommandScope('C:\\repo\\packages\\x\\cli_commands.ts', root),
+        true,
+    )
+    assertEquals(inCommandScope('C:\\repo\\packages\\x\\mod.ts', root), false)
+})
+
+Deno.test('exit-contract - a checkout under a tests or stubs directory keeps the rules on', () => {
+    for (const root of ['/home/me/tests/lockness/', '/srv/stubs/lockness/']) {
+        assertEquals(inPackageScope(`${root}packages/x/mod.ts`, root), true)
+        assertEquals(
+            inCommandScope(`${root}packages/x/cli_commands.ts`, root),
+            true,
+        )
+        assertEquals(
+            inPackageScope(`${root}packages/x/tests/a.ts`, root),
+            false,
+        )
+    }
+})
+
+Deno.test('exit-contract - a checkout under a packages directory reads the right package', () => {
+    const root = '/home/me/packages/lockness/'
+    assertEquals(
+        inCommandScope(`${root}packages/core/cli/compile_command.ts`, root),
+        true,
+    )
+    assertEquals(inCommandScope(`${root}packages/ui/mod.ts`, root), true)
+    assertEquals(inCommandScope(`${root}packages/x/mod.ts`, root), false)
+    assertEquals(inPackageScope(`${root}scripts/gate.ts`, root), false)
+})
+
+Deno.test('exit-contract - a file outside the repository is out of scope', () => {
+    const root = '/home/me/lockness/'
+    assertEquals(inPackageScope('/elsewhere/packages/x/mod.ts', root), false)
+    assertEquals(
+        inCommandScope('/elsewhere/packages/x/install.ts', root),
+        false,
+    )
+    assertEquals(
+        hits('process-exit', 'Deno.exit(1)', '/elsewhere/packages/x/mod.ts'),
+        0,
+    )
 })
