@@ -69,9 +69,10 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-4 test files for 4 source files:
+5 test files for 5 source files:
 
 - `packages/upgrade/tests/cli.test.ts`
+- `packages/upgrade/tests/cli_main.test.ts`
 - `packages/upgrade/tests/types.test.ts`
 - `packages/upgrade/tests/upgrader.test.ts`
 - `packages/upgrade/tests/version_fetcher.test.ts`
@@ -89,7 +90,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 4 test files directly —
+Then, specific to this package: run its 5 test files directly —
 
 ```bash
 deno test -A packages/upgrade/
