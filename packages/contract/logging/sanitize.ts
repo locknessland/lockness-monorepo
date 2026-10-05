@@ -334,6 +334,24 @@ function redactDsnCredentials(message: string): string {
 }
 
 /**
+ * Both credential redactions, in their one order: DSN userinfo, then
+ * credential-named `name=value` pairs.
+ *
+ * The one chain every renderer here runs before it caps or encodes anything —
+ * a message, a cause link, a frame, and `renderMessage`'s text. The order is
+ * load-bearing: the userinfo pass must see a whole `scheme://user:pass@`
+ * before the pair pass can rewrite a `password=` inside it, and both must run
+ * before a cap, so a cut can never strip the `@` the userinfo rule needs and
+ * leave the password before it.
+ *
+ * @param text - Text that may carry a credential.
+ * @returns The text with every credential it recognises replaced by `***`.
+ */
+function redactCredentials(text: string): string {
+    return redactQueryCredentials(redactDsnCredentials(text))
+}
+
+/**
  * Caps a string at `max` **code points**, never UTF-16 units.
  *
  * `slice(0, 200)` charges an astral character two units and an ASCII one, so a
@@ -487,9 +505,8 @@ function collapseDataUrl(frame: string): string {
  * @returns The frame, without its indent.
  */
 function renderFrame(line: string): string {
-    const withoutUserinfo = redactDsnCredentials(line.trim())
-    const withoutPairs = redactQueryCredentials(withoutUserinfo)
-    const collapsed = collapseDataUrl(withoutPairs)
+    const withoutCredentials = redactCredentials(line.trim())
+    const collapsed = collapseDataUrl(withoutCredentials)
     return safeForLog(capCodePoints(collapsed, MAX_FRAME))
 }
 
@@ -585,21 +602,18 @@ function renderOne(error: unknown): string {
                     diagnostic.kind,
                     diagnosticLocation(diagnostic),
                 )
-            const redacted = redactDsnCredentials(message)
+            const redacted = redactCredentials(message)
             // `SyntaxError: SyntaxError at …` says one thing twice.
             return renderHead(
                 diagnostic?.kind === name ? undefined : name,
-                redactQueryCredentials(redacted),
+                redacted,
                 // A compile failure's code is Deno's `ERR_MODULE_NOT_FOUND`,
                 // which mislabels a parse failure (#478), so none is shown.
                 diagnostic === undefined ? readShownCode(error) : undefined,
             )
         }
         return safeForLog(
-            capCodePoints(
-                redactQueryCredentials(redactDsnCredentials(String(error))),
-                MAX_MESSAGE,
-            ),
+            capCodePoints(redactCredentials(String(error)), MAX_MESSAGE),
         )
     } catch {
         return '[unrenderable error]'
@@ -790,4 +804,38 @@ export function renderError(
     }
 
     return rendered + renderFrames(error, frameCount(options.frames))
+}
+
+/**
+ * Render a failure message for a terminal or a log line: credentials
+ * redacted, control and format characters encoded, one line, bounded (#436).
+ *
+ * A failure message is text a program wrote, but not text anybody vetted: a
+ * message built around a file name, a URL or a user's argument carries
+ * whatever that value carried. So it goes through the same redaction chain as
+ * `renderError` — DSN userinfo, then credential pairs, both before the bound —
+ * and then `safeForLog`, which encodes `\n` as `\x0a` (a message cannot forge
+ * a second line) and stops at 512 code points of input.
+ *
+ * **It renders text, not an error.** No name, no code, no cause: the caller
+ * that holds the error prints its `cause` with `renderError`, after this. What
+ * it does not catch is what `renderError` does not catch either — a JSON
+ * `"token":"…"`, an `Authorization: Bearer …` header, a bare token with no
+ * name (see `redactQueryCredentials`).
+ *
+ * Exposed on `@lockness/contract/logging/internal`, never the root, which
+ * `@lockness/core` re-exports to every app.
+ *
+ * @param text - The message to render.
+ * @returns One safe line, at most 512 code points of `text` before encoding.
+ *
+ * @example
+ * ```typescript
+ * renderMessage('Cannot reach postgres://app:pw@db/app')
+ * // 'Cannot reach postgres://***:***@db/app'
+ * renderMessage('first\nsecond') // 'first\\x0asecond'
+ * ```
+ */
+export function renderMessage(text: string): string {
+    return safeForLog(redactCredentials(text))
 }

@@ -140,22 +140,32 @@ const MUTATIONS: Mutation[] = [
     {
         label: 'a frame skips the userinfo redaction',
         file: SANITIZE,
-        edits: [['redactDsnCredentials(line.trim())', 'line.trim()']],
+        // Re-anchored when #436 folded both redactions into
+        // `redactCredentials`: the frame keeps only the pair pass.
+        edits: [[
+            'redactCredentials(line.trim())',
+            'redactQueryCredentials(line.trim())',
+        ]],
         killedBy: 'userinfo and a credential pair in a frame are redacted',
     },
     {
         label: 'a frame skips the credential-pair redaction',
         file: SANITIZE,
+        // Re-anchored when #436 folded both redactions into
+        // `redactCredentials`: the frame keeps only the userinfo pass.
         edits: [[
-            'redactQueryCredentials(withoutUserinfo)',
-            'withoutUserinfo',
+            'redactCredentials(line.trim())',
+            'redactDsnCredentials(line.trim())',
         ]],
         killedBy: 'userinfo and a credential pair in a frame are redacted',
     },
     {
         label: 'the data: collapse removed — module source reaches the line',
         file: SANITIZE,
-        edits: [['collapseDataUrl(withoutPairs)', 'withoutPairs']],
+        edits: [[
+            'collapseDataUrl(withoutCredentials)',
+            'withoutCredentials',
+        ]],
         killedBy: 'a data: URL frame collapses',
     },
     {
@@ -215,8 +225,8 @@ const MUTATIONS: Mutation[] = [
         file: SANITIZE,
         edits: [
             [
-                'redactDsnCredentials(line.trim())',
-                'redactDsnCredentials(capCodePoints(line.trim(), MAX_FRAME))',
+                'redactCredentials(line.trim())',
+                'redactCredentials(capCodePoints(line.trim(), MAX_FRAME))',
             ],
             ['capCodePoints(collapsed, MAX_FRAME)', 'collapsed'],
         ],

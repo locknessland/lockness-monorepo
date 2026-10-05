@@ -8,11 +8,11 @@
  * the DSN, because #425 forbids editing around a value it knows. Both decide
  * what a credential is here, so the two can never drift apart on a name.
  *
- * Exposed on `@lockness/contract/logging/internal`, never the root:
- * `@lockness/core` re-exports the root with `export *`, so anything there
- * reaches every app.
+ * Exposed on `@lockness/contract/logging/internal` (the `internal.ts`
+ * barrel), never the root: `@lockness/core` re-exports the root with
+ * `export *`, so anything there reaches every app.
  *
- * @module @lockness/contract/logging/internal
+ * @module @lockness/contract/logging/credential_params
  */
 
 /**

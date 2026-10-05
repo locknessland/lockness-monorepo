@@ -206,7 +206,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-14 test files for 34 source files:
+15 test files for 35 source files:
 
 - `packages/contract/tests/app_file.test.ts`
 - `packages/contract/tests/compile_diagnostic.test.ts`
@@ -220,6 +220,7 @@ Anything not listed is internal and free to change.
 - `packages/contract/tests/log_sanitize.test.ts`
 - `packages/contract/tests/pagination.test.ts`
 - `packages/contract/tests/query_credentials.test.ts`
+- `packages/contract/tests/render_message.test.ts`
 - `packages/contract/tests/resource_derive.test.ts`
 - `packages/contract/tests/static_decorator.test.ts`
 
@@ -249,7 +250,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 14 test files directly —
+Then, specific to this package: run its 15 test files directly —
 
 ```bash
 deno test -A packages/contract/

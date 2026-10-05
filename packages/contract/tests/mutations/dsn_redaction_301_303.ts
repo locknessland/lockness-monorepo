@@ -178,9 +178,12 @@ const MUTATIONS: Mutation[] = [
     {
         label: 'a cause skips redaction — the hole the fix could have opened',
         file: SOURCE,
+        // Re-anchored when #436 folded both redactions into one chain: the
+        // mutant still drops the userinfo pass for an Error's message, and
+        // only that pass, as it did before.
         edits: [[
-            'const redacted = redactDsnCredentials(message)',
-            'const redacted = message',
+            'const redacted = redactCredentials(message)',
+            'const redacted = redactQueryCredentials(message)',
         ]],
         killedBy: 'a credential in a cause is redacted like any other',
     },
@@ -189,8 +192,9 @@ const MUTATIONS: Mutation[] = [
         file: SOURCE,
         // Re-anchored when #478 added the query-credential redaction to this
         // branch: the mutant now skips both redactions, as it skipped the one.
+        // Re-anchored again when #436 folded both into `redactCredentials`.
         edits: [[
-            'redactQueryCredentials(redactDsnCredentials(String(error)))',
+            'redactCredentials(String(error))',
             'String(error)',
         ]],
         killedBy: 'a non-Error at the TOP level is redacted too',

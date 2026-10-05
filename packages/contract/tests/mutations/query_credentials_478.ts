@@ -710,8 +710,14 @@ const MUTATIONS: Mutation[] = [
     {
         label: 'query pass moved after the cap',
         file: SANITIZE,
+        // Re-anchored when #436 folded both redactions into
+        // `redactCredentials`: the message keeps only the userinfo pass, and
+        // the query pass runs after the cap, as before.
         edits: [
-            ['redactQueryCredentials(redacted),', 'redacted,'],
+            [
+                'const redacted = redactCredentials(message)',
+                'const redacted = redactDsnCredentials(message)',
+            ],
             [
                 'const shown = safeForLog(capCodePoints(redacted, MAX_MESSAGE))',
                 'const shown = safeForLog(redactQueryCredentials(capCodePoints(redacted, MAX_MESSAGE)))',
@@ -723,20 +729,21 @@ const MUTATIONS: Mutation[] = [
     {
         label: 'query pass moved before the userinfo pass',
         file: SANITIZE,
-        edits: [
-            [
-                'const redacted = redactDsnCredentials(message)',
-                'const redacted = redactDsnCredentials(redactQueryCredentials(message))',
-            ],
-            ['redactQueryCredentials(redacted),', 'redacted,'],
-        ],
+        // Re-anchored when #436 made the order one shared chain: the mutant
+        // swaps it there, so every renderer that runs it takes the swap.
+        edits: [[
+            'return redactQueryCredentials(redactDsnCredentials(text))',
+            'return redactDsnCredentials(redactQueryCredentials(text))',
+        ]],
         killedBy: 'userinfo runs before the query pass',
     },
     {
         label: 'the non-Error branch skips the query redaction',
         file: SANITIZE,
+        // Re-anchored when #436 folded both redactions into
+        // `redactCredentials`.
         edits: [[
-            'redactQueryCredentials(redactDsnCredentials(String(error)))',
+            'redactCredentials(String(error))',
             'redactDsnCredentials(String(error))',
         ]],
         killedBy: 'a thrown non-Error value is redacted too',

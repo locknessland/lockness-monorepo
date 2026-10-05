@@ -9,7 +9,7 @@
         "./lifecycle": "./lifecycle/mod.ts",
         "./lifecycle/internal": "./lifecycle/disposables.ts",
         "./app-file/internal": "./app_file.ts",
-        "./logging/internal": "./logging/credential_params.ts",
+        "./logging/internal": "./logging/internal.ts",
         "./lifecycle/health/internal": "./lifecycle/health.ts",
         "./environment": "./environment.ts",
         "./environment/internal": "./environment_legacy.ts",
