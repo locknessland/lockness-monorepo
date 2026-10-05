@@ -35,6 +35,16 @@ User-facing documentation: [README.md](README.md) ·
   token. Only the live api-kit suite (`scripts/kit_token_flow_live_test.ts`)
   executes the Drizzle query that enforces it.
 
+- **The remember-me lifecycle belongs to `SessionProviderBase` (#457).** It
+  composes a `RememberTokenStore` port (`insert`, `findByHash`,
+  `delete(userId, tokenId)`, `deleteAllForUser`); bindings implement the port
+  and must not override the five concrete remember-me methods. `expiresIn` is in
+  **seconds** (the guard's `rememberMeTokensAge`), converted once in the base.
+  `firstIssuedAt` is always persisted and carried by recycle, which validates
+  first, then deletes, then inserts. A store's `findByHash` carries no expiry
+  predicate — the base decides. Passing `rememberTokensTable` is the only
+  switch; `enableRememberTokens` throws until v0.6.0.
+
 ## Dependency contract
 
 <!-- generated:deps -->
@@ -101,12 +111,14 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-5 test files for 18 source files:
+7 test files for 22 source files:
 
 - `packages/auth-provider/tests/deny_paths.test.ts`
 - `packages/auth-provider/tests/drizzle_multidialect.test.ts`
+- `packages/auth-provider/tests/kysely_remember_token_store.test.ts`
 - `packages/auth-provider/tests/lazy_db.test.ts`
 - `packages/auth-provider/tests/remember_preservation.test.ts`
+- `packages/auth-provider/tests/session_provider_base.test.ts`
 - `packages/auth-provider/tests/token_provider_base.test.ts`
 
 <!-- /generated:tests -->
@@ -122,7 +134,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 5 test files directly —
+Then, specific to this package: run its 7 test files directly —
 
 ```bash
 deno test -A packages/auth-provider/

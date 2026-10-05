@@ -20,7 +20,7 @@
  * @module @lockness/auth-provider/tests/drizzle_multidialect
  */
 
-import { assert } from '@std/assert'
+import { assert, assertThrows } from '@std/assert'
 import type { Authenticatable } from '@lockness/auth'
 import * as pg from 'drizzle-orm/pg-core'
 import * as mysql from 'drizzle-orm/mysql-core'
@@ -59,6 +59,37 @@ const sqliteTokens = sqlite.sqliteTable('access_tokens', {
     expiresAt: sqlite.integer('expires_at', { mode: 'timestamp_ms' })
         .notNull(),
     lastUsedAt: sqlite.integer('last_used_at', { mode: 'timestamp_ms' }),
+    createdAt: sqlite.integer('created_at', { mode: 'timestamp_ms' })
+        .notNull(),
+})
+
+/** A remember-me table (#457), in each dialect's own column builders. */
+const pgRemember = pg.pgTable('remember_me_tokens', {
+    id: pg.serial('id').primaryKey(),
+    userId: pg.integer('user_id').notNull(),
+    hash: pg.text('token_hash').notNull().unique(),
+    expiresAt: pg.timestamp('expires_at').notNull(),
+    firstIssuedAt: pg.timestamp('first_issued_at').notNull(),
+    createdAt: pg.timestamp('created_at').notNull(),
+})
+
+const mysqlRemember = mysql.mysqlTable('remember_me_tokens', {
+    id: mysql.serial('id').primaryKey(),
+    userId: mysql.int('user_id').notNull(),
+    hash: mysql.varchar('token_hash', { length: 64 }).notNull().unique(),
+    expiresAt: mysql.timestamp('expires_at').notNull(),
+    firstIssuedAt: mysql.timestamp('first_issued_at').notNull(),
+    createdAt: mysql.timestamp('created_at').notNull(),
+})
+
+const sqliteRemember = sqlite.sqliteTable('remember_me_tokens', {
+    id: sqlite.integer('id').primaryKey({ autoIncrement: true }),
+    userId: sqlite.integer('user_id').notNull(),
+    hash: sqlite.text('token_hash').notNull().unique(),
+    expiresAt: sqlite.integer('expires_at', { mode: 'timestamp_ms' })
+        .notNull(),
+    firstIssuedAt: sqlite.integer('first_issued_at', { mode: 'timestamp_ms' })
+        .notNull(),
     createdAt: sqlite.integer('created_at', { mode: 'timestamp_ms' })
         .notNull(),
 })
@@ -166,8 +197,75 @@ Deno.test('the default (unparameterised) instantiation stays Postgres — no bre
     assert(_assertDefaultIsPg === pgDb)
 })
 
+Deno.test('a remember table built with pgTable, mysqlTable or sqliteTable is accepted (#457)', () => {
+    const lookups = {
+        findUserById: () => Promise.resolve(null),
+        findUserByCredentials: () => Promise.resolve(null),
+    }
+    const pgProvider = new DrizzleSessionProvider<DemoUser>({
+        db: () => ({}) as DrizzleDatabase,
+        rememberTokensTable: pgRemember,
+        ...lookups,
+    })
+    const mysqlProvider = new DrizzleSessionProvider<DemoUser, 'mysql'>({
+        db: () => ({}) as DrizzleDatabase<'mysql'>,
+        rememberTokensTable: mysqlRemember,
+        ...lookups,
+    })
+    const sqliteProvider = new DrizzleSessionProvider<DemoUser, 'sqlite'>({
+        db: () => ({}) as DrizzleDatabase<'sqlite'>,
+        rememberTokensTable: sqliteRemember,
+        ...lookups,
+    })
+    assert(pgProvider instanceof DrizzleSessionProvider)
+    assert(mysqlProvider instanceof DrizzleSessionProvider)
+    assert(sqliteProvider instanceof DrizzleSessionProvider)
+})
+
+Deno.test('a remember table name, an incomplete table or enableRememberTokens is refused (#457)', () => {
+    const construct = (extra: Record<string, unknown>) =>
+        new DrizzleSessionProvider<DemoUser>({
+            db: () => ({}) as DrizzleDatabase,
+            findUserById: () => Promise.resolve(null),
+            findUserByCredentials: () => Promise.resolve(null),
+            ...extra,
+        })
+
+    // The pre-#457 option was a table name, accepted and never read.
+    assertThrows(
+        () => construct({ rememberTokensTable: 'remember_me_tokens' }),
+        TypeError,
+        'rememberTokensTable must be a Drizzle table object (pgTable, mysqlTable or sqliteTable), got a string',
+    )
+    const noOrigin = pg.pgTable('remember_me_tokens', {
+        id: pg.serial('id').primaryKey(),
+        userId: pg.integer('user_id').notNull(),
+        hash: pg.text('token_hash').notNull().unique(),
+        expiresAt: pg.timestamp('expires_at').notNull(),
+        createdAt: pg.timestamp('created_at').notNull(),
+    })
+    assertThrows(
+        () => construct({ rememberTokensTable: noOrigin }),
+        TypeError,
+        'rememberTokensTable is missing the column property "firstIssuedAt"',
+    )
+    for (const flag of [true, false]) {
+        assertThrows(
+            () =>
+                construct({
+                    enableRememberTokens: flag,
+                    rememberTokensTable: pgRemember,
+                }),
+            TypeError,
+            'rememberTokensTable',
+        )
+    }
+})
+
 Deno.test('the drizzle entry exports no table assertion — the provider runs it (#460)', async () => {
     const entry: Record<string, unknown> = await import('../drizzle/mod.ts')
     assert(!('assertAccessTokensTable' in entry))
+    assert(!('assertRememberTokensTable' in entry))
     assert(!('assertDrizzleTable' in entry))
+    assert(!('DrizzleRememberTokenStore' in entry), 'the store is internal')
 })

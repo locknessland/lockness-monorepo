@@ -14,7 +14,7 @@
  * @module @lockness/auth-provider/tests/deny_paths
  */
 
-import { assert, assertEquals, assertThrows } from '@std/assert'
+import { assert, assertEquals, assertRejects, assertThrows } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
 import { integer, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core'
 import type { Authenticatable } from '@lockness/auth'
@@ -32,17 +32,58 @@ const denying = {
     findUserByCredentials: () => Promise.resolve<Authenticatable | null>(null),
 }
 
-/** A kysely `selectFrom(...).selectAll().where().where().executeTakeFirst()`
- * chain that resolves to `row` (use `undefined` for "not found / expired"). */
+/** A kysely `selectFrom(...).select([...]).where().executeTakeFirst()` chain
+ * that resolves to `row` (use `undefined` for "not found"). */
 function fakeKyselySelect(row: unknown) {
     const chain: Record<string, unknown> = {}
     Object.assign(chain, {
+        select: () => chain,
         selectAll: () => chain,
         where: () => chain,
         executeTakeFirst: () => Promise.resolve(row),
     })
     return { selectFrom: () => chain }
 }
+
+/** A remember-me row for `token_hash`, live for an hour, with an origin. */
+function liveRow(tokenHash: string) {
+    const now = Date.now()
+    return {
+        id: 7,
+        user_id: 1,
+        token_hash: tokenHash,
+        expires_at: new Date(now + 3_600_000),
+        first_issued_at: new Date(now),
+        created_at: new Date(now),
+    }
+}
+
+/** SHA-256, lowercase hex — what a store keys a token by. */
+async function sha256(value: string): Promise<string> {
+    const digest = await crypto.subtle.digest(
+        'SHA-256',
+        new TextEncoder().encode(value),
+    )
+    return Array.from(new Uint8Array(digest))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('')
+}
+
+/** A presented value no store has ever seen, built at run time. */
+function neverIssued(): string {
+    const bytes = crypto.getRandomValues(new Uint8Array(40))
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+/** A remember-me table for the Drizzle session provider. */
+const rememberMeTokens = pgTable('remember_me_tokens', {
+    id: serial('id').primaryKey(),
+    userId: integer('user_id').notNull(),
+    hash: text('token_hash').notNull().unique(),
+    expiresAt: timestamp('expires_at').notNull(),
+    firstIssuedAt: timestamp('first_issued_at').notNull(),
+    createdAt: timestamp('created_at').notNull(),
+})
 
 // -----------------------------------------------------------------------------
 // Basic-auth kind (drizzle)
@@ -173,14 +214,39 @@ Deno.test('session (drizzle) - unknown user resolves to null', async () => {
     )
 })
 
-Deno.test('session (drizzle) - verifyRememberToken is fail-closed', async () => {
+Deno.test('session (drizzle) - remember-me off: verify denies, create throws naming rememberTokensTable', async () => {
     const provider = new DrizzleSessionProvider<Authenticatable>({
-        // deno-lint-ignore no-explicit-any
+        // deno-lint-ignore no-explicit-any -- remember-me off never touches db
         db: () => null as any,
         ...denying,
-        enableRememberTokens: true,
     })
-    assertEquals(await provider.verifyRememberToken('anything'), null)
+    assertEquals(await provider.verifyRememberToken(neverIssued()), null)
+    await assertRejects(
+        () => provider.createRememberToken(fakeUser({ id: 1 }), 3600),
+        Error,
+        'rememberTokensTable',
+    )
+})
+
+Deno.test('session (drizzle) - an unknown remember token is denied (the store finds no row)', async () => {
+    let lookups = 0
+    const chain = {
+        from: () => chain,
+        where: () => chain,
+        limit: () => {
+            lookups++
+            return Promise.resolve([])
+        },
+    }
+    const provider = new DrizzleSessionProvider<Authenticatable>({
+        // deno-lint-ignore no-explicit-any -- a select-only fake
+        db: () => ({ select: () => chain }) as any,
+        findUserById: () => Promise.resolve(fakeUser({ id: 1 })),
+        findUserByCredentials: denying.findUserByCredentials,
+        rememberTokensTable: rememberMeTokens,
+    })
+    assertEquals(await provider.verifyRememberToken(neverIssued()), null)
+    assertEquals(lookups, 1, 'the store was asked')
 })
 
 // -----------------------------------------------------------------------------
@@ -203,45 +269,49 @@ Deno.test('session (kysely) - default verifyPassword denies a mismatch', async (
     assertEquals(await provider.verifyPassword('a', 'b'), false)
 })
 
-Deno.test('session (kysely) - remember token denied when the feature is disabled', async () => {
+Deno.test('session (kysely) - remember token denied when remember-me is off', async () => {
+    const value = neverIssued()
+    const row = liveRow(await sha256(value))
     const provider = new KyselySessionProvider<Authenticatable>({
-        db: () => fakeKyselySelect(undefined),
-        ...denying,
-        enableRememberTokens: false,
+        db: () => fakeKyselySelect(row),
+        findUserById: () => Promise.resolve(fakeUser({ id: 1 })),
+        findUserByCredentials: denying.findUserByCredentials,
     })
-    assertEquals(await provider.verifyRememberToken('anything'), null)
+    assertEquals(await provider.verifyRememberToken(value), null)
 })
 
-Deno.test('session (kysely) - remember token denied when the row is absent (unknown or expired)', async () => {
-    const provider = new KyselySessionProvider<Authenticatable>({
-        // The query filters on `expires_at > now`, so an unknown OR expired
-        // token both surface here as "no row" → undefined.
-        db: () => fakeKyselySelect(undefined),
-        findUserById: () => Promise.resolve(fakeUser({ id: 1 })),
-        findUserByCredentials: () =>
-            Promise.resolve<Authenticatable | null>(
-                null,
-            ),
-        enableRememberTokens: true,
-    })
-    assertEquals(await provider.verifyRememberToken('unknown-or-expired'), null)
+Deno.test('session (kysely) - an expired row is returned by the store and denied by the base', async () => {
+    using _time = new FakeTime(new Date('2026-01-01T00:00:00Z'))
+    const value = neverIssued()
+    const row = liveRow(await sha256(value))
+    const build = (expires_at: Date) =>
+        new KyselySessionProvider<Authenticatable>({
+            db: () => fakeKyselySelect({ ...row, expires_at }),
+            findUserById: () => Promise.resolve(fakeUser({ id: 1 })),
+            findUserByCredentials: denying.findUserByCredentials,
+            rememberTokensTable: 'remember_me_tokens',
+        })
+
+    // Not vacuous: the same row, one millisecond younger, verifies.
+    assert(await build(new Date(Date.now() + 1)).verifyRememberToken(value))
+    assertEquals(
+        await build(new Date(Date.now())).verifyRememberToken(value),
+        null,
+    )
+    assertEquals(
+        await build(new Date(Date.now() - 1000)).verifyRememberToken(value),
+        null,
+    )
 })
 
 Deno.test('session (kysely) - remember token denied when the user is gone (orphaned token)', async () => {
-    const orphanRow = {
-        id: 'tok1',
-        user_id: 1,
-        expires_at: new Date(Date.now() + 3_600_000),
-        created_at: new Date(),
-    }
+    const value = neverIssued()
+    const row = liveRow(await sha256(value))
     const provider = new KyselySessionProvider<Authenticatable>({
-        db: () => fakeKyselySelect(orphanRow), // a live token row exists…
+        db: () => fakeKyselySelect(row), // a live row…
         findUserById: () => Promise.resolve<Authenticatable | null>(null), // …but the user is gone
-        findUserByCredentials: () =>
-            Promise.resolve<Authenticatable | null>(
-                null,
-            ),
-        enableRememberTokens: true,
+        findUserByCredentials: denying.findUserByCredentials,
+        rememberTokensTable: 'remember_me_tokens',
     })
-    assertEquals(await provider.verifyRememberToken('valid-looking'), null)
+    assertEquals(await provider.verifyRememberToken(value), null)
 })

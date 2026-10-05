@@ -15,6 +15,7 @@ export type {
 
 export type { DrizzleSessionProviderOptions } from './drizzle_session_provider.ts'
 export { DrizzleSessionProvider } from './drizzle_session_provider.ts'
+export type { DrizzleRememberTokensTable } from './remember_tokens_table.ts'
 
 export type { DrizzleTokenProviderOptions } from './drizzle_token_provider.ts'
 export type { DrizzleAccessTokensTable } from './access_tokens_table.ts'

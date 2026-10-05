@@ -27,6 +27,7 @@ import { DrizzleBasicAuthProvider } from '../drizzle/drizzle_basic_auth_provider
 import { DrizzleSessionProvider } from '../drizzle/drizzle_session_provider.ts'
 import { DrizzleTokenProvider } from '../drizzle/drizzle_token_provider.ts'
 import { KyselySessionProvider } from '../kysely/kysely_session_provider.ts'
+import type { SessionProviderBase } from '../base/session_provider_base.ts'
 
 const NOT_CONNECTED = 'Database is not connected'
 const RESOLVER_MESSAGE =
@@ -183,3 +184,69 @@ Deno.test('DrizzleTokenProvider - createToken rejects with the resolver error', 
         NOT_CONNECTED,
     )
 })
+
+const rememberMeTokens = pg.pgTable('remember_me_tokens', {
+    id: pg.serial('id').primaryKey(),
+    userId: pg.integer('user_id').notNull(),
+    hash: pg.text('token_hash').notNull().unique(),
+    expiresAt: pg.timestamp('expires_at').notNull(),
+    firstIssuedAt: pg.timestamp('first_issued_at').notNull(),
+    createdAt: pg.timestamp('created_at').notNull(),
+})
+
+/** The two session providers, with remember-me on. */
+const rememberCases: ReadonlyArray<
+    readonly [
+        string,
+        (db: () => unknown) => SessionProviderBase<Authenticatable>,
+    ]
+> = [
+    [
+        'DrizzleSessionProvider',
+        (db) =>
+            new DrizzleSessionProvider<Authenticatable>({
+                db: db as never,
+                rememberTokensTable: rememberMeTokens,
+                ...recording,
+            }),
+    ],
+    [
+        'KyselySessionProvider',
+        (db) =>
+            new KyselySessionProvider<Authenticatable>({
+                db: db as never,
+                rememberTokensTable: 'remember_me_tokens',
+                ...recording,
+            }),
+    ],
+]
+
+for (const [name, build] of rememberCases) {
+    Deno.test(`${name} - with a remember table, construction never calls the resolver (#457)`, () => {
+        let calls = 0
+        build(() => {
+            calls++
+            throw new Error(NOT_CONNECTED)
+        })
+        assertEquals(calls, 0)
+    })
+
+    Deno.test(`${name} - remember-me calls reject with the resolver's error, never null (#457)`, async () => {
+        const provider = build(notConnected)
+        await assertRejects(
+            () => provider.createRememberToken({ id: 1 }, 3600),
+            Error,
+            NOT_CONNECTED,
+        )
+        await assertRejects(
+            () => provider.verifyRememberToken('presented-value'),
+            Error,
+            NOT_CONNECTED,
+        )
+        await assertRejects(
+            () => provider.deleteAllRememberTokens({ id: 1 }),
+            Error,
+            NOT_CONNECTED,
+        )
+    })
+}

@@ -1,15 +1,25 @@
 /**
  * @fileoverview Session-based authentication provider using Drizzle ORM.
  *
- * Extends {@link SessionProviderBase} to inherit shared token and password logic.
+ * Extends {@link SessionProviderBase}, which owns the remember-me lifecycle;
+ * this class supplies the user lookups and, when the application passes its
+ * `rememberTokensTable`, the Drizzle store remember-me tokens live in.
  *
  * @module @lockness/auth-provider/drizzle/session
  */
 
-import type { Authenticatable, RememberMeToken } from '@lockness/auth'
+import type { Authenticatable } from '@lockness/auth'
 import { assertDbResolver } from '../base/assert_db_resolver.ts'
-import { SessionProviderBase } from '../base/session_provider_base.ts'
+import {
+    type RememberTokenStore,
+    SessionProviderBase,
+} from '../base/session_provider_base.ts'
 import type { DrizzleDatabase, DrizzleDialect } from './database.ts'
+import { DrizzleRememberTokenStore } from './drizzle_remember_token_store.ts'
+import {
+    assertRememberTokensTable,
+    type DrizzleRememberTokensTable,
+} from './remember_tokens_table.ts'
 
 /**
  * Configuration options for Drizzle session user provider.
@@ -55,75 +65,76 @@ export interface DrizzleSessionProviderOptions<
     verifyPassword?: (plain: string, hash: string) => Promise<boolean>
 
     /**
-     * Whether to enable remember me tokens
+     * The application's remember-me table — the Drizzle table **object**, not
+     * its name. Passing it turns remember-me tokens on; omitting it leaves
+     * them off. See {@link DrizzleRememberTokensTable} for the columns it must
+     * carry.
      */
-    enableRememberTokens?: boolean
-
-    /**
-     * Table name for remember tokens (default: 'remember_me_tokens')
-     */
-    rememberTokensTable?: string
+    rememberTokensTable?: DrizzleRememberTokensTable
 }
 
 /**
  * Drizzle-based user provider for session authentication
  *
  * @example
+ * ```ts
+ * import { rememberMeTokens } from '@model/user.ts'
+ *
  * const provider = new DrizzleSessionProvider({
  *   db: () => database.db,
+ *   rememberTokensTable: rememberMeTokens,
  *   findUserById: async (db, id) => {
- *     return await db.query.users.findFirst({
- *       where: (users, { eq }) => eq(users.id, id)
- *     })
+ *     const [row] = await db.select().from(users)
+ *       .where(eq(users.id, Number(id))).limit(1)
+ *     return row ?? null
  *   },
  *   findUserByCredentials: async (db, email, password) => {
- *     const user = await db.query.users.findFirst({
- *       where: (users, { eq }) => eq(users.email, email)
- *     })
- *     if (user && await bcrypt.compare(password, user.password)) {
- *       return user
- *     }
- *     return null
+ *     const [row] = await db.select().from(users)
+ *       .where(eq(users.email, email)).limit(1)
+ *     return row && await verifyPassword(password, row.password) ? row : null
  *   },
- *   enableRememberTokens: true
  * })
+ * ```
  */
 export class DrizzleSessionProvider<
     User extends Authenticatable,
     D extends DrizzleDialect = 'pg',
 > extends SessionProviderBase<User> {
     /** @internal Provider configuration */
-    readonly #options: Required<DrizzleSessionProviderOptions<User, D>>
-    /** @internal Whether remember tokens are enabled */
-    readonly #enableRememberTokens: boolean
+    readonly #options: DrizzleSessionProviderOptions<User, D>
+    /** @internal Password verification: the option, or the base default. */
+    readonly #verifyPassword: (plain: string, hash: string) => Promise<boolean>
 
     /**
      * @param options - Provider configuration.
-     * @throws {TypeError} When `db` is not a function.
+     * @throws {TypeError} When `db` is not a function; when
+     * `rememberTokensTable` is present but is not a Drizzle table carrying
+     * every column property of {@link DrizzleRememberTokensTable}; or when
+     * the removed `enableRememberTokens` option is present.
      */
     constructor(options: DrizzleSessionProviderOptions<User, D>) {
-        super()
-        assertDbResolver(options.db)
-        this.#options = {
-            ...options,
-            verifyPassword: options.verifyPassword ??
-                this.defaultVerifyPassword.bind(this),
-            enableRememberTokens: options.enableRememberTokens ?? false,
-            rememberTokensTable: options.rememberTokensTable ??
-                'remember_me_tokens',
-        }
-        this.#enableRememberTokens = this.#options.enableRememberTokens
+        super({ rememberTokens: rememberTokenStore(options) })
+        this.#options = options
+        this.#verifyPassword = options.verifyPassword ??
+            this.defaultVerifyPassword.bind(this)
     }
 
     /**
-     * Find user by ID
+     * Find user by ID.
+     *
+     * @param id - The user id.
+     * @returns The user, or `null`.
      */
     async findById(id: string | number): Promise<User | null> {
         return await this.#options.findUserById(this.#options.db(), id)
     }
 
     /**
-     * Find user by credentials
+     * Find user by credentials.
+     *
+     * @param email - The submitted email.
+     * @param password - The submitted password.
+     * @returns The user, or `null`.
      */
     async findByCredentials(
         email: string,
@@ -137,127 +148,40 @@ export class DrizzleSessionProvider<
     }
 
     /**
-     * Verify password hash
+     * Verify password hash.
+     *
+     * @param plain - The submitted password.
+     * @param hash - The stored hash.
+     * @returns Whether they match.
      */
     async verifyPassword(plain: string, hash: string): Promise<boolean> {
-        return await this.#options.verifyPassword(plain, hash)
+        return await this.#verifyPassword(plain, hash)
     }
+}
 
-    /**
-     * Create a remember me token for a user
-     * Note: This is a base implementation. Override in subclass with actual table schema.
-     */
-    async createRememberToken(
-        user: User,
-        expiresIn: number,
-    ): Promise<RememberMeToken> {
-        if (!this.#enableRememberTokens) {
-            throw new Error(
-                'Remember tokens are not enabled for this provider',
-            )
-        }
-
-        const tokenValue = await this.generateTokenValue(32)
-        const hash = await this.hashTokenValue(tokenValue)
-        const now = new Date()
-        const expiresAt = new Date(Date.now() + expiresIn)
-
-        // This is a placeholder - subclasses should implement with their table schema
-        // Example: await this.#options.db().insert(rememberTokensTable).values({ ... })
-        // For now, just return the token structure
-        return {
-            identifier: tokenValue,
-            value: tokenValue,
-            hash,
-            userId: user.id,
-            expiresAt,
-            createdAt: now,
-            // A freshly created credential's origin is its creation instant (#146).
-            firstIssuedAt: now,
-        }
-    }
-
-    /**
-     * Verify a remember me token and return the user
-     * Note: This is a base implementation. Override in subclass with actual table schema.
-     */
-    async verifyRememberToken(
-        tokenValue: string,
-    ): Promise<{ user: User; token: RememberMeToken } | null> {
-        if (!this.#enableRememberTokens) {
-            return null
-        }
-
-        const _hash = await this.hashTokenValue(tokenValue)
-
-        // This is a placeholder - subclasses should implement with their table schema
-        // Example: const token = await this.#options.db().select().from(rememberTokensTable).where(...)
-        // For now, return null
-        return null
-    }
-
-    /**
-     * Delete a remember me token
-     * Note: This is a base implementation. Override in subclass with actual table schema.
-     */
-    // deno-lint-ignore require-await
-    async deleteRememberToken(
-        _user: User,
-        _tokenId: string | number,
-    ): Promise<void> {
-        if (!this.#enableRememberTokens) {
-            return
-        }
-
-        // This is a placeholder - subclasses should implement with their table schema
-        // Example: await this.#options.db().delete(rememberTokensTable).where(...)
-    }
-
-    /**
-     * Delete every remember-me token for a user (#147).
-     *
-     * Note: This is a base implementation. Override in a subclass with the actual
-     * table schema — e.g. `db.delete(rememberTokensTable).where(eq(userId, u.id))`.
-     *
-     * @param _user - The token owner whose remember-me credentials to drop.
-     */
-    // deno-lint-ignore require-await
-    async deleteAllRememberTokens(_user: User): Promise<void> {
-        if (!this.#enableRememberTokens) {
-            return
-        }
-
-        // A silent no-op here would reopen the ASVS 7.4.2 remember-me re-mint
-        // bypass #147 exists to close — "log out everywhere" would leave the
-        // user's tokens live. Force a schema-carrying subclass to override it
-        // (unlike the read/create placeholders, this is security-critical).
-        throw new Error(
-            'deleteAllRememberTokens must be overridden with your remember-me table schema — ' +
-                'e.g. db.delete(rememberTokensTable).where(eq(rememberTokensTable.userId, user.id))',
+/**
+ * Check the options and build the remember-me store they ask for, if any.
+ * Runs before `super()`, so it cannot touch the instance — and it never calls
+ * `db` (#427).
+ *
+ * @throws {TypeError} See the provider's constructor.
+ */
+function rememberTokenStore<
+    User extends Authenticatable,
+    D extends DrizzleDialect,
+>(
+    options: DrizzleSessionProviderOptions<User, D>,
+): RememberTokenStore | undefined {
+    assertDbResolver(options.db)
+    // Removed in v0.5.0 and refused for one release, so that an old
+    // configuration is never silently ignored. Drop this check in v0.6.0.
+    if ('enableRememberTokens' in options) {
+        throw new TypeError(
+            'enableRememberTokens was removed in v0.5.0: pass rememberTokensTable (your Drizzle table object) to turn remember-me tokens on, or omit it to leave them off',
         )
     }
-
-    /**
-     * Recycle a remember me token (for security)
-     */
-    async recycleRememberToken(
-        user: User,
-        token: RememberMeToken,
-        expiresIn: number,
-    ): Promise<RememberMeToken> {
-        if (!this.#enableRememberTokens) {
-            throw new Error(
-                'Remember tokens are not enabled for this provider',
-            )
-        }
-
-        // Delete old token
-        await this.deleteRememberToken(user, token.identifier)
-
-        // Create new token, then bare-copy the origin forward so the absolute
-        // clock is never reset by renewal (#146). No fallback here — the guard
-        // resolved firstIssuedAt before calling.
-        const fresh = await this.createRememberToken(user, expiresIn)
-        return { ...fresh, firstIssuedAt: token.firstIssuedAt }
-    }
+    const table: unknown = options.rememberTokensTable
+    if (table === undefined) return undefined
+    assertRememberTokensTable(table)
+    return new DrizzleRememberTokenStore(options.db, table)
 }

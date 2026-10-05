@@ -8,6 +8,12 @@
  */
 
 export { SessionProviderBase } from './session_provider_base.ts'
+export type {
+    NewStoredRememberToken,
+    RememberTokenStore,
+    SessionProviderBaseOptions,
+    StoredRememberToken,
+} from './session_provider_base.ts'
 export { TokenProviderBase } from './token_provider_base.ts'
 export type {
     NewStoredAccessToken,

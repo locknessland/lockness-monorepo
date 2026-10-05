@@ -1,205 +1,106 @@
 /**
- * @fileoverview recycleRememberToken preserves the first-issuance origin (#146).
+ * @fileoverview recycleRememberToken preserves the first-issuance origin
+ * (#146), through storage (#457).
  *
- * The absolute-lifetime cap in `@lockness/auth` is only as good as the provider's
- * promise to carry `firstIssuedAt` forward on renewal. This exercises the real
- * DrizzleSessionProvider recycle (its create/recycle stubs touch no DB), proving
- * the persistence-home bare-copy — `new.firstIssuedAt = old.firstIssuedAt` — the
- * decision table assigns to the providers.
+ * The absolute-lifetime cap in `@lockness/auth` is only as good as the
+ * provider's promise to carry `firstIssuedAt` forward on renewal. Before #457
+ * the providers only copied it onto the *returned* token: nothing stored it,
+ * so the next verification had no origin and the guard re-anchored the cap at
+ * the last recycle. These tests assert the origin a **later verification
+ * reads back**, not the return value.
+ *
+ * Since #457 `firstIssuedAt` is NOT NULL, so recycle refuses a token without
+ * one, before any write. The guard stays the single place that falls back to
+ * `createdAt`, and it always resolves the origin before calling recycle.
  *
  * @module @lockness/auth-provider/tests/remember_preservation
  */
 
-import { assertEquals, assertNotEquals } from '@std/assert'
-import type { RememberMeToken } from '@lockness/auth'
-import { DrizzleSessionProvider } from '../drizzle/drizzle_session_provider.ts'
-import { KyselySessionProvider } from '../kysely/kysely_session_provider.ts'
+import { assert, assertEquals, assertRejects } from '@std/assert'
+import { FakeTime } from '@std/testing/time'
+import { setup } from './memory_remember_token_store.ts'
 
-/** A chainable stub covering the query shapes create/delete use. */
-function fakeKyselyDb() {
-    const chain: Record<string, unknown> = {}
-    Object.assign(chain, {
-        values: () => chain,
-        returning: () => chain,
-        executeTakeFirst: () =>
-            Promise.resolve({ id: `db-${crypto.randomUUID()}` }),
-        where: () => chain,
-        execute: () => Promise.resolve([]),
-    })
-    return { insertInto: () => chain, deleteFrom: () => chain }
-}
+const HOUR_S = 3600
+const T0 = new Date('2026-01-01T00:00:00Z')
 
-Deno.test('drizzle recycle bare-copies firstIssuedAt, not a fresh clock (#146)', async () => {
-    const provider = new DrizzleSessionProvider({
-        // The remember-token stubs never touch the db; a null handle is fine here.
-        // deno-lint-ignore no-explicit-any
-        db: () => null as any,
-        findUserById: () => Promise.resolve(null),
-        findUserByCredentials: () => Promise.resolve(null),
-        enableRememberTokens: true,
-    })
+Deno.test('recycle persists firstIssuedAt: the renewed token verifies with the original origin (#146)', async () => {
+    using time = new FakeTime(T0)
+    const { provider, store, alice } = setup()
+    const first = await provider.createRememberToken(alice, HOUR_S)
 
-    const origin = new Date('2020-01-01T00:00:00Z')
-    const old: RememberMeToken = {
-        identifier: 'old-id',
-        value: 'v',
-        hash: 'h',
-        userId: 1,
-        expiresAt: new Date(),
-        createdAt: new Date(),
-        firstIssuedAt: origin,
-    }
-
-    // deno-lint-ignore no-explicit-any
-    const fresh = await provider.recycleRememberToken(
-        { id: 1 } as any,
-        old,
-        3600,
+    time.tick(600_000)
+    const verified = await provider.verifyRememberToken(first.value)
+    assert(verified)
+    const renewed = await provider.recycleRememberToken(
+        alice,
+        verified.token,
+        HOUR_S,
     )
+    assertEquals(renewed.firstIssuedAt?.getTime(), T0.getTime())
+    assertEquals(renewed.createdAt.getTime(), T0.getTime() + 600_000)
 
+    time.tick(600_000)
+    const again = await provider.verifyRememberToken(renewed.value)
+    assert(again, 'the renewed token verifies')
     assertEquals(
-        fresh.firstIssuedAt?.getTime(),
-        origin.getTime(),
-        'the renewed token kept the original origin, not a re-minted one',
+        again.token.firstIssuedAt?.getTime(),
+        T0.getTime(),
+        'the origin was read back from storage, not re-minted',
     )
-    assertNotEquals(
-        fresh.identifier,
-        old.identifier,
-        'a genuinely new token was minted (rotation still happened)',
+    assertEquals(
+        store.rows.get(Number(renewed.identifier))?.firstIssuedAt?.getTime(),
+        T0.getTime(),
+    )
+    assertEquals(
+        await provider.verifyRememberToken(first.value),
+        null,
+        'the old token was rotated out',
     )
 })
 
-Deno.test('drizzle recycle bare-copies an ABSENT origin as-is (no ?? in the provider) (#146)', async () => {
-    // The freeze policy is the guard's; a provider is a dumb bare-copy. Given an
-    // old token with no firstIssuedAt, recycle must pass undefined through, not
-    // invent a createdAt fallback of its own.
-    const provider = new DrizzleSessionProvider({
-        // deno-lint-ignore no-explicit-any
-        db: () => null as any,
-        findUserById: () => Promise.resolve(null),
-        findUserByCredentials: () => Promise.resolve(null),
-        enableRememberTokens: true,
-    })
-    const old: RememberMeToken = {
-        identifier: 'legacy',
-        value: 'v',
-        hash: 'h',
-        userId: 1,
-        expiresAt: new Date(),
-        createdAt: new Date('2019-06-01T00:00:00Z'),
-        // firstIssuedAt intentionally absent
+Deno.test('recycle refuses a token without a valid firstIssuedAt, before any write (#146, #457)', async () => {
+    for (const firstIssuedAt of [undefined, new Date(Number.NaN)]) {
+        const { provider, store, alice } = setup()
+        const created = await provider.createRememberToken(alice, HOUR_S)
+        const verified = await provider.verifyRememberToken(created.value)
+        assert(verified)
+        const writesBefore = store.writes.length
+
+        await assertRejects(
+            () =>
+                provider.recycleRememberToken(
+                    alice,
+                    { ...verified.token, firstIssuedAt },
+                    HOUR_S,
+                ),
+            TypeError,
+            'firstIssuedAt',
+        )
+        assertEquals(store.writes.length, writesBefore, 'nothing was written')
+        assert(
+            await provider.verifyRememberToken(created.value),
+            'the old token still verifies',
+        )
     }
-    // deno-lint-ignore no-explicit-any
-    const fresh = await provider.recycleRememberToken(
-        { id: 1 } as any,
-        old,
-        3600,
-    )
-    assertEquals(
-        fresh.firstIssuedAt,
-        undefined,
-        'the provider bare-copies undefined through — it does not apply the createdAt fallback',
-    )
 })
 
-Deno.test('kysely recycle bare-copies firstIssuedAt, not a fresh clock (#146)', async () => {
-    const provider = new KyselySessionProvider({
-        // deno-lint-ignore no-explicit-any
-        db: () => fakeKyselyDb() as any,
-        findUserById: () => Promise.resolve(null),
-        findUserByCredentials: () => Promise.resolve(null),
-        enableRememberTokens: true,
-    })
+Deno.test('recycle refuses an invalid expiresIn, before any write (#457)', async () => {
+    const { provider, store, alice } = setup()
+    const created = await provider.createRememberToken(alice, HOUR_S)
+    const verified = await provider.verifyRememberToken(created.value)
+    assert(verified)
+    const writesBefore = store.writes.length
 
-    const origin = new Date('2020-01-01T00:00:00Z')
-    const old: RememberMeToken = {
-        identifier: 'k-old',
-        value: 'v',
-        hash: 'h',
-        userId: 1,
-        expiresAt: new Date(),
-        createdAt: new Date(),
-        firstIssuedAt: origin,
+    for (const bad of [0, -1, Number.NaN, Infinity, 1e20]) {
+        await assertRejects(
+            () => provider.recycleRememberToken(alice, verified.token, bad),
+            RangeError,
+            'seconds',
+        )
     }
-
-    // deno-lint-ignore no-explicit-any
-    const fresh = await provider.recycleRememberToken(
-        { id: 1 } as any,
-        old,
-        3600,
+    assertEquals(store.writes.length, writesBefore, 'nothing was written')
+    assert(
+        await provider.verifyRememberToken(created.value),
+        'the old token still verifies',
     )
-    assertEquals(
-        fresh.firstIssuedAt?.getTime(),
-        origin.getTime(),
-        'the renewed Kysely token kept the original origin',
-    )
-    assertNotEquals(
-        fresh.identifier,
-        old.identifier,
-        'a genuinely new token was minted',
-    )
-})
-
-Deno.test('drizzle create stamps firstIssuedAt at creation (#146)', async () => {
-    const provider = new DrizzleSessionProvider({
-        // deno-lint-ignore no-explicit-any
-        db: () => null as any,
-        findUserById: () => Promise.resolve(null),
-        findUserByCredentials: () => Promise.resolve(null),
-        enableRememberTokens: true,
-    })
-
-    // deno-lint-ignore no-explicit-any
-    const token = await provider.createRememberToken({ id: 1 } as any, 3600)
-    assertEquals(
-        token.firstIssuedAt?.getTime(),
-        token.createdAt.getTime(),
-        'a freshly created credential anchors its origin at creation',
-    )
-})
-
-Deno.test('kysely deleteAllRememberTokens targets the user rows (#147)', async () => {
-    const calls = {
-        table: '',
-        col: '',
-        op: '',
-        val: undefined as unknown,
-        executed: false,
-    }
-    const chain = {
-        where: (col: string, op: string, val: unknown) => {
-            calls.col = col
-            calls.op = op
-            calls.val = val
-            return chain
-        },
-        execute: () => {
-            calls.executed = true
-            return Promise.resolve([])
-        },
-    }
-    const db = {
-        deleteFrom: (t: string) => {
-            calls.table = t
-            return chain
-        },
-    }
-    const provider = new KyselySessionProvider({
-        // deno-lint-ignore no-explicit-any
-        db: () => db as any,
-        findUserById: () => Promise.resolve(null),
-        findUserByCredentials: () => Promise.resolve(null),
-        enableRememberTokens: true,
-    })
-
-    // deno-lint-ignore no-explicit-any
-    await provider.deleteAllRememberTokens({ id: 42 } as any)
-    assertEquals(
-        calls.table,
-        'remember_me_tokens',
-        'deletes from the tokens table',
-    )
-    assertEquals(calls.col, 'user_id', 'scoped by user_id')
-    assertEquals(calls.val, 42, 'targets the given user')
-    assertEquals(calls.executed, true, 'the delete was executed')
 })

@@ -1,7 +1,9 @@
 /**
  * @fileoverview Session-based authentication provider using Kysely ORM.
  *
- * Extends {@link SessionProviderBase} to inherit shared token and password logic.
+ * Extends {@link SessionProviderBase}, which owns the remember-me lifecycle;
+ * this class supplies the user lookups and, when the application names its
+ * `rememberTokensTable`, the Kysely store remember-me tokens live in.
  *
  * Note: Kysely is an optional peer dependency.
  * Install it separately: `deno add npm:kysely`
@@ -35,14 +37,18 @@
  *     }
  *     return null
  *   },
- *   enableRememberTokens: true
+ *   rememberTokensTable: 'remember_me_tokens',
  * })
  * ```
  */
 
-import type { Authenticatable, RememberMeToken } from '@lockness/auth'
+import type { Authenticatable } from '@lockness/auth'
 import { assertDbResolver } from '../base/assert_db_resolver.ts'
-import { SessionProviderBase } from '../base/session_provider_base.ts'
+import {
+    type RememberTokenStore,
+    SessionProviderBase,
+} from '../base/session_provider_base.ts'
+import { KyselyRememberTokenStore } from './kysely_remember_token_store.ts'
 
 /**
  * Kysely database instance type.
@@ -111,12 +117,10 @@ export interface KyselySessionProviderOptions<User extends Authenticatable> {
     verifyPassword?: (plain: string, hash: string) => Promise<boolean>
 
     /**
-     * Whether to enable remember me tokens
-     */
-    enableRememberTokens?: boolean
-
-    /**
-     * Table name for remember tokens (default: 'remember_me_tokens')
+     * The name of the remember-me table. Passing it turns remember-me tokens
+     * on; omitting it leaves them off. Its columns are fixed: `id`,
+     * `user_id`, `token_hash` (unique), `expires_at`, `first_issued_at` and
+     * `created_at`, the last three NOT NULL timestamps.
      */
     rememberTokensTable?: string
 }
@@ -130,6 +134,7 @@ export interface KyselySessionProviderOptions<User extends Authenticatable> {
  * ```ts
  * const provider = new KyselySessionProvider<User>({
  *   db: () => db,
+ *   rememberTokensTable: 'remember_me_tokens',
  *   findUserById: async (db, id) => {
  *     const kysely = db as Kysely<Database>
  *     return await kysely.selectFrom('users').selectAll().where('id', '=', id).executeTakeFirst()
@@ -141,37 +146,39 @@ export interface KyselySessionProviderOptions<User extends Authenticatable> {
 export class KyselySessionProvider<User extends Authenticatable>
     extends SessionProviderBase<User> {
     /** @internal Provider configuration */
-    readonly #options: Required<KyselySessionProviderOptions<User>>
-    /** @internal Whether remember tokens are enabled */
-    readonly #enableRememberTokens: boolean
+    readonly #options: KyselySessionProviderOptions<User>
+    /** @internal Password verification: the option, or the base default. */
+    readonly #verifyPassword: (plain: string, hash: string) => Promise<boolean>
 
     /**
      * @param options - Provider configuration.
-     * @throws {TypeError} When `db` is not a function.
+     * @throws {TypeError} When `db` is not a function; when
+     * `rememberTokensTable` is present but is not a non-empty string; or when
+     * the removed `enableRememberTokens` option is present.
      */
     constructor(options: KyselySessionProviderOptions<User>) {
-        super()
-        assertDbResolver(options.db)
-        this.#options = {
-            ...options,
-            verifyPassword: options.verifyPassword ??
-                this.defaultVerifyPassword.bind(this),
-            enableRememberTokens: options.enableRememberTokens ?? false,
-            rememberTokensTable: options.rememberTokensTable ??
-                'remember_me_tokens',
-        }
-        this.#enableRememberTokens = this.#options.enableRememberTokens
+        super({ rememberTokens: rememberTokenStore(options) })
+        this.#options = options
+        this.#verifyPassword = options.verifyPassword ??
+            this.defaultVerifyPassword.bind(this)
     }
 
     /**
-     * Find user by ID
+     * Find user by ID.
+     *
+     * @param id - The user id.
+     * @returns The user, or `null`.
      */
     async findById(id: string | number): Promise<User | null> {
         return await this.#options.findUserById(this.#options.db(), id)
     }
 
     /**
-     * Find user by credentials
+     * Find user by credentials.
+     *
+     * @param email - The submitted email.
+     * @param password - The submitted password.
+     * @returns The user, or `null`.
      */
     async findByCredentials(
         email: string,
@@ -185,147 +192,48 @@ export class KyselySessionProvider<User extends Authenticatable>
     }
 
     /**
-     * Verify password hash
+     * Verify password hash.
+     *
+     * @param plain - The submitted password.
+     * @param hash - The stored hash.
+     * @returns Whether they match.
      */
     async verifyPassword(plain: string, hash: string): Promise<boolean> {
-        return await this.#options.verifyPassword(plain, hash)
+        return await this.#verifyPassword(plain, hash)
     }
+}
 
-    /**
-     * Create a remember me token for a user
-     */
-    async createRememberToken(
-        user: User,
-        expiresIn: number,
-    ): Promise<RememberMeToken> {
-        if (!this.#enableRememberTokens) {
-            throw new Error(
-                'Remember tokens are not enabled for this provider',
-            )
-        }
-
-        const tokenValue = await this.generateTokenValue(32)
-        const hash = await this.hashTokenValue(tokenValue)
-        const now = new Date()
-        const expiresAt = new Date(Date.now() + expiresIn)
-
-        const result = await this.#options.db()
-            .insertInto(this.#options.rememberTokensTable)
-            .values({
-                user_id: user.id,
-                token_hash: hash,
-                expires_at: expiresAt,
-                created_at: now,
-            })
-            .returning('id')
-            .executeTakeFirst()
-
-        return {
-            identifier: result?.id || tokenValue,
-            value: tokenValue,
-            hash,
-            userId: user.id,
-            expiresAt,
-            createdAt: now,
-            // A freshly created credential's origin is its creation instant (#146).
-            firstIssuedAt: now,
-        }
+/**
+ * Check the options and build the remember-me store they ask for, if any.
+ * Runs before `super()`, so it cannot touch the instance — and it never calls
+ * `db` (#427).
+ *
+ * @throws {TypeError} See the provider's constructor.
+ */
+function rememberTokenStore<User extends Authenticatable>(
+    options: KyselySessionProviderOptions<User>,
+): RememberTokenStore | undefined {
+    assertDbResolver(options.db)
+    // Removed in v0.5.0 and refused for one release, so that an old
+    // configuration is never silently ignored. Drop this check in v0.6.0.
+    if ('enableRememberTokens' in options) {
+        throw new TypeError(
+            "enableRememberTokens was removed in v0.5.0: pass rememberTokensTable (your table's name) to turn remember-me tokens on, or omit it to leave them off",
+        )
     }
-
-    /**
-     * Verify a remember me token and return the user
-     */
-    async verifyRememberToken(
-        tokenValue: string,
-    ): Promise<{ user: User; token: RememberMeToken } | null> {
-        if (!this.#enableRememberTokens) {
-            return null
-        }
-
-        const hash = await this.hashTokenValue(tokenValue)
-
-        const token = await this.#options.db()
-            .selectFrom(this.#options.rememberTokensTable)
-            .selectAll()
-            .where('token_hash', '=', hash)
-            .where('expires_at', '>', new Date())
-            .executeTakeFirst()
-
-        if (!token) {
-            return null
-        }
-
-        const user = await this.findById(token.user_id)
-        if (!user) return null
-
-        return {
-            user,
-            token: {
-                identifier: token.id,
-                value: tokenValue,
-                hash,
-                userId: user.id,
-                expiresAt: token.expires_at,
-                createdAt: token.created_at,
-            },
-        }
+    const table: unknown = options.rememberTokensTable
+    if (table === undefined) return undefined
+    if (typeof table !== 'string' || table === '') {
+        throw new TypeError(
+            `rememberTokensTable must be a non-empty table name, got ${
+                table === '' ? 'an empty string' : describe(table)
+            }`,
+        )
     }
+    return new KyselyRememberTokenStore(options.db, table)
+}
 
-    /**
-     * Delete a remember me token
-     */
-    async deleteRememberToken(
-        user: User,
-        tokenId: string | number,
-    ): Promise<void> {
-        if (!this.#enableRememberTokens) {
-            return
-        }
-
-        await this.#options.db()
-            .deleteFrom(this.#options.rememberTokensTable)
-            .where('id', '=', tokenId)
-            .where('user_id', '=', user.id)
-            .execute()
-    }
-
-    /**
-     * Delete every remember-me token for a user (#147).
-     *
-     * Drops all of the user's rows so a captured remember-me cookie cannot re-mint
-     * a post-eviction session.
-     *
-     * @param user - The token owner whose remember-me credentials to drop.
-     */
-    async deleteAllRememberTokens(user: User): Promise<void> {
-        if (!this.#enableRememberTokens) {
-            return
-        }
-
-        await this.#options.db()
-            .deleteFrom(this.#options.rememberTokensTable)
-            .where('user_id', '=', user.id)
-            .execute()
-    }
-
-    /**
-     * Recycle a remember me token (for security)
-     */
-    async recycleRememberToken(
-        user: User,
-        token: RememberMeToken,
-        expiresIn: number,
-    ): Promise<RememberMeToken> {
-        if (!this.#enableRememberTokens) {
-            throw new Error(
-                'Remember tokens are not enabled for this provider',
-            )
-        }
-
-        await this.deleteRememberToken(user, token.identifier)
-        // Bare-copy the origin forward so renewal never resets the absolute
-        // clock (#146). The guard resolved firstIssuedAt before calling.
-        const fresh = await this.createRememberToken(user, expiresIn)
-        return { ...fresh, firstIssuedAt: token.firstIssuedAt }
-    }
+/** A short, value-free description of a rejected argument. */
+function describe(value: unknown): string {
+    return value === null ? 'null' : typeof value
 }
