@@ -2,16 +2,16 @@
  * @fileoverview How `Cli.dispatch()` recognises a command failure and maps it
  * to a process exit status.
  *
- * Package-internal: this module is not listed in `deno.json` `exports`, so
- * nothing outside `@lockness/cli` can import it. A producer meets the exit
- * contract through the public `CommandFailure` shape of
- * `@lockness/cli/command-failure`; only the dispatcher recognises it (#440(h)).
+ * Package-internal: this module is not listed in `deno.json` `exports`, so no
+ * exports entry reaches it. A producer meets the exit contract through the
+ * public `CommandFailure` shape of `@lockness/cli/command-failure`; only the
+ * dispatcher recognises it (#440(h)).
  *
  * It imports nothing, so `command_failure.ts`, which a package's commands load
  * at app boot, stays free of the barrel's command graph.
  *
  * @internal
- * @module @lockness/cli/exit_status
+ * @module
  */
 
 /** Lowest exit status that signals failure. */

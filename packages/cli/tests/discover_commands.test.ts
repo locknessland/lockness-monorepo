@@ -17,7 +17,10 @@ import { assertEquals, assertStringIncludes } from '@std/assert'
 import { join } from '@std/path'
 import { Cli } from '../mod.ts'
 
-/** Every `console.warn` / `console.error` call made while `fn` ran, joined. */
+/**
+ * The lines `console.warn` / `console.error` printed while `fn` ran, one
+ * entry per call with its arguments joined by a space.
+ */
 async function warnings(fn: () => Promise<void>): Promise<string[]> {
     const lines: string[] = []
     const original = { warn: console.warn, error: console.error }
