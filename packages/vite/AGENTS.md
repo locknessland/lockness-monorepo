@@ -88,6 +88,9 @@ those suites skip.
 A refused connection counts only with `{ refused: true }`, for a command whose
 sole connection is to a package registry. `kit_instructions_test.ts` leaves it
 off on purpose: it points `PG*` at a closed port, so a refusal there is a fault.
+The option gates only a **bare** refusal: Deno's HTTP client wraps a refused
+registry in "error sending request … tcp connect error: Connection refused", and
+that counts as offline either way.
 
 ## Before you call it done
 

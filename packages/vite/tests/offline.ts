@@ -31,6 +31,10 @@ export interface OfflineOptions {
      * that points its app at a closed loopback port on purpose needs a refusal
      * to fail, not to skip. Turn it on only for a command whose sole
      * connection is to a package registry.
+     *
+     * It gates only a BARE refusal. Deno's HTTP client reports a refused
+     * registry as "error sending request … tcp connect error: Connection
+     * refused", which matches as offline whatever this option says.
      */
     readonly refused?: boolean
 }
