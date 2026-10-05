@@ -23,6 +23,11 @@ import { ErrorHandlerRegistry } from '../exceptions/handler.ts'
 import { defaultErrorHandler } from '../exceptions/default_view.ts'
 import { discoverMiddlewares } from '../http/resolver.ts'
 import { declaredMiddlewares } from '../routing/decorators.ts'
+import { App } from '../app.ts'
+import { Controller, Get, UseMiddleware } from '../mod.ts'
+import { Kernel } from '../kernel/kernel_decorators.ts'
+import { createApp } from '../kernel/loader.ts'
+import type { Context } from '../types.ts'
 
 /** What one console method was called with, one entry per call. */
 interface Captured {
@@ -254,5 +259,88 @@ Deno.test('discoverMiddlewares - a file that fails to import logs at ERROR, and 
         assertEquals(captured.error.length, 1)
         assertStringIncludes(captured.error[0], 'a_broken_middleware.ts')
         assertStringIncludes(captured.error[0], 'SyntaxError')
+    })
+})
+
+// ============================================================================
+// Middleware discovery runs once per boot (#479)
+// ============================================================================
+
+Deno.test('createApp - a broken middleware file is imported and logged once per boot', async () => {
+    // Each discovery run imports the broken file and logs it once, so the
+    // number of log lines is the number of runs. A module-evaluation counter
+    // could not observe this: the module cache evaluates a module once per
+    // process however often it is imported.
+    const suffix = crypto.randomUUID().slice(0, 8)
+    const good = `boot-good-${suffix}`
+    await withAppDir({
+        'a_broken_middleware.ts': BROKEN_SOURCE,
+        'b_good_middleware.ts': middlewareSource(good, 'BootGoodMiddleware'),
+    }, async (dir) => {
+        @Kernel({
+            controllers: [],
+            middlewaresDir: dir,
+            shutdown: { signals: false },
+        })
+        class AppKernel {}
+
+        const original = console.log
+        console.log = () => {}
+        let captured: Captured
+        try {
+            captured = await captureConsole(async () => {
+                await createApp(AppKernel)
+            })
+        } finally {
+            console.log = original
+        }
+        const broken = captured.error.filter((line) =>
+            line.includes('a_broken_middleware.ts')
+        )
+        assertEquals(broken.length, 1, captured.error.join('\n'))
+        assert(declaredMiddlewares.has(good), 'the good middleware registered')
+    })
+})
+
+Deno.test('App.init - middlewaresDir registers a declared middleware a route can name, without a kernel', async () => {
+    const name = `init-mw-${crypto.randomUUID().slice(0, 8)}`
+    const decorators = import.meta.resolve('../routing/decorators.ts')
+    await withAppDir({
+        'stamp_middleware.ts': `
+import { DeclareMiddleware } from '${decorators}'
+
+@DeclareMiddleware('${name}')
+export class StampMiddleware {
+    async handle(
+        c: { header(name: string, value: string): void },
+        next: () => Promise<void>,
+    ) {
+        await next()
+        c.header('x-stamp', '${name}')
+    }
+}
+`,
+    }, async (dir) => {
+        @Controller('/stamped')
+        class StampedController {
+            @Get('/')
+            @UseMiddleware(name)
+            index(c: Context) {
+                return c.text('ok')
+            }
+        }
+
+        const app = new App()
+        await app.init({
+            middlewaresDir: dir,
+            controllers: [StampedController],
+        })
+
+        assert(declaredMiddlewares.has(name), 'the middleware registered')
+        const response = await app.fetch(
+            new Request('http://localhost/stamped'),
+        )
+        assertEquals(await response.text(), 'ok')
+        assertEquals(response.headers.get('x-stamp'), name)
     })
 })
