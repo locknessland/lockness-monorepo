@@ -43,7 +43,7 @@ Or add to your `deno.json`:
 ```json
 {
     "imports": {
-        "@lockness/ui": "jsr:@lockness/ui@^0.1.22"
+        "@lockness/ui": "jsr:@lockness/ui@^0.4.0"
     }
 }
 ```
