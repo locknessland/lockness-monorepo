@@ -263,7 +263,17 @@ export type DriverFactory = (
  *
  * @example
  * ```ts
- * await factory(url, { onNotice: (n) => reportNotice(n, reporter) })
+ * // A custom postgres factory installs the routed callback on its client.
+ * const factory: DriverFactory = async (url, options) => {
+ *     const client = postgres(url, { onnotice: options?.onNotice })
+ *     return {
+ *         db: drizzle(client),
+ *         close: () => client.end(),
+ *         probe: async () => {
+ *             await client`SELECT 1`
+ *         },
+ *     }
+ * }
  * ```
  */
 export interface DriverOptions {
@@ -409,16 +419,14 @@ const loadPostgresClient: PostgresClientLoader = async () => ({
  * through the console fallback — never through postgres.js's own default,
  * which dumps the raw notice object on stdout (#454).
  *
+ * Internal: not exported from the package. It exists as a test seam, so a
+ * test can pass a fake `load` and observe the options the client is built
+ * with; `defaultDriverFactories.postgres` is this factory with the real
+ * loader.
+ *
  * @param load - Loads the adapter and client; the real modules by default.
  *   A load failure becomes a `ClientUnavailableError`.
  * @returns The factory.
- *
- * @example
- * ```ts
- * const handle = await postgresDriverFactory()(url, {
- *     onNotice: (n) => reportNotice(n, myReporter),
- * })
- * ```
  */
 export function postgresDriverFactory(
     load: PostgresClientLoader = loadPostgresClient,
