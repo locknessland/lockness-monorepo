@@ -8,12 +8,16 @@
 
 import type { MakeCommand } from './types.ts'
 import { Stub } from '../../stubs.ts'
+import { CommandFailedError } from '../../command_failure.ts'
 import { STUBS_PATH } from './stub_paths.ts'
 
 /**
  * The `make:command` command definition.
  *
  * Scaffolds a CLI command.
+ *
+ * @throws {CommandFailedError} When no name is given. A failed write is not
+ * caught: it reaches `Cli.dispatch()`, which prints it with its frames.
  */
 export const makeCommand: MakeCommand = {
     name: 'make:command',
@@ -21,8 +25,9 @@ export const makeCommand: MakeCommand = {
     handler: async (args) => {
         const name = args[0]
         if (!name) {
-            console.error('❌ Please provide a command name (e.g., Greet)')
-            return
+            throw new CommandFailedError(
+                'Please provide a command name (e.g., Greet)',
+            )
         }
 
         const className = name.charAt(0).toUpperCase() + name.slice(1)
@@ -31,25 +36,19 @@ export const makeCommand: MakeCommand = {
         const dirPath = `./app/command`
         const filePath = `${dirPath}/${fileName}`
 
-        try {
-            const content = await Stub.renderFrom(
-                STUBS_PATH,
-                'make',
-                'command',
-                {
-                    className,
-                    commandName,
-                },
-            )
+        const content = await Stub.renderFrom(
+            STUBS_PATH,
+            'make',
+            'command',
+            {
+                className,
+                commandName,
+            },
+        )
 
-            await Deno.mkdir(dirPath, { recursive: true })
-            await Deno.writeTextFile(filePath, content)
-            console.log(`✅ Command created at ${filePath}`)
-            console.log(`💡 Run it with: deno task cli ${commandName}`)
-        } catch (error) {
-            console.error(
-                `❌ Failed to create command: ${(error as Error).message}`,
-            )
-        }
+        await Deno.mkdir(dirPath, { recursive: true })
+        await Deno.writeTextFile(filePath, content)
+        console.log(`✅ Command created at ${filePath}`)
+        console.log(`💡 Run it with: deno task cli ${commandName}`)
     },
 }

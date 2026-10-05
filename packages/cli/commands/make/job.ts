@@ -8,12 +8,16 @@
 
 import type { MakeCommand } from './types.ts'
 import { Stub } from '../../stubs.ts'
+import { CommandFailedError } from '../../command_failure.ts'
 import { STUBS_PATH } from './stub_paths.ts'
 
 /**
  * The `make:job` command definition.
  *
  * Scaffolds a background job.
+ *
+ * @throws {CommandFailedError} When no name is given. A failed write is not
+ * caught: it reaches `Cli.dispatch()`, which prints it with its frames.
  */
 export const makeJob: MakeCommand = {
     name: 'make:job',
@@ -21,10 +25,9 @@ export const makeJob: MakeCommand = {
     handler: async (args) => {
         const name = args[0]
         if (!name) {
-            console.error(
-                '❌ Please provide a job name (e.g., SendWelcomeEmail)',
+            throw new CommandFailedError(
+                'Please provide a job name (e.g., SendWelcomeEmail)',
             )
-            return
         }
 
         const className = name.charAt(0).toUpperCase() + name.slice(1)
@@ -36,25 +39,19 @@ export const makeJob: MakeCommand = {
         const dirPath = `./app/job`
         const filePath = `${dirPath}/${fileName}`
 
-        try {
-            const content = await Stub.renderFrom(
-                STUBS_PATH,
-                'make',
-                'job',
-                {
-                    className,
-                    jobName,
-                },
-            )
+        const content = await Stub.renderFrom(
+            STUBS_PATH,
+            'make',
+            'job',
+            {
+                className,
+                jobName,
+            },
+        )
 
-            await Deno.mkdir(dirPath, { recursive: true })
-            await Deno.writeTextFile(filePath, content)
-            console.log(`✅ Job created at ${filePath}`)
-            console.log(`💡 Dispatch with: dispatch(new ${className}({ ... }))`)
-        } catch (error) {
-            console.error(
-                `❌ Failed to create job: ${(error as Error).message}`,
-            )
-        }
+        await Deno.mkdir(dirPath, { recursive: true })
+        await Deno.writeTextFile(filePath, content)
+        console.log(`✅ Job created at ${filePath}`)
+        console.log(`💡 Dispatch with: dispatch(new ${className}({ ... }))`)
     },
 }

@@ -14,12 +14,16 @@
 
 import type { MakeCommand } from './types.ts'
 import { Stub } from '../../stubs.ts'
+import { CommandFailedError } from '../../command_failure.ts'
 import { STUBS_PATH } from './stub_paths.ts'
 
 /**
  * The `make:resource` command definition.
  *
  * Scaffolds an API Resource class under `./app/resource`.
+ *
+ * @throws {CommandFailedError} When no name is given. A failed write is not
+ * caught: it reaches `Cli.dispatch()`, which prints it with its frames.
  */
 export const makeResource: MakeCommand = {
     name: 'make:resource',
@@ -27,8 +31,9 @@ export const makeResource: MakeCommand = {
     handler: async (args) => {
         const name = args[0]
         if (!name) {
-            console.error('❌ Please provide a resource name (e.g., User)')
-            return
+            throw new CommandFailedError(
+                'Please provide a resource name (e.g., User)',
+            )
         }
 
         const className = name.charAt(0).toUpperCase() + name.slice(1)
@@ -36,23 +41,17 @@ export const makeResource: MakeCommand = {
         const dirPath = `./app/resource`
         const filePath = `${dirPath}/${fileName}`
 
-        try {
-            const content = await Stub.renderFrom(
-                STUBS_PATH,
-                'make',
-                'resource',
-                {
-                    className,
-                },
-            )
+        const content = await Stub.renderFrom(
+            STUBS_PATH,
+            'make',
+            'resource',
+            {
+                className,
+            },
+        )
 
-            await Deno.mkdir(dirPath, { recursive: true })
-            await Deno.writeTextFile(filePath, content)
-            console.log(`✅ Resource created at ${filePath}`)
-        } catch (error) {
-            console.error(
-                `❌ Failed to create resource: ${(error as Error).message}`,
-            )
-        }
+        await Deno.mkdir(dirPath, { recursive: true })
+        await Deno.writeTextFile(filePath, content)
+        console.log(`✅ Resource created at ${filePath}`)
     },
 }

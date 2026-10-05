@@ -8,12 +8,16 @@
 
 import type { MakeCommand } from './types.ts'
 import { Stub } from '../../stubs.ts'
+import { CommandFailedError } from '../../command_failure.ts'
 import { STUBS_PATH } from './stub_paths.ts'
 
 /**
  * The `make:policy` command definition.
  *
  * Scaffolds an authorization policy.
+ *
+ * @throws {CommandFailedError} When no name is given. A failed write is not
+ * caught: it reaches `Cli.dispatch()`, which prints it with its frames.
  */
 export const makePolicy: MakeCommand = {
     name: 'make:policy',
@@ -21,8 +25,9 @@ export const makePolicy: MakeCommand = {
     handler: async (args) => {
         const name = args[0]
         if (!name) {
-            console.error('❌ Please provide a policy name (e.g., Post)')
-            return
+            throw new CommandFailedError(
+                'Please provide a policy name (e.g., Post)',
+            )
         }
 
         const className = name.charAt(0).toUpperCase() + name.slice(1)
@@ -31,24 +36,18 @@ export const makePolicy: MakeCommand = {
         const dirPath = `./app/policy`
         const filePath = `${dirPath}/${fileName}`
 
-        try {
-            const content = await Stub.renderFrom(
-                STUBS_PATH,
-                'make',
-                'policy',
-                {
-                    className,
-                    namespace,
-                },
-            )
+        const content = await Stub.renderFrom(
+            STUBS_PATH,
+            'make',
+            'policy',
+            {
+                className,
+                namespace,
+            },
+        )
 
-            await Deno.mkdir(dirPath, { recursive: true })
-            await Deno.writeTextFile(filePath, content)
-            console.log(`✅ Policy created at ${filePath}`)
-        } catch (error) {
-            console.error(
-                `❌ Failed to create policy: ${(error as Error).message}`,
-            )
-        }
+        await Deno.mkdir(dirPath, { recursive: true })
+        await Deno.writeTextFile(filePath, content)
+        console.log(`✅ Policy created at ${filePath}`)
     },
 }

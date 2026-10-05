@@ -44,37 +44,36 @@ export const makeErrorPages: MakeCommand = {
 
         const dirPath = './app/view/pages/errors'
 
-        try {
-            await Deno.mkdir(dirPath, { recursive: true })
+        await Deno.mkdir(dirPath, { recursive: true })
 
-            // Generate error pages
-            for (const page of errorPages) {
-                const filePath = `${dirPath}/${page.fileName}`
-                const content = await Stub.renderFrom(
-                    STUBS_PATH,
-                    'make',
-                    page.stub,
-                    {},
-                )
-
-                await Deno.writeTextFile(filePath, content)
-                console.log(`✅ Created ${filePath}`)
-            }
-
-            // Generate error_handler.tsx
-            const handlerPath = `${dirPath}/error_handler.tsx`
-            const handlerContent = await Stub.renderFrom(
+        // Generate error pages
+        for (const page of errorPages) {
+            const filePath = `${dirPath}/${page.fileName}`
+            const content = await Stub.renderFrom(
                 STUBS_PATH,
                 'make',
-                'error_handler',
+                page.stub,
                 {},
             )
-            await Deno.writeTextFile(handlerPath, handlerContent)
-            console.log(`✅ Created ${handlerPath}`)
 
-            console.log('\n🎉 All error pages created successfully!')
-            console.log('\n💡 Configure error handler in app/kernel.ts:')
-            console.log(`
+            await Deno.writeTextFile(filePath, content)
+            console.log(`✅ Created ${filePath}`)
+        }
+
+        // Generate error_handler.tsx
+        const handlerPath = `${dirPath}/error_handler.tsx`
+        const handlerContent = await Stub.renderFrom(
+            STUBS_PATH,
+            'make',
+            'error_handler',
+            {},
+        )
+        await Deno.writeTextFile(handlerPath, handlerContent)
+        console.log(`✅ Created ${handlerPath}`)
+
+        console.log('\n🎉 All error pages created successfully!')
+        console.log('\n💡 Configure error handler in app/kernel.ts:')
+        console.log(`
 import { errorHandler } from '@view/pages/errors/error_handler.tsx'
 
 // Then add errorHandler to app.init() config:
@@ -83,10 +82,5 @@ app.init({
     // ... other config
 })
 `)
-        } catch (error) {
-            console.error(
-                `❌ Failed to create error pages: ${(error as Error).message}`,
-            )
-        }
     },
 }
