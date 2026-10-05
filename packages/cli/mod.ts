@@ -26,7 +26,7 @@ import { join } from '@std/path'
 import { importAppFile } from '@lockness/contract/app-file/internal'
 import { renderError, safeForLog } from '@lockness/contract'
 import { Stub } from './stubs.ts'
-import { isCommandFailure, toFailureStatus } from './command_failure.ts'
+import { isCommandFailure, toFailureStatus } from './exit_status.ts'
 import { rawErrorsHint, readRawErrorsSwitch } from './raw_errors.ts'
 
 export { CommandFailedError } from './command_failure.ts'

@@ -12,7 +12,12 @@
  * subclass of `Error`, and the check survives two copies of this package
  * being loaded side by side.
  *
- * This module imports nothing and is exported on its own as
+ * Recognising the shape is internal to `Cli.dispatch()`: a producer meets the
+ * contract by throwing an error of the {@link CommandFailure} shape, and
+ * needs nothing else from this package.
+ *
+ * Its only import is the package-internal `exit_status.ts`, which imports
+ * nothing, and it is exported on its own as
  * `@lockness/cli/command-failure`. A package whose runtime code must stay
  * light — `@lockness/drizzle`'s commands are loaded whenever an application
  * boots with a database — imports it from there rather than from the
@@ -28,11 +33,7 @@
  * @module @lockness/cli/command-failure
  */
 
-/** Lowest exit status that signals failure. */
-const MIN_FAILURE_STATUS = 1
-
-/** Highest exit status a POSIX process can report. */
-const MAX_EXIT_STATUS = 255
+import { MIN_FAILURE_STATUS, toFailureStatus } from './exit_status.ts'
 
 /**
  * An error that satisfies the exit contract: an `Error` with an integer
@@ -49,52 +50,6 @@ export interface CommandFailedErrorOptions {
     readonly exitCode?: number
     /** The underlying error, kept for programmatic callers. */
     readonly cause?: unknown
-}
-
-/**
- * Map a candidate exit code to a failure status: an integer in `1`–`255` is
- * kept, anything else becomes `1`.
- *
- * A failure must never report `0`, and a code outside the range a process can
- * return would be truncated by the operating system (`256` reads as `0`).
- *
- * @param code - The candidate exit code.
- * @returns A failure status in `1`–`255`.
- *
- * @example
- * ```ts
- * toFailureStatus(3)   // 3
- * toFailureStatus(0)   // 1
- * toFailureStatus(256) // 1
- * ```
- */
-export function toFailureStatus(code: number): number {
-    return Number.isInteger(code) && code >= MIN_FAILURE_STATUS &&
-            code <= MAX_EXIT_STATUS
-        ? code
-        : MIN_FAILURE_STATUS
-}
-
-/**
- * Whether `error` satisfies the exit contract — an `Error` with an integer
- * `exitCode`.
- *
- * Checked by shape rather than `instanceof CommandFailedError`, so a local
- * subclass in a package that cannot import `@lockness/cli` is recognised too.
- *
- * @param error - Anything a handler threw.
- * @returns `true` when `error` is an expected, already-explained failure.
- *
- * @example
- * ```ts
- * isCommandFailure(new CommandFailedError('x'))                     // true
- * isCommandFailure(Object.assign(new Error('x'), { exitCode: 2 }))  // true
- * isCommandFailure(new Error('x'))                                  // false
- * ```
- */
-export function isCommandFailure(error: unknown): error is CommandFailure {
-    return error instanceof Error &&
-        Number.isInteger((error as { exitCode?: unknown }).exitCode)
 }
 
 /**

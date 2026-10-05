@@ -106,7 +106,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-16 test files for 41 source files:
+16 test files for 42 source files:
 
 - `packages/cli/tests/app_file.test.ts`
 - `packages/cli/tests/cli_dispatch.test.ts`

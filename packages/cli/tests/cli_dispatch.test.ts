@@ -36,7 +36,7 @@ import {
     type CommandContract,
     CommandFailedError,
 } from '../mod.ts'
-import { isCommandFailure } from '../command_failure.ts'
+import { isCommandFailure } from '../exit_status.ts'
 
 // -----------------------------------------------------------------------------
 // Console capture
