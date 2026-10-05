@@ -37,13 +37,13 @@ application installs it, or the feature stays off.
 
 <!-- generated:surface -->
 
-| Kind      | Exports                                                                                                                                                                                                                                                                                                |
-| :-------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| class     | `Database`, `Factory`, `MalformedCursorError`                                                                                                                                                                                                                                                          |
-| function  | `assertNotProduction`, `decodeCursor`, `encodeCursor`, `paginate`, `registerDrizzleCommands`, `resolveDialect`                                                                                                                                                                                         |
-| interface | `CommandSpec`, `ConnectionOptions`, `ConnectionResult`, `CursorPaginateOptions`, `DbConnection`, `DecodedCursor`, `DriverHandle`, `DriverOptions`, `DrizzleCommandDeps`, `FactoryCreateOptions`, `MigrateOptions`, `MigrationSettings`, `NoticeReporter`, `OffsetPaginateOptions`, `SchemaMaintenance` |
-| typeAlias | `CommandRunner`, `DatabaseSchema`, `Dialect`, `DialectDatabase`, `DriverFactory`, `KitDialect`, `MaintenanceOpener`, `MaintenanceSession`, `MigrationConfigLoader`, `SeederLoader`                                                                                                                     |
-| variable  | `ALLOW_PRODUCTION_FLAG`, `CLIENT_PACKAGE`                                                                                                                                                                                                                                                              |
+| Kind      | Exports                                                                                                                                                                                                                                                                                                                 |
+| :-------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| class     | `Database`, `Factory`, `MalformedCursorError`                                                                                                                                                                                                                                                                           |
+| function  | `assertNotProduction`, `decodeCursor`, `encodeCursor`, `paginate`, `registerDrizzleCommands`, `resolveDialect`                                                                                                                                                                                                          |
+| interface | `CommandResult`, `CommandSpec`, `ConnectionOptions`, `ConnectionResult`, `CursorPaginateOptions`, `DbConnection`, `DecodedCursor`, `DriverHandle`, `DriverOptions`, `DrizzleCommandDeps`, `FactoryCreateOptions`, `MigrateOptions`, `MigrationSettings`, `NoticeReporter`, `OffsetPaginateOptions`, `SchemaMaintenance` |
+| typeAlias | `CommandRunner`, `DatabaseSchema`, `Dialect`, `DialectDatabase`, `DriverFactory`, `KitDialect`, `MaintenanceOpener`, `MaintenanceSession`, `MigrationConfigLoader`, `SeederLoader`                                                                                                                                      |
+| variable  | `ALLOW_PRODUCTION_FLAG`, `CLIENT_PACKAGE`                                                                                                                                                                                                                                                                               |
 
 Anything not listed is internal and free to change.
 
@@ -58,6 +58,7 @@ Anything not listed is internal and free to change.
 | What a withheld failure may show: the vetted error name     | `error_name.ts`         |
 | Dialects, default driver factories, `loadClient`            | `drivers.ts`            |
 | `db:*` command wiring, seams and the production guard       | `cli_commands.ts`       |
+| Verdict on a drizzle-kit run: exit code plus stderr (#445)  | `kit_outcome.ts`        |
 | `db:fresh` reset policy: scope, planners, refusals (#435)   | `reset.ts`              |
 | `db:migrate` / `db:fresh` settings from `drizzle.config.ts` | `migration_settings.ts` |
 | The shared refusal (`RefusedError`), framed per command     | `refusal.ts`            |
@@ -104,7 +105,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-22 test files for 18 source files:
+22 test files for 19 source files:
 
 - `packages/drizzle/tests/app_file.test.ts`
 - `packages/drizzle/tests/cli_commands.test.ts`

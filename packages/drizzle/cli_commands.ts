@@ -43,6 +43,7 @@ import {
 } from './migration_settings.ts'
 import { describeResetScope, resetDatabase } from './reset.ts'
 import { RefusedError } from './refusal.ts'
+import { kitFailure, type KitSubcommand } from './kit_outcome.ts'
 
 /**
  * CLI command handler type.
@@ -75,16 +76,39 @@ export interface CommandSpec {
 }
 
 /**
- * Command-runner port — spawns a process and resolves its exit code.
+ * What a {@link CommandRunner} observed of one finished process: facts only.
+ * Whether the step worked is decided by the command, not the runner (#445).
+ */
+export interface CommandResult {
+    /** The process exit code. */
+    readonly code: number
+    /**
+     * What the process wrote to stderr, decoded as UTF-8. The production
+     * runner keeps only the first {@link RETAINED_STDERR_BYTES} bytes; all of
+     * it has already been shown on the terminal.
+     */
+    readonly stderr: string
+}
+
+/**
+ * Command-runner port — spawns a process and resolves what it observed.
+ *
+ * The stdio contract (#445): **stdin and stdout are inherited**, so a prompt
+ * drizzle-kit shows on a terminal still works — its prompt library checks
+ * exactly those two streams, and without a TTY it refuses rather than waits,
+ * so a run never hangs. **stderr is shown and returned**: each chunk is
+ * forwarded to the terminal as it arrives, and a copy comes back in
+ * {@link CommandResult.stderr}, because drizzle-kit reports a refused prompt
+ * or a failed statement there while exiting 0.
  *
  * The production default wraps {@link Deno.Command}; a test injects a fake that
  * records the constructed argv (asserting the `drizzle-kit` command line)
  * without ever executing it.
  *
  * @param spec - The command and arguments to run.
- * @returns The process exit code.
+ * @returns The exit code and the stderr the process wrote.
  */
-export type CommandRunner = (spec: CommandSpec) => Promise<number>
+export type CommandRunner = (spec: CommandSpec) => Promise<CommandResult>
 
 /**
  * Minimal database connection port used by the `db:check` and `db:seed`
@@ -169,12 +193,34 @@ type SeederConstructor = new () => { run(): Promise<void> }
 // =============================================================================
 
 /**
- * Drizzle Kit CLI command base, for `db:generate`, `db:push`, `db:studio` and
- * `db:status`, and for the fallback a kit-only `db:migrate` refusal names. The
- * `npm:` specifier is a hard-rule-2 exception, pinned exactly — see
- * {@link DRIZZLE_KIT_SPECIFIER} (#437).
+ * Drizzle Kit CLI command base, as a person types it: the fallback a kit-only
+ * `db:migrate` refusal names. The `npm:` specifier is a hard-rule-2 exception,
+ * pinned exactly — see {@link DRIZZLE_KIT_SPECIFIER} (#437).
  */
 const DRIZZLE_KIT_ARGS = ['run', '-A', DRIZZLE_KIT_SPECIFIER] as const
+
+/**
+ * The same command as spawned for `db:generate`, `db:push`, `db:studio` and
+ * `db:status`, with `-q` (#445). The flag is load-bearing: without it Deno
+ * itself writes to stderr — the npm `Initialize` lines and the
+ * "Ignored build scripts" warning on a project's first run — and the stderr
+ * rule in `kit_outcome.ts` would fail a run that worked.
+ */
+const DRIZZLE_KIT_SPAWN_ARGS = [
+    'run',
+    '-q',
+    '-A',
+    DRIZZLE_KIT_SPECIFIER,
+] as const
+
+/**
+ * How much of a child's stderr the production runner keeps for the verdict.
+ * The verdict needs only to know that stderr is not blank and whether it holds
+ * the TTY refusal, which comes first; the rest is forwarded, never kept.
+ *
+ * @internal Exported for tests.
+ */
+export const RETAINED_STDERR_BYTES = 64 * 1024
 
 /** Directory for database seeders. Shared with the seeder generator. */
 export const SEEDERS_DIR = './database/seeders' as const
@@ -238,19 +284,58 @@ async function initDatabase(): Promise<Database> {
 }
 
 /**
- * Production command-runner: spawns a real process via {@link Deno.Command}.
+ * Where the production runner forwards a child's stderr: the terminal's,
+ * unless a test records it.
+ */
+interface StderrSink {
+    /** Write some bytes; resolves how many were written. */
+    write(chunk: Uint8Array): Promise<number>
+}
+
+/**
+ * Production command-runner: spawns a real process via {@link Deno.Command}
+ * under the {@link CommandRunner} stdio contract — stdin and stdout inherited,
+ * stderr piped, forwarded live and returned. It judges nothing.
  *
  * @param spec - The command and arguments to run.
- * @returns The process exit code.
+ * @param sink - Where stderr is forwarded; the process's own stderr by
+ *   default.
+ * @returns The exit code, and the first {@link RETAINED_STDERR_BYTES} bytes of
+ *   stderr.
+ * @throws Whatever spawning the process, or writing to the sink, throws.
+ * @internal Exported for tests.
+ *
+ * @example
+ * ```ts
+ * const { code, stderr } = await defaultRunCommand({
+ *     cmd: Deno.execPath(),
+ *     args: ['eval', "console.error('x')"],
+ * })
+ * // code === 0, stderr === 'x\n'
+ * ```
  */
-const defaultRunCommand: CommandRunner = async (spec) => {
-    const command = new Deno.Command(spec.cmd, {
+export async function defaultRunCommand(
+    spec: CommandSpec,
+    sink: StderrSink = Deno.stderr,
+): Promise<CommandResult> {
+    const child = new Deno.Command(spec.cmd, {
         args: [...spec.args],
+        stdin: 'inherit',
         stdout: 'inherit',
-        stderr: 'inherit',
-    })
-    const { code } = await command.output()
-    return code
+        stderr: 'piped',
+    }).spawn()
+    const kept = new Uint8Array(RETAINED_STDERR_BYTES)
+    let size = 0
+    for await (const chunk of child.stderr) {
+        for (let written = 0; written < chunk.length;) {
+            written += await sink.write(chunk.subarray(written))
+        }
+        const room = Math.min(RETAINED_STDERR_BYTES - size, chunk.length)
+        kept.set(chunk.subarray(0, room), size)
+        size += room
+    }
+    const { code } = await child.status
+    return { code, stderr: new TextDecoder().decode(kept.subarray(0, size)) }
 }
 
 /**
@@ -762,33 +847,25 @@ export function registerDrizzleCommands(
     }
 
     /**
-     * Build and run a `drizzle-kit` command line through the command-runner
-     * port. The argv is constructed here (so a fake runner can assert it) and
-     * executed only by the injected runner.
-     */
-    const runKit = (subcommand: string): Promise<number> =>
-        deps.runCommand({
-            cmd: 'deno',
-            args: [...DRIZZLE_KIT_ARGS, subcommand],
-        })
-
-    /**
-     * Run a `drizzle-kit` subcommand and fail the command when it exits
-     * non-zero. drizzle-kit has already printed its own diagnostics to the
-     * inherited stderr; the thrown message says which step failed.
+     * Run a `drizzle-kit` subcommand through the command-runner port and fail
+     * the command when {@link kitFailure} says the run did not work: a
+     * non-zero exit, or for `generate` and `push` an exit 0 after writing to
+     * stderr (#445). The argv is constructed here, so a fake runner can
+     * assert it. drizzle-kit's own diagnostics have already reached the
+     * terminal; the thrown message says which step failed and why.
      *
-     * @throws {CommandFailedError} `<failure> (drizzle-kit <sub> exited <n>)`.
+     * @throws {CommandFailedError} With the verdict's message.
      */
     const runKitOrFail = async (
-        subcommand: string,
+        subcommand: KitSubcommand,
         failure: string,
     ): Promise<void> => {
-        const code = await runKit(subcommand)
-        if (code !== 0) {
-            throw new CommandFailedError(
-                `${failure} (drizzle-kit ${subcommand} exited ${code})`,
-            )
-        }
+        const result = await deps.runCommand({
+            cmd: 'deno',
+            args: [...DRIZZLE_KIT_SPAWN_ARGS, subcommand],
+        })
+        const message = kitFailure(subcommand, failure, result)
+        if (message !== undefined) throw new CommandFailedError(message)
     }
 
     // -------------------------------------------------------------------------
@@ -798,9 +875,10 @@ export function registerDrizzleCommands(
     cli.register(
         'db:generate',
         async () => {
+            // No closing ✅ line (#445): Lockness cannot observe the outcome,
+            // and drizzle-kit's own last line already reports it.
             console.log('📦 Generating migrations...')
             await runKitOrFail('generate', 'Failed to generate migrations')
-            console.log('✅ Migrations generated successfully')
         },
         'Generate migration files from schema changes',
     )
@@ -814,9 +892,10 @@ export function registerDrizzleCommands(
     cli.register(
         'db:push',
         async () => {
+            // No closing ✅ line (#445), as for db:generate: drizzle-kit
+            // prints "[✓] Changes applied" or "[x] All changes were aborted".
             console.log('🔄 Pushing schema to database...')
             await runKitOrFail('push', 'Failed to push schema')
-            console.log('✅ Schema pushed successfully')
         },
         'Push schema changes directly to database (without migrations)',
     )

@@ -24,12 +24,15 @@ import { CommandFailedError } from '@lockness/cli/command-failure'
 import { container } from '@lockness/container'
 import { Database } from '../mod.ts'
 import {
+    type CommandResult,
     type CommandRunner,
     type CommandSpec,
     type DbConnection,
+    defaultRunCommand,
     type DrizzleCommandDeps,
     type MaintenanceSession,
     registerDrizzleCommands,
+    RETAINED_STDERR_BYTES,
     type SeederLoader,
 } from '../cli_commands.ts'
 import type { MigrateOptions } from '../drivers.ts'
@@ -57,15 +60,23 @@ class FakeCli {
     }
 }
 
-/** A command-runner that records every spec and returns canned exit codes. */
-function fakeRunner(codes: number[] = []) {
+/**
+ * A command-runner that records every spec and returns canned results; a run
+ * past the end of the list exits 0 with an empty stderr.
+ */
+function fakeRunner(results: CommandResult[] = []) {
     const calls: CommandSpec[] = []
     let i = 0
     const run: CommandRunner = (spec) => {
         calls.push(spec)
-        return Promise.resolve(codes[i++] ?? 0)
+        return Promise.resolve(results[i++] ?? { code: 0, stderr: '' })
     }
     return { calls, run }
+}
+
+/** A canned runner result: an exit code and what the child wrote to stderr. */
+function exited(code: number, stderr = ''): CommandResult {
+    return { code, stderr }
 }
 
 /** A connection port whose probe/close are observable. */
@@ -139,7 +150,7 @@ for (const [command, subcommand] of shellCommands) {
         const restore = muteConsole()
         try {
             const cli = new FakeCli()
-            const { run } = fakeRunner([1])
+            const { run } = fakeRunner([exited(1)])
             registerDrizzleCommands(cli, { runCommand: run })
 
             const error = await assertRejects(
@@ -160,7 +171,7 @@ for (const [command, subcommand] of shellCommands) {
         const restore = muteConsole()
         try {
             const cli = new FakeCli()
-            const { run } = fakeRunner([0])
+            const { run } = fakeRunner([exited(0)])
             registerDrizzleCommands(cli, { runCommand: run })
 
             await cli.run(command)
@@ -176,11 +187,15 @@ Deno.test('db:status - only claims migration-history consistency, never drift', 
     console.log = (...args: unknown[]) => void lines.push(args.join(' '))
     try {
         const cli = new FakeCli()
-        registerDrizzleCommands(cli, { runCommand: fakeRunner([0]).run })
+        registerDrizzleCommands(cli, {
+            runCommand: fakeRunner([exited(0)]).run,
+        })
         await cli.run('db:status')
 
         const failing = new FakeCli()
-        registerDrizzleCommands(failing, { runCommand: fakeRunner([2]).run })
+        registerDrizzleCommands(failing, {
+            runCommand: fakeRunner([exited(2)]).run,
+        })
         const error = await assertRejects(
             () => failing.run('db:status'),
             CommandFailedError,
@@ -239,7 +254,13 @@ for (const [command, subcommand] of shellCommands) {
             assertEquals(calls.length, 1)
             assertEquals(calls[0], {
                 cmd: 'deno',
-                args: ['run', '-A', 'npm:drizzle-kit@0.31.10', subcommand],
+                args: [
+                    'run',
+                    '-q',
+                    '-A',
+                    'npm:drizzle-kit@0.31.10',
+                    subcommand,
+                ],
             })
         } finally {
             restore()
@@ -269,6 +290,183 @@ Deno.test('#437 every shell-out runs an exactly pinned drizzle-kit', async () =>
     } finally {
         restore()
     }
+})
+
+// -----------------------------------------------------------------------------
+// The kit verdict (#445) — generate and push pass only on exit 0 with a clean
+// stderr: drizzle-kit swallows their errors and exits 0
+// -----------------------------------------------------------------------------
+
+/** drizzle-kit 0.31.10's refusal when a prompt finds no TTY, as measured. */
+const TTY_REFUSAL = 'Error: Interactive prompts require a TTY terminal ' +
+    '(process.stdin.isTTY or process.stdout.isTTY is false). This can happen ' +
+    'when running in CI, piped input, or non-interactive shells.\n' +
+    '    at render10 (file:///app/node_modules/drizzle-kit/bin.cjs:1450:31)\n'
+
+/** A swallowed SQL error, as `pgPush`'s catch-all prints it. */
+const SQL_ERROR = 'error: invalid input syntax for type integer: "x"\n' +
+    '    at ErrorResponse (file:///app/node_modules/postgres/src/connection.js:815:30)\n'
+
+/** What a refusal says before the way forward, for either command. */
+const NEEDED_A_TERMINAL = 'drizzle-kit needed an answer only a terminal can ' +
+    'give (a rename, or a data-loss confirmation) and this run had none'
+
+/**
+ * Run one command against one canned result; capture what it printed and the
+ * failure it threw, if any.
+ */
+async function judge(
+    command: string,
+    result: CommandResult,
+): Promise<{ printed: string; failure?: CommandFailedError }> {
+    const lines: string[] = []
+    const { log, error } = console
+    console.log = (...args: unknown[]) => void lines.push(args.join(' '))
+    console.error = (...args: unknown[]) => void lines.push(args.join(' '))
+    try {
+        const cli = new FakeCli()
+        registerDrizzleCommands(cli, { runCommand: fakeRunner([result]).run })
+        try {
+            await cli.run(command)
+            return { printed: lines.join('\n') }
+        } catch (thrown) {
+            if (!(thrown instanceof CommandFailedError)) throw thrown
+            return { printed: lines.join('\n'), failure: thrown }
+        }
+    } finally {
+        console.log = log
+        console.error = error
+    }
+}
+
+const VERDICTS: ReadonlyArray<{
+    readonly command: string
+    readonly result: CommandResult
+    readonly failure: string | undefined
+}> = [
+    { command: 'db:generate', result: exited(0), failure: undefined },
+    { command: 'db:push', result: exited(0), failure: undefined },
+    // A stderr of whitespace only is blank, not a report.
+    { command: 'db:generate', result: exited(0, '\n  \n'), failure: undefined },
+    { command: 'db:push', result: exited(0, '\n'), failure: undefined },
+    {
+        command: 'db:generate',
+        result: exited(0, TTY_REFUSAL),
+        failure: `Failed to generate migrations: ${NEEDED_A_TERMINAL}, so no ` +
+            'migration was written. Run db:generate in a terminal and commit ' +
+            'the migration; generate has no non-interactive option for renames.',
+    },
+    {
+        command: 'db:push',
+        result: exited(0, TTY_REFUSAL),
+        failure:
+            `Failed to push schema: ${NEEDED_A_TERMINAL}, so nothing was ` +
+            'applied. Run db:push in a terminal, or for CI run db:generate ' +
+            'locally and db:migrate in CI.',
+    },
+    {
+        command: 'db:push',
+        result: exited(0, SQL_ERROR),
+        failure: 'Failed to push schema (drizzle-kit push exited 0 after ' +
+            'reporting an error; see above). The schema may be partly pushed: ' +
+            'drizzle-kit runs its statements one at a time, outside a ' +
+            'transaction.',
+    },
+    {
+        command: 'db:generate',
+        result: exited(0, 'Error: Cannot find module "./app/model/x.ts"\n'),
+        failure: 'Failed to generate migrations (drizzle-kit generate exited ' +
+            '0 after reporting an error; see above)',
+    },
+    // A non-zero exit keeps its message, whatever stderr holds.
+    {
+        command: 'db:generate',
+        result: exited(2),
+        failure:
+            'Failed to generate migrations (drizzle-kit generate exited 2)',
+    },
+    {
+        command: 'db:push',
+        result: exited(2, TTY_REFUSAL),
+        failure: 'Failed to push schema (drizzle-kit push exited 2)',
+    },
+    // check and studio keep the exit-code rule: their stderr is shown, not
+    // judged, until someone measures them.
+    { command: 'db:status', result: exited(0, 'noise\n'), failure: undefined },
+    { command: 'db:studio', result: exited(0, 'noise\n'), failure: undefined },
+]
+
+for (const { command, result, failure } of VERDICTS) {
+    const stderr = JSON.stringify(result.stderr.slice(0, 24))
+    const verdict = failure === undefined ? 'passes' : 'fails'
+    Deno.test(`#445 ${command} - (${result.code}, ${stderr}) ${verdict}`, async () => {
+        const judged = await judge(command, result)
+        assertEquals(judged.failure?.message, failure)
+        if (judged.failure) assertEquals(judged.failure.exitCode, 1)
+    })
+}
+
+for (const command of ['db:generate', 'db:push']) {
+    Deno.test(`#445 ${command} - prints no closing ✅ line: Lockness cannot observe the outcome`, async () => {
+        const { printed, failure } = await judge(command, exited(0))
+        assertEquals(failure, undefined)
+        assert(!printed.includes('✅'), printed)
+        assert(!/successfully/i.test(printed), printed)
+    })
+}
+
+// -----------------------------------------------------------------------------
+// The production runner (#445) — a real child process
+// -----------------------------------------------------------------------------
+
+/** A stderr sink that keeps every byte the runner forwards to it. */
+function recordingSink() {
+    const decoder = new TextDecoder()
+    let bytes = 0
+    let text = ''
+    return {
+        bytes: () => bytes,
+        text: () => text,
+        write(chunk: Uint8Array): Promise<number> {
+            bytes += chunk.length
+            text += decoder.decode(chunk, { stream: true })
+            return Promise.resolve(chunk.length)
+        },
+    }
+}
+
+Deno.test('#445 defaultRunCommand - returns the exit code and what the child wrote to stderr', async () => {
+    const sink = recordingSink()
+    const result = await defaultRunCommand({
+        cmd: Deno.execPath(),
+        args: ['eval', "console.error('x')"],
+    }, sink)
+    assertEquals(result, { code: 0, stderr: 'x\n' })
+    assertEquals(sink.text(), 'x\n')
+})
+
+Deno.test('#445 defaultRunCommand - reports a non-zero exit with an empty stderr', async () => {
+    const result = await defaultRunCommand({
+        cmd: Deno.execPath(),
+        args: ['eval', 'Deno.exit(3)'],
+    }, recordingSink())
+    assertEquals(result, { code: 3, stderr: '' })
+})
+
+Deno.test('#445 defaultRunCommand - forwards all of stderr but retains a bounded copy', async () => {
+    const total = RETAINED_STDERR_BYTES + 40_000
+    const sink = recordingSink()
+    const result = await defaultRunCommand({
+        cmd: Deno.execPath(),
+        args: [
+            'eval',
+            `const b = new Uint8Array(${total}).fill(97); let n = 0; ` +
+            'while (n < b.length) n += Deno.stderr.writeSync(b.subarray(n))',
+        ],
+    }, sink)
+    assertEquals(result.code, 0)
+    assertEquals(sink.bytes(), total)
+    assertEquals(result.stderr, 'a'.repeat(RETAINED_STDERR_BYTES))
 })
 
 // -----------------------------------------------------------------------------

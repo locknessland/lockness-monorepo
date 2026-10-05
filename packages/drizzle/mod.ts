@@ -45,6 +45,7 @@ import { holdsSecret, shownName, UNREADABLE_NAME } from './error_name.ts'
 
 export { registerDrizzleCommands } from './cli_commands.ts'
 export type {
+    CommandResult,
     CommandRunner,
     CommandSpec,
     DbConnection,

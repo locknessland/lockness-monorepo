@@ -38,6 +38,13 @@ export const DRIZZLE_KIT_DIALECT: Record<Dialect, string> = {
  * `drizzle-kit check` does in this version — a release that changes either
  * must not reach an app silently. The 1.0 betas are out of scope until 1.0 is
  * stable.
+ *
+ * A bump also re-checks #445, where `db:generate` and `db:push` fail on any
+ * stderr because drizzle-kit swallows their errors and exits 0. Run
+ * `deno task kits:smoke` for the rename refusal and `deno task test:postgres`
+ * for the push suite. Check that `kit_outcome.ts`'s TTY refusal sentence still
+ * matches the prompt library's. Check that the generate, `pgPush` and
+ * `sqlitePush` catch-alls still write to stderr.
  */
 export const DRIZZLE_KIT_SPECIFIER = 'npm:drizzle-kit@0.31.10' as const
 
