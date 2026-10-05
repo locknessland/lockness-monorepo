@@ -87,7 +87,11 @@ Deno.test('resolveKit - defaults, accepts, and refuses', () => {
 })
 
 Deno.test('slim ships none of what it says it omits', () => {
-    const files = [...KITS.slim.base, ...KITS.slim.overlay]
+    // The one file under app/view/ is no view: it is the JSON error handler,
+    // at the path core reads it from (#479).
+    const files = [...KITS.slim.base, ...KITS.slim.overlay].filter((f) =>
+        f !== 'app/view/pages/errors/error_handler.tsx.stub'
+    )
 
     for (
         const forbidden of ['app/view/', 'postcss', 'public/img', 'database/']

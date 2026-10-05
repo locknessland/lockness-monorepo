@@ -12,6 +12,7 @@ deno task test     # the smoke test
 ```
 
 `GET /` returns JSON. `GET /hello` returns JSON through a named middleware.
+Errors, an unknown route included, return JSON too.
 
 ## What is here
 
@@ -19,6 +20,7 @@ deno task test     # the smoke test
 app/
 ├── controller/app_controller.ts    # two routes
 ├── middleware/example_middleware.ts # @Middleware('example')
+├── view/pages/errors/error_handler.tsx # errors as JSON
 ├── kernel.ts                        # the whole configuration
 └── routes.ts                        # explicit registry, for production
 config/

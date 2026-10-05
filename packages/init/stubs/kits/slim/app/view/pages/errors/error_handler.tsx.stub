@@ -1,0 +1,60 @@
+/**
+ * @fileoverview Error responses for {{ projectName }}, as JSON.
+ *
+ * Every route here answers JSON, so an error does too: without this file the
+ * framework answers a 404 or a 500 with an HTML page, which a client expecting
+ * JSON cannot read. The framework loads it from this exact path, which is why
+ * a kit with no views has an `app/view/` folder at all — the `.tsx` extension
+ * is part of that path, not a sign of JSX.
+ *
+ * Delete the file to get the HTML pages back.
+ *
+ * @module app/view/pages/errors/error_handler
+ */
+
+import {
+    type Context,
+    formatErrorForConsole,
+    isExplicitlyDevelopment,
+} from '@lockness/core'
+
+/** The statuses this handler answers with; anything else is a 500. */
+type ErrorStatus = 401 | 403 | 404 | 500
+
+/** What each status says, in place of the error's own message. */
+const REASONS: Readonly<Record<ErrorStatus, string>> = {
+    401: 'Unauthorized',
+    403: 'Forbidden',
+    404: 'Not Found',
+    500: 'Internal Server Error',
+}
+
+/**
+ * The status an error carries, narrowed to one this handler answers with.
+ *
+ * Errors thrown by the framework or by your code may set `status`; one that
+ * does not, or sets one not listed above, is a 500.
+ */
+function statusOf(error: Error): ErrorStatus {
+    const status = (error as Error & { status?: unknown }).status
+    return status === 401 || status === 403 || status === 404 ? status : 500
+}
+
+/**
+ * Answer every error, and every unknown route, with a JSON body.
+ *
+ * The error's message is added only when `APP_ENV` is explicitly
+ * `development`: an unset or unknown environment hides it, so an internal
+ * detail never reaches a client by default.
+ *
+ * @param error - What was thrown, or a `Not Found` error for an unknown route.
+ * @param c - The request context.
+ * @returns `{ error, status }`, plus `message` in development.
+ */
+export const errorHandler = (error: Error, c: Context): Response => {
+    const status = statusOf(error)
+    formatErrorForConsole(error, status, c.req.path)
+    const body: Record<string, unknown> = { error: REASONS[status], status }
+    if (isExplicitlyDevelopment()) body.message = error.message
+    return c.json(body, status)
+}

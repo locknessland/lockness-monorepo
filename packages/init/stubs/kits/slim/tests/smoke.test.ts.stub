@@ -29,8 +29,11 @@ Deno.test('GET /hello runs its named middleware', async () => {
     )
 })
 
-Deno.test('an unknown route is a 404, not a crash', async () => {
+Deno.test('an unknown route is a JSON 404, not a crash', async () => {
     const response = await app.fetch(new Request('http://localhost/nope'))
 
     assertEquals(response.status, 404)
+    // Answered by app/view/pages/errors/error_handler.tsx — if it did not
+    // load, the framework's HTML page comes back and this fails.
+    assertEquals((await response.json()).error, 'Not Found')
 })

@@ -169,6 +169,7 @@ export const KITS: Readonly<Record<KitName, Kit>> = {
             'app/routes.ts.stub',
             'app/controller/app_controller.ts.stub',
             'app/middleware/example_middleware.ts.stub',
+            'app/view/pages/errors/error_handler.tsx.stub',
             'tests/smoke.test.ts.stub',
         ],
         binaries: [],
