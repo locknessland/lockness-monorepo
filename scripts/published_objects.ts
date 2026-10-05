@@ -39,16 +39,10 @@
  * @module
  */
 
-import { sanitizedGitEnv } from './git_env.ts'
+import { OBJECT_ID_RE, runGit, ZERO_SHA_RE } from './git_env.ts'
 
 /** The ref whose reachable objects count as published. */
 const PUBLISHED_REF = 'refs/remotes/origin/main'
-
-/** A full object id (SHA-1 or SHA-256), lowercase hex. */
-const OBJECT_ID_RE = /^[0-9a-f]{40}([0-9a-f]{24})?$/
-
-/** All-zero placeholder git uses for "this ref does not exist yet". */
-const ZERO_SHA_RE = /^0+$/
 
 /** The two shas of a pre-push ref update this module reads. */
 export interface OutgoingUpdate {
@@ -63,25 +57,17 @@ export interface OutgoingUpdate {
  *
  * @param args - Arguments to `git`.
  * @param cwd - The repository root.
+ * @param env - The environment git runs with (see `runGit`).
  * @returns Non-empty stdout lines, or `null` when git exits non-zero.
  */
 async function gitLines(
     args: string[],
     cwd: string,
+    env?: Record<string, string>,
 ): Promise<string[] | null> {
-    const run = await new Deno.Command('git', {
-        args,
-        cwd,
-        clearEnv: true,
-        env: sanitizedGitEnv(),
-        stdout: 'piped',
-        stderr: 'piped',
-    }).output()
-    if (!run.success) return null
-    return new TextDecoder()
-        .decode(run.stdout)
-        .split('\n')
-        .filter((line) => line.length > 0)
+    const run = await runGit(args, cwd, env)
+    if (!run.ok) return null
+    return run.stdout.split('\n').filter((line) => line.length > 0)
 }
 
 /**
@@ -99,6 +85,7 @@ function objectIds(lines: string[]): Set<string> {
  * Every object reachable from `origin/main` — the published set.
  *
  * @param cwd - The repository root.
+ * @param env - The environment git runs with. Defaults to this process's.
  * @returns The object ids, or an empty set when `origin/main` does not
  *   resolve (then {@link publishesNothingNew} admits nothing).
  * @example
@@ -106,10 +93,14 @@ function objectIds(lines: string[]): Set<string> {
  * const set = await published(repoRoot)   // ~22k ids for the monorepo, ~0.14 s
  * ```
  */
-export async function published(cwd: string): Promise<Set<string>> {
+export async function published(
+    cwd: string,
+    env?: Record<string, string>,
+): Promise<Set<string>> {
     const lines = await gitLines(
         ['rev-list', '--objects', PUBLISHED_REF, '--'],
         cwd,
+        env,
     )
     return lines === null ? new Set() : objectIds(lines)
 }
@@ -121,6 +112,7 @@ export async function published(cwd: string): Promise<Set<string>> {
  *
  * @param update - The ref update's local and remote shas.
  * @param cwd - The repository root.
+ * @param env - The environment git runs with. Defaults to this process's.
  * @returns The outgoing object ids, or `null` when either sha is not a full
  *   object id or `git rev-list` fails — for example because `remoteSha` is
  *   not in the local object store. `null` never admits.
@@ -133,6 +125,7 @@ export async function published(cwd: string): Promise<Set<string>> {
 export async function outgoing(
     update: OutgoingUpdate,
     cwd: string,
+    env?: Record<string, string>,
 ): Promise<Set<string> | null> {
     const shas = [update.localSha]
     if (!OBJECT_ID_RE.test(update.localSha)) return null
@@ -140,9 +133,13 @@ export async function outgoing(
     if (!isNewRef && !OBJECT_ID_RE.test(update.remoteSha)) return null
     if (!isNewRef) shas.push('--not', update.remoteSha)
 
-    const objects = await gitLines(['rev-list', '--objects', ...shas], cwd)
+    const objects = await gitLines(
+        ['rev-list', '--objects', ...shas],
+        cwd,
+        env,
+    )
     if (objects === null) return null
-    const commits = await gitLines(['rev-list', ...shas], cwd)
+    const commits = await gitLines(['rev-list', ...shas], cwd, env)
     if (commits === null) return null
 
     const out = objectIds(objects)

@@ -57,7 +57,7 @@
 
 import { parse as parseJsonc } from '@std/jsonc'
 import { join } from '@std/path'
-import { sanitizedGitEnv } from './git_env.ts'
+import { type GitOutput, OBJECT_ID_RE, runGit } from './git_env.ts'
 
 const OWNER = 'locknessland'
 const SOURCE_REPO = `${OWNER}/lockness-monorepo`
@@ -67,9 +67,6 @@ const SECRET_SCAN_WORKFLOW = 'Secret scan'
 
 /** How many recent green `Secret scan` runs are searched for the tag. */
 const SCAN_RUNS_SEARCHED = 50
-
-/** A full object id, as `gh run list` reports a run's `headSha`. */
-const OBJECT_ID_RE = /^[0-9a-f]{40}([0-9a-f]{24})?$/
 
 /**
  * How `gh repo view` reports a repository that does not exist. Any other
@@ -143,35 +140,7 @@ interface Context {
     /** The run's options. */
     options: MirrorOptions
     /** `git` in the monorepo root, with the sanitised environment. */
-    git: (args: string[]) => Promise<CommandOutput & { code: number }>
-}
-
-/**
- * Run `git` in the monorepo root with the sanitised environment.
- *
- * @param options - The run's options (root, environment).
- * @param args - Arguments to `git`.
- * @returns Exit code, trimmed stdout and stderr.
- */
-async function runGit(
-    options: MirrorOptions,
-    args: string[],
-): Promise<CommandOutput & { code: number }> {
-    const run = await new Deno.Command('git', {
-        args,
-        cwd: options.root,
-        clearEnv: true,
-        env: sanitizedGitEnv(options.gitEnv ?? Deno.env.toObject()),
-        stdout: 'piped',
-        stderr: 'piped',
-    }).output()
-    const decode = (bytes: Uint8Array) => new TextDecoder().decode(bytes).trim()
-    return {
-        ok: run.success,
-        code: run.code,
-        stdout: decode(run.stdout),
-        stderr: decode(run.stderr),
-    }
+    git: (args: string[]) => Promise<GitOutput>
 }
 
 /**
@@ -604,7 +573,10 @@ export async function mirrorPackages(
         lines.push(line)
         ;(options.log ?? console.log)(line)
     }
-    const ctx: Context = { options, git: (args) => runGit(options, args) }
+    const ctx: Context = {
+        options,
+        git: (args) => runGit(args, options.root, options.gitEnv),
+    }
 
     const version = versionOf(
         await Deno.readTextFile(join(options.root, 'deno.jsonc')),

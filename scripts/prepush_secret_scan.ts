@@ -60,7 +60,7 @@
  */
 
 import { dirname } from '@std/path'
-import { sanitizedGitEnv } from './git_env.ts'
+import { runGit, sanitizedGitEnv, ZERO_SHA_RE } from './git_env.ts'
 import { install as installGitleaks } from './install_gitleaks.ts'
 import {
     outgoing,
@@ -68,8 +68,12 @@ import {
     publishesNothingNew,
 } from './published_objects.ts'
 
-/** All-zero placeholder git uses for "this ref does not exist yet/anymore". */
-const ZERO_SHA_RE = /^0+$/
+/**
+ * The environment a `git` (or `gitleaks`) subprocess starts from, before
+ * `sanitizedGitEnv` strips it. Every exported function takes one as its last
+ * parameter, defaulting to this process's; tests pass an isolated one.
+ */
+export type GitEnv = Record<string, string>
 
 /** One line of pre-push stdin. */
 export interface RefUpdate {
@@ -118,18 +122,15 @@ export function isDelete(update: RefUpdate): boolean {
  *
  * @param args - Arguments to `git`.
  * @param cwd - The repository root.
+ * @param env - The environment git runs with (see `runGit`).
  */
-async function git(args: string[], cwd: string): Promise<string | null> {
-    const run = await new Deno.Command('git', {
-        args,
-        cwd,
-        clearEnv: true,
-        env: sanitizedGitEnv(),
-        stdout: 'piped',
-        stderr: 'piped',
-    }).output()
-    if (!run.success) return null
-    return new TextDecoder().decode(run.stdout).trim()
+async function git(
+    args: string[],
+    cwd: string,
+    env?: GitEnv,
+): Promise<string | null> {
+    const run = await runGit(args, cwd, env)
+    return run.ok ? run.stdout : null
 }
 
 /**
@@ -143,14 +144,16 @@ async function git(args: string[], cwd: string): Promise<string | null> {
  *
  * @param update - A ref update already known not to be a delete.
  * @param cwd - The repository root.
+ * @param env - The environment git runs with. Defaults to this process's.
  * @returns The base commit-ish, or `null` when there is none.
  */
 export async function resolveBase(
     update: RefUpdate,
     cwd: string,
+    env?: GitEnv,
 ): Promise<string | null> {
     if (!ZERO_SHA_RE.test(update.remoteSha)) return update.remoteSha
-    return await git(['merge-base', 'origin/main', update.localSha], cwd)
+    return await git(['merge-base', 'origin/main', update.localSha], cwd, env)
 }
 
 /**
@@ -159,6 +162,7 @@ export async function resolveBase(
  *
  * @param update - A ref update already known not to be a delete.
  * @param cwd - The repository root.
+ * @param env - The environment git runs with. Defaults to this process's.
  * @returns A revision expression gitleaks accepts as `--log-opts`.
  * @example
  * ```ts
@@ -170,11 +174,12 @@ export async function resolveBase(
 export async function resolveRange(
     update: RefUpdate,
     cwd: string,
+    env?: GitEnv,
 ): Promise<string> {
     if (!ZERO_SHA_RE.test(update.remoteSha)) {
         return `${update.remoteSha}..${update.localSha}`
     }
-    const base = await resolveBase(update, cwd)
+    const base = await resolveBase(update, cwd, env)
     if (base) return `origin/main..${update.localSha}`
     return update.localSha
 }
@@ -187,18 +192,20 @@ export async function resolveRange(
  *   residue of the base-snapshot rule: a rootless push has no earlier state
  *   to pin to).
  * @param cwd - The repository root.
+ * @param env - The environment git runs with. Defaults to this process's.
  * @returns The base's content (`''` when the base predates the file), or
  *   `null` when `base` itself was `null`.
  */
 export async function readIgnoreAtBase(
     base: string | null,
     cwd: string,
+    env?: GitEnv,
 ): Promise<string | null> {
     if (base === null) return null
     // `git show` fails both when the base has no such file and on other
     // errors; either way an empty ignore file at the base is the correct,
     // fail-closed reading — no earlier suppression exists to honour.
-    const content = await git(['show', `${base}:.gitleaksignore`], cwd)
+    const content = await git(['show', `${base}:.gitleaksignore`], cwd, env)
     return content ?? ''
 }
 
@@ -216,14 +223,16 @@ export async function readIgnoreAtBase(
  *   `localSha`).
  * @param cwd - The repository root the worktree is added FROM (not the
  *   worktree's own directory).
+ * @param env - The environment git runs with. Defaults to this process's.
  * @returns The new worktree's absolute directory.
  * @throws {Error} When `git worktree add` fails.
  */
 export async function createScanWorktree(
     localSha: string,
     cwd: string,
+    env?: GitEnv,
 ): Promise<string> {
-    await git(['worktree', 'prune'], cwd)
+    await git(['worktree', 'prune'], cwd, env)
     const parent = await Deno.makeTempDir({
         prefix: 'lockness-secret-scan-worktree-',
     })
@@ -231,6 +240,7 @@ export async function createScanWorktree(
     const added = await git(
         ['worktree', 'add', '--detach', worktreeDir, localSha],
         cwd,
+        env,
     )
     if (added === null) {
         await Deno.remove(parent, { recursive: true }).catch(() => {})
@@ -251,13 +261,15 @@ export async function createScanWorktree(
  *
  * @param worktreeDir - The directory returned by {@link createScanWorktree}.
  * @param cwd - The repository root the worktree was added from.
+ * @param env - The environment git runs with. Defaults to this process's.
  */
 export async function removeScanWorktree(
     worktreeDir: string,
     cwd: string,
+    env?: GitEnv,
 ): Promise<void> {
-    await git(['worktree', 'remove', '--force', worktreeDir], cwd)
-    await git(['worktree', 'prune'], cwd)
+    await git(['worktree', 'remove', '--force', worktreeDir], cwd, env)
+    await git(['worktree', 'prune'], cwd, env)
     await Deno.remove(dirname(worktreeDir), { recursive: true }).catch(
         () => {},
     )
@@ -292,6 +304,7 @@ export async function writeBaseIgnoreFile(
  *
  * @param range - A `git log`-compatible range.
  * @param cwd - The repository root.
+ * @param env - The environment git runs with. Defaults to this process's.
  * @returns The commit count, or `null` when the range cannot be resolved.
  * @example
  * ```ts
@@ -302,8 +315,9 @@ export async function writeBaseIgnoreFile(
 export async function commitCount(
     range: string,
     cwd: string,
+    env?: GitEnv,
 ): Promise<number | null> {
-    const out = await git(['rev-list', '--count', range], cwd)
+    const out = await git(['rev-list', '--count', range], cwd, env)
     if (out === null) return null
     const n = Number(out)
     return Number.isInteger(n) && n >= 0 ? n : null
@@ -328,6 +342,8 @@ export interface ScanResult {
  * @param gitleaksPath - Path of the verified gitleaks binary.
  * @param expectedCommits - The commit count from {@link commitCount}, used to
  *   tell a real "0 commits scanned" apart from an empty range.
+ * @param env - The environment gitleaks (and the `git` it runs) starts
+ *   from, sanitised. Defaults to this process's.
  * @returns Whether the range is clean, and why not when it is not.
  */
 export async function scanRange(
@@ -335,6 +351,7 @@ export async function scanRange(
     cwd: string,
     gitleaksPath: string,
     expectedCommits: number,
+    env: GitEnv = Deno.env.toObject(),
 ): Promise<ScanResult> {
     const reportPath = await Deno.makeTempFile({
         prefix: 'gitleaks-report-',
@@ -359,7 +376,7 @@ export async function scanRange(
             ],
             cwd,
             clearEnv: true,
-            env: sanitizedGitEnv(),
+            env: sanitizedGitEnv(env),
             stdout: 'piped',
             stderr: 'piped',
         }).output()
@@ -424,6 +441,13 @@ export interface PrepushScanOptions {
      * `scripts/install_gitleaks.ts`'s `install`; tests hand in a fake.
      */
     installGitleaks?: () => Promise<string>
+    /**
+     * The environment every `git` and `gitleaks` subprocess starts from,
+     * before `sanitizedGitEnv` strips it. Defaults to this process's; tests
+     * pass an isolated one, so the scan never reads the real `HOME` or the
+     * global git config.
+     */
+    gitEnv?: GitEnv
 }
 
 /** The overall outcome of a pre-push scan across every updated ref. */
@@ -484,6 +508,7 @@ export async function runPrepushScan(
         }
     }
 
+    const env = options.gitEnv ?? Deno.env.toObject()
     let ok = true
     // Enumerated once per push, and only if a non-delete update needs it.
     let publishedSet: Set<string> | null = null
@@ -495,17 +520,19 @@ export async function runPrepushScan(
         // #431: nothing new leaves if every tree and blob this update sends
         // is already reachable from origin/main, which is public. Otherwise —
         // including any git failure — the scan below runs unchanged.
-        publishedSet ??= await published(cwd)
-        if (publishesNothingNew(await outgoing(update, cwd), publishedSet)) {
+        publishedSet ??= await published(cwd, env)
+        if (
+            publishesNothingNew(await outgoing(update, cwd, env), publishedSet)
+        ) {
             lines.push(
                 `${update.localRef}: publishes nothing origin/main has not ` +
                     'already published; not scanned',
             )
             continue
         }
-        const base = await resolveBase(update, cwd)
-        const range = await resolveRange(update, cwd)
-        const expected = await commitCount(range, cwd)
+        const base = await resolveBase(update, cwd, env)
+        const range = await resolveRange(update, cwd, env)
+        const expected = await commitCount(range, cwd, env)
         if (expected === null) {
             ok = false
             lines.push(
@@ -517,14 +544,20 @@ export async function runPrepushScan(
             lines.push(`${update.localRef}: ${range} is empty, nothing to scan`)
             continue
         }
-        const ignoreContent = await readIgnoreAtBase(base, cwd)
+        const ignoreContent = await readIgnoreAtBase(base, cwd, env)
 
         let worktreeDir: string | null = null
         let result: ScanResult
         try {
-            worktreeDir = await createScanWorktree(update.localSha, cwd)
+            worktreeDir = await createScanWorktree(update.localSha, cwd, env)
             await writeBaseIgnoreFile(ignoreContent, worktreeDir)
-            result = await scanRange(range, worktreeDir, gitleaksPath, expected)
+            result = await scanRange(
+                range,
+                worktreeDir,
+                gitleaksPath,
+                expected,
+                env,
+            )
         } catch (error) {
             result = {
                 ok: false,
@@ -533,7 +566,7 @@ export async function runPrepushScan(
                 }`,
             }
         } finally {
-            if (worktreeDir) await removeScanWorktree(worktreeDir, cwd)
+            if (worktreeDir) await removeScanWorktree(worktreeDir, cwd, env)
         }
 
         if (result.ok) {
