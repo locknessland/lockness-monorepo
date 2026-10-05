@@ -35,7 +35,8 @@ import { config } from '../config/mod.ts'
  *
  * This kernel configures the Lockness application using the @Kernel decorator:
  *
- * 1. **Database**: Connects to PostgreSQL using the `DATABASE_URL` environment variable
+ * 1. **Database**: Connects to PostgreSQL using the `DATABASE_URL` environment variable;
+ *    unset, the connection is skipped and the app boots without a database
  * 2. **Sessions**: Configures cookie-based sessions with secure settings
  * 3. **DevTools**: Enables development toolbar when `APP_ENV=development`
  * 4. **Controllers**: Auto-discovers in dev, uses explicit list in production
