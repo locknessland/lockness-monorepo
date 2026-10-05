@@ -40,7 +40,7 @@ const README = new URL('../README.md', import.meta.url)
 async function documentedAllowList(): Promise<string> {
     const docs = await Deno.readTextFile(DOCS)
     const section = docs.slice(docs.indexOf('### DSN format'))
-    const list = /allowed characters:\*\* `([^`]+)`/.exec(section)?.[1]
+    const list = /allowed\s+characters:\*\*\s+`([^`]+)`/.exec(section)?.[1]
     if (list === undefined) {
         throw new Error('DOCS.md `### DSN format` no longer states rule 2')
     }
@@ -283,7 +283,7 @@ Deno.test('#425 the password allow-list is exactly the one the docs state', asyn
         'DOCS.md, Upgrading to v0.5.0': docs.slice(
             docs.indexOf('## Upgrading to v0.5.0'),
         ),
-        "connect()'s JSDoc": await Deno.readTextFile(MOD),
+        'mod.ts (connect() JSDoc)': await Deno.readTextFile(MOD),
         'README.md': await Deno.readTextFile(README),
     }
     for (const [surface, text] of Object.entries(surfaces)) {
