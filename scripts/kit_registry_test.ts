@@ -118,6 +118,19 @@ Deno.test('appPathRequests does not match a sibling directory sharing a prefix',
     )
 })
 
+Deno.test('appPathRequests matches the percent-encoded spelling of an app dir holding a space (#479)', () => {
+    // The registry logs url.pathname, so a space arrives as %20.
+    const lines = [
+        '404 GET //tmp/run-1/slim%20app/app/middleware/example_middleware.ts (not served)',
+        '404 GET //tmp/run-1/slim app/app/x.ts (not served)',
+        '404 GET //tmp/run-1/slim%20app-2/app/x.ts (not served)',
+    ]
+    assertEquals(
+        appPathRequests(lines, ['/tmp/run-1/slim app']),
+        lines.slice(0, 2),
+    )
+})
+
 Deno.test('publishToRegistry refuses a non-loopback registry before spawning', async () => {
     for (
         const url of [

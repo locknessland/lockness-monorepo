@@ -1069,6 +1069,7 @@ export function judgeNotFound(
  * @param lines - What the registry logged while the kit ran.
  * @param appDirs - The kit's directory, in every spelling its process may use
  * (the path as created and its realpath, which differ under macOS `/var`).
+ * Each is matched raw and percent-encoded.
  * @returns The offending lines, in order; empty when none.
  *
  * @example
@@ -1081,9 +1082,27 @@ export function appPathRequests(
     lines: readonly string[],
     appDirs: readonly string[],
 ): string[] {
+    const spellings = [...new Set(appDirs.flatMap(dirSpellings))]
     return lines.filter((line) =>
-        appDirs.some((dir) => line.includes(`${dir}/`))
+        spellings.some((dir) => line.includes(`${dir}/`))
     )
+}
+
+/**
+ * A directory as written, and as the registry logs it (#479).
+ *
+ * The registry logs `url.pathname`, which percent-encodes what a URL path
+ * cannot carry raw: a space arrives as `%20`. Matching only the raw spelling
+ * would miss a request for a directory holding one. The pathname setter
+ * applies the same encoding the registry's URL parser did.
+ *
+ * @param dir - An absolute directory path.
+ * @returns The raw spelling, then the encoded one when it differs.
+ */
+function dirSpellings(dir: string): string[] {
+    const url = new URL('http://registry.invalid/')
+    url.pathname = dir
+    return url.pathname === dir ? [dir] : [dir, url.pathname]
 }
 
 /**
