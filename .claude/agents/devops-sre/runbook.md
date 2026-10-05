@@ -27,6 +27,12 @@ step list lives in `scripts/gate.ts` only. Never re-list the steps in the
 workflow. Separate jobs: live Redis, coverage, starter kits, and the nightly
 mutation batteries.
 
+The workflow defaults to `permissions: contents: read` at the top level
+(#480): `test`, `mutations` and `coverage` inherit it, the other jobs declare
+their own. A job may not run without permissions declared at one level or the
+other, and no job here may request an id-token —
+`scripts/ci_id_token_test.ts` fails the gate otherwise.
+
 ### `.github/workflows/publish.yml`
 
 Runs on `release: published`. The workflow defaults to `contents: read`, and
@@ -55,6 +61,16 @@ through `needs:`. Never add `actions/cache`, `upload-artifact`,
 restore caches `test.yml` wrote. A new check goes into `gate` (via
 `scripts/gate.ts`) or a job of its own that `publish` needs, never into
 `publish`.
+
+**The invariant is a test (#480).** `scripts/ci_id_token_test.ts` reads every
+workflow through `scripts/ci_workflows.ts` and fails closed: only
+`publish.yml → publish` may hold an id-token level other than `none`, and it
+must grant `write` in its own block. A top-level grant, `read-all`,
+`write-all`, or a job with no permissions at either level fails. The same test
+pins `publish` itself — trigger, keys (no `env:`, no `environment:`), `needs`,
+permissions and its three SHA-pinned steps — so a change to that job must
+change the test in the same commit. It runs in `publish.yml`'s `gate` job, on
+the tagged commit, before `publish` starts.
 
 **Toolchain pin (#481).** Every `publish.yml` job installs the exact Deno
 version in `.dvmrc` (`deno-version-file`), never a range. `test.yml`'s `test`
@@ -126,6 +142,9 @@ workspace and asserts the lockfile admits the new version.
 | `.github/workflows/publish.yml`                     | JSR publish triggered by `release: published`                                 |
 | `.dvmrc`                                            | the exact Deno version `publish.yml` installs and `test.yml`'s `pinned` lane tests (#481) |
 | `.github/workflows/test.yml`                        | PR gate: `deno task gate --leaks`, plus coverage / live-broker / kits jobs    |
+| `scripts/ci_workflows.ts`                           | the one `@std/yaml` reader of `.github/workflows/`; parses, holds no policy (#480) |
+| `scripts/ci_id_token_test.ts`                       | only `publish.yml → publish` can request an id-token, and its shape is pinned (#480) |
+| `scripts/ci_deno_pin_test.ts`                       | `.dvmrc` is one exact version, and publish.yml / the `pinned` lane read it (#481) |
 | `.claude/skills/ship/phases/tag.md`                 | tag phase contract, `/ship` step 2 (Specnaut 4.4.0 moved it out of `/specnaut`) |
 | `.claude/skills/ship/phases/release.md`             | release phase contract (vendored; never run on its own here)                   |
 

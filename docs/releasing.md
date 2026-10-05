@@ -342,6 +342,11 @@ checkout, setup-deno and `deno publish` (#476). `--registry` reaches the
 passes inside the workspace even for a package whose manifest a consumer cannot
 resolve, so the dry run is **not** evidence.
 
+That gate includes `scripts/ci_id_token_test.ts` (#480), so no tag publishes
+unless `publish` is the only job in any workflow that can request an id-token,
+every job declares its permissions, and `publish` still has the exact trigger,
+permissions and three steps the test pins.
+
 ### The kit boot gate
 
 ```bash
