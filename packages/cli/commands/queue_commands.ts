@@ -213,6 +213,9 @@ export async function discoverJobs(
                 }
             }
         } catch (error) {
+            // Not a command failure: the worker starts with the other job
+            // files, so one broken file does not stop every queue.
+            // deno-lint-ignore lockness-exit/printed-failure
             console.error(
                 `❌ Job file ${
                     safeForLog(name)

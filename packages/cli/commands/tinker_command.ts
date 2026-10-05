@@ -105,6 +105,8 @@ export async function loadTinkerContext(
                     }
                 }
             } catch (error) {
+                // Not a command failure: the REPL starts without this file.
+                // deno-lint-ignore lockness-exit/printed-failure
                 console.error(
                     `❌ app/${dir}/${safeForLog(name)} failed to load: ${
                         renderError(error)
@@ -137,6 +139,8 @@ export async function loadTinkerContext(
                 context.kernel = kernelModule.kernel
             }
         } catch (error) {
+            // Not a command failure: the REPL starts without db and kernel.
+            // deno-lint-ignore lockness-exit/printed-failure
             console.error(
                 `❌ app/kernel.ts failed to load, so db and kernel are not available: ${
                     renderError(error)
@@ -268,6 +272,9 @@ async function startRepl(context: Record<string, unknown>) {
                     console.log(formatResult(result))
                 }
             } catch (error) {
+                // Not a command failure: the user's expression threw, and the
+                // REPL prompts for the next one.
+                // deno-lint-ignore lockness-exit/printed-failure
                 console.error(`❌ ${(error as Error).message}`)
             }
 

@@ -241,9 +241,13 @@
         // breaks from JSR. The rule scopes itself to `packages/`, outside tests.
         // `lockness-env/env-signal` (#504): no raw APP_ENV / DENO_ENV read outside
         // the contract resolver, in packages/, app/ and config/.
+        // `lockness-exit/process-exit` and `lockness-exit/printed-failure`
+        // (#436): a command fails by throwing — no Deno.exit / Deno.exitCode
+        // outside the owners named in the rule file, no ❌ print in command code.
         "plugins": [
             "./scripts/lint/app_file_specifier.ts",
-            "./scripts/lint/env_signal.ts"
+            "./scripts/lint/env_signal.ts",
+            "./scripts/lint/exit_contract.ts"
         ],
         "exclude": [
             ".shadcn-ui/",
