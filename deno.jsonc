@@ -58,16 +58,18 @@
         // this is the ONE sanctioned second occurrence of the gate literal —
         // it SETS the variable, `packages/redis/tests/live_broker.ts` reads it.
         "test:redis": "LOCKNESS_REDIS_INTEGRATION=1 deno test -A packages/realtime/tests/ packages/redis/tests/",
-        // The live-postgres suites (#435, #444). Skipped by the default `test`
-        // task; this SETS the gate, `packages/drizzle/tests/live_postgres.ts`
+        // The live-postgres suites (#435, #444, #439). Skipped by the default
+        // `test` task; this SETS the gate, `packages/drizzle/tests/live_postgres.ts`
         // reads it. They also need LOCKNESS_POSTGRES_URL, a loopback superuser
-        // connection: the kit suite creates and drops `lockness_kit_*` databases.
-        "test:postgres": "LOCKNESS_POSTGRES_INTEGRATION=1 deno test -A packages/drizzle/tests/fresh_postgres_live.test.ts scripts/kit_migrations_live_test.ts scripts/kit_token_flow_live_test.ts scripts/kit_push_live_test.ts scripts/remember_me_live_test.ts",
-        // The live-mysql suite (#446). Skipped by the default `test` task; this
-        // SETS the gate, `packages/drizzle/tests/live_mysql.ts` reads it. It
-        // also needs LOCKNESS_MYSQL_URL, a loopback connection allowed to
-        // create and drop the `lockness_fresh_mysql*` databases.
-        "test:mysql": "LOCKNESS_MYSQL_INTEGRATION=1 deno test -A packages/drizzle/tests/fresh_mysql_live.test.ts",
+        // connection: the kit suite creates and drops `lockness_kit_*`
+        // databases, the status suite `lockness_status`.
+        "test:postgres": "LOCKNESS_POSTGRES_INTEGRATION=1 deno test -A packages/drizzle/tests/fresh_postgres_live.test.ts packages/drizzle/tests/status_postgres_live.test.ts scripts/kit_migrations_live_test.ts scripts/kit_token_flow_live_test.ts scripts/kit_push_live_test.ts scripts/remember_me_live_test.ts",
+        // The live-mysql suites (#446, #439). Skipped by the default `test`
+        // task; this SETS the gate, `packages/drizzle/tests/live_mysql.ts` reads
+        // it. They also need LOCKNESS_MYSQL_URL, a loopback connection allowed
+        // to create and drop the `lockness_fresh_mysql*` and
+        // `lockness_status_mysql` databases.
+        "test:mysql": "LOCKNESS_MYSQL_INTEGRATION=1 deno test -A packages/drizzle/tests/fresh_mysql_live.test.ts packages/drizzle/tests/status_mysql_live.test.ts",
         "test:coverage": "rm -rf coverage && deno test -A --coverage=coverage packages/ app/ && deno coverage coverage --lcov > coverage/lcov.info && deno coverage coverage",
         "coverage:floor": "deno run -A scripts/coverage_floor.ts --check",
         "coverage:floor:update": "deno run -A scripts/coverage_floor.ts --update",
