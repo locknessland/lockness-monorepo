@@ -166,7 +166,8 @@ Anything not listed is internal and free to change.
   (`max[api_tokens]` stays masked). An outer segment alone never classifies:
   `token[type]`, `api_key[id]` and `card[number]` render. `fieldSegment` reads
   each name once from its end; a scan to the end of the name at every bracket is
-  quadratic (battery row). Known residue, pinned by the accepted-cost test: a
+  quadratic (battery row). Known residue, each case pinned by a `#526` test (the
+  over-matches by the path test, the rest by the accepted-cost test): a
   credential container with a generic field renders (`password[value]`,
   `token[raw]`, as `password_value` does); a segment holding a blank, `:`, `/`,
   `@`, `+` or non-ASCII ends the walk inside the brackets (`user[pass word]=x`

@@ -420,8 +420,9 @@ function isCountName(normalised: string): boolean {
  * `user[password]=…`, `card[cvc][]=…` and `password[0]=…` are masked, a
  * cut finds `&card[cvc]=` after a password, and a nested `code` field takes
  * the bare `code` rule (`user[code]=…&state=1` is a form body, masked;
- * `status[code]=503` renders). Known residue, pinned by the accepted-cost
- * test: a credential container with a generic field renders
+ * `status[code]=503` renders). Known residue, each case pinned by a `#526`
+ * test (the over-matches by the path test, the rest by the accepted-cost
+ * test): a credential container with a generic field renders
  * (`password[value]`, `token[raw]`, as `password_value` does); a segment
  * holding a blank, `:`, `/`, `@`, `+` or non-ASCII ends the walk inside the
  * brackets (`user[pass word]=x` renders); an unqualified container's `code`
