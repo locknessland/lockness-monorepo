@@ -39,3 +39,13 @@ Deno.test('#450 isOffline: a refused connection counts only when asked', () => {
         assertEquals(isOffline(output, { refused: true }), true, output)
     }
 })
+
+Deno.test('#450 isOffline: a refusal inside a failed fetch is offline regardless', () => {
+    // `refused` gates only a BARE refusal. Deno's HTTP client wraps one in
+    // "error sending request … tcp connect error", which is a registry the
+    // machine cannot reach whatever the option says.
+    const output =
+        'error: error sending request for url (https://registry.npmjs.org/vite): client error (Connect): tcp connect error: Connection refused (os error 61)'
+    assertEquals(isOffline(output), true)
+    assertEquals(isOffline(output, { refused: true }), true)
+})
