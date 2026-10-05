@@ -281,11 +281,7 @@ Deno.test({
                 },
             )
         } finally {
-            try {
-                await sql.end()
-            } finally {
-                await releaseDatabase(admin, database)
-            }
+            await releaseDatabase(admin, database, { connections: [sql] })
         }
     },
 })

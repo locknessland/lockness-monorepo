@@ -75,9 +75,12 @@ for (const kit of migratingKits()) {
             const workdir = await Deno.makeTempDir({
                 prefix: 'lockness-444-live-',
             })
+            const appUrl = withDatabase(adminUrl, database)
+            // postgres.js connects on the first query, so the client can
+            // exist before its database does — and be closed by the cleanup.
+            const db = postgres(appUrl, { max: 1, onnotice: () => {} })
             try {
                 await admin.unsafe(`CREATE DATABASE "${database}"`)
-                const appUrl = withDatabase(adminUrl, database)
 
                 const scaffold = await scaffoldKit(kit, workdir)
                 assert(scaffold.ok, scaffold.output)
@@ -87,82 +90,80 @@ for (const kit of migratingKits()) {
                     { append: true },
                 )
 
-                const db = postgres(appUrl, { max: 1, onnotice: () => {} })
-                try {
-                    const applied = async (): Promise<number> => {
-                        const [row] = await db<{ count: number }[]>`
-                            SELECT count(*)::int AS count
-                            FROM drizzle.__drizzle_migrations`
-                        return row.count
-                    }
-                    const existing = async (): Promise<string[]> => {
-                        const rows = await db<{ name: string }[]>`
-                            SELECT table_name AS name
-                            FROM information_schema.tables
-                            WHERE table_schema = 'public'
-                            ORDER BY table_name`
-                        return rows.map((r) => r.name)
-                    }
-                    const expected = tables.map((t) => t.name).sort()
+                const applied = async (): Promise<number> => {
+                    const [row] = await db<{ count: number }[]>`
+                        SELECT count(*)::int AS count
+                        FROM drizzle.__drizzle_migrations`
+                    return row.count
+                }
+                const existing = async (): Promise<string[]> => {
+                    const rows = await db<{ name: string }[]>`
+                        SELECT table_name AS name
+                        FROM information_schema.tables
+                        WHERE table_schema = 'public'
+                        ORDER BY table_name`
+                    return rows.map((r) => r.name)
+                }
+                const expected = tables.map((t) => t.name).sort()
 
-                    // 1. The README's command, on an empty database.
-                    const first = await inApp(scaffold.dir, [
-                        'task',
-                        'db:migrate',
-                    ])
-                    assert(first.ok, first.output)
-                    assertEquals(await existing(), expected)
-                    assertEquals(await applied(), 1)
-                    for (const table of tables) {
-                        for (const fk of Object.values(table.foreignKeys)) {
-                            const [row] = await db<{ action: string }[]>`
-                                SELECT confdeltype AS action
-                                FROM pg_constraint
-                                WHERE conname = ${fk.name} AND contype = 'f'`
-                            assertEquals(
-                                row?.action,
-                                DELETE_ACTION[fk.onDelete ?? 'no action'],
-                                `${fk.name} ON DELETE`,
-                            )
-                        }
-                    }
-
-                    // 2. Nothing left to apply.
-                    const again = await inApp(scaffold.dir, [
-                        'task',
-                        'db:migrate',
-                    ])
-                    assert(again.ok, again.output)
-                    assertEquals(await applied(), 1)
-                    // A raw postgres.js notice prints as an object holding
-                    // these fields; the #454 reporter prints none of them.
-                    for (const field of ['severity_local', 'routine']) {
+                // 1. The README's command, on an empty database.
+                const first = await inApp(scaffold.dir, [
+                    'task',
+                    'db:migrate',
+                ])
+                assert(first.ok, first.output)
+                assertEquals(await existing(), expected)
+                assertEquals(await applied(), 1)
+                for (const table of tables) {
+                    for (const fk of Object.values(table.foreignKeys)) {
+                        const [row] = await db<{ action: string }[]>`
+                            SELECT confdeltype AS action
+                            FROM pg_constraint
+                            WHERE conname = ${fk.name} AND contype = 'f'`
                         assertEquals(
-                            again.output.includes(field),
-                            false,
-                            `a raw notice object was printed:\n${again.output}`,
+                            row?.action,
+                            DELETE_ACTION[fk.onDelete ?? 'no action'],
+                            `${fk.name} ON DELETE`,
                         )
                     }
-
-                    // 3. db:fresh accepts the folder, empties, re-applies.
-                    await db`INSERT INTO users (email, password)
-                             VALUES ('fresh@example.test', 'not-a-hash')`
-                    const fresh = await inApp(scaffold.dir, [
-                        'task',
-                        'cli',
-                        'db:fresh',
-                    ])
-                    assert(fresh.ok, fresh.output)
-                    assertEquals(await existing(), expected)
-                    assertEquals(await applied(), 1)
-                    const [{ count }] = await db<{ count: number }[]>`
-                        SELECT count(*)::int AS count FROM users`
-                    assertEquals(count, 0, 'db:fresh kept a row')
-                } finally {
-                    await db.end()
                 }
+
+                // 2. Nothing left to apply.
+                const again = await inApp(scaffold.dir, [
+                    'task',
+                    'db:migrate',
+                ])
+                assert(again.ok, again.output)
+                assertEquals(await applied(), 1)
+                // A raw postgres.js notice prints as an object holding
+                // these fields; the #454 reporter prints none of them.
+                for (const field of ['severity_local', 'routine']) {
+                    assertEquals(
+                        again.output.includes(field),
+                        false,
+                        `a raw notice object was printed:\n${again.output}`,
+                    )
+                }
+
+                // 3. db:fresh accepts the folder, empties, re-applies.
+                await db`INSERT INTO users (email, password)
+                         VALUES ('fresh@example.test', 'not-a-hash')`
+                const fresh = await inApp(scaffold.dir, [
+                    'task',
+                    'cli',
+                    'db:fresh',
+                ])
+                assert(fresh.ok, fresh.output)
+                assertEquals(await existing(), expected)
+                assertEquals(await applied(), 1)
+                const [{ count }] = await db<{ count: number }[]>`
+                    SELECT count(*)::int AS count FROM users`
+                assertEquals(count, 0, 'db:fresh kept a row')
             } finally {
-                await releaseDatabase(admin, database, workdir)
+                await releaseDatabase(admin, database, {
+                    workdir,
+                    connections: [db],
+                })
             }
         },
     })

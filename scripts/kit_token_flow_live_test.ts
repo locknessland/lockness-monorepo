@@ -87,7 +87,7 @@ Deno.test({
                 probe.output,
             )
         } finally {
-            await releaseDatabase(admin, database, workdir)
+            await releaseDatabase(admin, database, { workdir })
         }
     },
 })

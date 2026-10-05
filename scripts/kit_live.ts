@@ -94,42 +94,65 @@ export interface AdminConnection {
     end(): Promise<unknown>
 }
 
+/** What else {@link releaseDatabase} releases besides the database. */
+export interface ReleaseOptions {
+    /** The suite's temp directory, removed last. */
+    readonly workdir?: string
+    /** The suite's own connections to the throwaway database, closed first. */
+    readonly connections?: readonly Pick<AdminConnection, 'end'>[]
+}
+
 /**
- * Drop a suite's throwaway database, close the admin connection and remove
- * the suite's temp directory — every step attempted even when an earlier one
- * throws (#450). A leaked database or directory poisons the next run, and
- * the run that most needs cleaning up is the failing one. An error is
- * re-thrown once everything has been attempted.
+ * Release everything a live suite created: close its connections to the
+ * throwaway database, drop it, close the admin connection and remove the temp
+ * directory (#450). A leaked database or directory poisons the next run, and
+ * the run that most needs cleaning up is the failing one — so every step is
+ * attempted whatever an earlier one threw.
+ *
+ * When several steps fail, the FIRST error is the one thrown: an earlier
+ * failure is the likely root cause, and a later one must not hide it. Each
+ * later error is logged to stderr, never dropped silently.
  *
  * @param admin - The admin connection that created the database.
  * @param database - The database to drop.
- * @param workdir - The suite's temp directory, when it made one.
- * @throws {Error} Whatever the drop, the close or the removal threw; when
- * several fail, the last one's error is the one that surfaces.
+ * @param options - The temp directory and the database's own connections.
+ * @throws {unknown} The first error any step threw, once all were attempted.
  *
  * @example
  * ```ts
  * try {
  *     // … the test …
  * } finally {
- *     await releaseDatabase(admin, database, workdir)
+ *     await releaseDatabase(admin, database, { workdir, connections: [db] })
  * }
  * ```
  */
 export async function releaseDatabase(
     admin: AdminConnection,
     database: string,
-    workdir?: string,
+    options: ReleaseOptions = {},
 ): Promise<void> {
-    try {
-        await admin.unsafe(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`)
-    } finally {
+    const { workdir, connections = [] } = options
+    const steps: (() => Promise<unknown>)[] = [
+        ...connections.map((connection) => () => connection.end()),
+        () =>
+            admin.unsafe(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`),
+        () => admin.end(),
+    ]
+    if (workdir !== undefined) {
+        steps.push(() => Deno.remove(workdir, { recursive: true }))
+    }
+    const errors: unknown[] = []
+    for (const step of steps) {
         try {
-            await admin.end()
-        } finally {
-            if (workdir !== undefined) {
-                await Deno.remove(workdir, { recursive: true })
-            }
+            await step()
+        } catch (error) {
+            errors.push(error)
         }
     }
+    if (errors.length === 0) return
+    for (const later of errors.slice(1)) {
+        console.error(`[#450] a later cleanup step also failed: ${later}`)
+    }
+    throw errors[0]
 }
