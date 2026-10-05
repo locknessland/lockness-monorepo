@@ -79,6 +79,7 @@ Deno.test('the real workflows parse, each job in file order', async () => {
             'test',
             'live-redis',
             'live-postgres',
+            'live-mysql',
             'mutations',
             'coverage',
             'kits',

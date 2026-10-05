@@ -163,6 +163,54 @@ jobs:
                   LOCKNESS_POSTGRES_URL: postgres://postgres@127.0.0.1:5432/postgres
               run: deno task test:postgres -- --trace-leaks
 
+    live-mysql:
+        name: Live MySQL integration
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+
+        # db:fresh on MySQL (#446) rests on what a plan test cannot observe:
+        # the dedicated connection with FOREIGN_KEY_CHECKS off is destroyed,
+        # never pooled, and every DROP lands in the database the catalogue
+        # read named. Without this job nothing sets LOCKNESS_MYSQL_INTEGRATION
+        # and the suite skips forever.
+        services:
+            mysql:
+                # 8.4 LTS, pinned by its multi-arch index digest: the tag is
+                # mutable, the digest is not.
+                image: mysql:8.4@sha256:6ea90827b1100f8f2ae306a539f86d2c264a26ed435a2a9f75551dd5c3aeb242
+                env:
+                    # Throwaway CI container, reachable from the runner only:
+                    # an empty root password, so no credential is written
+                    # anywhere.
+                    MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+                ports:
+                    - 3306:3306
+                # Pinged over TCP, not the socket: the image's init server
+                # answers on the socket before the real one listens.
+                options: >-
+                    --health-cmd "mysqladmin ping -h 127.0.0.1 --silent"
+                    --health-interval 5s
+                    --health-timeout 3s
+                    --health-retries 20
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+            - name: Setup Deno
+              uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2
+              with:
+                  deno-version: v2.x
+
+            - name: Run the live-mysql suite
+              # Set HERE, in the workflow file, never from anything a fork's
+              # pull request can influence. The suite refuses a non-loopback
+              # host: it drops databases.
+              env:
+                  LOCKNESS_MYSQL_URL: mysql://root@127.0.0.1:3306/
+              run: deno task test:mysql -- --trace-leaks
+
     mutations:
         name: Mutation batteries
         runs-on: ubuntu-latest
