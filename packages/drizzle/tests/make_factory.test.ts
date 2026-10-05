@@ -11,6 +11,7 @@ import {
     assertRejects,
     assertStringIncludes,
 } from '@std/assert'
+import { CommandFailedError } from '@lockness/cli/command-failure'
 import { registerDrizzleCommands } from '../mod.ts'
 import { processStub } from '../cli_commands.ts'
 import { handleMakeFactory } from '../generators/factory_generator.ts'
@@ -39,35 +40,26 @@ Deno.test('make:factory is registered by registerDrizzleCommands', () => {
 
 Deno.test('handleMakeFactory end-to-end', async (t) => {
     await t.step(
-        'empty-name guard prints usage and writes no file',
+        'empty-name guard throws a failure and writes no file',
         async () => {
             // The guard runs before any path is built, so nothing is written.
             // Run in an isolated temp dir and assert the factories directory
-            // never comes into existence. Capture console.error to confirm the
-            // observable contract (usage message), and restore it in finally.
+            // never comes into existence. The failure is thrown, never
+            // printed: `Cli.dispatch()` prints it once (#436).
             const dir = await Deno.makeTempDir()
             const prevCwd = Deno.cwd()
-            const originalError = console.error
-            const errors: string[] = []
-            console.error = (...parts: unknown[]) => {
-                errors.push(parts.map((p) => String(p)).join(' '))
-            }
             Deno.chdir(dir)
             try {
-                await handleMakeFactory([])
-
-                assert(
-                    errors.some((line) =>
-                        line.includes('provide a factory name')
-                    ),
-                    'expected a usage message on the empty-name guard',
+                await assertRejects(
+                    () => handleMakeFactory([]),
+                    CommandFailedError,
+                    'provide a factory name',
                 )
                 await assertRejects(
                     () => Deno.stat(`${dir}/database/factories`),
                     Deno.errors.NotFound,
                 )
             } finally {
-                console.error = originalError
                 Deno.chdir(prevCwd)
                 await Deno.remove(dir, { recursive: true })
             }

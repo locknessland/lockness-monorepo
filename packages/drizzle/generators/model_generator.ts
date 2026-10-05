@@ -5,7 +5,7 @@
  * Lives in its own module (not inline in `cli_commands.ts`) so every `make:*`
  * generator sits under `generators/`, matching the factory and seeder
  * generators (architecture A-F5). It reuses `cli_commands.ts`'s
- * `processStub`/`createFile`/`getErrorMessage` helpers, and resolves the schema
+ * `processStub`/`createFile` helpers, and resolves the schema
  * dialect through `dialect_schema.ts`, so the stub-render and dialect logic is
  * not duplicated.
  *
@@ -13,7 +13,12 @@
  * @since 0.2.2
  */
 
-import { createFile, getErrorMessage, processStub } from '../cli_commands.ts'
+import {
+    CommandFailedError,
+    type CommandStep,
+    runSteps,
+} from '@lockness/cli/command-failure'
+import { createFile, processStub } from '../cli_commands.ts'
 import { modelStubParts, resolveGeneratorDialect } from './dialect_schema.ts'
 import type { Dialect } from '../drivers.ts'
 
@@ -121,17 +126,28 @@ function generateNaming(name: string): ModelNaming {
 }
 
 /**
+ * The one-line usage hint a missing model name fails with. It is folded into
+ * the failure message, because the dispatcher prints that message last (#436).
+ */
+const MAKE_MODEL_USAGE =
+    'Please provide a model name (e.g., Post). Usage: deno task cli make:model <Name> [-r|--repository] [-s|--seeder] [-c|--controller] [-a|--all] [--dialect postgres|mysql|sqlite]'
+
+/**
  * Handle make:model command - create model and related files.
  *
+ * Each file is one step, run with `runSteps`: every selected file is written
+ * even when an earlier one fails, then one failure names the files that could
+ * not be written (#436, finish then fail). The files that were written are
+ * listed either way.
+ *
  * @param args - Command arguments and flags
+ * @throws {CommandFailedError} When no model name is given, or when at least
+ *   one file could not be written (the first write error is its `cause`).
  */
 export async function handleMakeModel(args: string[]): Promise<void> {
     const flags = parseFlags(args)
 
-    if (!flags.name) {
-        printMakeModelUsage()
-        return
-    }
+    if (!flags.name) throw new CommandFailedError(MAKE_MODEL_USAGE)
 
     const naming = generateNaming(flags.name)
     const createdFiles: string[] = []
@@ -143,38 +159,38 @@ export async function handleMakeModel(args: string[]): Promise<void> {
         Deno.env.get('DATABASE_URL'),
     )
 
-    // Always create the model
-    const modelCreated = await createModelFile(naming, dialect)
-    if (!modelCreated) return
-    createdFiles.push(`./app/model/${naming.fileName}.ts`)
+    /** A step that writes one file and records its path once written. */
+    const fileStep = (
+        label: string,
+        write: () => Promise<string>,
+    ): CommandStep => ({
+        label,
+        run: async () => void createdFiles.push(await write()),
+    })
 
-    // Create optional files based on flags
+    // The model is always created; the related files follow the flags.
+    const steps: CommandStep[] = [
+        fileStep('model', () => createModelFile(naming, dialect)),
+    ]
     if (flags.repository) {
-        const created = await createRepositoryFile(naming)
-        if (created) {
-            createdFiles.push(
-                `./app/repository/${naming.fileName}_repository.ts`,
-            )
-        }
+        steps.push(fileStep('repository', () => createRepositoryFile(naming)))
     }
-
     if (flags.seeder) {
-        const created = await createSeederFile(naming)
-        if (created) {
-            createdFiles.push(`./database/seeders/${naming.fileName}_seeder.ts`)
-        }
+        steps.push(fileStep('seeder', () => createSeederFile(naming)))
     }
-
     if (flags.controller) {
-        const created = await createControllerFile(naming)
-        if (created) {
-            createdFiles.push(
-                `./app/controller/${naming.fileName}_controller.ts`,
-            )
-        }
+        steps.push(fileStep('controller', () => createControllerFile(naming)))
     }
 
-    // Print summary
+    try {
+        await runSteps(steps)
+    } catch (error) {
+        // Re-thrown, not swallowed: the files that do exist are listed first,
+        // then the dispatcher prints the failure naming the ones that do not.
+        printCreatedFiles(createdFiles)
+        throw error
+    }
+
     console.log(`✅ Created ${createdFiles.length} file(s):`)
     createdFiles.forEach((f) => console.log(`   ${f}`))
 
@@ -186,26 +202,15 @@ export async function handleMakeModel(args: string[]): Promise<void> {
 }
 
 /**
- * Print usage information for make:model command.
+ * List the files a failed `make:model` did write, so the user knows what
+ * exists before the failure line names what does not.
+ *
+ * @param files - The paths written, in order.
  */
-function printMakeModelUsage(): void {
-    console.error('❌ Please provide a model name (e.g., Post)')
-    console.log('')
-    console.log('Usage: deno task cli make:model <Name> [options]')
-    console.log('')
-    console.log('Options:')
-    console.log('  -r, --repository    Create a repository')
-    console.log('  -s, --seeder        Create a seeder')
-    console.log('  -c, --controller    Create a CRUD controller')
-    console.log(
-        '  -a, --all           Create all (repository, seeder, controller)',
-    )
-    console.log(
-        '  --dialect <d>       Schema dialect: postgres | mysql | sqlite',
-    )
-    console.log(
-        '                      (defaults to the DATABASE_URL scheme, else postgres)',
-    )
+function printCreatedFiles(files: readonly string[]): void {
+    if (files.length === 0) return
+    console.log(`Created ${files.length} file(s) before the failure:`)
+    files.forEach((f) => console.log(`   ${f}`))
 }
 
 /**
@@ -215,100 +220,75 @@ function printMakeModelUsage(): void {
  * @param dialect - The resolved schema dialect; selects the table/column helpers
  *   (pg `serial`, mysql `int`+`autoincrement`, sqlite `integer` PK) the stub is
  *   rendered with.
- * @returns True if created successfully
+ * @returns The path written.
+ * @throws When the stub cannot be read or the file cannot be written.
  */
 async function createModelFile(
     naming: ModelNaming,
     dialect: Dialect,
-): Promise<boolean> {
-    try {
-        const content = await processStub('model', {
-            ModelName: naming.modelName,
-            tableName: naming.tableName,
-            ...modelStubParts(dialect),
-        })
-        await createFile(`./app/model/${naming.fileName}.ts`, content)
-        return true
-    } catch (error) {
-        console.error(`❌ Failed to create model: ${getErrorMessage(error)}`)
-        return false
-    }
+): Promise<string> {
+    const path = `./app/model/${naming.fileName}.ts`
+    const content = await processStub('model', {
+        ModelName: naming.modelName,
+        tableName: naming.tableName,
+        ...modelStubParts(dialect),
+    })
+    await createFile(path, content)
+    return path
 }
 
 /**
  * Create the repository file.
  *
  * @param naming - Model naming conventions
- * @returns True if created successfully
+ * @returns The path written.
+ * @throws When the stub cannot be read or the file cannot be written.
  */
-async function createRepositoryFile(naming: ModelNaming): Promise<boolean> {
-    try {
-        const content = await processStub('repository', {
-            ModelName: naming.modelName,
-            tableName: naming.tableName,
-            fileName: naming.fileName,
-            RepositoryName: naming.repositoryName,
-        })
-        await createFile(
-            `./app/repository/${naming.fileName}_repository.ts`,
-            content,
-        )
-        return true
-    } catch (error) {
-        console.error(
-            `❌ Failed to create repository: ${getErrorMessage(error)}`,
-        )
-        return false
-    }
+async function createRepositoryFile(naming: ModelNaming): Promise<string> {
+    const path = `./app/repository/${naming.fileName}_repository.ts`
+    const content = await processStub('repository', {
+        ModelName: naming.modelName,
+        tableName: naming.tableName,
+        fileName: naming.fileName,
+        RepositoryName: naming.repositoryName,
+    })
+    await createFile(path, content)
+    return path
 }
 
 /**
  * Create the seeder file.
  *
  * @param naming - Model naming conventions
- * @returns True if created successfully
+ * @returns The path written.
+ * @throws When the stub cannot be read or the file cannot be written.
  */
-async function createSeederFile(naming: ModelNaming): Promise<boolean> {
-    try {
-        const content = await processStub('seeder', {
-            className: naming.modelName,
-        })
-        await createFile(
-            `./database/seeders/${naming.fileName}_seeder.ts`,
-            content,
-        )
-        return true
-    } catch (error) {
-        console.error(`❌ Failed to create seeder: ${getErrorMessage(error)}`)
-        return false
-    }
+async function createSeederFile(naming: ModelNaming): Promise<string> {
+    const path = `./database/seeders/${naming.fileName}_seeder.ts`
+    const content = await processStub('seeder', {
+        className: naming.modelName,
+    })
+    await createFile(path, content)
+    return path
 }
 
 /**
  * Create the controller file.
  *
  * @param naming - Model naming conventions
- * @returns True if created successfully
+ * @returns The path written.
+ * @throws When the stub cannot be read or the file cannot be written.
  */
-async function createControllerFile(naming: ModelNaming): Promise<boolean> {
-    try {
-        const content = await processStub('controller', {
-            ModelName: naming.modelName,
-            tableName: naming.tableName,
-            fileName: naming.fileName,
-            route: naming.route,
-            RepositoryName: naming.repositoryName,
-            repositoryVar: naming.repositoryVar,
-        })
-        await createFile(
-            `./app/controller/${naming.fileName}_controller.ts`,
-            content,
-        )
-        return true
-    } catch (error) {
-        console.error(
-            `❌ Failed to create controller: ${getErrorMessage(error)}`,
-        )
-        return false
-    }
+async function createControllerFile(naming: ModelNaming): Promise<string> {
+    const path = `./app/controller/${naming.fileName}_controller.ts`
+    const content = await processStub('controller', {
+        ModelName: naming.modelName,
+        tableName: naming.tableName,
+        fileName: naming.fileName,
+        route: naming.route,
+        RepositoryName: naming.repositoryName,
+        repositoryVar: naming.repositoryVar,
+    })
+    await createFile(path, content)
+    return path
 }
