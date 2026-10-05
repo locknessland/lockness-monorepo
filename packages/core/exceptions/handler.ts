@@ -55,8 +55,11 @@ export class ErrorHandlerRegistry {
      * @returns The handler, or `null` when the default one should be used.
      */
     private async loadCustomHandler(): Promise<ErrorHandler | null> {
-        // The path as the app knows it, never the absolute one, and encoded:
-        // it is what the developer needs, and no more of the machine than that.
+        // The path this handler prints is the one the app gave, encoded: what
+        // the developer needs, and no more of the machine than that. The
+        // rendered error appended to it is another matter: an import error's
+        // message carries the module's absolute `file:` URL, so the line as a
+        // whole can still name the absolute path (#478).
         const shown = safeForLog(this.customHandlerPath)
         try {
             await Deno.stat(resolve(this.customHandlerPath))
