@@ -173,6 +173,101 @@ Deno.test('make:controller --view finishes, then fails', async (t) => {
     })
 })
 
+/** Write a minimal `UserController` for `make:action` to append to. */
+async function writeUserController(): Promise<void> {
+    await Deno.mkdir('app/controller', { recursive: true })
+    await Deno.writeTextFile(
+        'app/controller/user_controller.tsx',
+        'export class UserController {\n}\n',
+    )
+}
+
+/** Where `make:action User show --view` writes its view. */
+const USER_SHOW_VIEW = 'app/view/pages/user/show.tsx'
+
+Deno.test('make:action --view finishes, then fails', async (t) => {
+    await t.step('a failed view still adds the action', async () => {
+        await inTempDir(async () => {
+            await writeUserController()
+            // `app/view` as a file makes the view's mkdir fail.
+            await Deno.writeTextFile('app/view', 'not a directory')
+
+            const { result, error } = await captureConsole(() =>
+                makeCli().dispatch(['make:action', 'User', 'show', '--view'])
+            )
+
+            assertEquals(result, 1)
+            assertStringIncludes(
+                onlyErrorLine(error),
+                '1 of 2 steps failed: view',
+            )
+            const controller = await Deno.readTextFile(
+                'app/controller/user_controller.tsx',
+            )
+            assertStringIncludes(controller, 'show(')
+            // Without its view, the action does not render one.
+            assert(!controller.includes('<UserShow'), controller)
+        })
+    })
+
+    await t.step('an existing view is kept, not overwritten', async () => {
+        await inTempDir(async () => {
+            await writeUserController()
+            await Deno.mkdir('app/view/pages/user', { recursive: true })
+            await Deno.writeTextFile(USER_SHOW_VIEW, 'the user wrote this')
+
+            const { result, error } = await captureConsole(() =>
+                makeCli().dispatch(['make:action', 'User', 'show', '--view'])
+            )
+
+            assertEquals(result, 0)
+            assertEquals(error.length, 0)
+            assertEquals(
+                await Deno.readTextFile(USER_SHOW_VIEW),
+                'the user wrote this',
+            )
+            assertStringIncludes(
+                await Deno.readTextFile('app/controller/user_controller.tsx'),
+                '<UserShow />',
+            )
+        })
+    })
+
+    await t.step('a directory at the view path fails the view', async () => {
+        await inTempDir(async () => {
+            await writeUserController()
+            await Deno.mkdir(USER_SHOW_VIEW, { recursive: true })
+
+            const { result, error } = await captureConsole(() =>
+                makeCli().dispatch(['make:action', 'User', 'show', '--view'])
+            )
+
+            assertEquals(result, 1)
+            assertStringIncludes(
+                onlyErrorLine(error),
+                '1 of 2 steps failed: view',
+            )
+        })
+    })
+
+    await t.step('both steps passing exits 0', async () => {
+        await inTempDir(async () => {
+            await writeUserController()
+
+            const { result, error } = await captureConsole(() =>
+                makeCli().dispatch(['make:action', 'User', 'show', '--view'])
+            )
+
+            assertEquals(result, 0)
+            assertEquals(error.length, 0)
+            assertStringIncludes(
+                await Deno.readTextFile(USER_SHOW_VIEW),
+                'UserShow',
+            )
+        })
+    })
+})
+
 Deno.test('make:crud finishes, then fails', async (t) => {
     await t.step('a failed step leaves the others written', async () => {
         await inTempDir(async () => {

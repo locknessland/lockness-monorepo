@@ -8,18 +8,27 @@
 
 import type { MakeCommand } from './types.ts'
 import { Stub } from '../../stubs.ts'
-import { CommandFailedError } from '../../command_failure.ts'
+import {
+    CommandFailedError,
+    type CommandStep,
+    runSteps,
+} from '../../command_failure.ts'
 import { STUBS_PATH } from './stub_paths.ts'
 
 /**
  * The `make:action` command definition.
  *
- * Appends an action method to an existing controller.
+ * Appends an action method to an existing controller. With `--view`, the view
+ * is written first; one that already exists is the user's and is kept, never
+ * overwritten. A view that fails to write does not stop the action: it is
+ * added without rendering a view, then the command fails naming the `view`
+ * step (#436, P1).
  *
  * @throws {CommandFailedError} When an argument is missing or invalid, the
- * controller does not exist, or it has no class closing brace. Any other
- * failed read or write is not caught: it reaches `Cli.dispatch()`, which
- * prints it with its frames.
+ * controller does not exist, it has no class closing brace, or a step failed
+ * (`<n> of <m> steps failed: <labels>`, the first failure as its cause). A
+ * failed controller read other than a missing file is not caught: it reaches
+ * `Cli.dispatch()`, which prints it with its frames.
  */
 export const makeAction: MakeCommand = {
     name: 'make:action',
@@ -84,66 +93,8 @@ export const makeAction: MakeCommand = {
             path = `/${actionName}`
         }
 
-        // Generate method body
-        let body = ''
-        if (withView) {
-            // Create view if it doesn't exist
-            const viewClassName = `${className}${
-                actionName.charAt(0).toUpperCase() + actionName.slice(1)
-            }`
-            const viewFileName =
-                `${controllerName.toLowerCase()}/${actionName.toLowerCase()}`
-            const viewDirPath =
-                `./app/view/pages/${controllerName.toLowerCase()}`
-            const viewFilePath =
-                `${viewDirPath}/${actionName.toLowerCase()}.tsx`
-
-            try {
-                await Deno.mkdir(viewDirPath, { recursive: true })
-                const viewContent = await Stub.renderFrom(
-                    STUBS_PATH,
-                    'make',
-                    'view',
-                    {
-                        className: viewClassName,
-                        fileName: viewFileName,
-                    },
-                )
-                await Deno.writeTextFile(viewFilePath, viewContent)
-                console.log(`✅ View created at ${viewFilePath}`)
-            } catch {
-                // View already exists or failed to create
-            }
-
-            body = `return c.html(<${viewClassName} />)`
-        } else if (
-            actionName === 'show' || actionName === 'edit' ||
-            actionName === 'update' || actionName === 'destroy'
-        ) {
-            body =
-                `const id = c.req.param('id')\n        return c.json({ message: '${actionName} ${className} ' + id })`
-        } else if (actionName === 'store' || actionName === 'update') {
-            body =
-                `const body = await c.req.json()\n        return c.json({ message: '${className} ${actionName}d', data: body })`
-        } else {
-            body =
-                `return c.json({ message: '${actionName} from ${className}Controller' })`
-        }
-
-        // Generate the action method
-        const actionContent = await Stub.renderFrom(
-            STUBS_PATH,
-            'make',
-            `action-${method}`,
-            {
-                path,
-                routeName,
-                methodName: actionName,
-                body,
-            },
-        )
-
-        // Find the last closing brace of the class
+        // Find the last closing brace of the class before anything is
+        // written: a controller the action cannot go into gets no view.
         const lines = controllerContent.split('\n')
         let lastBraceIndex = -1
         for (let i = lines.length - 1; i >= 0; i--) {
@@ -159,56 +110,158 @@ export const makeAction: MakeCommand = {
             )
         }
 
-        // Insert the new method before the last brace
-        lines.splice(lastBraceIndex, 0, actionContent)
-        const newContent = lines.join('\n')
+        const viewClassName = `${className}${
+            actionName.charAt(0).toUpperCase() + actionName.slice(1)
+        }`
 
-        // Add import for the decorator if needed
-        let finalContent = newContent
-        const decoratorImports = ['Get', 'Post', 'Put', 'Delete', 'Patch']
-        const decoratorName = method.charAt(0).toUpperCase() +
-            method.slice(1)
-
-        if (
-            !controllerContent.includes(decoratorName) &&
-            decoratorImports.includes(decoratorName)
-        ) {
-            // Add to imports
-            finalContent = finalContent.replace(
-                /import\s*{([^}]+)}\s*from\s*['"]lockness['"]/,
-                (_match, imports) => {
-                    const importList = imports.split(',').map((i: string) =>
-                        i.trim()
-                    )
-                    if (!importList.includes(decoratorName)) {
-                        importList.push(decoratorName)
-                    }
-                    return `import { ${
-                        importList.join(', ')
-                    } } from 'lockness/core'`
-                },
-            )
-        }
-
-        // Add view import if needed
+        const steps: CommandStep[] = []
+        let viewAvailable = false
         if (withView) {
-            const viewClassName = `${className}${
-                actionName.charAt(0).toUpperCase() + actionName.slice(1)
-            }`
-            const viewImport =
-                `import { ${viewClassName} } from '@view/pages/${controllerName.toLowerCase()}/${actionName.toLowerCase()}.tsx'\n`
+            steps.push({
+                label: 'view',
+                run: async () => {
+                    const viewFileName =
+                        `${controllerName.toLowerCase()}/${actionName.toLowerCase()}`
+                    const viewDirPath =
+                        `./app/view/pages/${controllerName.toLowerCase()}`
+                    const viewFilePath =
+                        `${viewDirPath}/${actionName.toLowerCase()}.tsx`
 
-            // Add after the lockness import
-            finalContent = finalContent.replace(
-                /(import\s*{[^}]+}\s*from\s*['"]lockness['"])/,
-                `$1\n${viewImport}`,
-            )
+                    await Deno.mkdir(viewDirPath, { recursive: true })
+                    const viewContent = await Stub.renderFrom(
+                        STUBS_PATH,
+                        'make',
+                        'view',
+                        {
+                            className: viewClassName,
+                            fileName: viewFileName,
+                        },
+                    )
+                    try {
+                        await Deno.writeTextFile(viewFilePath, viewContent, {
+                            createNew: true,
+                        })
+                        console.log(`✅ View created at ${viewFilePath}`)
+                    } catch (error) {
+                        // Only an existing view FILE is expected: it is the
+                        // user's, so it is kept. Anything else fails the step.
+                        if (!(error instanceof Deno.errors.AlreadyExists)) {
+                            throw error
+                        }
+                        if (!(await Deno.stat(viewFilePath)).isFile) throw error
+                        console.log(
+                            `ℹ️  View already exists at ${viewFilePath}, kept as is`,
+                        )
+                    }
+                    viewAvailable = true
+                },
+            })
         }
 
-        await Deno.writeTextFile(controllerPath, finalContent)
-        console.log(`✅ Action '${actionName}' added to ${controllerPath}`)
-        console.log(
-            `   Route: ${method.toUpperCase()} ${path} → ${routeName}`,
-        )
+        steps.push({
+            label: 'action',
+            run: async () => {
+                // Without its view, the action renders none.
+                const actionContent = await Stub.renderFrom(
+                    STUBS_PATH,
+                    'make',
+                    `action-${method}`,
+                    {
+                        path,
+                        routeName,
+                        methodName: actionName,
+                        body: actionBody(
+                            viewAvailable ? viewClassName : undefined,
+                            actionName,
+                            className,
+                        ),
+                    },
+                )
+
+                // Insert the new method before the last brace
+                let finalContent = [
+                    ...lines.slice(0, lastBraceIndex),
+                    actionContent,
+                    ...lines.slice(lastBraceIndex),
+                ].join('\n')
+
+                // Add import for the decorator if needed
+                const decoratorImports = [
+                    'Get',
+                    'Post',
+                    'Put',
+                    'Delete',
+                    'Patch',
+                ]
+                const decoratorName = method.charAt(0).toUpperCase() +
+                    method.slice(1)
+
+                if (
+                    !controllerContent.includes(decoratorName) &&
+                    decoratorImports.includes(decoratorName)
+                ) {
+                    finalContent = finalContent.replace(
+                        /import\s*{([^}]+)}\s*from\s*['"]lockness['"]/,
+                        (_match, imports) => {
+                            const importList = imports.split(',').map((
+                                i: string,
+                            ) => i.trim())
+                            if (!importList.includes(decoratorName)) {
+                                importList.push(decoratorName)
+                            }
+                            return `import { ${
+                                importList.join(', ')
+                            } } from 'lockness/core'`
+                        },
+                    )
+                }
+
+                // Add view import if needed
+                if (viewAvailable) {
+                    const viewImport =
+                        `import { ${viewClassName} } from '@view/pages/${controllerName.toLowerCase()}/${actionName.toLowerCase()}.tsx'\n`
+                    finalContent = finalContent.replace(
+                        /(import\s*{[^}]+}\s*from\s*['"]lockness['"])/,
+                        `$1\n${viewImport}`,
+                    )
+                }
+
+                await Deno.writeTextFile(controllerPath, finalContent)
+                console.log(
+                    `✅ Action '${actionName}' added to ${controllerPath}`,
+                )
+                console.log(
+                    `   Route: ${method.toUpperCase()} ${path} → ${routeName}`,
+                )
+            },
+        })
+
+        await runSteps(steps)
     },
+}
+
+/**
+ * The body of the generated action method.
+ *
+ * @param viewClassName - The view to render, or `undefined` for none.
+ * @param actionName - The action's method name.
+ * @param className - The controller's class name, without `Controller`.
+ * @returns The method body, indented for the action stub.
+ */
+function actionBody(
+    viewClassName: string | undefined,
+    actionName: string,
+    className: string,
+): string {
+    if (viewClassName) return `return c.html(<${viewClassName} />)`
+    if (
+        actionName === 'show' || actionName === 'edit' ||
+        actionName === 'update' || actionName === 'destroy'
+    ) {
+        return `const id = c.req.param('id')\n        return c.json({ message: '${actionName} ${className} ' + id })`
+    }
+    if (actionName === 'store') {
+        return `const body = await c.req.json()\n        return c.json({ message: '${className} ${actionName}d', data: body })`
+    }
+    return `return c.json({ message: '${actionName} from ${className}Controller' })`
 }
