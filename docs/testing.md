@@ -350,9 +350,10 @@ but keeps comes out of it with the same owner and ACL. It creates one role,
 
 ## Live-mysql integration tests
 
-`db:fresh` on MySQL rests on behaviour a plan test cannot observe: the dedicated
-connection that runs with `FOREIGN_KEY_CHECKS = 0` is destroyed, never returned
-to the pool, and every `DROP` lands in the database the catalogue read named.
+`db:fresh` on MySQL rests on behaviour a plan test cannot observe: the
+maintenance connection that runs with `FOREIGN_KEY_CHECKS = 0` is never a pool
+member and is gone once closed, the migrate runs on that same connection, and
+every `DROP` lands in the database the catalogue read named.
 `packages/drizzle/tests/fresh_mysql_live.test.ts` runs the real MySQL driver,
 the reset and `db:fresh` against a server. The `live-mysql` CI job runs it
 against a MySQL 8.4 service on every push and pull request.

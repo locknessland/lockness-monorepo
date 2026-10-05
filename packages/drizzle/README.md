@@ -232,11 +232,16 @@ deno task cli db:fresh
 `migrations.table`, `migrations.schema`, `schemaFilter`), then empties a managed
 scope and runs drizzle-orm's own migrator, in one process and from one
 configuration. It spawns nothing, never prompts, and never writes to the
-migrations folder. It drops:
+migrations folder. The reads, the reset and the migrate share one connection: on
+postgres and MySQL a dedicated one, never from the app's pool, with the postgres
+catalogue read inside the reset transaction at `REPEATABLE READ`; on libsql the
+reads and the reset share one write transaction and the migrate runs on the same
+database. If the migrations fail after the reset, the database **stays
+emptied**: fix the migration and run `db:fresh` again. It drops:
 
 | Dialect         | What is dropped                                                                                                                                                  |
 | :-------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| sqlite / libsql | every table and view of the main database (not `sqlite_%`, `libsql_%`), in one write batch                                                                       |
+| sqlite / libsql | every table and view of the main database (not `sqlite_%`, `libsql_%`), in one write transaction                                                                 |
 | mysql           | every table and view of `DATABASE()`, the bookkeeping table included, each `DROP` naming the database (`` `db`.`name` ``). Not atomic: MySQL DDL auto-commits    |
 | postgres        | every table, view, sequence, type and routine in `schemaFilter` (default `public`), plus the bookkeeping table. One transaction; schemas are kept, but see below |
 
@@ -254,7 +259,7 @@ against a real postgres in the `live-postgres` CI job.
 
 On MySQL, `DATABASE()` and the table list are read in one statement, and every
 `DROP` names that database, so the reset cannot empty a different one. This, the
-destroyed connection and the system-database refusal are proven against a real
+unpooled connection and the system-database refusal are proven against a real
 MySQL 8.4 in the `live-mysql` CI job.
 
 It is refused in production unless you pass `--allow-production`, the same guard

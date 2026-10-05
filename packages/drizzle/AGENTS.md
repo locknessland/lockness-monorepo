@@ -104,6 +104,15 @@ Anything not listed is internal and free to change.
   its held DSN together before any await; reading `held` back from `this` later
   lets a racing `close()` strip the redaction (pinned by
   `tests/mutations/lifecycle_427.ts`, M12).
+- A maintenance connection's `execute` takes a **planner**, not statements
+  (#447): the driver opens its unit, the planner reads the catalogue inside it
+  and returns the plan, and the driver runs nothing before the planner has
+  resolved — that is what keeps every refusal before the first `DROP`. A refusal
+  must pass through every wrapper as itself: `resetDatabase` and the redacting
+  `Database.maintenance` rethrow the planner's own error, so the command still
+  frames a `RefusedError` as "Nothing was dropped". The connection is never a
+  pool member, and `close()` on the default opener goes through `settleInOrder`
+  (connection, then `Database`; first failure kept).
 - A symbol reachable through an `exports` entry is public; `@internal` does not
   hide it. A helper meant to be internal goes in a module `exports` does not
   list — `command_runner.ts`, `seeder_loader.ts`, `migration_settings.ts`,

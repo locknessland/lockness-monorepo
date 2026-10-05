@@ -660,21 +660,44 @@ job can run it.
 `db:fresh` resets and migrates in one process, from one configuration. It reads
 `drizzle.config.ts` — `dialect`, `out`, `dbCredentials.url`, `migrations.table`,
 `migrations.schema` and `schemaFilter` — empties a managed scope, then runs
-drizzle-orm's own migrator against the same database. The steps do not yet share
-one connection: on postgres the catalogue is read before the reset transaction
-opens, and on MySQL the reads and the migrate use the pool while the reset runs
-on its own connection, so a pooled connection switched to another database would
-migrate there (tracked in #447). It spawns no process and calls no prompt API,
-so it behaves the same with or without a TTY. The migrations folder is only
-read. There is no countdown.
+drizzle-orm's own migrator against the same database. It spawns no process and
+calls no prompt API, so it behaves the same with or without a TTY. The
+migrations folder is only read. There is no countdown.
+
+**One connection.** The catalogue reads, the reset and the migrate share one
+connection, opened once and closed on every path (#447):
+
+- **postgres and MySQL:** one dedicated connection, never one from the app's
+  pool. The migrate runs on the connection the reset ran on, so it acts on the
+  database the reset emptied.
+- **postgres:** the catalogue is read inside the reset transaction, after
+  `BEGIN` and before the first `DROP`, at `REPEATABLE READ`. The plan is built
+  from the state it runs against, and the four catalogue reads, the census
+  baseline and the census check below all see one snapshot.
+- **libsql:** the reads and the reset share one write transaction
+  (`BEGIN IMMEDIATE` on a `file:` database), which keeps every other writer out
+  between the read and the last `DROP`. The migrate then runs on the same
+  database through libsql's own `migrate`, which cannot join a transaction: it
+  turns foreign keys off before its own `BEGIN`.
+
+`db:migrate` and `db:status` open the same kind of connection.
+
+**A failed run.** Every refusal comes before anything is dropped. Once the reset
+has committed, the migrate runs; if it fails, the managed scope **stays
+emptied**, on every dialect, and the command fails with
+`The database was emptied, but the migrations failed: …`. Fix the migration and
+run `db:fresh` again. A reset that fails is reported as
+`Failed to empty the database; migrations were not run: …`: on postgres and
+libsql nothing was dropped, and on MySQL, whose DDL auto-commits, the statements
+before the failure were kept.
 
 "Fresh" empties a **managed scope**, not "what the migrations created":
 
-| Dialect         | Scope                                                                                     | How                                                                                                                                                                                                                                        |
-| :-------------- | :---------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| sqlite / libsql | every table and view of `main`, except `sqlite_%` and `libsql_%`                          | one write batch: `PRAGMA defer_foreign_keys = ON`, the views, then the tables. Atomic                                                                                                                                                      |
-| mysql           | every table and view of `DATABASE()`, the bookkeeping table included                      | one read for the database and its tables; a dedicated connection, destroyed afterwards: `FOREIGN_KEY_CHECKS` off, the bookkeeping table, then each view and table as `` `db`.`name` ``, checks back on. Not atomic: MySQL DDL auto-commits |
-| postgres        | the tables, views, sequences, types and routines in `schemaFilter` (default `['public']`) | one transaction: the bookkeeping table, then each object `CASCADE`, keeping its schema; a closing set check rolls back an escaped `CASCADE` and names what it reached                                                                      |
+| Dialect         | Scope                                                                                     | How                                                                                                                                                                                                                                       |
+| :-------------- | :---------------------------------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| sqlite / libsql | every table and view of `main`, except `sqlite_%` and `libsql_%`                          | one write transaction: the read, then `PRAGMA defer_foreign_keys = ON`, the views, then the tables. Atomic                                                                                                                                |
+| mysql           | every table and view of `DATABASE()`, the bookkeeping table included                      | one read for the database and its tables, on the maintenance connection, never pooled: `FOREIGN_KEY_CHECKS` off, the bookkeeping table, then each view and table as `` `db`.`name` ``, checks back on. Not atomic: MySQL DDL auto-commits |
+| postgres        | the tables, views, sequences, types and routines in `schemaFilter` (default `['public']`) | one transaction at `REPEATABLE READ`: the catalogue read inside it, the bookkeeping table, then each object `CASCADE`, keeping its schema; a closing set check rolls back an escaped `CASCADE` and names what it reached                  |
 
 On postgres, extension members (postgis, pgcrypto, vector…) and sequences owned
 by a column are not dropped directly. A schema is dropped only when a migration
@@ -709,19 +732,21 @@ reset rather than vanishing with it. It is strict on purpose: a global object
 that exists only through in-scope ones (a custom cast, a transform, a language,
 an access method or a foreign-data wrapper with an in-scope handler), and an
 outside object owned by an in-scope one, also roll back. Objects another session
-creates during the reset are never compared; one it **drops** meanwhile causes a
-rollback, the safe direction. The check is proven against a real postgres 16 in
-the `live-postgres` CI job; the catalogue read that lists what to drop still
-runs before the transaction opens.
+creates during the reset are never compared, and one it **drops** meanwhile does
+not cause a rollback: at `REPEATABLE READ` the check still sees it in the
+transaction's snapshot, so it measures only what this transaction's own
+`CASCADE` reached. The check is proven against a real postgres 16 in the
+`live-postgres` CI job, and so is the catalogue read inside the transaction.
 
 **MySQL reads once.** `DATABASE()` and the database's tables and views come back
-from one statement — two reads from the pool could come from two connections —
-and every `DROP` is qualified as `` `db`.`name` ``, so the reset empties the
-database it read even if the dedicated connection selects another. The
-bookkeeping table is always dropped first, listed or not. The migrator still
-runs unqualified on the pool. The reset, its destroyed connection and the
-system-database refusal are proven against a real MySQL 8.4 in the `live-mysql`
-CI job.
+from one statement, and every `DROP` is qualified as `` `db`.`name` ``, so the
+reset empties the database it read even if a statement in between selected
+another. The bookkeeping table is always dropped first, listed or not. The
+maintenance connection comes from `createConnection`, never from the pool, so a
+session left with `FOREIGN_KEY_CHECKS = 0` has no next borrower, and the
+migrator runs on that same connection. The reset, the migrate on the connection
+the reset ran on, and the system-database refusal are proven against a real
+MySQL 8.4 in the `live-mysql` CI job.
 
 **Guard.** Like `db:seed`, `db:fresh` refuses a production environment
 (`APP_ENV` is `production`) unless `--allow-production` is passed, and a
