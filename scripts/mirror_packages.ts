@@ -44,6 +44,16 @@
  * branch pushed and its tag missing. A mirror with nothing to push reports
  * `already at v<version>`.
  *
+ * **Clone shapes** (measured, pinned by `scripts/mirror_packages_test.ts`).
+ * A shallow clone whose tip is the release syncs. A shallow clone that cut
+ * the release off its history refuses provenance (the tag's ancestry cannot
+ * be proven), and nothing is pushed. A blobless partial clone
+ * (`--filter=blob:none`) syncs: git fetches the blobs it needs from the
+ * promisor remote on demand. On the scan side, a shallow clone narrows the
+ * published set (it can only admit less), and a partial clone completes it
+ * on demand or, with its promisor unreachable, admits nothing
+ * (`scripts/prepush_secret_scan_test.ts`).
+ *
  * @example
  * ```bash
  * deno task mirror --dry-run     # report, push nothing
@@ -630,7 +640,14 @@ async function syncMirror(
  * Mirror every package at the workspace version, from its release tag.
  *
  * @param options - Root, mirror base URL, `gh` runner and flags.
- * @returns Whether every mirror is at the release, and the report.
+ * @returns Whether every mirror is at the release, and the report. A refused
+ *   provenance check or a failed mirror is `ok: false`, never a throw.
+ * @throws {Deno.errors.NotFound} When `<root>/deno.jsonc` does not exist
+ *   (any other read error propagates the same way).
+ * @throws {SyntaxError} When `deno.jsonc` is not valid JSONC.
+ * @throws {Error} When `packages/` cannot be listed at the release commit,
+ *   or a package directory has no tree there — both after provenance passed
+ *   and before anything is pushed or created.
  * @example
  * ```ts
  * const run = await mirrorPackages({
