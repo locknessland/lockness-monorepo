@@ -5,9 +5,11 @@
  * | Path                          | Outcome                                                        |
  * | :---------------------------- | :------------------------------------------------------------- |
  * | no kernel file                | failure, nothing run                                           |
+ * | kernel file has no `@Kernel`  | failure naming the file, nothing run                           |
  * | kernel fails to load          | the error itself reaches the dispatcher (no catch in compile)  |
  * | route generation fails        | failure with `cause`, nothing run                              |
  * | pre-compile script fails      | `<step> failed (<program> exited <code>)`, no `deno compile`   |
+ * | a step cannot start           | `<step> could not start (<program>)`, the runner's error as cause |
  * | declared asset missing        | failure, no `deno compile`                                     |
  * | `deno compile` fails          | `Compilation failed (deno compile exited <code>)`, no ✅        |
  *
@@ -155,15 +157,30 @@ Deno.test('compile - no kernel file is a failure and runs nothing', async () => 
     })
 })
 
-Deno.test('compile - a kernel that fails to load reaches the dispatcher as itself', async () => {
+Deno.test('compile - a kernel file with no @Kernel class is a failure and runs nothing', async () => {
     await inApp(
         { 'app/kernel.ts': 'export const notAKernel = 1\n' },
         async () => {
             const { runner, calls } = fakeRunner()
-            const error = await assertRejects(
-                () => new CompileCommand(runner).handle(CTX),
-                Error,
-                'No @Kernel decorated class found',
+            const error = await assertRejects(() =>
+                new CompileCommand(runner).handle(CTX)
+            )
+            assertFailure(
+                error,
+                'No @Kernel decorated class found in app/kernel.ts',
+            )
+            assertEquals(calls, [])
+        },
+    )
+})
+
+Deno.test('compile - a kernel that fails to load reaches the dispatcher as itself', async () => {
+    await inApp(
+        { 'app/kernel.ts': 'throw new Error("kernel exploded")\n' },
+        async () => {
+            const { runner, calls } = fakeRunner()
+            const error = await assertRejects(() =>
+                new CompileCommand(runner).handle(CTX)
             )
             assert(!(error instanceof CoreCommandFailure))
             assertEquals(calls, [])
@@ -240,6 +257,47 @@ Deno.test('compile - a pre-compile command runs its own program', async () => {
                 'Pre-compile script "make assets" failed (make exited 2)',
             )
             assertEquals(calls, [{ command: 'make', args: ['assets'] }])
+        },
+    )
+})
+
+Deno.test('compile - a pre-compile program that cannot start is a failure with cause', async () => {
+    await inApp(
+        {
+            'app/kernel.ts': kernelSource({
+                compile: { scripts: ['missing-tool build'] },
+            }),
+        },
+        async () => {
+            const notFound = new Deno.errors.NotFound('missing-tool')
+            const runner: StepRunner = () => Promise.reject(notFound)
+            const error = await assertRejects(() =>
+                new CompileCommand(runner).handle(CTX)
+            )
+            const failure = assertFailure(
+                error,
+                'Pre-compile script "missing-tool build" could not start (missing-tool)',
+            )
+            assertEquals(failure.cause, notFound)
+        },
+    )
+})
+
+Deno.test('compile - a deno compile that cannot start is a failure with cause', async () => {
+    await inApp(
+        { 'app/kernel.ts': kernelSource({ compile: {} }) },
+        async (logs) => {
+            const denied = new Deno.errors.PermissionDenied('run')
+            const runner: StepRunner = () => Promise.reject(denied)
+            const error = await assertRejects(() =>
+                new CompileCommand(runner).handle(CTX)
+            )
+            const failure = assertFailure(
+                error,
+                'Compilation could not start (deno compile)',
+            )
+            assertEquals(failure.cause, denied)
+            assert(!logs.some((line) => line.includes('✅ Compilation')))
         },
     )
 })

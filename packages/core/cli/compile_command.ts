@@ -87,7 +87,8 @@ const ROUTES_FILE = './app/routes.ts'
  *
  * @param root - The app root. Defaults to the working directory.
  * @returns The kernel's config, or `undefined` when no kernel file exists.
- * @throws When the file fails to load, or declares no `@Kernel` class.
+ * @throws {CoreCommandFailure} When the file declares no `@Kernel` class.
+ * @throws Whatever loading the file throws, as it was thrown.
  * @internal Exported for tests.
  *
  * @example
@@ -107,7 +108,9 @@ export async function loadCompileKernel(
             ?.[KERNEL_CONFIG]
         if (config !== undefined) return config
     }
-    throw new Error(`No @Kernel decorated class found in ${kernel.candidate}`)
+    throw new CoreCommandFailure(
+        `No @Kernel decorated class found in ${kernel.candidate}`,
+    )
 }
 
 /**
@@ -136,9 +139,10 @@ export class CompileCommand implements CommandContract {
      * Compile the app, stopping at the first failed step.
      *
      * @param _ctx - Unused: `compile` takes no arguments.
-     * @throws {CoreCommandFailure} When there is no kernel file, route
-     *   generation fails, a pre-compile script or `deno compile` exits
-     *   non-zero, or a declared asset is missing.
+     * @throws {CoreCommandFailure} When there is no kernel file or it
+     *   declares no `@Kernel` class, route generation fails, a pre-compile
+     *   script or `deno compile` cannot start or exits non-zero, or a
+     *   declared asset is missing.
      * @throws Anything else (a kernel that fails to load, a copy that fails)
      *   as it was thrown, for the dispatcher to print with its frames.
      */
@@ -228,6 +232,9 @@ export class CompileCommand implements CommandContract {
      * @param program - The program as the user knows it (`deno compile`).
      * @param command - The executable actually spawned.
      * @param args - Its arguments.
+     * @throws {CoreCommandFailure} `<step> could not start (<program>)`,
+     *   with the runner's error as `cause`, when the program cannot be
+     *   spawned (not found, not permitted) — a user mistake, not a crash.
      * @throws {CoreCommandFailure} `<step> failed (<program> exited <code>)`
      *   when the child exits non-zero; its output has already been shown.
      */
@@ -237,7 +244,15 @@ export class CompileCommand implements CommandContract {
         command: string,
         args: readonly string[],
     ): Promise<void> {
-        const code = await this.run(command, args)
+        let code: number
+        try {
+            code = await this.run(command, args)
+        } catch (error) {
+            throw new CoreCommandFailure(
+                `${step} could not start (${program})`,
+                { cause: error },
+            )
+        }
         if (code !== 0) {
             throw new CoreCommandFailure(
                 `${step} failed (${program} exited ${code})`,
