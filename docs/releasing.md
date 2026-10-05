@@ -139,17 +139,20 @@ not log noise. "Coded" is the limit: a diagnostic is seen only as a
 (SGR) sequences are stripped. A future non-fatal warning with no code, or a
 header behind another escape sequence such as an OSC-8 hyperlink, passes unseen.
 
-**A published `.tsx` needs a reason (#470).** Under `"jsx": "precompile"`, Deno
-transpiles a JSR `.tsx` with the _consuming_ app's `jsxImportSource`, ignoring
-the pragma `deno publish` wrote into it. In an app with no JSX of its own, that
-runtime was never pre-loaded, and the app fails at load with
-`Unsupported scheme` — how `@lockness/core@0.4.0` broke the api and slim kits.
-So a package may publish a `.tsx` only with a `"jsx": "<reason>"` entry in
-`deps.policy.jsonc`. A published `.tsx` without one, an empty reason and a stale
-entry (no `.tsx` published any more) are all red. The rule reads the files each
-package actually publishes, so an excluded `demo/` never counts. `core`
-publishes none; `ui`, `markdown` and `devtools` carry entries, the last one
-recorded as a known defect.
+**A published JSX file needs a reason (#470).** Under `"jsx": "precompile"`,
+Deno transpiles a JSR `.tsx` or `.jsx` with the _consuming_ app's
+`jsxImportSource`, ignoring the pragma `deno publish` wrote into it. In an app
+with no JSX of its own, that runtime was never pre-loaded, and the app fails at
+load with `Unsupported scheme` — how `@lockness/core@0.4.0` broke the api and
+slim kits. So a package may publish a JSX file only with a `"jsx": "<reason>"`
+entry in `deps.policy.jsonc`. A published JSX file without one, an empty reason,
+a stale entry (no JSX file published any more) and an entry naming no published
+workspace package are all red, each with its own message. The rule reads the
+files each package actually publishes, so an excluded `demo/` never counts. When
+`deps.policy.jsonc` does not parse, the rule is skipped and says so: the parse
+fault is the cause, and the run is already red on it. `core` publishes none;
+`ui`, `markdown` and `devtools` carry entries, the last one recorded as a known
+defect.
 
 `deno task deps:analyze` does **not** check declarations. It had a "check B"
 that claimed to, and it was removed (#388): it read an import-map alias's
@@ -380,7 +383,10 @@ What it does, in order:
    `Host` is not a loopback literal.
 2. Runs `deno publish` on a `git archive HEAD` copy, with `JSR_URL` pointing at
    it and a per-run random token. The command refuses outright unless that URL
-   is loopback. It then checks that every publishable member arrived.
+   is loopback. As soon as `deno publish` exits, the registry stops accepting
+   uploads, whatever token they carry. The gate then checks that the store holds
+   exactly the publishable members at the workspace version: one missing or
+   anything extra is red.
 3. Scaffolds each kit from `jsr:@lockness/init`, without re-pointing it at the
    workspace. Then it boots the kit with `JSR_URL` set and a `DENO_DIR` created
    for the run. The fresh cache matters: a warm one served an old `meta.json`
@@ -394,7 +400,8 @@ What it does, in order:
 
 **The registry never falls back to jsr.io for `@lockness/*`.** A package it did
 not receive is a 404. Every other scope (`@std/*`, …) is read from jsr.io
-unchanged.
+unchanged. The passthrough never leaves jsr.io: a target off its origin is
+refused, and an upstream redirect is answered 502 rather than followed.
 
 What it does not model is server-side dependency data, `createdAt` (so the
 minimum dependency age never applies), provenance, and JSR's own publish-time
