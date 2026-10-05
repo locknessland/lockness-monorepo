@@ -6,6 +6,10 @@
  * creating necessary configuration files, directories, and environment
  * variables.
  *
+ * The work is the default-exported {@link install}, which reports failure by
+ * throwing and never touches process state. Run standalone, the module hands
+ * it to `runEntry`, which prints a failure once and exits non-zero (#436).
+ *
  * @module @lockness/drizzle/install
  *
  * @example
@@ -19,6 +23,12 @@
  */
 
 import { addPackage, Stub } from '@lockness/cli'
+import {
+    CommandFailedError,
+    type CommandStep,
+    runSteps,
+} from '@lockness/cli/command-failure'
+import { runEntry } from '@lockness/cli/entry'
 import { dirname, fromFileUrl, join } from '@std/path'
 import postgres from 'postgres'
 import { resolveDialect } from './drivers.ts'
@@ -154,24 +164,36 @@ export async function mapDrizzleKit(
 }
 
 /**
- * Create required directories for the Drizzle setup.
+ * One step per required directory, labelled with its path, so a failure names
+ * the directory it could not create.
  *
- * Creates directories recursively, skipping those that already exist.
+ * A directory that already exists passes (`recursive: true`); a path taken by
+ * a file, or one the process may not write, fails its step.
+ *
+ * @returns The steps, in {@link REQUIRED_DIRECTORIES} order.
  */
-export async function createDirectories(): Promise<void> {
-    for (const dir of REQUIRED_DIRECTORIES) {
-        try {
+function directorySteps(): CommandStep[] {
+    return REQUIRED_DIRECTORIES.map((dir) => ({
+        label: dir,
+        run: async () => {
             await Deno.mkdir(dir, { recursive: true })
             console.log(`✓ Created ${dir}`)
-        } catch (error) {
-            if (!(error instanceof Deno.errors.AlreadyExists)) {
-                console.error(
-                    `✗ Failed to create ${dir}:`,
-                    error instanceof Error ? error.message : String(error),
-                )
-            }
-        }
-    }
+        },
+    }))
+}
+
+/**
+ * Create required directories for the Drizzle setup.
+ *
+ * Creates directories recursively; one that already exists is left as it is.
+ * Every directory is attempted, then one failure names those that could not be
+ * created.
+ *
+ * @throws {CommandFailedError} When at least one directory could not be
+ *   created; the first error is its `cause`.
+ */
+export async function createDirectories(): Promise<void> {
+    await runSteps(directorySteps())
 }
 
 /**
@@ -247,10 +269,11 @@ export async function updateSingleEnvFile(envPath: string): Promise<void> {
 /**
  * Raised when the project is missing a file the installer requires.
  *
- * Thrown instead of calling `Deno.exit` directly so the check is testable and
- * the process-exit decision stays with the top-level {@link install} entry.
+ * A {@link CommandFailedError}, so whoever runs the installer — `runEntry`
+ * standalone, or `Cli.dispatch` — prints its one-line message once and exits
+ * `1` (#436). The check itself prints nothing.
  */
-export class ProjectStructureError extends Error {
+export class ProjectStructureError extends CommandFailedError {
     /**
      * @param name - Human-readable name of the missing file/directory.
      */
@@ -272,9 +295,8 @@ export async function checkProjectStructure(): Promise<void> {
         try {
             await Deno.stat(check.path)
         } catch {
-            console.error(
-                `✗ Missing ${check.name}. Please run this command from your project root.`,
-            )
+            // Not swallowed: a path that cannot be stat'ed is the failure
+            // reported here, as the missing file it names.
             throw new ProjectStructureError(check.name)
         }
     }
@@ -388,34 +410,58 @@ function showNextSteps(): void {
 // =============================================================================
 
 /**
- * Main installation function.
+ * Install `@lockness/drizzle` into the project in the current directory.
  *
  * Orchestrates the complete installation process:
- * 1. Verify project structure
+ * 1. Verify project structure — a missing file stops here, before anything is
+ *    written
  * 2. Create directories
  * 3. Create configuration files, and map `drizzle-kit` in `deno.json`
  * 4. Update environment files
  * 5. Register package
  * 6. Test database connection
  * 7. Show next steps
+ *
+ * Steps 2 to 5 run with `runSteps`: each runs whatever the one before it did,
+ * then one failure names those that failed (#436, finish then fail), and the
+ * connection test and next steps are skipped. A failed connection test is
+ * only a warning: the installation itself succeeded.
+ *
+ * @returns A promise that resolves once the project is set up.
+ * @throws {ProjectStructureError} When `./src` or `./deno.json` is missing.
+ * @throws {CommandFailedError} When at least one setup step failed; the first
+ *   failure is its `cause`.
+ *
+ * @example
+ * ```ts
+ * import install from '@lockness/drizzle/install'
+ *
+ * await install()
+ * ```
  */
-async function install(): Promise<void> {
+export default async function install(): Promise<void> {
     console.log('🔧 Installing @lockness/drizzle...\n')
 
-    try {
-        await checkProjectStructure()
-    } catch (error) {
-        if (error instanceof ProjectStructureError) Deno.exit(1)
-        throw error
-    }
-    await createDirectories()
-    await createDrizzleConfig()
-    await mapDrizzleKit()
-    await createDatabaseSeeder()
-    await updateEnvFile()
-
-    // Register package
-    await addPackage('drizzle')
+    await checkProjectStructure()
+    await runSteps([
+        ...directorySteps(),
+        // Each helper resolves to whether it wrote anything; a step only
+        // needs it to settle, so the boolean is awaited and dropped.
+        {
+            label: 'drizzle.config.ts',
+            run: async () => void await createDrizzleConfig(),
+        },
+        {
+            label: 'drizzle-kit mapping',
+            run: async () => void await mapDrizzleKit(),
+        },
+        {
+            label: 'database_seeder.ts',
+            run: async () => void await createDatabaseSeeder(),
+        },
+        { label: '.env files', run: updateEnvFile },
+        { label: 'package registration', run: () => addPackage('drizzle') },
+    ])
 
     await testDatabaseConnection()
     showNextSteps()
@@ -425,6 +471,4 @@ async function install(): Promise<void> {
 // Execution
 // =============================================================================
 
-if (import.meta.main) {
-    install()
-}
+if (import.meta.main) await runEntry('drizzle install', install)
