@@ -47,10 +47,13 @@ User-facing documentation: [README.md](README.md) ·
     `Deno.permissions.querySync` first;
   - a state prints twice or returns other than `1` — scripts read the status,
     and `cli_dispatch.test.ts` pins one `console.error` per state.
-- **`command_failure.ts` imports nothing.** It is published as
-  `@lockness/cli/command-failure` so a package whose commands load at app boot
-  (`@lockness/drizzle`) can throw `CommandFailedError` without pulling the
-  barrel's ~260-module command graph into every web process.
+- **`command_failure.ts`'s only import is `exit_status.ts`, which imports
+  nothing.** It is published as `@lockness/cli/command-failure` so a package
+  whose commands load at app boot (`@lockness/drizzle`) can throw
+  `CommandFailedError` without pulling the barrel's ~260-module command graph
+  into every web process. `exit_status.ts` (`toFailureStatus`,
+  `isCommandFailure`) is package-internal: it is not in `exports`, and tests
+  import it by relative path (#440(h)).
 
 ## Dependency contract
 
