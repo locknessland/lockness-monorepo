@@ -33,7 +33,6 @@ export {
 } from './search.ts'
 export {
     type Cli,
-    handleMakeSearchable,
     isContained,
     registerSearchCommands,
     SEARCHABLE_DIR,

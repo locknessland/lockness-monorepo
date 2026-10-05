@@ -18,6 +18,18 @@ export interface Cli {
     register(name: string, handler: CommandHandler, description?: string): void
 }
 
+/**
+ * A failed search command. `@lockness/cli` recognises a failure by its shape —
+ * an integer `exitCode` — so search raises one without importing the CLI: the
+ * dispatcher prints the message once and exits with this status. Deliberately
+ * not exported (#436, D1).
+ */
+class SearchCommandError extends Error {
+    /** The process exit status the dispatcher maps this failure to. */
+    readonly exitCode = 1
+    override readonly name = 'SearchCommandError'
+}
+
 /** Where searchable modules are scaffolded. */
 export const SEARCHABLE_DIR = './app/search'
 /** Model-name shape allowlist (PascalCase-ish). */
@@ -47,26 +59,28 @@ async function processStub(
 /**
  * `make:searchable <Model>` — scaffold a Searchable module for a model.
  *
+ * Internal: reached through `registerSearchCommands`, not the package barrel.
+ *
  * @param args - CLI args; first non-flag token is the model name.
- * @returns The path written, or `undefined` when rejected.
+ * @returns The path written.
+ * @throws {SearchCommandError} When the name is missing or malformed, or its
+ *   path would leave {@link SEARCHABLE_DIR}.
  */
-export async function handleMakeSearchable(
-    args: string[],
-): Promise<string | undefined> {
+export async function handleMakeSearchable(args: string[]): Promise<string> {
     const name = args.find((a) => !a.startsWith('-'))
     if (!name || !NAME_RE.test(name)) {
-        console.error(
-            `❌ Invalid model name${
+        throw new SearchCommandError(
+            `Invalid model name${
                 name ? ` "${name}"` : ''
             } — letters and digits only`,
         )
-        return undefined
     }
     const fileName = `${name.toLowerCase()}_searchable.ts`
     const filePath = join(SEARCHABLE_DIR, fileName)
     if (!isContained(SEARCHABLE_DIR, filePath)) {
-        console.error(`❌ Refusing to write outside ${SEARCHABLE_DIR}`)
-        return undefined
+        throw new SearchCommandError(
+            `Refusing to write outside ${SEARCHABLE_DIR}`,
+        )
     }
     const content = await processStub('searchable', {
         Model: name,

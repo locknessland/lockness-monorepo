@@ -40,12 +40,12 @@ application installs it, or the feature stays off.
 
 <!-- generated:surface -->
 
-| Kind      | Exports                                                                                                                                    |
-| :-------- | :----------------------------------------------------------------------------------------------------------------------------------------- |
-| class     | `MemorySearchDriver`                                                                                                                       |
-| function  | `configureSearch`, `handleMakeSearchable`, `indexSearchable`, `isContained`, `registerSearchCommands`, `resetSearch`, `search`, `tokenize` |
-| interface | `Cli`, `SearchConfig`, `SearchDriver`, `SearchHit`, `SearchIndex`, `SearchOptions`, `Searchable`                                           |
-| variable  | `MAX_QUERY_LENGTH`, `MAX_TOKENS`, `SEARCHABLE_DIR`                                                                                         |
+| Kind      | Exports                                                                                                            |
+| :-------- | :----------------------------------------------------------------------------------------------------------------- |
+| class     | `MemorySearchDriver`                                                                                               |
+| function  | `configureSearch`, `indexSearchable`, `isContained`, `registerSearchCommands`, `resetSearch`, `search`, `tokenize` |
+| interface | `Cli`, `SearchConfig`, `SearchDriver`, `SearchHit`, `SearchIndex`, `SearchOptions`, `Searchable`                   |
+| variable  | `MAX_QUERY_LENGTH`, `MAX_TOKENS`, `SEARCHABLE_DIR`                                                                 |
 
 Anything not listed is internal and free to change.
 
@@ -73,8 +73,9 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-1 test file for 5 source files:
+2 test files for 5 source files:
 
+- `packages/search/tests/cli_commands.test.ts`
 - `packages/search/tests/search.test.ts`
 
 <!-- /generated:tests -->
@@ -90,7 +91,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 1 test file directly —
+Then, specific to this package: run its 2 test files directly —
 
 ```bash
 deno test -A packages/search/

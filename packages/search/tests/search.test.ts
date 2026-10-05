@@ -4,7 +4,7 @@
  * @module @lockness/search/tests/search
  */
 
-import { assert, assertEquals } from '@std/assert'
+import { assert, assertEquals, assertRejects } from '@std/assert'
 import {
     configureSearch,
     indexSearchable,
@@ -119,8 +119,13 @@ Deno.test('SC-007: make:searchable scaffolds + rejects a traversal name', async 
         const path = await handleMakeSearchable(['Post'])
         assertEquals(path, 'app/search/post_searchable.ts')
         assert(await Deno.readTextFile(`${dir}/app/search/post_searchable.ts`))
-        assertEquals(await handleMakeSearchable(['../../x']), undefined)
-        assertEquals(await handleMakeSearchable(['bad-name']), undefined)
+        for (const bad of ['../../x', 'bad-name']) {
+            const error = await assertRejects(
+                () => handleMakeSearchable([bad]),
+                Error,
+            )
+            assertEquals((error as Error & { exitCode?: unknown }).exitCode, 1)
+        }
     } finally {
         Deno.chdir(prev)
         await Deno.remove(dir, { recursive: true })
