@@ -7,6 +7,9 @@
  *   `deno publish` rewrites what it uploads, so the toolchain decides whether
  *   a published package works (#474), and a floating `v2.x` lets `gate` and
  *   `publish` run different versions in one run.
+ * - `test.yml`'s `pinned` lane installs from the same file, beside the
+ *   floating `v2.x`, so the version that publishes is a version CI tested and
+ *   no literal version sits in the matrix to drift from `.dvmrc`.
  *
  * The workflows are read line by line rather than through a YAML library: the
  * files are `deno fmt`-formatted, so their indentation is stable, and a shape
@@ -22,6 +25,7 @@ const PUBLISH_WORKFLOW = new URL(
     '../.github/workflows/publish.yml',
     import.meta.url,
 )
+const TEST_WORKFLOW = new URL('../.github/workflows/test.yml', import.meta.url)
 
 /** One `denoland/setup-deno` step, with the job it belongs to. */
 interface SetupDenoStep {
@@ -141,5 +145,27 @@ Deno.test('every publish.yml job installs Deno from .dvmrc only', async () => {
     assert(
         !/^\s*deno-version:/m.test(workflow),
         'publish.yml states a deno-version',
+    )
+})
+
+Deno.test("test.yml's pinned lane installs Deno from .dvmrc", async () => {
+    const workflow = await Deno.readTextFile(TEST_WORKFLOW)
+    const axis = workflow.match(/^\s*deno:\s*\[([^\]]*)\]\s*$/m)
+    assert(axis !== null, 'no `deno` matrix axis in test.yml')
+    const lanes = axis[1].split(',').map((l) =>
+        l.trim().replace(/^'(.*)'$/, '$1')
+    )
+    assertEquals(lanes, ['v2.x', 'pinned'])
+    const [step, ...others] = setupDenoSteps(workflow).filter((s) =>
+        s.job === 'test'
+    )
+    assert(step !== undefined, 'no setup-deno step in the test job')
+    assertEquals(others, [])
+    assertEquals(step.inputs['deno-version'], '${{ matrix.deno }}')
+    // A non-empty `deno-version-file` wins over `deno-version` in setup-deno,
+    // so only the `pinned` lane reads the file.
+    assertEquals(
+        step.inputs['deno-version-file'],
+        "${{ matrix.deno == 'pinned' && '.dvmrc' || '' }}",
     )
 })
