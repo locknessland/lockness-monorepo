@@ -251,8 +251,13 @@ Deno.test('installing from a worktree writes the shared hooks, and an inherited 
                 .then(() => true, () => false)
             assertEquals(leaked, false, `${name} was written to the decoy`)
         }
-        assertStringIncludes(hooks['pre-push'], 'deno task gate')
-        assertStringIncludes(hooks['pre-push'], 'prepush_secret_scan.ts')
+        // #433: one entry point owns the hook's stdin. A command line that
+        // calls the gate or the scan directly would be a second reader of
+        // git's ref-update lines — the scan could then see them drained.
+        const commands = hooks['pre-push'].split('\n').filter((line) =>
+            line.trim().length > 0 && !line.startsWith('#')
+        )
+        assertEquals(commands, ['exec deno run -A scripts/prepush.ts'])
     } finally {
         await Deno.remove(root, { recursive: true })
     }
