@@ -615,7 +615,7 @@ export interface DynamicImportFault {
 }
 
 /** The file the dynamic-edge pass hands to `deno info`; never published. */
-export const GRAPH_ROOT_FILE = '.lockness-graph-root.ts'
+const GRAPH_ROOT_FILE = '.lockness-graph-root.ts'
 
 /**
  * A plain-object guard for walking untyped JSON.
@@ -668,24 +668,7 @@ export function dynamicImportFaults(
     const rootUrl = toFileUrl(stagedRoot).href.replace(/\/?$/, '/')
     const graphRootUrl = `${rootUrl}${GRAPH_ROOT_FILE}`
     const undeclaredUrl = `${rootUrl}${UNDECLARED_DIR}/`
-
-    const moduleErrors = new Map<string, string>()
-    for (const module of info.modules) {
-        if (
-            isRecord(module) && typeof module.specifier === 'string' &&
-            typeof module.error === 'string'
-        ) {
-            moduleErrors.set(module.specifier, module.error)
-        }
-    }
-    const redirects = isRecord(info.redirects) ? info.redirects : {}
-    const targetError = (specifier: string): string | undefined => {
-        const redirected = redirects[specifier]
-        return moduleErrors.get(specifier) ??
-            (typeof redirected === 'string'
-                ? moduleErrors.get(redirected)
-                : undefined)
-    }
+    const targetError = targetErrorLookup(info.modules, info.redirects)
 
     const faults: DynamicImportFault[] = []
     for (const module of info.modules) {
@@ -695,34 +678,88 @@ export function dynamicImportFaults(
         if (from.startsWith(undeclaredUrl)) continue
         if (!Array.isArray(module.dependencies)) continue
         const file = decodeURIComponent(from.slice(rootUrl.length))
-
         for (const dependency of module.dependencies) {
-            if (!isRecord(dependency) || dependency.isDynamic !== true) continue
-            const specifier = typeof dependency.specifier === 'string'
-                ? dependency.specifier
-                : '<unknown>'
-            const code = isRecord(dependency.code) ? dependency.code : {}
-            const span = isRecord(code.span) ? code.span : {}
-            const start = isRecord(span.start) ? span.start : {}
-            const line = typeof start.line === 'number' ? start.line + 1 : 0
-
-            let reason: string | undefined
-            if (typeof code.error === 'string') {
-                reason = /not a dependency/.test(code.error)
-                    ? 'undeclared dynamic import'
-                    : `unresolved dynamic import: ${firstLine(code.error)}`
-            } else if (typeof code.specifier === 'string') {
-                const error = targetError(code.specifier)
-                if (error !== undefined) {
-                    reason = describeTarget(code.specifier, error, rootUrl)
-                }
-            }
-            if (reason !== undefined) {
-                faults.push({ file, line, specifier, reason })
-            }
+            const fault = classifyDynamicEdge(
+                dependency,
+                file,
+                rootUrl,
+                targetError,
+            )
+            if (fault !== undefined) faults.push(fault)
         }
     }
     return faults
+}
+
+/**
+ * A lookup of the `error` field of the module a specifier lands on, following
+ * one `redirects` hop.
+ *
+ * @param modules - The `modules` array of a `deno info --json` graph.
+ * @param redirects - Its `redirects` field, unvalidated.
+ * @returns A function giving the target module's error, or `undefined` when
+ *   that module loaded.
+ */
+function targetErrorLookup(
+    modules: readonly unknown[],
+    redirects: unknown,
+): (specifier: string) => string | undefined {
+    const moduleErrors = new Map<string, string>()
+    for (const module of modules) {
+        if (
+            isRecord(module) && typeof module.specifier === 'string' &&
+            typeof module.error === 'string'
+        ) {
+            moduleErrors.set(module.specifier, module.error)
+        }
+    }
+    const hops = isRecord(redirects) ? redirects : {}
+    return (specifier) => {
+        const redirected = hops[specifier]
+        return moduleErrors.get(specifier) ??
+            (typeof redirected === 'string'
+                ? moduleErrors.get(redirected)
+                : undefined)
+    }
+}
+
+/**
+ * Classify one dependency of a staged module: a fault when it is a dynamic
+ * edge that carries an `error` field, or that resolves to a module which does.
+ *
+ * @param dependency - One entry of the module's `dependencies`, unvalidated.
+ * @param file - The importing file, relative to the staged root (POSIX).
+ * @param rootUrl - The staged package root, as a `file:` URL ending in `/`.
+ * @param targetError - From {@link targetErrorLookup}.
+ * @returns The fault, or `undefined` for a static edge or a resolved one.
+ */
+function classifyDynamicEdge(
+    dependency: unknown,
+    file: string,
+    rootUrl: string,
+    targetError: (specifier: string) => string | undefined,
+): DynamicImportFault | undefined {
+    if (!isRecord(dependency) || dependency.isDynamic !== true) return undefined
+    const specifier = typeof dependency.specifier === 'string'
+        ? dependency.specifier
+        : '<unknown>'
+    const code = isRecord(dependency.code) ? dependency.code : {}
+    const span = isRecord(code.span) ? code.span : {}
+    const start = isRecord(span.start) ? span.start : {}
+    const line = typeof start.line === 'number' ? start.line + 1 : 0
+
+    let reason: string | undefined
+    if (typeof code.error === 'string') {
+        reason = /not a dependency/.test(code.error)
+            ? 'undeclared dynamic import'
+            : `unresolved dynamic import: ${firstLine(code.error)}`
+    } else if (typeof code.specifier === 'string') {
+        const error = targetError(code.specifier)
+        if (error !== undefined) {
+            reason = describeTarget(code.specifier, error, rootUrl)
+        }
+    }
+    return reason === undefined ? undefined : { file, line, specifier, reason }
 }
 
 /**
@@ -775,7 +812,7 @@ function firstLine(text: string): string {
  * // -> "mod.ts:2: undeclared dynamic import — import('x')"
  * ```
  */
-export function formatDynamicFault(fault: DynamicImportFault): string {
+function formatDynamicFault(fault: DynamicImportFault): string {
     return `${fault.file}:${fault.line}: ${fault.reason} — import('${fault.specifier}')`
 }
 
@@ -912,17 +949,7 @@ export function runtimeImportFaults(
     policy: unknown,
 ): string[] {
     const faults = diagnostics.other.map((d) => `dry-run diagnostic: ${d}`)
-    const packages = isRecord(policy) && isRecord(policy.packages)
-        ? policy.packages
-        : {}
-
-    const inventory: Record<string, Record<string, unknown>> = {}
-    for (const [pkg, entry] of Object.entries(packages)) {
-        if (isRecord(entry) && isRecord(entry.runtimeImports)) {
-            inventory[pkg] = entry.runtimeImports
-        }
-    }
-
+    const inventory = runtimeInventory(policy)
     const names = new Set([
         ...Object.keys(diagnostics.sites),
         ...Object.keys(inventory),
@@ -932,42 +959,75 @@ export function runtimeImportFaults(
         const listed = inventory[pkg] ?? {}
         const files = new Set([...Object.keys(found), ...Object.keys(listed)])
         for (const file of [...files].sort()) {
-            const at = `${pkg}/${file}`
-            const count = found[file] ?? 0
-            const entry = listed[file]
-            if (entry === undefined) {
-                faults.push(
-                    `${at}: ${count} unanalysable import site(s), not inventoried in deps.policy.jsonc runtimeImports`,
-                )
-                continue
-            }
-            if (!isRecord(entry)) {
-                faults.push(`${at}: inventory entry is not an object`)
-                continue
-            }
-            const { sites, reason } = entry
-            if (typeof reason !== 'string' || reason.trim() === '') {
-                faults.push(`${at}: inventory entry has no reason`)
-            }
-            if (
-                typeof sites !== 'number' || !Number.isInteger(sites) ||
-                sites < 1
-            ) {
-                faults.push(
-                    `${at}: inventory "sites" must be a positive integer`,
-                )
-                continue
-            }
-            if (count === 0) {
-                faults.push(
-                    `${at}: inventoried with ${sites} site(s), the dry-run finds none — remove the stale entry`,
-                )
-            } else if (count !== sites) {
-                faults.push(
-                    `${at}: ${count} unanalysable import site(s), inventory says ${sites}`,
-                )
-            }
+            faults.push(
+                ...inventoryFileFaults(
+                    `${pkg}/${file}`,
+                    found[file] ?? 0,
+                    listed[file],
+                ),
+            )
         }
+    }
+    return faults
+}
+
+/**
+ * The `runtimeImports` section of every package in the policy, unvalidated
+ * below the per-file level.
+ *
+ * @param policy - The parsed `deps.policy.jsonc`, unvalidated.
+ * @returns Per package directory, its file-to-entry map.
+ */
+function runtimeInventory(
+    policy: unknown,
+): Record<string, Record<string, unknown>> {
+    const packages = isRecord(policy) && isRecord(policy.packages)
+        ? policy.packages
+        : {}
+    const inventory: Record<string, Record<string, unknown>> = {}
+    for (const [pkg, entry] of Object.entries(packages)) {
+        if (isRecord(entry) && isRecord(entry.runtimeImports)) {
+            inventory[pkg] = entry.runtimeImports
+        }
+    }
+    return inventory
+}
+
+/**
+ * Compare one file's unanalysable-site count with its inventory entry.
+ *
+ * @param at - `<pkg>/<file>`, for the message.
+ * @param count - The sites the dry-run found in that file; `0` for none.
+ * @param entry - The file's inventory entry, unvalidated; `undefined` when
+ *   the file is not listed.
+ * @returns One fault description per discrepancy, empty when they agree.
+ */
+function inventoryFileFaults(
+    at: string,
+    count: number,
+    entry: unknown,
+): string[] {
+    if (entry === undefined) {
+        return [
+            `${at}: ${count} unanalysable import site(s), not inventoried in deps.policy.jsonc runtimeImports`,
+        ]
+    }
+    if (!isRecord(entry)) return [`${at}: inventory entry is not an object`]
+    const faults: string[] = []
+    const { sites, reason } = entry
+    if (typeof reason !== 'string' || reason.trim() === '') {
+        faults.push(`${at}: inventory entry has no reason`)
+    }
+    if (typeof sites !== 'number' || !Number.isInteger(sites) || sites < 1) {
+        faults.push(`${at}: inventory "sites" must be a positive integer`)
+    } else if (count === 0) {
+        faults.push(
+            `${at}: inventoried with ${sites} site(s), the dry-run finds none — remove the stale entry`,
+        )
+    } else if (count !== sites) {
+        faults.push(
+            `${at}: ${count} unanalysable import site(s), inventory says ${sites}`,
+        )
     }
     return faults
 }
