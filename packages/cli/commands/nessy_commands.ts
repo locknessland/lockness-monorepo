@@ -33,7 +33,8 @@ if (import.meta.url.startsWith('file://')) {
  *
  * `nessy:install` throws a `CommandFailedError` when there is no `cli.ts` in
  * the working directory; a failed write reaches `Cli.dispatch()`'s catch-all
- * (#436).
+ * (#436). A `.gitignore` that exists but cannot be read is a warning: the
+ * wrapper is installed by then.
  *
  * @param cli - The CLI instance to register commands on
  *
@@ -111,19 +112,27 @@ export function registerNessyCommands(cli: Cli): void {
         )
         console.log('')
 
-        // Check if .gitignore exists and warn if nessy is not ignored
+        // Warn if nessy is not ignored. The wrapper is already installed, so
+        // an unreadable .gitignore is a warning, never a failure.
+        let gitignoreContent: string | undefined
         try {
-            const gitignorePath = join(Deno.cwd(), '.gitignore')
-            const gitignoreContent = await Deno.readTextFile(gitignorePath)
-
-            if (!gitignoreContent.includes('nessy')) {
-                console.log(
-                    '⚠️  Remember to add "nessy" to your .gitignore file',
+            gitignoreContent = await Deno.readTextFile(
+                join(Deno.cwd(), '.gitignore'),
+            )
+        } catch (error) {
+            // Only a missing .gitignore is expected: nothing to check.
+            if (!(error instanceof Deno.errors.NotFound)) {
+                console.warn(
+                    '⚠️  Could not read .gitignore: check that "nessy" is in it',
                 )
-                console.log('')
             }
-        } catch {
-            // .gitignore doesn't exist, no problem
+        }
+        if (
+            gitignoreContent !== undefined &&
+            !gitignoreContent.includes('nessy')
+        ) {
+            console.log('⚠️  Remember to add "nessy" to your .gitignore file')
+            console.log('')
         }
     }, 'Install Nessy CLI wrapper for faster commands')
 }

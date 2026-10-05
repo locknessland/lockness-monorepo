@@ -12,6 +12,7 @@
  * | `router:list`     | `app/controller` is unreadable  | `❌ Could not read …` + the cause, rendered |
  * | `queue:retry`     | unknown id                      | `❌ No failed job with id …`                |
  * | `nessy:install`   | no `cli.ts`, or the write fails | the reason, or the catch-all               |
+ * | `nessy:install`   | `.gitignore` unreadable         | one `⚠️` warning, exit 0 (not a failure)    |
  * | `make:auth`       | one file fails to write         | `❌ 1 of 2 steps failed: …`, others written |
  *
  * @module @lockness/cli/tests/command_failures
@@ -130,6 +131,33 @@ Deno.test('nessy:install', async (t) => {
 
         assertEquals(result, 1)
         assert(onlyErrorLine(error).startsWith('❌ '), String(error[0][0]))
+    })
+
+    await t.step('without .gitignore installs quietly', async () => {
+        const { result, warn, error } = await dispatchIn(
+            ['nessy:install'],
+            () => Deno.writeTextFile('cli.ts', ''),
+        )
+
+        assertEquals(result, 0)
+        assertEquals(warn.length, 0)
+        assertEquals(error.length, 0)
+    })
+
+    await t.step('an unreadable .gitignore warns, still exits 0', async () => {
+        const { result, warn, error } = await dispatchIn(
+            ['nessy:install'],
+            async () => {
+                await Deno.writeTextFile('cli.ts', '')
+                // A directory named .gitignore cannot be read as a file.
+                await Deno.mkdir('.gitignore')
+            },
+        )
+
+        assertEquals(result, 0)
+        assertEquals(error.length, 0)
+        assertEquals(warn.length, 1, `warnings: ${JSON.stringify(warn)}`)
+        assertStringIncludes(String(warn[0][0]), '.gitignore')
     })
 })
 

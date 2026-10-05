@@ -78,34 +78,46 @@ export async function isValidTypeScript(filePath: string): Promise<boolean> {
     return code === 0
 }
 
-/** Every `console.log` / `console.error` call recorded by {@link captureConsole}. */
+/**
+ * Every `console.log` / `console.warn` / `console.error` call recorded by
+ * {@link captureConsole}.
+ */
 export interface CapturedConsole<T> {
     /** What the captured function returned. */
     readonly result: T
     /** The arguments of each `console.log` call, in order. */
     readonly log: unknown[][]
+    /** The arguments of each `console.warn` call, in order. */
+    readonly warn: unknown[][]
     /** The arguments of each `console.error` call, in order. */
     readonly error: unknown[][]
 }
 
 /**
- * Run `fn` with `console.log` and `console.error` recorded instead of printed,
- * restoring both afterwards — how a test counts the lines a failed command
- * printed.
+ * Run `fn` with `console.log`, `console.warn` and `console.error` recorded
+ * instead of printed, restoring all three afterwards — how a test counts the
+ * lines a failed command printed.
  */
 export async function captureConsole<T>(
     fn: () => Promise<T>,
 ): Promise<CapturedConsole<T>> {
     const log: unknown[][] = []
+    const warn: unknown[][] = []
     const error: unknown[][] = []
-    const original = { log: console.log, error: console.error }
+    const original = {
+        log: console.log,
+        warn: console.warn,
+        error: console.error,
+    }
     console.log = (...args: unknown[]) => void log.push(args)
+    console.warn = (...args: unknown[]) => void warn.push(args)
     console.error = (...args: unknown[]) => void error.push(args)
     try {
         const result = await fn()
-        return { result, log, error }
+        return { result, log, warn, error }
     } finally {
         console.log = original.log
+        console.warn = original.warn
         console.error = original.error
     }
 }
