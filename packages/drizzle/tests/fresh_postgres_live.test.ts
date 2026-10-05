@@ -4,6 +4,8 @@
  * dependency go, and ignores objects another session creates meanwhile; R6
  * refuses a schema holding an extension before any drop; and the migrate
  * keeps its bookkeeping where `migrations.schema` / `migrations.table` say.
+ * #454: `db:fresh` run twice prints no raw server notice, and a reporter
+ * passed to `connect` receives the `already exists, skipping` notice.
  *
  * The pure tests in `reset.test.ts` pin the SQL; only a real server proves
  * that `pg_depend` and `pg_identify_object` classify objects the way the
@@ -36,6 +38,13 @@ import {
     type PostgresTransactor,
     type SchemaMaintenance,
 } from '../drivers.ts'
+import type { Cli } from '@lockness/cli'
+import { Database } from '../mod.ts'
+import {
+    type MaintenanceOpener,
+    registerDrizzleCommands,
+} from '../cli_commands.ts'
+import type { NoticeReporter } from '../notice.ts'
 import { FreshRefusedError, resetDatabase, type ResetScope } from '../reset.ts'
 import {
     assertLoopback,
@@ -548,5 +557,125 @@ Deno.test({
                     `WHERE e.extname = 'citext' AND n.nspname = '${SCOPE}'`,
             )
             assertEquals(Number(row.n), 1, 'the extension is gone')
+        }),
+})
+
+// -----------------------------------------------------------------------------
+// #454: db:fresh prints no raw server notice
+// -----------------------------------------------------------------------------
+
+/** A CLI that records registrations and lets a test invoke one by name. */
+class RecordingCli {
+    readonly commands = new Map<string, (args: string[]) => unknown>()
+
+    register(name: string, handler: (args: string[]) => unknown): void {
+        this.commands.set(name, handler)
+    }
+
+    async run(name: string): Promise<void> {
+        const handler = this.commands.get(name)
+        assert(handler, `command not registered: ${name}`)
+        await handler([])
+    }
+}
+
+/**
+ * Run `db:fresh` twice against the suite's scope and return every console
+ * line it wrote, objects rendered the way the console renders them. The
+ * second run is the one an already-migrated database sees.
+ */
+async function freshTwice(
+    url: string,
+    openMaintenance?: MaintenanceOpener,
+): Promise<string[]> {
+    const folder = await Deno.makeTempDir({ prefix: 'lockness_fresh_' })
+    const lines: string[] = []
+    const render = (args: unknown[]) =>
+        void lines.push(
+            args.map((a) => typeof a === 'string' ? a : Deno.inspect(a))
+                .join(' '),
+        )
+    const saved = { ...console }
+    console.log = (...a: unknown[]) => render(a)
+    console.info = (...a: unknown[]) => render(a)
+    console.warn = (...a: unknown[]) => render(a)
+    console.error = (...a: unknown[]) => render(a)
+    console.debug = (...a: unknown[]) => render(a)
+    try {
+        await writeMigration(folder)
+        const cli = new RecordingCli()
+        registerDrizzleCommands(cli as unknown as Cli, {
+            loadMigrationConfig: () =>
+                Promise.resolve({
+                    dialect: 'postgresql',
+                    out: folder,
+                    dbCredentials: { url },
+                    schemaFilter: [SCOPE],
+                    migrations: {
+                        table: '__drizzle_migrations',
+                        schema: BOOKKEEPING,
+                    },
+                }),
+            ...(openMaintenance ? { openMaintenance } : {}),
+        })
+        await cli.run('db:fresh')
+        await cli.run('db:fresh')
+    } finally {
+        Object.assign(console, saved)
+        await Deno.remove(folder, { recursive: true })
+    }
+    return lines
+}
+
+Deno.test({
+    name:
+        '#454 live: db:fresh twice prints no raw notice object and no "already exists, skipping"',
+    ignore: !LIVE,
+    fn: () =>
+        live(async (_admin, _maintenance, url) => {
+            const output = (await freshTwice(url)).join('\n')
+
+            assertStringIncludes(output, 'Database refreshed successfully')
+            assertEquals(output.includes('severity'), false, output)
+            assertEquals(
+                output.includes('already exists, skipping'),
+                false,
+                output,
+            )
+        }),
+})
+
+Deno.test({
+    name:
+        '#454 live: a reporter passed to connect receives the "already exists, skipping" notice at debug',
+    ignore: !LIVE,
+    fn: () =>
+        live(async (_admin, _maintenance, url) => {
+            const debug: string[] = []
+            const notices: NoticeReporter = {
+                warn: () => {},
+                debug: (message) => void debug.push(message),
+            }
+            const open: MaintenanceOpener = async (settings) => {
+                const db = new Database()
+                const result = await db.connect(settings.url, {
+                    driver: settings.dialect,
+                    silent: true,
+                    notices,
+                })
+                assert(result.success, result.error)
+                const maintenance = db.maintenance
+                assert(maintenance, 'the postgres handle has no maintenance')
+                return { ...maintenance, close: () => db.close() }
+            }
+
+            await freshTwice(url, open)
+
+            assert(
+                debug.some((m) => m.includes('already exists, skipping')),
+                `no "already exists, skipping" notice reached debug: ${
+                    JSON.stringify(debug)
+                }`,
+            )
         }),
 })
