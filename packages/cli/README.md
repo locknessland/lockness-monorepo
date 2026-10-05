@@ -79,12 +79,19 @@ cli.register('deploy', async () => {
 })
 ```
 
-`CommandFailedError` is printed as `❌ <message>` with no stack and exits with
-its `exitCode` (default `1`); any other error exits `1`, printed with
-credentials redacted and its stack frames, or raw only with
-`LOCKNESS_CLI_RAW_ERRORS=1`; an unknown command exits `1`. The contract is
-matched by shape (any `Error` with an integer `exitCode`), so a package that
-cannot import `@lockness/cli` can use a local subclass. See
+`CommandFailedError` is printed as one line, `❌ <message>`, with no stack and
+exits with its `exitCode` (default `1`). The message is rendered with
+credentials redacted and control characters encoded, so write it on one line;
+pass a caught error as `cause`, never inside the message, and it is printed
+after it as `caused by: <error>`, redacted too. Any other error exits `1`,
+printed with credentials redacted and its stack frames, or raw only with
+`LOCKNESS_CLI_RAW_ERRORS=1`; an unknown command exits `1`.
+
+The contract is matched by shape (any `Error` with an integer `exitCode`), so a
+package that cannot import `@lockness/cli` meets it with one unexported local
+class. A multi-step command runs its steps through `runSteps` from
+`@lockness/cli/command-failure`, and a standalone tool runs its work through
+`runEntry` from `@lockness/cli/entry`. See
 [docs/DOCS.md](docs/DOCS.md#exit-codes).
 
 ### Stub System
@@ -103,15 +110,10 @@ await stub.save('./app/controller/user_controller.ts')
 
 ### Package Installation
 
-Packages can provide install scripts:
-
-```typescript
-// my-package/install.ts
-import { addPackage } from '@lockness/cli'
-
-await addPackage('my-package')
-await Deno.writeTextFile('./config/my-package.ts', CONFIG)
-```
+Packages can provide an install script: an `install.ts` whose default export,
+`install()`, does the work and reports failure by throwing. `package:install`
+calls it, and run standalone it goes through `runEntry`. The shape and its rules
+are in [INSTALL_SCRIPTS.md](./INSTALL_SCRIPTS.md).
 
 ## Package Commands
 

@@ -7,32 +7,83 @@ configuration.
 
 ### Creating an Install Script
 
-Create an `install.ts` file in your package root:
+Create an `install.ts` file in your package root. Its work is the module's
+**default export**, an async function named `install`:
 
 ```typescript
 #!/usr/bin/env -S deno run -A
+/**
+ * @fileoverview Installer for @lockness/my-package.
+ *
+ * @module @lockness/my-package/install
+ */
 import { addPackage } from '@lockness/cli'
+import { CommandFailedError, runSteps } from '@lockness/cli/command-failure'
+import { runEntry } from '@lockness/cli/entry'
+import { exists } from '@std/fs'
 
-async function main() {
+const CONFIG_TEMPLATE = 'export const myPackageConfig = {}\n'
+
+/**
+ * Install @lockness/my-package into the project in the current directory.
+ *
+ * @throws {CommandFailedError} Outside a Lockness project, or when a step
+ *   failed.
+ */
+export default async function install(): Promise<void> {
     console.log('🌊 Installing @lockness/my-package...\n')
 
-    // 1. Add to deno.json configuration
-    await addPackage('my-package')
+    // 1. Refuse before anything is written.
+    if (!(await exists('./deno.json'))) {
+        throw new CommandFailedError(
+            'deno.json not found. Are you in a Lockness project?',
+        )
+    }
 
-    // 2. Create files (controllers, config, etc.)
-    await Deno.writeTextFile('./app/config/my-package.ts', CONFIG_TEMPLATE)
+    // 2. Every step runs, even after one fails; then one failure names
+    //    the steps that failed.
+    await runSteps([
+        { label: 'add to deno.json', run: () => addPackage('my-package') },
+        {
+            label: 'config file',
+            run: () =>
+                Deno.writeTextFile('./config/my-package.ts', CONFIG_TEMPLATE),
+        },
+    ])
 
     // 3. Display instructions
     console.log('✅ Installation complete!\n')
     console.log('Next steps:')
-    console.log('  1. Configure in app/config/my-package.ts')
+    console.log('  1. Configure in config/my-package.ts')
     console.log('  2. Restart your dev server\n')
 }
 
-if (import.meta.main) {
-    await main()
-}
+if (import.meta.main) await runEntry('my-package install', () => install())
 ```
+
+The contract is the same as a command handler's:
+
+- **`install()` reports failure by throwing.** It never prints `❌`, never calls
+  `Deno.exit()` and never sets `Deno.exitCode`. Whoever runs it prints the
+  failure once and sets a non-zero exit status: `package:install <name>` imports
+  `@lockness/<name>/install` and calls the default export under
+  `Cli.dispatch()`, and `deno run jsr:@lockness/<name>/install` hands it to
+  `runEntry` from `@lockness/cli/entry`.
+- **A failure message is one line you wrote.** Throw `CommandFailedError` for a
+  failure you expected. When a caught error caused it, pass that error as
+  `cause` rather than quoting it in the message: it is printed after the
+  message, rendered with its credentials redacted. Any other error is printed
+  with its stack frames, redacted too.
+- **Independent setup steps go through `runSteps`.** Each step runs whatever the
+  one before it did, so the user is never left guessing which files exist. If
+  any failed, one `CommandFailedError` is thrown afterwards, naming them
+  (`1 of 2 steps failed: config file`), with the first failure as its `cause`.
+- **The `import.meta.main` block holds only `await runEntry(…)`.** No
+  `try`/`catch` around it, and no `main()` started without being awaited:
+  `runEntry` catches whatever `install()` throws, so Deno never prints an
+  unredacted `error: Uncaught` with the whole cause chain.
+
+See [docs/DOCS.md](docs/DOCS.md#exit-codes) for what the printer shows.
 
 ### Export the Install Script
 
@@ -55,7 +106,7 @@ Add to your package's `deno.json`:
 - Check if files already exist before creating them
 - Use `addPackage()` to register in deno.json
 - Display clear next steps
-- Handle errors gracefully
+- Report a failure by throwing, with a one-line message
 - Make the script idempotent (safe to run multiple times)
 
 ❌ **Don't:**
@@ -63,6 +114,8 @@ Add to your package's `deno.json`:
 - Overwrite existing user files without confirmation
 - Require external dependencies in the install script
 - Make irreversible changes without warning
+- Print the failure yourself, or call `Deno.exit()`: the caller prints it once
+  and sets the exit status
 
 ## For Users
 
@@ -113,7 +166,7 @@ Then follow the package's README for manual setup.
 The OpenAPI package install script:
 
 1. ✅ Adds "openapi" to `deno.json` lockness.packages
-2. ✅ Creates `app/controller/docs_controller.ts`
+2. ✅ Creates `app/controller/api_docs_controller.ts`
 3. ℹ️ Reminds you to run `deno task routes:generate`
 4. 📖 Displays documentation links
 
@@ -123,7 +176,7 @@ $ deno task cli package:install openapi
 🌊 Installing @lockness/openapi...
 
 ✓ Added openapi to lockness.packages
-✓ Created app/controller/docs_controller.ts
+✓ Created app/controller/api_docs_controller.ts
 
 ⚠️  Routes need to be regenerated:
    Run: deno task routes:generate
@@ -132,8 +185,15 @@ $ deno task cli package:install openapi
 
 📖 Next steps:
    1. Start your dev server: deno task dev
-   2. Visit: http://localhost:8888/docs
+   2. Visit: http://localhost:8888/api-docs
    3. Document your routes with @ApiDoc decorator
+```
+
+Outside a Lockness project it writes nothing, prints one `❌` line on stderr and
+exits `1`:
+
+```text
+❌ app/controller directory not found. Are you in a Lockness project?
 ```
 
 ## Advanced: Interactive Installers

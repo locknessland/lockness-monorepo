@@ -214,7 +214,7 @@ so a script or CI step can branch on it:
 | No command                                                  | `0`                                   | the command list                                                                                                                 |
 | Unknown command                                             | `1`                                   | `❌ Unknown command: <name>`, then the list                                                                                      |
 | The handler resolves                                        | `0`                                   | —                                                                                                                                |
-| The handler throws `CommandFailedError` (or the same shape) | its `exitCode` if `1`–`255`, else `1` | `❌ <message>`, no stack                                                                                                         |
+| The handler throws `CommandFailedError` (or the same shape) | its `exitCode` if `1`–`255`, else `1` | `❌ <message>`, then `caused by: <cause>` when it has one, on one line; no stack                                                 |
 | The handler throws anything else                            | `1`                                   | `❌ <command> failed:` then name, vetted code, redacted message per link, then frames; raw only with `LOCKNESS_CLI_RAW_ERRORS=1` |
 
 ```typescript
@@ -232,10 +232,114 @@ cli.register('deploy', async () => {
 - Throw `CommandFailedError` for a failure you expected and can explain in one
   message. Throw (or let through) any other error for a bug: its stack frames
   are printed, redacted.
+- Write the message on **one line**, naming the step, the file or the next
+  action. A usage hint belongs on the same line
+  (`Usage: cli package:install
+  <package-name> (e.g., cli package:install openapi)`).
+- When a caught error caused the failure, pass it as `cause` and do not quote
+  its text in the message: the CLI prints it after the message, rendered.
 - Do not print the failure yourself as well; the CLI prints it.
 - `cli.run()` sets `Deno.exitCode` and never calls `Deno.exit()`, so `finally`
   blocks (closing a connection) still run. `cli.dispatch(args)` returns the same
   status without touching the process, which is what a test wants.
+
+### What a failure prints
+
+A failure is printed as a single `console.error` call: `❌`, the message, and,
+when the error carries a `cause`, `caused by:` and the cause, on the same line.
+
+```typescript
+try {
+    await migrate(connection)
+} catch (error) {
+    throw new CommandFailedError('Failed to apply migrations', { cause: error })
+}
+```
+
+```text
+❌ Failed to apply migrations caused by: PostgresError [42P07]: relation "users" already exists
+```
+
+Both halves are rendered before they are printed:
+
+- **The message** goes through `renderMessage`: a DSN's userinfo and any
+  credential `name=value` pair are replaced with `***`, a control or format
+  character is encoded (a newline prints as `\x0a`, so a message cannot forge a
+  second line), and at most 512 code points are kept. A message is text a
+  program wrote, but it can carry a file name, a URL or the user's argument, and
+  CLI output lands in CI logs.
+- **The cause** goes through `renderError`, without frames: its name, its code
+  when it is spelled like one, its message and at most two of its own `cause`
+  links, redacted the same way as
+  [an unexpected error](#what-an-unexpected-error-prints).
+
+The same redaction shapes apply, with the same limits: a JSON `"token":"…"`, an
+`Authorization: Bearer …` header or a bare token with no name still prints.
+
+### Commands with several steps
+
+A command that writes several files (`make:model -a`, `make:crud`,
+`auth:install`, an installer) should not stop at the first failure and skip
+files it could have written, nor leave the user guessing which ones exist.
+`runSteps`, from `@lockness/cli/command-failure`, runs every step in order
+whatever the one before it did, then throws one `CommandFailedError` naming the
+steps that failed, with the first failure as its `cause`:
+
+```typescript
+import { runSteps } from '@lockness/cli/command-failure'
+
+await runSteps([
+    { label: 'model', run: () => writeModel(name) },
+    { label: 'repository', run: () => writeRepository(name) },
+    { label: 'seeder', run: () => writeSeeder(name) },
+])
+```
+
+```text
+❌ 1 of 3 steps failed: repository caused by: PermissionDenied [EACCES]: Permission denied (os error 13): open './app/repository/post_repository.ts'
+```
+
+A second or later failure is named by its label only; its error is not printed.
+Check what must hold before anything is written (a missing name, a file outside
+the project) ahead of `runSteps`, so a refusal writes nothing.
+
+### Standalone tools
+
+A tool run with `deno run jsr:@lockness/<pkg>` rather than through a `Cli` — an
+installer, `@lockness/init`, `@lockness/ui`, `@lockness/upgrade` — follows the
+same contract through `runEntry`, from `@lockness/cli/entry`. Its work throws;
+`runEntry` prints the throw once, through the same printer as `Cli.dispatch()`,
+and sets `Deno.exitCode`:
+
+```typescript
+import { CommandFailedError } from '@lockness/cli/command-failure'
+import { runEntry } from '@lockness/cli/entry'
+
+async function main(args: string[]): Promise<void> {
+    if (args.length === 0) {
+        throw new CommandFailedError('A component name is required')
+    }
+    // …
+}
+
+if (import.meta.main) await runEntry('tool', () => main(Deno.args))
+```
+
+| `main`                        | Exit                       | Printed                                                   |
+| :---------------------------- | :------------------------- | :-------------------------------------------------------- |
+| resolves                      | `0`                        | —                                                         |
+| throws a failure-shaped error | its `exitCode` (`1`–`255`) | `❌ <message>`, then `caused by: <cause>` when it has one |
+| throws anything else          | `1`                        | `❌ <label> failed:` and the error with its frames        |
+
+`runEntry` catches **any** throw, not only a failure: an error that escaped a
+standalone entry would otherwise be printed by Deno as `error: Uncaught`, with
+its message, source line, stack and whole cause chain, none of it redacted. It
+returns the status too, and never calls `Deno.exit()`. `main` must return the
+promise of its work: a promise it starts without awaiting escapes `runEntry`, as
+it would escape any `try`. `@lockness/cli/entry` does not load the
+`@lockness/cli` barrel, so a tool that uses it loads none of the built-in
+commands. An installer's shape is in
+[INSTALL_SCRIPTS.md](../INSTALL_SCRIPTS.md).
 
 ### What an unexpected error prints
 
@@ -300,23 +404,44 @@ never shows a permission prompt in the middle of an error report.
 
 The contract is matched by **shape**, not by class: any `Error` with an integer
 `exitCode` is an expected failure. A package whose dependency policy forbids
-importing `@lockness/cli` meets it with a local subclass:
+importing `@lockness/cli` meets it with **one local class**, which it does not
+export:
 
 ```typescript
+/**
+ * A failed mail command. Deliberately not exported: the shape is the contract,
+ * so the class is not public API.
+ */
 class MailCommandError extends Error {
     readonly exitCode = 1
+    override readonly name = 'MailCommandError'
 }
+
+throw new MailCommandError(
+    'Invalid mailable name "x-y" — letters and digits only',
+)
 ```
+
+- **One class per package**, beside the package's structural `Cli` interface.
+  Not in `mod.ts` and not in `deno.json` `exports`: exported, it would become
+  public API that every user could start throwing or catching.
+- **`Error`'s own constructor**, `(message, options)`, so `{ cause: error }`
+  works and is printed after the message exactly as for `CommandFailedError`.
+  The rules on one-line messages and causes are the same.
+- **Pinned by a test** that throws it through the real `Cli.dispatch()` and
+  checks the status and the one printed line, so a drifted copy fails.
+
+The built-in packages that do this are `@lockness/core`, `@lockness/mail`,
+`@lockness/notification`, `@lockness/features`, `@lockness/search` and
+`@lockness/i18n`.
 
 A package that may import the CLI but must stay light at runtime imports the
-dependency-free subpath rather than the barrel:
+dependency-free subpath rather than the barrel. `CommandFailedError` and
+`runSteps` are both exported there:
 
 ```typescript
-import { CommandFailedError } from '@lockness/cli/command-failure'
+import { CommandFailedError, runSteps } from '@lockness/cli/command-failure'
 ```
-
-Some built-in commands outside `db:*` still report certain failures by printing
-and exiting `0`; they are being moved to this contract.
 
 ## Plugin System & Extensions
 

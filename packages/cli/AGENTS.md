@@ -14,18 +14,22 @@ User-facing documentation: [README.md](README.md) ·
   fails `deno task deps:analyze`, and the failure is a design question, not a
   lint to silence.
 
-- **A failed command never exits 0 (#428).** A handler reports failure by
-  throwing; `Cli.dispatch()` is the one place that prints it (once) and maps it
-  to a status, and `Cli.run()` writes a non-zero status to `Deno.exitCode`.
-  Automation branches on that status, not on output text. Breaks when:
+- **A failed command never exits 0 (#428, #436).** A handler reports failure by
+  throwing; `report.ts` (internal) is the one place that prints it (once) and
+  maps it to a status, for `Cli.dispatch()` and for `runEntry`
+  (`@lockness/cli/entry`, the standalone tools) alike, and its `applyExitStatus`
+  is the one `Deno.exitCode` write. A failure prints `❌ <message>` through
+  `renderMessage`, then `caused by: <cause>` through `renderError`. Automation
+  branches on that status, not on output text. Breaks when:
   - a handler prints `❌` and returns — the process exits 0 and CI reads the
     failure as success;
   - `run()` calls `Deno.exit()` — `finally` blocks (a `db.close()`) are skipped
     and buffered output is cut off;
   - the failure check becomes `instanceof CommandFailedError` — it is matched by
     **shape** (any `Error` with an integer `exitCode`) so packages that must not
-    import cli (mail, features, search, scheduler, i18n) can meet it with a
-    local subclass, and so two loaded copies of this package still agree.
+    import cli (core, mail, notification, features, search, i18n) can meet it
+    with one unexported local class each, and so two loaded copies of this
+    package still agree.
 - **The dispatcher prints an error only through `renderError` (#488).** A
   non-failure error leaves `Cli.dispatch()` as one string,
   `renderError(error, { frames: 10 })` plus a hint line; the raw error object
