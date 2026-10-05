@@ -178,53 +178,22 @@ export const makeAction: MakeCommand = {
                     },
                 )
 
-                // Insert the new method before the last brace
-                let finalContent = [
-                    ...lines.slice(0, lastBraceIndex),
-                    actionContent,
-                    ...lines.slice(lastBraceIndex),
-                ].join('\n')
-
-                // Add import for the decorator if needed
-                const decoratorImports = [
-                    'Get',
-                    'Post',
-                    'Put',
-                    'Delete',
-                    'Patch',
-                ]
+                // Insert the new method before the last brace, then make
+                // sure the controller imports what the method uses.
                 const decoratorName = method.charAt(0).toUpperCase() +
                     method.slice(1)
-
-                if (
-                    !controllerContent.includes(decoratorName) &&
-                    decoratorImports.includes(decoratorName)
-                ) {
-                    finalContent = finalContent.replace(
-                        /import\s*{([^}]+)}\s*from\s*['"]lockness['"]/,
-                        (_match, imports) => {
-                            const importList = imports.split(',').map((
-                                i: string,
-                            ) => i.trim())
-                            if (!importList.includes(decoratorName)) {
-                                importList.push(decoratorName)
-                            }
-                            return `import { ${
-                                importList.join(', ')
-                            } } from 'lockness/core'`
-                        },
-                    )
-                }
-
-                // Add view import if needed
-                if (viewAvailable) {
-                    const viewImport =
-                        `import { ${viewClassName} } from '@view/pages/${controllerName.toLowerCase()}/${actionName.toLowerCase()}.tsx'\n`
-                    finalContent = finalContent.replace(
-                        /(import\s*{[^}]+}\s*from\s*['"]lockness['"])/,
-                        `$1\n${viewImport}`,
-                    )
-                }
+                const viewImport = viewAvailable
+                    ? `import { ${viewClassName} } from '@view/pages/${controllerName.toLowerCase()}/${actionName.toLowerCase()}.tsx'`
+                    : undefined
+                const finalContent = withCoreImports(
+                    [
+                        ...lines.slice(0, lastBraceIndex),
+                        actionContent,
+                        ...lines.slice(lastBraceIndex),
+                    ].join('\n'),
+                    decoratorName,
+                    viewImport,
+                )
 
                 await Deno.writeTextFile(controllerPath, finalContent)
                 console.log(
@@ -238,6 +207,52 @@ export const makeAction: MakeCommand = {
 
         await runSteps(steps)
     },
+}
+
+/** The named import from `@lockness/core` the controller stubs write. */
+const CORE_IMPORT = /import\s*{([^}]*)}\s*from\s*['"]@lockness\/core['"]/
+
+/**
+ * Make `content` import `decorator` from `@lockness/core`, then `viewImport`
+ * right after that import.
+ *
+ * The decorator is looked up among the imported names, not anywhere in the
+ * file: a `PostController` class contains `Post` and still lacks the import.
+ * A controller with no `@lockness/core` import gets one at the top. An import
+ * that already names the decorator is left exactly as written.
+ *
+ * @param content - The controller source, with the new action inserted.
+ * @param decorator - The route decorator the action uses, e.g. `Post`.
+ * @param viewImport - The view's import line, or `undefined` for none.
+ * @returns The controller source with its imports completed.
+ */
+function withCoreImports(
+    content: string,
+    decorator: string,
+    viewImport: string | undefined,
+): string {
+    const match = content.match(CORE_IMPORT)
+    let coreImport: string
+    let result: string
+    if (!match) {
+        coreImport = `import { ${decorator} } from '@lockness/core'`
+        result = `${coreImport}\n${content}`
+    } else {
+        const names = match[1].split(',').map((name) => name.trim())
+            .filter((name) => name.length > 0)
+        if (names.includes(decorator)) {
+            coreImport = match[0]
+            result = content
+        } else {
+            coreImport = `import { ${
+                [...names, decorator].join(', ')
+            } } from '@lockness/core'`
+            result = content.replace(match[0], () => coreImport)
+        }
+    }
+    if (!viewImport) return result
+    const end = result.indexOf(coreImport) + coreImport.length
+    return `${result.slice(0, end)}\n${viewImport}${result.slice(end)}`
 }
 
 /**
