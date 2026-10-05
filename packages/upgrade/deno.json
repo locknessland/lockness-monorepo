@@ -6,6 +6,7 @@
     "publish": {
         "include": [
             "mod.ts",
+            "cli.ts",
             "upgrader.ts",
             "version_fetcher.ts",
             "types.ts",
