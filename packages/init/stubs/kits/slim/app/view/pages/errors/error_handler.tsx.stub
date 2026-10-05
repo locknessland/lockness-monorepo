@@ -18,30 +18,40 @@ import {
     isExplicitlyDevelopment,
 } from '@lockness/core'
 
-/** The statuses this handler answers with; anything else is a 500. */
-type ErrorStatus = 401 | 403 | 404 | 500
-
-/** What each status says, in place of the error's own message. */
-const REASONS: Readonly<Record<ErrorStatus, string>> = {
+/** Reason phrases for the client errors a JSON app meets most. */
+const REASONS: Readonly<Record<number, string>> = {
+    400: 'Bad Request',
     401: 'Unauthorized',
     403: 'Forbidden',
     404: 'Not Found',
-    500: 'Internal Server Error',
+    405: 'Method Not Allowed',
+    409: 'Conflict',
+    413: 'Content Too Large',
+    415: 'Unsupported Media Type',
+    422: 'Unprocessable Content',
+    429: 'Too Many Requests',
 }
 
 /**
- * The status an error carries, narrowed to one this handler answers with.
+ * The HTTP status an error carries, or `undefined` when it carries none.
  *
- * Errors thrown by the framework or by your code may set `status`; one that
- * does not, or sets one not listed above, is a 500.
+ * Errors thrown by the framework or by your code may set `status`.
  */
-function statusOf(error: Error): ErrorStatus {
+function carriedStatus(error: Error): number | undefined {
     const status = (error as Error & { status?: unknown }).status
-    return status === 401 || status === 403 || status === 404 ? status : 500
+    return typeof status === 'number' && Number.isInteger(status) &&
+            status >= 100 && status <= 599
+        ? status
+        : undefined
 }
 
 /**
  * Answer every error, and every unknown route, with a JSON body.
+ *
+ * A client error (4xx) keeps its status: it is the client's to fix, and the
+ * status tells it how. Anything else answers 500 — a server fault's details
+ * are not the client's business. The log line keeps the status the error
+ * carried.
  *
  * The error's message is added only when `APP_ENV` is explicitly
  * `development`: an unset or unknown environment hides it, so an internal
@@ -52,9 +62,18 @@ function statusOf(error: Error): ErrorStatus {
  * @returns `{ error, status }`, plus `message` in development.
  */
 export const errorHandler = (error: Error, c: Context): Response => {
-    const status = statusOf(error)
-    formatErrorForConsole(error, status, c.req.path)
-    const body: Record<string, unknown> = { error: REASONS[status], status }
-    if (isExplicitlyDevelopment()) body.message = error.message
-    return c.json(body, status)
+    const carried = carriedStatus(error)
+    formatErrorForConsole(error, carried ?? 500, c.req.path)
+
+    const status = carried !== undefined && carried >= 400 && carried < 500
+        ? carried
+        : 500
+    const reason = status === 500
+        ? 'Internal Server Error'
+        : REASONS[status] ?? 'Client Error'
+    const body: Record<string, unknown> = { error: reason, status }
+
+    const showDetails = isExplicitlyDevelopment()
+    if (showDetails) body.message = error.message
+    return Response.json(body, { status })
 }
