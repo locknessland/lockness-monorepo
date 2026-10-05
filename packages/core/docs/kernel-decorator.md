@@ -461,7 +461,12 @@ Database configuration options.
 interface DatabaseConfig {
     /** Database connection URL */
     url?: string
-    /** Whether to automatically connect on startup (default: true) */
+    /** SQL dialect (default: inferred from the URL scheme, else 'postgres') */
+    driver?: 'postgres' | 'mysql' | 'sqlite'
+    /**
+     * @deprecated Has no effect, and setting it raises a deprecation notice
+     * at boot. Removed in v0.6.0 — delete it.
+     */
     autoConnect?: boolean
 }
 ```

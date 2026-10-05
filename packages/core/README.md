@@ -529,7 +529,7 @@ export class UserController {
 
 ## Upgrading to v0.5.0
 
-Seven items. **Migration step:** for every optional feature your `@Kernel()`
+Eight items. **Migration step:** for every optional feature your `@Kernel()`
 configures, make sure the package is in your `deno.json`; add `telemetry: true`
 and `logger: true` if you relied on those packages switching on by presence;
 give a `schedulerLock` with `driver: 'redis'` its `redis` connection; and fix or
@@ -655,6 +655,15 @@ one owner, as it already was for an app booted without a kernel. **No step is
 required** unless your code reads `declaredMiddlewares` during the boot:
 listener registration (410) or a `KernelBooted` listener (500) now finds it
 empty. Read it after `createApp()` returns.
+
+### 8. `database.autoConnect` is deprecated
+
+The field never had an effect: nothing read it, so `autoConnect: false` never
+kept boot off the database (#421). Setting it, to any value, now prints one
+deprecation notice per boot naming its removal in v0.6.0, and changes nothing
+else. **No step is required** unless you run with `STRICT_DEPRECATIONS=true`,
+where the notice refuses the boot. Delete the field from your `@Kernel()`
+`database` config before v0.6.0, when it stops type-checking.
 
 ## 📚 Technical Reference
 
