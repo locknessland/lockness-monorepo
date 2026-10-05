@@ -13,6 +13,14 @@ on:
 # cache, no artifact and no job output crosses into it. Every job checks out
 # github.sha, so the commit that was checked is the commit that is published.
 #
+# scripts/ci_id_token_test.ts holds this invariant (#480), and the `gate` job
+# below runs it on this very commit before `publish` can start. It fails when
+# any other job in any workflow can request an id-token, when a top-level
+# block grants one, or when a job declares no permissions at either level. It
+# also pins `publish` itself: this trigger, its keys (no `env:`, no
+# `environment:`), `needs`, permissions and three steps. A change to `publish`
+# must change that test in the same commit.
+#
 # Every job installs the one exact Deno version in .dvmrc (#481), never a
 # range: `deno publish` rewrites what it uploads, so the toolchain decides
 # whether a published package works (#474). A floating `v2.x` would publish
