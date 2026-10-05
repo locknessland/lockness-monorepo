@@ -218,7 +218,6 @@ Deno.test('getDefaultSteps - includes expected core steps', () => {
         'devtools',
         'middleware',
         'boot_hooks',
-        'middlewares_discovery',
         'listeners',
         'events',
         'app_initialization',

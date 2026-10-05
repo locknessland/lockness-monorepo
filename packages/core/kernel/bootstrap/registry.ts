@@ -41,7 +41,6 @@ import { lifecycleStep } from './steps/lifecycle.ts'
 import { middlewareStep } from './steps/middleware.ts'
 import { bootHooksStep } from './steps/boot_hooks.ts'
 import { shutdownHooksStep } from './steps/shutdown_hooks.ts'
-import { middlewaresDiscoveryStep } from './steps/middlewares_discovery.ts'
 import { listenersStep } from './steps/listeners.ts'
 import { eventsStep } from './steps/events.ts'
 import { schedulerStep } from './steps/scheduler.ts'
@@ -64,7 +63,6 @@ import { healthStep } from './steps/health.ts'
  * - 300: Global middleware registration
  * - 310: Boot hooks execution
  * - 320: Shutdown hook registration
- * - 400: Named middleware discovery
  * - 410: Event listener registration
  * - 500: KernelBooted event emission
  * - 550: App initialization (controllers, static files)
@@ -93,7 +91,6 @@ export function getDefaultSteps(): readonly BootstrapStep[] {
         middlewareStep,
         bootHooksStep,
         shutdownHooksStep,
-        middlewaresDiscoveryStep,
         listenersStep,
         eventsStep,
         healthStep,
