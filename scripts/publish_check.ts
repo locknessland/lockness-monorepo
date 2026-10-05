@@ -39,11 +39,13 @@
  *   `import.meta.resolve(spec)` is in no graph. One workspace
  *   `deno publish --dry-run` names each such site, and each must be inventoried
  *   with a count and a reason under `runtimeImports` in `deps.policy.jsonc`.
- * - **Published `.tsx`** (Rule C, #470): a package may publish a `.tsx` only
- *   with a `"jsx": "<reason>"` entry in `deps.policy.jsonc`. Under
- *   `"jsx": "precompile"`, Deno transpiles a JSR `.tsx` with the CONSUMING
- *   app's `jsxImportSource`, so a `.tsx` reached by an app without JSX fails
- *   that app at load. A stale entry (no `.tsx` left) is red too.
+ * - **Published JSX files** (Rule C, #470): a package may publish a `.tsx` or
+ *   `.jsx` only with a `"jsx": "<reason>"` entry in `deps.policy.jsonc`. Under
+ *   `"jsx": "precompile"`, Deno transpiles a JSR JSX file with the CONSUMING
+ *   app's `jsxImportSource`, so one reached by an app without JSX fails that
+ *   app at load. A stale entry (no JSX file left, or no such published
+ *   package) is red too, and an unparseable policy skips the rule rather than
+ *   reporting every JSX file as unjustified (#475).
  *
  * The message only names the fault:
  *
@@ -59,8 +61,9 @@
  * | `<file>:<line>: unresolved dynamic import: … — …` | any other dynamic edge error, e.g. `Unknown export` — still **fail** |
  * | `unrecognised graph failure: …` | `deno info` built no graph — still **fail** |
  * | `<pkg>/<file>: N unanalysable import site(s), …` | a runtime-import site missing from, or drifting against, the inventory |
- * | `<pkg>: publishes N .tsx file(s) (…), no "jsx" entry …` | a published `.tsx` the policy does not allow |
- * | `<pkg>: "jsx" entry …, but no .tsx is published …` | a stale `jsx` entry |
+ * | `<pkg>: publishes N JSX file(s) (…), no "jsx" entry …` | a published `.tsx`/`.jsx` the policy does not allow |
+ * | `<pkg>: "jsx" entry …, but no JSX file is published …` | a stale `jsx` entry |
+ * | `<pkg>: "jsx" entry … names no published workspace package …` | a `jsx` entry for a package that is not a member |
  * | `dry-run diagnostic: warning[…]` / `error[…]` | any other coded dry-run diagnostic (an uncoded one is not seen) |
  * | `deno publish --dry-run exited N: …` | the dry-run itself failed |
  * | anything else | unrecognised — still **fail** |
@@ -551,7 +554,7 @@ export function classifyCheck(
  * @param results - One result per package.
  * @param runtimeFaults - Faults from the workspace dry-run and the runtime
  *   import inventory ({@link runtimeImportFaults}); defaults to none.
- * @param jsxFaults - Faults from the published-`.tsx` policy
+ * @param jsxFaults - Faults from the published-JSX-file policy
  *   ({@link jsxPolicyFaults}); defaults to none.
  * @returns The exit code, and the lines to print — the success line appears
  *   only when the code is `0`, so the log can never contradict the exit status.
@@ -559,7 +562,7 @@ export function classifyCheck(
  * ```ts
  * resolutionVerdict([{ name: 'core', ok: false, detail: 'x' }]).code   // 1
  * resolutionVerdict([], ['cli/mod.ts: not inventoried']).code           // 1
- * resolutionVerdict([], [], ['core: publishes 1 .tsx file(s)']).code    // 1
+ * resolutionVerdict([], [], ['core: publishes 1 JSX file(s)']).code    // 1
  * ```
  */
 export function resolutionVerdict(
@@ -592,7 +595,7 @@ export function resolutionVerdict(
             lines.push(
                 `\n❌ ${jsxFaults.length} jsx-policy fault(s) in the published files:`,
                 ...jsxFaults.map((fault) => `   ${fault}`),
-                "   A published .tsx is transpiled with the CONSUMING app's jsxImportSource",
+                "   A published JSX file is transpiled with the CONSUMING app's jsxImportSource",
                 '   and breaks an app without JSX (#470). Write it as .ts, or justify it',
                 '   under that package\'s "jsx" in deps.policy.jsonc.',
             )
@@ -1040,31 +1043,43 @@ function inventoryFileFaults(
     return faults
 }
 
-// ---- Rule C: a published .tsx needs a "jsx" policy entry (#470) -----------
+// ---- Rule C: a published JSX file needs a "jsx" policy entry (#470) -------
 
-/** How many `.tsx` paths a fault names before eliding the rest. */
+/** How many JSX paths a fault names before eliding the rest. */
 const JSX_FAULT_SAMPLE = 3
 
 /**
- * Compare each package's published `.tsx` files with the `"jsx"` entries in
- * `deps.policy.jsonc`.
+ * A JSX source file. A published `.jsx` is transpiled with the consuming
+ * app's `jsxImportSource` exactly like a `.tsx`, so the rule covers both.
+ */
+const JSX_FILE = /\.[jt]sx$/
+
+/**
+ * Compare each package's published JSX files (`.tsx`, `.jsx`) with the
+ * `"jsx"` entries in `deps.policy.jsonc`.
  *
- * A JSR `.tsx` is not self-contained: under `"jsx": "precompile"` Deno
+ * A JSR JSX file is not self-contained: under `"jsx": "precompile"` Deno
  * transpiles it with the consuming app's `jsxImportSource`, ignoring the
  * pragma `deno publish` writes into it, and the runtime that names is not in
  * the pre-loaded graph of an app that has no JSX of its own. That is how
  * `@lockness/core@0.4.0` failed to load in the api and slim kits (#470). So a
- * package publishes a `.tsx` only when the policy says why it may. Red when:
+ * package publishes a JSX file only when the policy says why it may. Red when:
  *
- * - a package publishes a `.tsx` and has no `"jsx"` entry;
+ * - a package publishes a JSX file and has no `"jsx"` entry;
  * - a `"jsx"` entry is not a non-empty string;
- * - a `"jsx"` entry names a package that publishes no `.tsx` (stale).
+ * - a `"jsx"` entry names a package that publishes no JSX file (stale);
+ * - a `"jsx"` entry names no published workspace package at all.
+ *
+ * The caller skips this rule when `deps.policy.jsonc` does not parse: the
+ * parse fault is the cause, and an empty policy would report every JSX file
+ * as unjustified on top of it.
  *
  * @param published - Per short package name, the files `deno publish` would
  *   upload (after `publish.include` / `publish.exclude`, see
  *   {@link selectPublishedFiles}) — so an excluded `demo/*.tsx` never counts.
+ *   Its keys are the published workspace members.
  * @param policy - The parsed `deps.policy.jsonc`, unvalidated; `undefined`
- *   (no policy file) allows no `.tsx` anywhere.
+ *   (no policy file) allows no JSX file anywhere.
  * @returns One fault description per discrepancy, sorted by package; empty
  *   when they agree.
  * @example
@@ -1091,14 +1106,20 @@ export function jsxPolicyFaults(
     const faults: string[] = []
     const names = new Set([...Object.keys(published), ...Object.keys(allowed)])
     for (const pkg of [...names].sort()) {
-        const tsx = (published[pkg] ?? []).filter((f) => f.endsWith('.tsx'))
+        const jsx = (published[pkg] ?? []).filter((f) => JSX_FILE.test(f))
             .sort()
         if (!(pkg in allowed)) {
-            if (tsx.length === 0) continue
-            const sample = tsx.slice(0, JSX_FAULT_SAMPLE).join(', ') +
-                (tsx.length > JSX_FAULT_SAMPLE ? ', …' : '')
+            if (jsx.length === 0) continue
+            const sample = jsx.slice(0, JSX_FAULT_SAMPLE).join(', ') +
+                (jsx.length > JSX_FAULT_SAMPLE ? ', …' : '')
             faults.push(
-                `${pkg}: publishes ${tsx.length} .tsx file(s) (${sample}), no "jsx" entry in deps.policy.jsonc`,
+                `${pkg}: publishes ${jsx.length} JSX file(s) (${sample}), no "jsx" entry in deps.policy.jsonc`,
+            )
+            continue
+        }
+        if (!(pkg in published)) {
+            faults.push(
+                `${pkg}: "jsx" entry in deps.policy.jsonc names no published workspace package — fix the name or remove the entry`,
             )
             continue
         }
@@ -1107,9 +1128,9 @@ export function jsxPolicyFaults(
             faults.push(`${pkg}: "jsx" entry has no reason`)
             continue
         }
-        if (tsx.length === 0) {
+        if (jsx.length === 0) {
             faults.push(
-                `${pkg}: "jsx" entry in deps.policy.jsonc, but no .tsx is published — remove the stale entry`,
+                `${pkg}: "jsx" entry in deps.policy.jsonc, but no JSX file is published — remove the stale entry`,
             )
         }
     }
@@ -1541,15 +1562,25 @@ async function main(): Promise<void> {
             : `  ❌ ${runtimeFaults.length} runtime-import fault(s)`,
     )
 
-    // Rule C (#470): every published .tsx is allowed, with a reason, by policy.
-    console.log('\n🔎 Checking published .tsx files against the jsx policy...')
-    const jsxFaults = jsxPolicyFaults(
-        Object.fromEntries(staged.map(({ short, files }) => [short, files])),
-        policy,
-    )
+    // Rule C (#470): every published JSX file is allowed, with a reason, by
+    // policy. Skipped when the policy does not parse (#475): that fault is
+    // already in runtimeFaults, so the run is red and names the real cause,
+    // instead of also calling every JSX file unjustified by an empty policy.
+    console.log('\n🔎 Checking published JSX files against the jsx policy...')
+    const policyParsed = policyFaults.length === 0
+    const jsxFaults = policyParsed
+        ? jsxPolicyFaults(
+            Object.fromEntries(
+                staged.map(({ short, files }) => [short, files]),
+            ),
+            policy,
+        )
+        : []
     console.log(
-        jsxFaults.length === 0
-            ? '  ✅ every published .tsx is allowed by deps.policy.jsonc'
+        !policyParsed
+            ? '  ⏭️  skipped: deps.policy.jsonc is unparseable (reported above)'
+            : jsxFaults.length === 0
+            ? '  ✅ every published JSX file is allowed by deps.policy.jsonc'
             : `  ❌ ${jsxFaults.length} jsx-policy fault(s)`,
     )
 

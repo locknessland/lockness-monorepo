@@ -588,13 +588,14 @@ interface FixturePackage {
  * published copy: green here can only come from the linked sibling.
  *
  * @param packages - The workspace members.
- * @param policy - A `deps.policy.jsonc` to write at the fixture root; none is
- *   written when omitted, which is an empty runtime-import inventory.
+ * @param policy - A `deps.policy.jsonc` to write at the fixture root, as an
+ *   object or as raw text (to write one that does not parse); none is written
+ *   when omitted, which is an empty runtime-import inventory.
  * @returns The exit code and the combined output.
  */
 async function runWorkspace(
     packages: FixturePackage[],
-    policy?: Record<string, unknown>,
+    policy?: Record<string, unknown> | string,
 ): Promise<{ code: number; out: string }> {
     const dir = await Deno.makeTempDir({ prefix: 'publish-check-links-' })
     try {
@@ -607,7 +608,7 @@ async function runWorkspace(
         if (policy !== undefined) {
             await Deno.writeTextFile(
                 `${dir}/deps.policy.jsonc`,
-                JSON.stringify(policy),
+                typeof policy === 'string' ? policy : JSON.stringify(policy),
             )
         }
         for (const pkg of packages) {
@@ -1226,7 +1227,7 @@ Deno.test('registryVerdict: a missing package wins over a merely unreachable one
     assertStringIncludes(result.lines.join('\n'), 'queue')
 })
 
-// ---- Rule C: a published .tsx needs a "jsx" policy entry (#470) -----------
+// ---- Rule C: a published JSX file needs a "jsx" policy entry (#470) -------
 
 Deno.test('jsxPolicyFaults: a published .tsx without a "jsx" entry is red', () => {
     const faults = jsxPolicyFaults(
@@ -1234,8 +1235,28 @@ Deno.test('jsxPolicyFaults: a published .tsx without a "jsx" entry is red', () =
         { packages: { core: { tier: 'orchestration', allow: [] } } },
     )
     assertEquals(faults, [
-        'core: publishes 1 .tsx file(s) (exceptions/default_view.tsx), no "jsx" entry in deps.policy.jsonc',
+        'core: publishes 1 JSX file(s) (exceptions/default_view.tsx), no "jsx" entry in deps.policy.jsonc',
     ])
+})
+
+Deno.test('jsxPolicyFaults: a published .jsx counts exactly like a .tsx (#475)', () => {
+    assertEquals(
+        jsxPolicyFaults(
+            { ui: ['mod.ts', 'legacy/button.jsx', 'card.tsx'] },
+            { packages: { ui: {} } },
+        ),
+        [
+            'ui: publishes 2 JSX file(s) (card.tsx, legacy/button.jsx), no "jsx" entry in deps.policy.jsonc',
+        ],
+    )
+    // A package whose only JSX file is a .jsx keeps its entry: not stale.
+    assertEquals(
+        jsxPolicyFaults(
+            { ui: ['mod.ts', 'button.jsx'] },
+            { packages: { ui: { jsx: 'consumers are JSX apps' } } },
+        ),
+        [],
+    )
 })
 
 Deno.test('jsxPolicyFaults: no policy file at all is an empty allowance', () => {
@@ -1244,7 +1265,7 @@ Deno.test('jsxPolicyFaults: no policy file at all is an empty allowance', () => 
         undefined,
     )
     assertEquals(faults.length, 1)
-    assertStringIncludes(faults[0], 'ui: publishes 4 .tsx file(s)')
+    assertStringIncludes(faults[0], 'ui: publishes 4 JSX file(s)')
     assertStringIncludes(faults[0], 'a.tsx, b.tsx, c.tsx, …')
 })
 
@@ -1265,19 +1286,24 @@ Deno.test('jsxPolicyFaults: a "jsx" entry with no .tsx left is stale, and red', 
             { packages: { core: { jsx: 'it used to render JSX' } } },
         ),
         [
-            'core: "jsx" entry in deps.policy.jsonc, but no .tsx is published — remove the stale entry',
+            'core: "jsx" entry in deps.policy.jsonc, but no JSX file is published — remove the stale entry',
         ],
     )
 })
 
-Deno.test('jsxPolicyFaults: a "jsx" entry for a package that does not exist is stale', () => {
-    const faults = jsxPolicyFaults(
-        {},
-        { packages: { gone: { jsx: 'a reason' } } },
+Deno.test('jsxPolicyFaults: a "jsx" entry for a package that does not exist names no published package (#475)', () => {
+    // Its own message, not the stale-entry one: the fix is the name, not the
+    // package's files.
+    assertEquals(
+        jsxPolicyFaults(
+            { core: ['mod.ts'] },
+            { packages: { gone: { jsx: 'a reason' }, typo: { jsx: '' } } },
+        ),
+        [
+            'gone: "jsx" entry in deps.policy.jsonc names no published workspace package — fix the name or remove the entry',
+            'typo: "jsx" entry in deps.policy.jsonc names no published workspace package — fix the name or remove the entry',
+        ],
     )
-    assertEquals(faults.length, 1)
-    assertStringIncludes(faults[0], 'gone: "jsx" entry')
-    assertStringIncludes(faults[0], 'stale')
 })
 
 Deno.test('jsxPolicyFaults: an empty or non-string reason is red', () => {
@@ -1306,12 +1332,12 @@ Deno.test('resolutionVerdict: a jsx-policy fault alone is red', () => {
     const verdict = resolutionVerdict(
         [{ name: 'core', ok: true, detail: 'resolves' }],
         [],
-        ['core: publishes 1 .tsx file(s) (view.tsx), no "jsx" entry'],
+        ['core: publishes 1 JSX file(s) (view.tsx), no "jsx" entry'],
     )
     assertEquals(verdict.code, 1)
     assert(!verdict.lines.some((line) => line.includes('✅')))
     const text = verdict.lines.join('\n')
-    assertStringIncludes(text, 'core: publishes 1 .tsx')
+    assertStringIncludes(text, 'core: publishes 1 JSX file(s)')
     assertStringIncludes(text, '"jsx"')
 })
 
@@ -1329,7 +1355,7 @@ Deno.test('J1: a published .tsx is red when the package has no "jsx" entry', asy
     assertEquals(code, 1, out)
     assertStringIncludes(
         out,
-        'b: publishes 1 .tsx file(s) (view.tsx), no "jsx" entry',
+        'b: publishes 1 JSX file(s) (view.tsx), no "jsx" entry',
     )
     assert(!out.includes('Every package resolves standalone'), out)
 })
@@ -1348,6 +1374,18 @@ Deno.test('J3: a stale "jsx" entry is red end to end', async () => {
     })
     assertEquals(code, 1, out)
     assertStringIncludes(out, 'a: "jsx" entry in deps.policy.jsonc')
+})
+
+Deno.test('J4: an unparseable policy skips Rule C instead of piling faults on it (#475)', async () => {
+    const { code, out } = await runWorkspace(
+        [PKG_A, SHIPS_TSX, PKG_C],
+        '{ "packages": { "b": { "jsx": "a reason" } ',
+    )
+    assertEquals(code, 1, out)
+    assertStringIncludes(out, 'deps.policy.jsonc is unparseable')
+    assertStringIncludes(out, 'skipped: deps.policy.jsonc is unparseable')
+    assert(!out.includes('no "jsx" entry'), out)
+    assert(!out.includes('jsx-policy fault'), out)
 })
 
 // ---- Child-process failure branches (#469) --------------------------------
