@@ -83,7 +83,7 @@ every commit, which is why the lint plugin lands last.
 **Independent test**: `cli.dispatch(['make:controller'])` with no name returns non-zero, with one
 `❌` line on stderr.
 
-- [ ] T007 [US1] `fix(cli)`: the `commands/make/` sites in `packages/cli/commands/make/` (action
+- [X] T007 [US1] `fix(cli)`: the `commands/make/` sites in `packages/cli/commands/make/` (action
   26,42,150,208 · command 24 · component 24 · controller 24 · crud 26 · event 25 · job 25 · listener
   25 · middleware 24 · policy 24 · resource 30 · schedule 25 · service 24 · view 24) throw a
   `CommandFailedError` from `./command_failure.ts` under D4 rule 1. Usage hints go on the same line.
@@ -91,20 +91,20 @@ every commit, which is why the lint plugin lands last.
   event 63, job 56, listener 61, middleware 50, policy 50, resource 54, schedule 68, service 48, view
   44. `controller.ts:62,102` (`--view`) and `crud.ts:155` go through `runSteps` (FR-010). Tests per
   file group.
-- [ ] T008 [US1] `fix(cli)`: the other cli commands. `core_commands.ts` 47, 61 and 115 use rule 1;
+- [X] T008 [US1] `fix(cli)`: the other cli commands. `core_commands.ts` 47, 61 and 115 use rule 1;
   102 has its catch deleted (rule 3) and its `Deno.exit(1)` at 103 removed. `router_commands.ts:131`
   is a failure with `cause` (rule 2); `:271` is deleted (rule 3). `queue_commands.ts:343` (an unknown
   id in `queue:retry` is a failure) and `nessy_commands.ts:56` use rule 1; `nessy_commands.ts:126` is
   deleted (rule 3). `auth_commands.ts:95` goes through `runSteps` (FR-010). Tests.
-- [ ] T009 [US1] `fix(drizzle)`: the `make:*` generators. `generators/factory_generator.ts:24` and
+- [X] T009 [US1] `fix(drizzle)`: the `make:*` generators. `generators/factory_generator.ts:24` and
   `seeder_generator.ts:31` use rule 1; `factory_generator.ts:38` and `seeder_generator.ts:54` have
   their catches deleted (rule 3); `model_generator.ts:192` uses rule 1. `model_generator.ts`
   233, 259, 282 and 310 stop returning booleans and run as `runSteps` steps (`make:model -a`, FR-010).
   Tests.
-- [ ] T010 [P] [US1] `fix(openapi)`: `packages/openapi/cli_commands.ts:41` throws a failure from
+- [X] T010 [P] [US1] `fix(openapi)`: `packages/openapi/cli_commands.ts:41` throws a failure from
   `@lockness/cli/command-failure`, never the barrel (`openapi/mod.ts:11` re-exports
   `cli_commands.ts`). Test through `Cli.dispatch`.
-- [ ] T011 [P] [US1] `fix(cli)`: the `./nessy` wrappers exit non-zero when `install` or `bump` is run
+- [X] T011 [P] [US1] `fix(cli)`: the `./nessy` wrappers exit non-zero when `install` or `bump` is run
   with no argument (`packages/cli/stubs/nessy/nessy.stub:96,107`, `nessy.cmd.stub:99`) (FR-011). The
   stub test pins the status; regenerate any copy the stub sync tracks (`docs/STUBS.md`).
 
@@ -117,12 +117,12 @@ every commit, which is why the lint plugin lands last.
 **Independent test**: with an injected step runner that fails, `CompileCommand.handle` rejects with
 a failure and prints no "✅ Compilation successful".
 
-- [ ] T012 [US2] `fix(core)`: add core's one local failure class (`readonly exitCode = 1`, its own
+- [X] T012 [US2] `fix(core)`: add core's one local failure class (`readonly exitCode = 1`, its own
   `name`, `Error`'s `(message, options)`) in an internal module under `packages/core/cli/` that is not
   in `exports`, beside core's structural `Cli` interface (home: plan §5, the local-class row). Add a
   conformance test that goes through the real `Cli.dispatch` (`@lockness/cli` declared for tests
   only) and asserts status 1 and one `❌` line.
-- [ ] T013 [US2] `fix(core)`: `packages/core/cli/compile_command.ts`. Add one local step runner with
+- [X] T013 [US2] `fix(core)`: `packages/core/cli/compile_command.ts`. Add one local step runner with
   inherited stdout and stderr; a non-zero exit becomes `<step> failed (<program> exited <code>)` with
   no cause, used at `:144` (pre-compile script) and `:219` (`deno compile`). `:84` uses rule 1.
   `:115`, where route generation fails, becomes a failure with `cause` that stops before `deno
@@ -140,16 +140,16 @@ a failure and prints no "✅ Compilation successful".
 **Independent test**: each tool, run as a subprocess on its failure path, exits non-zero with
 exactly one `❌` line and no `error: Uncaught`.
 
-- [ ] T014 [P] [US3] `fix(ui)`: `packages/ui/mod.ts`. The block becomes `if (import.meta.main) await
+- [X] T014 [P] [US3] `fix(ui)`: `packages/ui/mod.ts`. The block becomes `if (import.meta.main) await
   runEntry('ui', () => main(Deno.args))`. Sites 267, 279 and 381 throw `CommandFailedError` from
   `@lockness/cli/command-failure`, and their `Deno.exit(1)` at 269, 281 and 383 is removed; the catch
   at 390 is deleted (rule 3), with 391 removed. `ui add` still succeeds when only the `deno.json`
   update fails. Update `packages/ui/tests/cli.test.ts:260` and add the subprocess assertions.
-- [ ] T015 [P] [US3] `fix(upgrade)`: `packages/upgrade/upgrader.ts:193` stops stringifying, so
+- [X] T015 [P] [US3] `fix(upgrade)`: `packages/upgrade/upgrader.ts:193` stops stringifying, so
   `Upgrader.upgrade()` lets unexpected errors throw (breaking). In `packages/upgrade/mod.ts`, `:162`
   becomes `return`, `:179` becomes rule 1 and its `Deno.exit` at `:180` is removed, and the block at
   `:193` becomes `await runEntry('upgrade', …)`. Tests: in-process and a subprocess.
-- [ ] T016 [US3] `fix(init)`: `packages/init/mod.ts`.
+- [X] T016 [US3] `fix(init)`: `packages/init/mod.ts`.
   - Delete `cliMock` (`:445-460`). One module-local `runInit(args)` is what `registerInitCommand`
     registers and what `runEntry('init', …)` runs. `--help` and `--version` (`:411`, `:441`) return
     inside it.
@@ -161,13 +161,13 @@ exactly one `❌` line and no `error: Uncaught`.
     `Stub.scaffoldFrom` must report a file it failed to fetch to its caller instead of skipping it.
     That last change is in cli, so it is its own `fix(cli)` commit, first.
   - Tests: in-process and a subprocess (bad `--kit`).
-- [ ] T017 [US3] `fix(openapi)`: `packages/openapi/install.ts`.
+- [X] T017 [US3] `fix(openapi)`: `packages/openapi/install.ts`.
   - Its work becomes `export default async function install(): Promise<void>`, which throws and never
     touches process state. The block is `await runEntry('openapi install', () => install())`.
   - `:61` uses rule 1 and its `Deno.exit` at `:74` is removed. `:84` (`addPackage` and the other
     steps) goes through `runSteps`.
   - Tests: in-process and a subprocess.
-- [ ] T018 [US3] `fix(drizzle)`: `packages/drizzle/install.ts`.
+- [X] T018 [US3] `fix(drizzle)`: `packages/drizzle/install.ts`.
   - Its work becomes the default-exported `install()`. The block is `await runEntry('drizzle install',
     …)`, which also fixes the unawaited call at `:428`.
   - `ProjectStructureError` becomes a subclass of `CommandFailedError` with the same public name, and
@@ -176,7 +176,7 @@ exactly one `❌` line and no `error: Uncaught`.
     is removed.
   - The "✗ Database connection failed" warning stays.
   - Tests.
-- [ ] T019 [US3] `fix(deprecation-contracts)`: `packages/deprecation-contracts/install.ts`.
+- [X] T019 [US3] `fix(deprecation-contracts)`: `packages/deprecation-contracts/install.ts`.
   - Its work becomes the default-exported `install()`, run through `runEntry`.
   - `:45` uses rule 1 and its `Deno.exit` at `:143` is removed.
   - The local `addPackage` (`:97`, `:129`) throws instead of warning (rule 2). The catch at `:168` is
@@ -200,12 +200,12 @@ The same pattern applies to each package (plan §5, the local-class and `handleM
 - a conformance test goes through the real `Cli.dispatch`, with `@lockness/cli` declared for tests
   only.
 
-- [ ] T020 [P] [US4] `fix(mail)`: `packages/mail/cli_commands.ts:59,68` and `packages/mail/mod.ts`.
-- [ ] T021 [P] [US4] `fix(features)`: `packages/features/cli_commands.ts:60,69` and `mod.ts`.
-- [ ] T022 [P] [US4] `fix(search)`: `packages/search/cli_commands.ts:59,68` and `mod.ts`.
-- [ ] T023 [P] [US4] `fix(notification)`: `packages/notification/cli_commands.ts:100,109` and
+- [X] T020 [P] [US4] `fix(mail)`: `packages/mail/cli_commands.ts:59,68` and `packages/mail/mod.ts`.
+- [X] T021 [P] [US4] `fix(features)`: `packages/features/cli_commands.ts:60,69` and `mod.ts`.
+- [X] T022 [P] [US4] `fix(search)`: `packages/search/cli_commands.ts:59,68` and `mod.ts`.
+- [X] T023 [P] [US4] `fix(notification)`: `packages/notification/cli_commands.ts:100,109` and
   `mod.ts`.
-- [ ] T024 [P] [US4] `fix(i18n)`: `packages/i18n/cli_commands.ts:72,77,86` and `mod.ts`.
+- [X] T024 [P] [US4] `fix(i18n)`: `packages/i18n/cli_commands.ts:72,77,86` and `mod.ts`.
 
 **Checkpoint**: all 79 in-scope `❌` sites are migrated.
 
