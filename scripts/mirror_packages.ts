@@ -144,16 +144,92 @@ interface Context {
 }
 
 /**
- * The default {@link GhRunner}: the real `gh` CLI, run in `root`.
+ * The variables `gh` is allowed to inherit: where it finds itself and its
+ * config, its credentials for github.com, locale, temp dir, and proxy / CA
+ * settings. Everything else — `GH_HOST`, `GH_REPO`, `GH_ENTERPRISE_TOKEN`,
+ * `GH_DEBUG`, every `GIT_*` — is dropped.
+ */
+const GH_ENV_KEYS: readonly string[] = [
+    'PATH',
+    'HOME',
+    'USER',
+    'LOGNAME',
+    'TMPDIR',
+    'LANG',
+    'LC_ALL',
+    'LC_CTYPE',
+    'XDG_CONFIG_HOME',
+    'XDG_STATE_HOME',
+    'XDG_DATA_HOME',
+    'XDG_CACHE_HOME',
+    'GH_CONFIG_DIR',
+    'GH_TOKEN',
+    'GITHUB_TOKEN',
+    'HTTPS_PROXY',
+    'https_proxy',
+    'HTTP_PROXY',
+    'http_proxy',
+    'NO_PROXY',
+    'no_proxy',
+    'ALL_PROXY',
+    'all_proxy',
+    'SSL_CERT_FILE',
+    'SSL_CERT_DIR',
+    // Windows: where gh finds its config and the system.
+    'APPDATA',
+    'LOCALAPPDATA',
+    'USERPROFILE',
+    'SYSTEMROOT',
+    'PATHEXT',
+]
+
+/**
+ * The explicit environment the `gh` subprocess runs with: only
+ * {@link GH_ENV_KEYS} from `base`, with the host pinned to `github.com` and
+ * prompts off. A stray `GH_HOST` (or `GH_REPO`, or an enterprise token) in
+ * the calling shell therefore cannot point the provenance check — the
+ * `Secret scan` run list — or a repository create/edit at another host.
+ *
+ * @param base - The environment to pick from. Defaults to this process's.
+ * @returns The environment to hand to `Deno.Command` with `clearEnv`.
+ * @example
+ * ```ts
+ * ghEnv({ PATH: '/usr/bin', GH_HOST: 'evil.example' })
+ * // { PATH: '/usr/bin', GH_HOST: 'github.com', GH_PROMPT_DISABLED: '1', … }
+ * ```
+ */
+export function ghEnv(
+    base: Record<string, string> = Deno.env.toObject(),
+): Record<string, string> {
+    const env: Record<string, string> = {}
+    for (const key of GH_ENV_KEYS) {
+        if (base[key] !== undefined) env[key] = base[key]
+    }
+    env.GH_HOST = 'github.com'
+    env.GH_PROMPT_DISABLED = '1'
+    env.GH_NO_UPDATE_NOTIFIER = '1'
+    return env
+}
+
+/**
+ * The default {@link GhRunner}: the real `gh` CLI, run in `root` with
+ * {@link ghEnv} and `clearEnv`, never the full inherited environment.
  *
  * @param root - The working directory.
+ * @param env - The environment {@link ghEnv} picks from. Defaults to this
+ *   process's.
  * @returns A runner capturing stdout and stderr.
  */
-export function ghCli(root: string): GhRunner {
+export function ghCli(
+    root: string,
+    env: Record<string, string> = Deno.env.toObject(),
+): GhRunner {
     return async (args) => {
         const run = await new Deno.Command('gh', {
             args,
             cwd: root,
+            clearEnv: true,
+            env: ghEnv(env),
             stdout: 'piped',
             stderr: 'piped',
         }).output()

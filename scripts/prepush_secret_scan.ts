@@ -53,14 +53,21 @@
  * is non-empty (via `git rev-list --count`) all refuse the push. So does a
  * range `git rev-list` cannot resolve — a remote tip absent from the local
  * object store — with "cannot resolve range — fetch first" (#430): it is
- * never read as an empty range. `--redact` keeps a real secret out of the
- * terminal.
+ * never read as an empty range. So does a ref line whose local or remote sha
+ * is not a full object id (an option-shaped `--all`, a ref name, a short
+ * sha): it is refused before any git call sees it. `--redact` keeps a real
+ * secret out of the terminal.
  *
  * @module
  */
 
 import { dirname } from '@std/path'
-import { runGit, sanitizedGitEnv, ZERO_SHA_RE } from './git_env.ts'
+import {
+    OBJECT_ID_RE,
+    runGit,
+    sanitizedGitEnv,
+    ZERO_SHA_RE,
+} from './git_env.ts'
 import { install as installGitleaks } from './install_gitleaks.ts'
 import {
     outgoing,
@@ -513,6 +520,22 @@ export async function runPrepushScan(
     // Enumerated once per push, and only if a non-delete update needs it.
     let publishedSet: Set<string> | null = null
     for (const update of updates) {
+        // Both shas are handed to git (`rev-list`, `merge-base`, `show`). A
+        // value that is not a full object id — `--all`, a ref name, a short
+        // sha — is refused here, so it can never reach git as an option or
+        // as anything but the object git itself reported.
+        const malformed = [update.localSha, update.remoteSha].find((sha) =>
+            !OBJECT_ID_RE.test(sha)
+        )
+        if (malformed !== undefined) {
+            ok = false
+            lines.push(
+                `${update.localRef}: ${
+                    JSON.stringify(malformed)
+                } is not a full object id; refused`,
+            )
+            continue
+        }
         if (isDelete(update)) {
             lines.push(`${update.localRef}: delete, skipped`)
             continue
