@@ -16,7 +16,8 @@
  * - **(d)** The stub can build every kit: everything it `COPY`s by name is a
  *   file the kit scaffolds, every kit defines the `build` task it runs, the
  *   `CMD` entrypoint is in the shared base, and its default Deno version is
- *   the floor CI pins. `kits:smoke --registry --docker` proves the same by
+ *   the one in `.dvmrc` — the exact version CI tests and `publish.yml`
+ *   publishes with (#481). `kits:smoke --registry --docker` proves the same by
  *   building and running each image; this catches the same class of mistake
  *   in milliseconds, on every machine, Docker or not.
  *
@@ -33,7 +34,7 @@ const ROOT = fromFileUrl(new URL('..', import.meta.url))
 const STUB_PATH = 'packages/init/stubs/init/Dockerfile.stub'
 const STUB_DOCKERFILE = new URL(`../${STUB_PATH}`, import.meta.url)
 const KITS_STUBS = new URL('../packages/init/stubs/kits/', import.meta.url)
-const TEST_WORKFLOW = new URL('../.github/workflows/test.yml', import.meta.url)
+const DENO_VERSION_FILE = new URL('../.dvmrc', import.meta.url)
 const KIT_NAMES = Object.keys(KITS) as KitName[]
 
 /**
@@ -285,14 +286,13 @@ Deno.test('(d) git ignores every env file but the example, and key files', async
     )
 })
 
-Deno.test('(d) the default DENO_VERSION is the floor CI pins', async () => {
+Deno.test('(d) the default DENO_VERSION is the version .dvmrc pins', async () => {
     const stub = await Deno.readTextFile(STUB_DOCKERFILE)
     const arg = stub.match(/^ARG DENO_VERSION=(\S+)$/m)
     assert(arg !== null, 'no ARG DENO_VERSION default in the stub')
-    const workflow = await Deno.readTextFile(TEST_WORKFLOW)
-    const matrix = workflow.match(/deno-version:\s*\[([^\]]*)\]/)
-    assert(matrix !== null, 'no deno-version matrix in test.yml')
-    const pinned = matrix[1].match(/\d+\.\d+\.\d+/)
-    assert(pinned !== null, `no pinned version in ${matrix[1]}`)
-    assertEquals(arg[1], pinned[0])
+    // The one statement of the pinned toolchain (#481): publish.yml installs
+    // it, test.yml's `pinned` lane tests it. scripts/ci_deno_pin_test.ts holds
+    // the file to an exact x.y.z.
+    const pinned = (await Deno.readTextFile(DENO_VERSION_FILE)).trim()
+    assertEquals(arg[1], pinned)
 })
