@@ -87,13 +87,11 @@ echo "✅ Pre-commit checks passed!"
 `,
     'pre-push': `#!/bin/bash
 ${HOOK_MARKER}
-# Pre-push: runs \`deno task gate\`, the quality gate defined in deno.jsonc,
-# then a ranged gitleaks scan of exactly the commits being pushed
-# (scripts/prepush_secret_scan.ts). Either step failing refuses the push;
-# the scan reads git's ref-update lines from this hook's own stdin.
-set -e
-deno task gate
-exec deno run -A scripts/prepush_secret_scan.ts
+# Pre-push: scripts/prepush.ts reads git's ref-update lines once, runs
+# \`deno task gate\` unless every update publishes nothing origin/main has not
+# already published (#433), then hands the same bytes to the gitleaks scan
+# (scripts/prepush_secret_scan.ts). Either step failing refuses the push.
+exec deno run -A scripts/prepush.ts
 `,
 }
 
@@ -260,5 +258,8 @@ if (import.meta.main) {
     console.log(`\n🎉 Git hooks installed in ${hooksDir}`)
     console.log('\nHooks installed:')
     console.log('  • pre-commit: typecheck, lint, fmt staged files (re-staged)')
-    console.log('  • pre-push: deno task gate, then a ranged gitleaks scan')
+    console.log(
+        '  • pre-push: deno task gate (unless nothing new is published), ' +
+            'then a ranged gitleaks scan',
+    )
 }
