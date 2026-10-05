@@ -222,7 +222,7 @@ function tail(output: string, lines = 12): string {
  * await useLocalWorkspace('/tmp/lockness-kits-x/web-app') // 8
  * ```
  */
-export async function useLocalWorkspace(dir: string): Promise<number> {
+async function useLocalWorkspace(dir: string): Promise<number> {
     const path = join(dir, 'deno.json')
     const config = JSON.parse(await Deno.readTextFile(path)) as {
         imports?: Record<string, string>
