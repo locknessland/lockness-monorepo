@@ -26,6 +26,60 @@ import { inspectDsn } from '../dsn.ts'
 const REJECTED = 'DSN is not a valid URL; percent-encode reserved characters ' +
     'in the password'
 
+/** The package docs: the one source of the documented allow-list (#441). */
+const DOCS = new URL('../docs/DOCS.md', import.meta.url)
+/** The module whose `connect()` JSDoc restates the allow-list. */
+const MOD = new URL('../mod.ts', import.meta.url)
+/** The package README, which restates the allow-list too. */
+const README = new URL('../README.md', import.meta.url)
+
+/**
+ * The password allow-list exactly as `### DSN format` rule 2 states it, read
+ * from the doc so the test cannot keep a copy that drifts from it (#441).
+ */
+async function documentedAllowList(): Promise<string> {
+    const docs = await Deno.readTextFile(DOCS)
+    const section = docs.slice(docs.indexOf('### DSN format'))
+    const list = /allowed characters:\*\* `([^`]+)`/.exec(section)?.[1]
+    if (list === undefined) {
+        throw new Error('DOCS.md `### DSN format` no longer states rule 2')
+    }
+    return list
+}
+
+/**
+ * Expand a documented character list such as `A-Za-z0-9-._~` into its
+ * characters. `X-Y` is a range only between two digits, or two letters of the
+ * same case; any other `-` is the character itself.
+ */
+function expandCharacterList(list: string): Set<string> {
+    const classOf = (char: string): string | undefined =>
+        /[0-9]/.test(char)
+            ? 'digit'
+            : /[a-z]/.test(char)
+            ? 'lower'
+            : /[A-Z]/.test(char)
+            ? 'upper'
+            : undefined
+    const chars = new Set<string>()
+    for (let i = 0; i < list.length; i++) {
+        const from = list[i]
+        const to = list[i + 2]
+        if (
+            list[i + 1] === '-' && to !== undefined &&
+            classOf(from) !== undefined && classOf(from) === classOf(to)
+        ) {
+            for (let c = from.charCodeAt(0); c <= to.charCodeAt(0); c++) {
+                chars.add(String.fromCharCode(c))
+            }
+            i += 2
+            continue
+        }
+        chars.add(from)
+    }
+    return chars
+}
+
 /** DSNs the drivers support, which the check must never refuse. */
 const ACCEPTED = [
     'postgres://u:p@h1,h2/db',
@@ -166,6 +220,39 @@ Deno.test('#425 inspectDsn rejects every misparsed DSN', () => {
     assertEquals(MISPARSED.filter((dsn) => inspectDsn(dsn).ok), [])
 })
 
+/** A fake password, assembled at run time: no literal credential in source. */
+const FAKE_PASSWORD = ['Zq7', 'Fake'].join('')
+
+// One test per refusal rule (#441), each on a DSN that ONLY that rule
+// refuses: every later rule, WHATWG included, would accept it. So a mutation
+// battery row that drops the rule names the one test that must fail.
+const RULE_REFUSALS = [
+    {
+        name: 'R0 refuses a trailing newline, as a DSN read from a file has',
+        // WHATWG strips trailing controls, so only R0 sees it.
+        dsn: () => `postgres://u:${FAKE_PASSWORD}@h/db\n`,
+    },
+    {
+        name: 'R3 checks every entry of a host list, not only the first',
+        // Collapsed to `h1`, WHATWG never sees the second entry.
+        dsn: () => `postgres://u:${FAKE_PASSWORD}@h1,h^2/db`,
+    },
+    {
+        name: 'R5 refuses a comma host list repeated in the user',
+        dsn: () => `postgres://db1,db2:${FAKE_PASSWORD}@db1,db2/db`,
+    },
+    {
+        name: 'R5 refuses a `$` in a comma host list',
+        dsn: () => `postgres://u:${FAKE_PASSWORD}@h$1,h2/db`,
+    },
+]
+
+for (const { name, dsn } of RULE_REFUSALS) {
+    Deno.test(`#441 ${name}`, () => {
+        assertEquals(inspectDsn(dsn()), { ok: false })
+    })
+}
+
 Deno.test('#425 a misparsed DSN is refused before any factory is called', async () => {
     for (const dsn of MISPARSED) {
         const result = await connectThroughSpy(dsn)
@@ -183,11 +270,29 @@ Deno.test('#425 an accepted DSN reaches its factory unchanged', async () => {
     }
 })
 
-Deno.test('#425 the password allow-list is exactly the one the docs state', () => {
-    // DOCS.md and connect()'s JSDoc promise: `A-Za-z0-9-._~!$&'()*+,;=:` and
-    // `%XX` are allowed, and every other character must be percent-encoded.
-    // Walk every printable ASCII character, plus a non-ASCII one, both ways.
-    const allowed = /^[A-Za-z0-9\-._~!$&'()*+,;=:]$/
+Deno.test('#425 the password allow-list is exactly the one the docs state', async () => {
+    // Users encode their passwords from the doc, so the list is read FROM the
+    // doc (#441): editing the doc, connect()'s JSDoc or the grammar alone turns
+    // this red. Every other character must be percent-encoded. Walk every
+    // printable ASCII character, plus a non-ASCII one, both ways.
+    const list = await documentedAllowList()
+    const allowed = expandCharacterList(list)
+    // Every other surface that states the list must state this one verbatim.
+    const docs = await Deno.readTextFile(DOCS)
+    const surfaces = {
+        'DOCS.md, Upgrading to v0.5.0': docs.slice(
+            docs.indexOf('## Upgrading to v0.5.0'),
+        ),
+        "connect()'s JSDoc": await Deno.readTextFile(MOD),
+        'README.md': await Deno.readTextFile(README),
+    }
+    for (const [surface, text] of Object.entries(surfaces)) {
+        assertEquals(
+            text.includes(`\`${list}\``),
+            true,
+            `${surface} does not state the allow-list \`${list}\``,
+        )
+    }
     const refusedRaw: string[] = []
     const acceptedRaw: string[] = []
     const refusedEncoded: string[] = []
@@ -196,8 +301,8 @@ Deno.test('#425 the password allow-list is exactly the one the docs state', () =
             .concat('ä')
     ) {
         const raw = inspectDsn(`postgres://u:a${char}b@h/db`).ok
-        if (allowed.test(char) && !raw) refusedRaw.push(char)
-        if (!allowed.test(char) && char !== '%' && raw) acceptedRaw.push(char)
+        if (allowed.has(char) && !raw) refusedRaw.push(char)
+        if (!allowed.has(char) && char !== '%' && raw) acceptedRaw.push(char)
         const encoded = `postgres://u:a${encodeURIComponent(char)}b@h/db`
         if (!inspectDsn(encoded).ok) refusedEncoded.push(char)
     }
