@@ -6,6 +6,7 @@
         "build": "deno task routes:generate",
         "start": "deno run -A --env-file=.env.production.local main.ts",
         "cli": "deno run -A --env cli.ts",
+        "compile": "deno task cli compile",
         "routes:generate": "deno run -A scripts/generate_routes.ts",
         "routes:watch": "deno run -A scripts/watch_routes.ts",
         "test": "deno test -A"
