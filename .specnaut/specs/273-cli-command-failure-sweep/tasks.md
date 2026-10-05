@@ -213,10 +213,10 @@ The same pattern applies to each package (plan §5, the local-class and `handleM
 
 ## Phase 7: Polish and cross-cutting
 
-- [ ] T025 `test(cli)`: one table-driven test in `packages/cli/tests/`. It registers every package's
+- [X] T025 `test(cli)`: one table-driven test in `packages/cli/tests/`. It registers every package's
   commands on a `Cli`, dispatches each `make:*` with no name in a temporary directory, and asserts a
   non-zero status and exactly one `console.error` (FR-007, A3).
-- [ ] T026 `build(lint)`: add the `scripts/lint/exit_contract.ts` plugin, with
+- [X] T026 `build(lint)`: add the `scripts/lint/exit_contract.ts` plugin, with
   `scripts/lint/exit_contract_test.ts`, registered in the root `deno.jsonc` (precedent:
   `scripts/lint/env_signal.ts`).
   - `lockness-exit/process-exit` reports `Deno.exit(` calls and `Deno.exitCode` writes under
@@ -229,7 +229,7 @@ The same pattern applies to each package (plan §5, the local-class and `handleM
   - Add the 4 inline ignores, each with its reason on the line above: `tinker_command.ts:109,141,271`
     and `queue_commands.ts:216`.
   - The gate must be green (SC-002).
-- [ ] T027 [P] `docs(cli)`: update these, following D1 and D2.
+- [X] T027 [P] `docs(cli)`: update these, following D1 and D2.
   - `packages/cli/INSTALL_SCRIPTS.md`: the installer becomes a default-exported `install()` run by
     `runEntry`.
   - `packages/cli/README.md:86-88` and `packages/cli/docs/DOCS.md:205-240,300-310`: the local class
@@ -238,11 +238,11 @@ The same pattern applies to each package (plan §5, the local-class and `handleM
   - `packages/cli/docs/DOCS.md:316-317`: delete the "still exit 0" sentence.
   - `packages/cli/AGENTS.md:26-28`: the package list becomes core, mail, notification, features,
     search, i18n.
-- [ ] T028 [P] `docs`: `docs/nessy.md:232-243` (check it and make it true, including the shell
+- [X] T028 [P] `docs`: `docs/nessy.md:232-243` (check it and make it true, including the shell
   wrapper), `docs/compilation.md` (exit behaviour and "no binary on a failed step"),
   `packages/openapi/README.md:120`, and `packages/contract/AGENTS.md` (`renderMessage`). Sweep with
   `grep -rln "❌\|exit" packages/*/README.md packages/*/docs docs`.
-- [ ] T029 `docs`: write the v0.5.0 upgrade-guide entries in the `## Upgrading to v0.5.0` sections
+- [X] T029 `docs`: write the v0.5.0 upgrade-guide entries in the `## Upgrading to v0.5.0` sections
   `release:notes` reads.
   - `packages/core/README.md` (or the cli docs, if a cli section is added): failed commands now exit
     non-zero, covering the 68 status flips.
@@ -250,9 +250,9 @@ The same pattern applies to each package (plan §5, the local-class and `handleM
   - `Upgrader.upgrade()` now rethrows unexpected errors.
   - drizzle `db:*` prints the cause once, after the message.
   - Check with `deno task release:notes --check`.
-- [ ] T030 `chore`: run `deno task agents:brief` and `deno task docs:coverage`, and commit any
+- [X] T030 `chore`: run `deno task agents:brief` and `deno task docs:coverage`, and commit any
   regenerated briefs separately.
-- [ ] T031 Product-owner follow-ups, filed in this session:
+- [X] T031 Product-owner follow-ups, filed in this session:
   - inner errors that copy their cause into their own message (`drizzle/migration_settings.ts:345-349`,
     `drizzle/migration_status.ts:211-214`, `openapi/discovery.ts:80-84`);
   - leaked public helpers (`isContained` ×4, i18n `handleExtract`, notification
