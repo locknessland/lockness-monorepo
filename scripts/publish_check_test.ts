@@ -9,12 +9,16 @@
 
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import {
+    checkPackage,
     classifyCheck,
+    type CommandResult,
+    type DenoRunner,
     dynamicImportFaults,
     jsxPolicyFaults,
     publishabilityFault,
     registryVerdict,
     resolutionVerdict,
+    runtimeImportCheck,
     runtimeImportFaults,
     runtimeImportSites,
     selectPublishedFiles,
@@ -1344,4 +1348,89 @@ Deno.test('J3: a stale "jsx" entry is red end to end', async () => {
     })
     assertEquals(code, 1, out)
     assertStringIncludes(out, 'a: "jsx" entry in deps.policy.jsonc')
+})
+
+// ---- Child-process failure branches (#469) --------------------------------
+//
+// A Deno child that fails, or prints something the check cannot read, must
+// read red, never skipped. These branches cannot be provoked on demand with a
+// real binary, so the runner is injected.
+
+/** A child result with the given exit status and text output. */
+function childResult(
+    code: number,
+    stdout: string,
+    stderr = '',
+): CommandResult {
+    return {
+        success: code === 0,
+        code,
+        stdout: new TextEncoder().encode(stdout),
+        stderr: new TextEncoder().encode(stderr),
+    }
+}
+
+/**
+ * A runner whose `deno check` passes and whose `deno info` returns `info`, so
+ * any red verdict comes from the dynamic-edge pass alone.
+ */
+function infoRunner(info: CommandResult): DenoRunner {
+    return (args) =>
+        Promise.resolve(args[0] === 'info' ? info : childResult(0, ''))
+}
+
+/** Stage a one-file package in a fresh scratch root and check it. */
+async function checkStaged(run: DenoRunner) {
+    const scratch = await Deno.makeTempDir({ prefix: 'lockness-469-' })
+    try {
+        const staged = `${scratch}/pkgs/b`
+        await Deno.mkdir(staged, { recursive: true })
+        await Deno.writeTextFile(`${staged}/mod.ts`, 'export const b = 1\n')
+        const manifest = {
+            name: '@x-lockness-fixture/b',
+            version: '0.1.0',
+            exports: './mod.ts',
+        }
+        return await checkPackage(
+            { short: 'b', manifest, files: ['mod.ts', 'deno.json'] },
+            [],
+            scratch,
+            run,
+        )
+    } finally {
+        await Deno.remove(scratch, { recursive: true })
+    }
+}
+
+Deno.test('dynamic edges: a deno info non-zero exit is red', async () => {
+    const result = await checkStaged(
+        infoRunner(childResult(1, '', 'error: Module not found "x".')),
+    )
+    assertEquals(result.ok, false)
+    assertEquals(
+        result.detail,
+        'unrecognised graph failure: deno info exited 1: error: Module not found "x".',
+    )
+    assertEquals(resolutionVerdict([result]).code, 1)
+})
+
+Deno.test('dynamic edges: deno info output that is not JSON is red', async () => {
+    const result = await checkStaged(infoRunner(childResult(0, 'not json')))
+    assertEquals(result.ok, false)
+    assertStringIncludes(
+        result.detail,
+        'unrecognised graph failure: deno info printed no JSON:',
+    )
+    assertEquals(resolutionVerdict([result]).code, 1)
+})
+
+Deno.test('runtime imports: a dry-run non-zero exit is red', async () => {
+    // No coded diagnostic and no site: only the exit status can make it red.
+    const run: DenoRunner = () =>
+        Promise.resolve(
+            childResult(1, '', 'Checking for slow types...\nerror: Failed.\n'),
+        )
+    const faults = await runtimeImportCheck(undefined, run)
+    assertEquals(faults, ['deno publish --dry-run exited 1: error: Failed.'])
+    assertEquals(resolutionVerdict([], faults).code, 1)
 })

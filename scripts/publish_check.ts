@@ -1108,6 +1108,43 @@ export function jsxPolicyFaults(
     return faults
 }
 
+/** The slice of a child process's output the check reads. */
+export interface CommandResult {
+    /** Whether it exited 0. */
+    success: boolean
+    /** Its exit code. */
+    code: number
+    /** Its raw stdout. */
+    stdout: Uint8Array
+    /** Its raw stderr. */
+    stderr: Uint8Array
+}
+
+/**
+ * Runs `deno <args>` in `cwd` and collects its output. Injected into the
+ * stages that spawn Deno, so a test can drive their failure branches without
+ * provoking a real one.
+ */
+export type DenoRunner = (
+    args: readonly string[],
+    cwd: string,
+) => Promise<CommandResult>
+
+/**
+ * The real {@link DenoRunner}: the running Deno binary, output piped.
+ *
+ * @param args - The arguments after `deno`.
+ * @param cwd - The working directory.
+ * @returns The child's exit status and output.
+ */
+const runDeno: DenoRunner = (args, cwd) =>
+    new Deno.Command(Deno.execPath(), {
+        args: [...args],
+        cwd,
+        stdout: 'piped',
+        stderr: 'piped',
+    }).output()
+
 /** A package staged in its published shape, with the manifest it shipped. */
 interface StagedPackage {
     /** Short package name (its directory under `packages/`). */
@@ -1176,12 +1213,14 @@ async function stagePackage(
  * @param pkg - The package, already staged by {@link stagePackage}.
  * @param siblings - Every staged workspace package.
  * @param scratch - The run's scratch root.
+ * @param run - Spawns `deno check` and `deno info`; the real binary by default.
  * @returns The outcome.
  */
-async function checkPackage(
+export async function checkPackage(
     pkg: StagedPackage,
     siblings: readonly WorkspaceSibling[],
     scratch: string,
+    run: DenoRunner = runDeno,
 ): Promise<Result> {
     const { short: name, manifest } = pkg
 
@@ -1211,12 +1250,7 @@ async function checkPackage(
         JSON.stringify(withWorkspaceLinks(manifest, selfName, siblings)),
     )
 
-    const result = await new Deno.Command(Deno.execPath(), {
-        args: ['check', ...entries],
-        cwd: root,
-        stdout: 'piped',
-        stderr: 'piped',
-    }).output()
+    const result = await run(['check', ...entries], root)
 
     const output = new TextDecoder().decode(result.stderr) +
         new TextDecoder().decode(result.stdout)
@@ -1226,7 +1260,7 @@ async function checkPackage(
     // Rule A (#463): `deno check` passes an unresolvable dynamic import, so
     // read Deno's own resolution of every dynamic edge. Run even when the
     // check failed, so one run names every fault.
-    const dynamic = await dynamicEdgeFaults(root, entries)
+    const dynamic = await dynamicEdgeFaults(root, entries, run)
     if (dynamic.length === 0) return checked
     return {
         name,
@@ -1248,23 +1282,20 @@ async function checkPackage(
  *
  * @param root - The staged package directory.
  * @param entries - Its type-checkable export paths.
+ * @param run - Spawns `deno info`.
  * @returns One formatted fault per failed dynamic edge.
  */
 async function dynamicEdgeFaults(
     root: string,
     entries: readonly string[],
+    run: DenoRunner,
 ): Promise<string[]> {
     await Deno.writeTextFile(
         join(root, GRAPH_ROOT_FILE),
         entries.map((entry) => `import './${entry.replace(/^\.\//, '')}'\n`)
             .join(''),
     )
-    const result = await new Deno.Command(Deno.execPath(), {
-        args: ['info', '--json', GRAPH_ROOT_FILE],
-        cwd: root,
-        stdout: 'piped',
-        stderr: 'piped',
-    }).output()
+    const result = await run(['info', '--json', GRAPH_ROOT_FILE], root)
     if (!result.success) {
         return [
             `unrecognised graph failure: deno info exited ${result.code}: ${
@@ -1336,15 +1367,17 @@ async function readPolicy(): Promise<{ policy: unknown; faults: string[] }> {
  * status counts: non-zero is red, named by its first error line.
  *
  * @param policy - The parsed `deps.policy.jsonc`, from {@link readPolicy}.
+ * @param run - Spawns the dry-run; the real binary by default.
  * @returns One fault description per problem, empty when clean.
  */
-async function runtimeImportCheck(policy: unknown): Promise<string[]> {
-    const result = await new Deno.Command(Deno.execPath(), {
-        args: ['publish', '--dry-run', '--no-check', '--allow-dirty'],
-        cwd: ROOT,
-        stdout: 'piped',
-        stderr: 'piped',
-    }).output()
+export async function runtimeImportCheck(
+    policy: unknown,
+    run: DenoRunner = runDeno,
+): Promise<string[]> {
+    const result = await run(
+        ['publish', '--dry-run', '--no-check', '--allow-dirty'],
+        ROOT,
+    )
     const output = new TextDecoder().decode(result.stderr) +
         new TextDecoder().decode(result.stdout)
 
