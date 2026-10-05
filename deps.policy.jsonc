@@ -73,6 +73,13 @@
             "tier": "implementation",
             "allow": ["container", "contract"]
         },
+        // `cli`'s `deno.json` also declares core, drizzle, features, i18n, mail,
+        // notification, openapi and search: test-only dependencies of
+        // `tests/make_conformance.test.ts`, which runs every package's make:*
+        // through the real `Cli.dispatch` (#436). That file lives under
+        // `tests/`, which this scan excludes, so none of them is an edge here:
+        // cli loads no code of theirs at runtime. Do not add them to `allow` —
+        // drizzle and openapi import cli, so those two would close a cycle.
         "cli": {
             "tier": "implementation",
             "allow": ["contract", "queue", "events"],
