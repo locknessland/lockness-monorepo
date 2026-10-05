@@ -17,6 +17,7 @@ import {
     assert,
     assertEquals,
     assertRejects,
+    assertStrictEquals,
     assertStringIncludes,
 } from '@std/assert'
 import { Cli } from '@lockness/cli'
@@ -238,6 +239,64 @@ Deno.test('wiring - a real Cli exits 1 on a failed db:migrate, printing one erro
             console.log = log
             console.error = error
         }
+    })
+})
+
+/**
+ * Dispatch `args` on a real `Cli` with `deps`, outside production, and return
+ * the exit status with every `console.error` call; `console.log` is muted.
+ */
+async function dispatchReal(
+    deps: Partial<DrizzleCommandDeps>,
+    args: string[],
+): Promise<{ readonly status: number; readonly errors: unknown[][] }> {
+    const errors: unknown[][] = []
+    const { log, error } = console
+    console.log = () => {}
+    console.error = (...line: unknown[]) => void errors.push(line)
+    try {
+        const cli = new Cli()
+        registerDrizzleCommands(cli, deps)
+        let status = -1
+        await withAppEnv(undefined, async () => {
+            status = await cli.dispatch(args)
+        })
+        return { status, errors }
+    } finally {
+        console.log = log
+        console.error = error
+    }
+}
+
+Deno.test('#440 wiring - a real Cli exits 1 on a failed db:seed, printing one error line', async () => {
+    const { connect } = fakeConnection()
+    const loadSeeder: SeederLoader = () => Promise.resolve({})
+
+    const { status, errors } = await dispatchReal(
+        { connect, loadSeeder },
+        ['db:seed'],
+    )
+
+    assertEquals(status, 1)
+    assertEquals(errors.length, 1, JSON.stringify(errors))
+    assertEquals(errors[0].length, 1)
+    const [line] = errors[0] as [string]
+    assert(line.startsWith('❌ '), line)
+    assertStringIncludes(line, 'DatabaseSeeder class not found')
+})
+
+Deno.test('#440 wiring - a real Cli exits 1 on a failed db:fresh, printing one error line', async () => {
+    await withMigrations(async (folder) => {
+        const { deps } = freshDeps(folder, 'migrate')
+
+        const { status, errors } = await dispatchReal(deps, ['db:fresh'])
+
+        assertEquals(status, 1)
+        assertEquals(errors.length, 1, JSON.stringify(errors))
+        assertEquals(errors[0].length, 1)
+        const [line] = errors[0] as [string]
+        assert(line.startsWith('❌ '), line)
+        assertStringIncludes(line, 'migrate failed')
     })
 })
 
@@ -657,6 +716,47 @@ Deno.test('#427 T12 a real Cli prints a failed db:check once and exits 1', async
     })
 })
 
+// The driver's own error quotes the full DSN, credentials included. Neither
+// db:check nor db:seed may carry it into the thrown error, its `cause` chain,
+// or the console (#440(b)). The DSN is assembled at run time, distinct per run,
+// so no secret scanner reads a credential into the source.
+for (const command of ['db:check', 'db:seed']) {
+    Deno.test(`#440 ${command} - a driver error quoting the DSN reaches neither the error chain nor the console`, async () => {
+        const tag = crypto.randomUUID().slice(0, 8)
+        const user = ['fx', 'user', tag].join('-')
+        const password = ['fx', 'pass', tag].join('-')
+        const dsn = ['postgres://', user, ':', password, '@db.example:5432/app']
+            .join('')
+        let loaded = false
+        await withDefaultPort(() => {
+            throw new Error(`connect to ${dsn} failed: password rejected`)
+        }, async () => {
+            const cli = new FakeCli()
+            registerDrizzleCommands(cli, {
+                loadSeeder: () => {
+                    loaded = true
+                    return Promise.resolve({})
+                },
+            })
+
+            const { lines, error } = await capture(() =>
+                withAppEnv(undefined, () => cli.run(command))
+            )
+
+            assert(error instanceof CommandFailedError, String(error))
+            const chain: string[] = []
+            for (let e: unknown = error; e instanceof Error; e = e.cause) {
+                chain.push(e.message)
+            }
+            for (const text of [...chain, ...lines]) {
+                assertEquals(text.includes(password), false, text)
+                assertEquals(text.includes(user), false, text)
+            }
+            assertEquals(loaded, false, 'a seeder was loaded')
+        }, { DATABASE_URL: dsn })
+    })
+}
+
 /** The refusal `initDatabase` throws when `DATABASE_URL` names nothing. */
 const NO_TARGET = (state: string) =>
     `Database not configured: DATABASE_URL is ${state}, so no database is ` +
@@ -809,7 +909,9 @@ Deno.test('db:seed - the seeder’s own error passes through unwrapped, and the 
         // prints it as an unexpected failure.
         const error = await assertRejects(() => cli.run('db:seed'))
 
-        assertEquals(error, boom)
+        // Identity, not deep equality: a wrapped or cloned error would carry
+        // the same message and lose the stack (#440(a)).
+        assertStrictEquals(error, boom)
         assertEquals(events, ['close'])
     } finally {
         restore()
