@@ -8,9 +8,12 @@
  * files are inert text until something scaffolds them.
  *
  * Each kit is taken through the steps a new user takes, in order — scaffold,
- * type-check, test, boot — and the first failure stops that kit. A kit that
- * ships migrations also runs its `db:generate` before booting, which must
- * report no schema changes (#444).
+ * type-check, test, build, boot — and the first failure stops that kit. The
+ * build is the kit's own `deno task build`, the one its Dockerfile runs (#503);
+ * a kit with a `css:build` task must have written Tailwind's output, not a
+ * copy of its entry file (#506, {@link judgeStylesheet}). A kit that ships
+ * migrations also runs its `db:generate` before booting, which must report no
+ * schema changes (#444).
  *
  * **Booting is judged by what it printed, too (#505).** {@link judgeBootLog}
  * fails a kit whose boot log carries an optional-package line — the old
@@ -469,6 +472,65 @@ export function judgeBootLog(output: string): StepResult {
     }
 }
 
+/** Where a kit's `css:build` writes the stylesheet its layout links (#506). */
+export const BUILT_STYLESHEET = 'public/css/app.css'
+
+/**
+ * Utility classes the web kit's own views use, each of which a compiled
+ * stylesheet must carry a rule for (#506).
+ *
+ * One per kind of output Tailwind generates: layout (`flex`, `mx-auto`), a
+ * sizing keyword (`min-h-screen`), a container size (`max-w-sm`), type
+ * (`text-2xl`, `font-semibold`), and a colour that only exists because the
+ * entry file's `@theme` defines it (`bg-primary`, in `components/ui.tsx`).
+ * `scripts/kit_stylesheet_test.ts` fails if a view stops using one.
+ */
+export const STYLESHEET_PROBES: readonly string[] = [
+    'flex',
+    'mx-auto',
+    'min-h-screen',
+    'max-w-sm',
+    'text-2xl',
+    'font-semibold',
+    'bg-primary',
+]
+
+/**
+ * Judge a built stylesheet: Tailwind ran when it inlined its own import and
+ * emitted a rule for every {@link STYLESHEET_PROBES} class.
+ *
+ * Before #506 the kit's `css:build` copied the entry file unchanged; the
+ * copy has neither property, so this fails it.
+ *
+ * @param css - The contents of {@link BUILT_STYLESHEET}.
+ * @returns `ok` when Tailwind's output is there; otherwise what is missing.
+ *
+ * @example
+ * ```ts
+ * judgeStylesheet("@import 'tailwindcss';\n").ok // false
+ * ```
+ */
+export function judgeStylesheet(css: string): StepResult {
+    const problems: string[] = []
+    if (/^\s*@import\s+['"]tailwindcss['"]/m.test(css)) {
+        problems.push('@import "tailwindcss" left unresolved (file copied?)')
+    }
+    const missing = STYLESHEET_PROBES.filter((cls) =>
+        !new RegExp(`\\.${cls}\\s*[{,]`).test(css)
+    )
+    if (missing.length > 0) {
+        problems.push(`no rule for ${missing.map((c) => `.${c}`).join(', ')}`)
+    }
+    if (problems.length > 0) {
+        return { ok: false, detail: `stylesheet — ${problems.join('; ')}` }
+    }
+    return {
+        ok: true,
+        detail:
+            `stylesheet — Tailwind output, ${STYLESHEET_PROBES.length} probed utilities present`,
+    }
+}
+
 /**
  * The top-level keys of the `@Kernel({ … })` object in a kernel source.
  *
@@ -687,6 +749,39 @@ async function generatesNothing(dir: string): Promise<StepResult> {
     return { ok: true, detail: 'no schema changes' }
 }
 
+/**
+ * Run the app's `deno task build` — what its Dockerfile runs (#503) — and, for
+ * a kit that has a `css:build` task, judge the stylesheet it wrote (#506).
+ *
+ * @param dir - The scaffolded project.
+ * @returns Whether the build exited 0 and, where there is one, the stylesheet
+ * is Tailwind's output rather than a copy of the entry file.
+ */
+async function buildsAndStyles(dir: string): Promise<StepResult> {
+    const build = await runCommand(Deno.execPath(), ['task', 'build'], dir)
+    if (!build.ok) {
+        return { ok: false, detail: `deno task build\n${tail(build.output)}` }
+    }
+    const config = JSON.parse(
+        await Deno.readTextFile(join(dir, 'deno.json')),
+    ) as { tasks?: Record<string, string> }
+    if (config.tasks?.['css:build'] === undefined) {
+        return { ok: true, detail: 'deno task build — no stylesheet to judge' }
+    }
+    let css: string
+    try {
+        css = await Deno.readTextFile(join(dir, BUILT_STYLESHEET))
+    } catch (error) {
+        if (!(error instanceof Deno.errors.NotFound)) throw error
+        return {
+            ok: false,
+            detail: `deno task build wrote no ${BUILT_STYLESHEET}`,
+        }
+    }
+    const verdict = judgeStylesheet(css)
+    return { ok: verdict.ok, detail: `deno task build — ${verdict.detail}` }
+}
+
 /** What {@link scaffoldKit} produced. */
 export interface ScaffoldResult {
     /** Whether `init` exited 0. */
@@ -763,7 +858,7 @@ export async function scaffoldKit(
 }
 
 /**
- * Take one kit through scaffold → check → test → db:generate → boot.
+ * Take one kit through scaffold → check → test → build → db:generate → boot.
  *
  * @param kit - The kit to exercise.
  * @param workdir - Where to scaffold it.
@@ -807,6 +902,10 @@ async function smoke(
                 .pop()?.trim() ?? 'passed'
         }`,
     )
+
+    const built = await buildsAndStyles(dir)
+    console.log(`  ${built.ok ? '✅' : '❌'} ${built.detail}`)
+    if (!built.ok) return false
 
     if (shipsMigrations(kit)) {
         const generated = await generatesNothing(dir)
