@@ -26,8 +26,8 @@ import { join } from '@std/path'
 import { importAppFile } from '@lockness/contract/app-file/internal'
 import { renderError, safeForLog } from '@lockness/contract'
 import { Stub } from './stubs.ts'
-import { isCommandFailure, toFailureStatus } from './exit_status.ts'
-import { rawErrorsHint, readRawErrorsSwitch } from './raw_errors.ts'
+import { renderMessage } from '@lockness/contract/logging/internal'
+import { applyExitStatus, reportThrown } from './report.ts'
 
 export { CommandFailedError } from './command_failure.ts'
 export type {
@@ -380,12 +380,17 @@ export class Cli {
      * | no command                               | `0`                            | the command list                 |
      * | unknown command                          | `1`                            | `❌ Unknown command: <name>` + list |
      * | handler resolves                         | `0`                            | —                                |
-     * | handler throws a failure-shaped error    | its `exitCode` (`1`–`255`), else `1` | `❌ <message>`, no stack   |
+     * | handler throws a failure-shaped error    | its `exitCode` (`1`–`255`), else `1` | `❌ <message>` rendered, then ` caused by: <cause>` rendered when it has one; no stack |
      * | handler throws anything else             | `1`                            | `❌ <name> failed:` + name, vetted code, redacted message per link, then frames; raw only with `LOCKNESS_CLI_RAW_ERRORS=1` |
      *
      * A failure-shaped error is any `Error` with an integer `exitCode` — see
      * {@link CommandFailedError}. The failure is printed here, once; a handler
-     * that throws must not print it as well.
+     * that throws must not print it as well. Its message goes through
+     * `renderMessage` (credentials redacted, control characters encoded, one
+     * line, bounded) and its `cause` through `renderError`. The unknown
+     * command's name, which the user typed, goes through `renderMessage` too.
+     * Both branches live in the package-internal `report.ts`, shared with
+     * `runEntry`.
      *
      * Anything else goes through `renderError(error, { frames: 10 })` (#488):
      * at most 2 cause links, credentials redacted in the message, every link
@@ -415,7 +420,8 @@ export class Cli {
 
         const command = this.commands.get(commandName)
         if (!command) {
-            console.error(`❌ Unknown command: ${commandName}`)
+            // The name is whatever the user typed, so it is rendered.
+            console.error(`❌ Unknown command: ${renderMessage(commandName)}`)
             await this.listCommands()
             return 1
         }
@@ -424,27 +430,7 @@ export class Cli {
             await command.handler(rest)
             return 0
         } catch (error) {
-            if (isCommandFailure(error)) {
-                console.error(`❌ ${error.message}`)
-                return toFailureStatus(error.exitCode)
-            }
-            // Read here and only here, so no other path needs `--allow-env`.
-            // Total and prompt-free (#508): nothing it meets can replace
-            // `error` or stall the report on a permission prompt.
-            const raw = readRawErrorsSwitch()
-            if (raw.state === 'on') {
-                console.error(
-                    `⚠️ LOCKNESS_CLI_RAW_ERRORS is on: the error below is unredacted.\n❌ ${commandName} failed:`,
-                    error,
-                )
-                return 1
-            }
-            console.error(
-                `❌ ${commandName} failed: ${
-                    renderError(error, { frames: 10 })
-                }\n${rawErrorsHint(raw)}`,
-            )
-            return 1
+            return reportThrown(commandName, error)
         }
     }
 
@@ -468,9 +454,7 @@ export class Cli {
      */
     async run(args: string[]): Promise<number> {
         const status = await this.dispatch(args)
-        if (status !== 0) {
-            Deno.exitCode = status
-        }
+        applyExitStatus(status)
         return status
     }
 

@@ -2,7 +2,8 @@
  * @fileoverview The `LOCKNESS_CLI_RAW_ERRORS` switch: whether `Cli.dispatch`
  * prints a non-failure error raw instead of through `renderError` (#488).
  *
- * **Internal.** Not exported from `mod.ts`; the dispatcher is its only reader.
+ * **Internal.** Not exported from `mod.ts`; the printer in `report.ts`, behind
+ * `Cli.dispatch` and `runEntry`, is its only reader.
  *
  * **Off by default, and off whenever it is not recognisably on.** The raw
  * error is what `renderError` exists to keep out of a log: a DSN in a cause, a

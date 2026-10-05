@@ -48,7 +48,11 @@ export interface CommandFailedErrorOptions {
      * `0`, which would claim success) is reported as `1`. Defaults to `1`.
      */
     readonly exitCode?: number
-    /** The underlying error, kept for programmatic callers. */
+    /**
+     * The error that caused the failure. `Cli.dispatch()` and `runEntry`
+     * print it after the message, rendered with `renderError` (credentials
+     * redacted, no frames), so never repeat its text in the message.
+     */
     readonly cause?: unknown
 }
 
@@ -56,7 +60,9 @@ export interface CommandFailedErrorOptions {
  * Thrown by a command handler to report that the command did not do its job.
  *
  * `Cli.dispatch()` prints `❌ <message>` once — no stack, because the
- * message already explains the failure — and exits with {@link exitCode}.
+ * message already explains the failure — then the rendered `cause`, when there
+ * is one, and exits with {@link exitCode}. The message is one line you wrote;
+ * a caught error belongs in `cause`, never in the message.
  * Throw a plain `Error` instead for a failure you did not anticipate; that one
  * is printed with its stack frames, credentials redacted.
  *

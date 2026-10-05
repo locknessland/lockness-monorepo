@@ -235,8 +235,10 @@ Deno.test('wiring - a real Cli exits 1 on a failed db:migrate, printing one erro
             const status = await cli.dispatch(['db:migrate'])
 
             assertEquals(status, 1)
+            // The printer renders the cause after the message (#436).
             assertEquals(errors, [[
-                '❌ Failed to apply migrations: migrate failed',
+                '❌ Failed to apply migrations: migrate failed caused by: ' +
+                'Error: migrate failed',
             ]])
         } finally {
             console.log = log
@@ -710,11 +712,13 @@ Deno.test('#427 T12 a real Cli prints a failed db:check once and exits 1', async
             const status = await cli.dispatch(['db:check'])
 
             assertEquals(status, 1)
-            assertEquals(errors, [[
-                '❌ Database connection failed: Database not configured: ' +
+            // The printer encodes the newline and renders the cause (#436).
+            const withheld = 'Database not configured: ' +
                 "The 'postgres' driver could not be configured (Error); its " +
-                'message is withheld because it may contain the DSN\n' +
-                '💡 Check your DATABASE_URL in .env',
+                'message is withheld because it may contain the DSN'
+            assertEquals(errors, [[
+                `❌ Database connection failed: ${withheld}\\x0a` +
+                `💡 Check your DATABASE_URL in .env caused by: Error: ${withheld}`,
             ]])
         } finally {
             console.log = log
