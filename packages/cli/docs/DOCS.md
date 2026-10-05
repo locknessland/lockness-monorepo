@@ -30,7 +30,8 @@ deno task cli make:controller User --view
 
 The `--view` flag automatically creates a corresponding view in
 `app/view/pages/{name}.tsx` and generates a controller method that renders it
-using `c.html()`.
+using `c.html()`. If the view cannot be written, the command still finishes,
+writing a controller that renders no view, then exits 1 naming the `view` step.
 
 **make:action** - Add a new action (method) to an existing controller:
 
@@ -43,6 +44,10 @@ deno task cli make:action User store --method=post
 # With automatic view generation
 deno task cli make:action User create --view
 ```
+
+With `--view`, a view that already exists is kept, never overwritten; one that
+cannot be written does not stop the command, which still adds the action without
+a view, then exits 1 naming the `view` step.
 
 Supported methods: `get`, `post`, `put`, `delete`, `patch`. The command follows
 RESTful conventions for common action names (index, show, create, store, edit,
