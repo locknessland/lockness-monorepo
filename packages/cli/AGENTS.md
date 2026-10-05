@@ -59,12 +59,12 @@ User-facing documentation: [README.md](README.md) ·
 
 <!-- generated:deps -->
 
-| Direction                                 | Packages                                                                                                                        |
-| :---------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------ |
-| Imports (static)                          | `contract`, `events`, `queue`                                                                                                   |
-| Imports (soft, loaded at runtime by name) | —                                                                                                                               |
-| Imported by                               | `drizzle`, `init`, `openapi`, `ui`                                                                                              |
-| **Must never import**                     | `core`, `drizzle`, `init`, `notification`, `openapi`, `ui` — each already reaches this package, so importing one closes a cycle |
+| Direction                                 | Packages                                                                                                                                   |
+| :---------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------- |
+| Imports (static)                          | `contract`, `events`, `queue`                                                                                                              |
+| Imports (soft, loaded at runtime by name) | —                                                                                                                                          |
+| Imported by                               | `drizzle`, `init`, `openapi`, `ui`, `upgrade`                                                                                              |
+| **Must never import**                     | `core`, `drizzle`, `init`, `notification`, `openapi`, `ui`, `upgrade` — each already reaches this package, so importing one closes a cycle |
 
 Enforced by `deno task deps:analyze` against `deps.policy.jsonc`. A soft edge is
 deliberately **not** declared in this package's `deno.json`: the consuming

@@ -20,12 +20,12 @@ names does not belong here._
 
 <!-- generated:deps -->
 
-| Direction                                 | Packages                                                                                                                                       |
-| :---------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------- |
-| Imports (static)                          | `contract`, `redis`                                                                                                                            |
-| Imports (soft, loaded at runtime by name) | —                                                                                                                                              |
-| Imported by                               | `cli`, `mail`, `notification`                                                                                                                  |
-| **Must never import**                     | `cli`, `core`, `drizzle`, `init`, `mail`, `notification`, `openapi`, `ui` — each already reaches this package, so importing one closes a cycle |
+| Direction                                 | Packages                                                                                                                                                  |
+| :---------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Imports (static)                          | `contract`, `redis`                                                                                                                                       |
+| Imports (soft, loaded at runtime by name) | —                                                                                                                                                         |
+| Imported by                               | `cli`, `mail`, `notification`                                                                                                                             |
+| **Must never import**                     | `cli`, `core`, `drizzle`, `init`, `mail`, `notification`, `openapi`, `ui`, `upgrade` — each already reaches this package, so importing one closes a cycle |
 
 Enforced by `deno task deps:analyze` against `deps.policy.jsonc`. A soft edge is
 deliberately **not** declared in this package's `deno.json`: the consuming

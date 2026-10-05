@@ -75,6 +75,6 @@ The dependency graph is acyclic (DAG).
 | `telemetry`             | contract, hono                                                              | —                                                                            |
 | `testing`               | auth, hono                                                                  | —                                                                            |
 | `ui`                    | cli, hono, markdown                                                         | —                                                                            |
-| `upgrade`               | —                                                                           | —                                                                            |
+| `upgrade`               | cli                                                                         | —                                                                            |
 | `validator`             | hono                                                                        | —                                                                            |
 | `vite`                  | —                                                                           | —                                                                            |

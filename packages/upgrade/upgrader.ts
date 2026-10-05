@@ -85,8 +85,19 @@ export class Upgrader {
      * 3. Determines target versions for each package
      * 4. Updates the configuration (unless dry-run)
      *
+     * Two expected outcomes are reported in the result, not thrown: a config
+     * with no `imports`, and one with no `@lockness/*` package
+     * (`success: false` with `error`). Anything else — an unreadable or
+     * malformed config, a version that cannot be fetched, a failed write —
+     * is thrown as it was raised, so its type, frames and cause survive.
+     *
      * @param options - Upgrade options
      * @returns Promise resolving to the upgrade result
+     * @throws {Deno.errors.NotFound} When the config file does not exist.
+     * @throws {SyntaxError} When the config file is not valid JSONC.
+     * @throws {Error} Whatever the {@link VersionProvider} or the file write
+     *   throws. Breaking since v0.5.0: such errors used to be stringified into
+     *   `{ success: false, error }`.
      *
      * @example Upgrade to latest
      * ```typescript
@@ -111,88 +122,77 @@ export class Upgrader {
             configPath = './deno.json',
         } = options
 
-        try {
-            // Read deno.json
-            const configContent = await Deno.readTextFile(configPath)
-            const config = parse(configContent) as DenoConfig
+        const configContent = await Deno.readTextFile(configPath)
+        const config = parse(configContent) as DenoConfig
 
-            if (!config.imports) {
-                return {
-                    success: false,
-                    upgrades: [],
-                    error: 'No imports found in deno.json',
-                    dryRun,
-                }
-            }
-
-            // Find all @lockness/* packages
-            const locknessPackages = Object.entries(config.imports)
-                .filter(([key]) => key.startsWith('@lockness/'))
-                .filter(([, value]) => value.startsWith('jsr:@lockness/'))
-
-            if (locknessPackages.length === 0) {
-                return {
-                    success: false,
-                    upgrades: [],
-                    error: 'No Lockness packages found in imports',
-                    dryRun,
-                }
-            }
-
-            // Determine target version for each package
-            const upgrades: PackageUpgrade[] = []
-
-            for (const [packageName, importValue] of locknessPackages) {
-                const currentVersion = this.extractVersion(importValue)
-                const newVersion = targetVersion ||
-                    await this.versionProvider.getLatestVersion(packageName)
-
-                if (currentVersion !== newVersion) {
-                    upgrades.push({
-                        name: packageName,
-                        currentVersion,
-                        targetVersion: newVersion,
-                    })
-                }
-            }
-
-            if (upgrades.length === 0) {
-                return {
-                    success: true,
-                    upgrades: [],
-                    dryRun,
-                }
-            }
-
-            // Apply upgrades if not dry-run
-            if (!dryRun) {
-                for (const upgrade of upgrades) {
-                    const oldImport = config.imports[upgrade.name]
-                    config.imports[upgrade.name] = this.updateVersion(
-                        oldImport,
-                        upgrade.targetVersion,
-                    )
-                }
-
-                // Write back to file
-                await Deno.writeTextFile(
-                    configPath,
-                    JSON.stringify(config, null, 4) + '\n',
-                )
-            }
-
-            return {
-                success: true,
-                upgrades,
-                dryRun,
-            }
-        } catch (error) {
+        if (!config.imports) {
             return {
                 success: false,
                 upgrades: [],
-                error: error instanceof Error ? error.message : 'Unknown error',
+                error: 'No imports found in deno.json',
                 dryRun,
             }
+        }
+
+        // Find all @lockness/* packages
+        const locknessPackages = Object.entries(config.imports)
+            .filter(([key]) => key.startsWith('@lockness/'))
+            .filter(([, value]) => value.startsWith('jsr:@lockness/'))
+
+        if (locknessPackages.length === 0) {
+            return {
+                success: false,
+                upgrades: [],
+                error: 'No Lockness packages found in imports',
+                dryRun,
+            }
+        }
+
+        // Determine target version for each package
+        const upgrades: PackageUpgrade[] = []
+
+        for (const [packageName, importValue] of locknessPackages) {
+            const currentVersion = this.extractVersion(importValue)
+            const newVersion = targetVersion ||
+                await this.versionProvider.getLatestVersion(packageName)
+
+            if (currentVersion !== newVersion) {
+                upgrades.push({
+                    name: packageName,
+                    currentVersion,
+                    targetVersion: newVersion,
+                })
+            }
+        }
+
+        if (upgrades.length === 0) {
+            return {
+                success: true,
+                upgrades: [],
+                dryRun,
+            }
+        }
+
+        // Apply upgrades if not dry-run
+        if (!dryRun) {
+            for (const upgrade of upgrades) {
+                const oldImport = config.imports[upgrade.name]
+                config.imports[upgrade.name] = this.updateVersion(
+                    oldImport,
+                    upgrade.targetVersion,
+                )
+            }
+
+            await Deno.writeTextFile(
+                configPath,
+                JSON.stringify(config, null, 4) + '\n',
+            )
+        }
+
+        return {
+            success: true,
+            upgrades,
+            dryRun,
         }
     }
 

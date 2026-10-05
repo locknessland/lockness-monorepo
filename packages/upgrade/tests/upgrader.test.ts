@@ -1,4 +1,4 @@
-import { assertEquals } from '@std/assert'
+import { assertEquals, assertRejects, assertStrictEquals } from '@std/assert'
 import { join } from '@std/path'
 import { Upgrader } from '../upgrader.ts'
 import type { VersionProvider } from '../types.ts'
@@ -103,16 +103,40 @@ Deno.test('upgrader - extracts current version correctly', async () => {
     }
 })
 
-Deno.test('upgrader - handles missing deno.json', async () => {
+Deno.test('upgrader - a missing deno.json throws instead of being stringified', async () => {
     const upgrader = new Upgrader(new TestVersionProvider())
 
-    const result = await upgrader.upgrade({
-        configPath: './nonexistent.json',
-        dryRun: true,
-    })
+    await assertRejects(
+        () =>
+            upgrader.upgrade({
+                configPath: './nonexistent.json',
+                dryRun: true,
+            }),
+        Deno.errors.NotFound,
+    )
+})
 
-    assertEquals(result.success, false)
-    assertEquals(result.error !== undefined, true)
+Deno.test('upgrader - a version provider failure propagates unchanged', async () => {
+    const failure = new Error('Timeout fetching version for @lockness/core')
+    const upgrader = new Upgrader({
+        getLatestVersion: () => Promise.reject(failure),
+    })
+    const tempFile = await Deno.makeTempFile({ suffix: '.json' })
+    try {
+        await Deno.writeTextFile(
+            tempFile,
+            JSON.stringify({
+                imports: { '@lockness/core': 'jsr:@lockness/core@^0.1.19' },
+            }),
+        )
+
+        const thrown = await assertRejects(() =>
+            upgrader.upgrade({ configPath: tempFile, dryRun: true })
+        )
+        assertStrictEquals(thrown, failure)
+    } finally {
+        await Deno.remove(tempFile)
+    }
 })
 
 Deno.test('upgrader - handles deno.json without imports', async () => {

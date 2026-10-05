@@ -23,7 +23,7 @@ names does not belong here._
 
 | Direction                                 | Packages                                 |
 | :---------------------------------------- | :--------------------------------------- |
-| Imports (static)                          | —                                        |
+| Imports (static)                          | `cli`                                    |
 | Imports (soft, loaded at runtime by name) | —                                        |
 | Imported by                               | —                                        |
 | **Must never import**                     | nothing — no package depends on this one |
@@ -69,8 +69,9 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-3 test files for 4 source files:
+4 test files for 4 source files:
 
+- `packages/upgrade/tests/cli.test.ts`
 - `packages/upgrade/tests/types.test.ts`
 - `packages/upgrade/tests/upgrader.test.ts`
 - `packages/upgrade/tests/version_fetcher.test.ts`
@@ -88,7 +89,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 3 test files directly —
+Then, specific to this package: run its 4 test files directly —
 
 ```bash
 deno test -A packages/upgrade/

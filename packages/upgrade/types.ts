@@ -69,7 +69,11 @@ export interface UpgradeResult {
     readonly success: boolean
     /** List of packages that were upgraded (or would be in dry-run mode) */
     readonly upgrades: readonly PackageUpgrade[]
-    /** Error message if the upgrade failed */
+    /**
+     * Why the upgrade could not proceed, when `success` is `false`: the
+     * config has no `imports`, or no `@lockness/*` package. Unexpected
+     * errors are thrown by `Upgrader.upgrade()`, never reported here.
+     */
     readonly error?: string
     /** Whether this was a dry run (no files modified) */
     readonly dryRun: boolean

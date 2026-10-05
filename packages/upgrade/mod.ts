@@ -36,6 +36,8 @@
  * ```
  */
 
+import { CommandFailedError } from '@lockness/cli/command-failure'
+import { runEntry } from '@lockness/cli/entry'
 import { parseArgs } from '@std/cli'
 import { Upgrader } from './upgrader.ts'
 import { createVersionProvider } from './version_fetcher.ts'
@@ -53,10 +55,6 @@ export type {
     UpgradeResult,
     VersionProvider,
 } from './types.ts'
-
-// =============================================================================
-// CLI Helpers
-// =============================================================================
 
 // =============================================================================
 // CLI Helpers
@@ -122,12 +120,19 @@ function printSuccess(dryRun: boolean): void {
 /**
  * Main CLI entry point.
  *
- * Parses command-line arguments and runs the upgrade process.
+ * Parses command-line arguments and runs the upgrade process. A failure
+ * throws — {@link runEntry} prints it once and sets the exit status; nothing
+ * here touches process state.
+ *
+ * @param argv - The command-line arguments, without the program name.
+ * @throws {CommandFailedError} When the config has no imports or no Lockness
+ *   package.
+ * @throws {Error} Whatever `Upgrader.upgrade()` throws.
  *
  * @internal
  */
-async function main(): Promise<void> {
-    const args = parseArgs(Deno.args, {
+async function main(argv: string[]): Promise<void> {
+    const args = parseArgs(argv, {
         boolean: ['dry-run', 'help'],
         alias: {
             'dry-run': 'd',
@@ -159,7 +164,7 @@ Examples:
   # Dry run (preview only)
   deno run -Ar jsr:@lockness/upgrade --dry-run
         `)
-        Deno.exit(0)
+        return
     }
 
     const targetVersion = args._[0]?.toString()
@@ -176,8 +181,7 @@ Examples:
     })
 
     if (!result.success) {
-        console.error(`\n❌ Error: ${result.error}\n`)
-        Deno.exit(1)
+        throw new CommandFailedError(result.error ?? 'Upgrade failed')
     }
 
     printSummary(result.upgrades, result.dryRun)
@@ -188,7 +192,4 @@ Examples:
 // Execution
 // =============================================================================
 
-// Run CLI if executed directly
-if (import.meta.main) {
-    main()
-}
+if (import.meta.main) await runEntry('upgrade', () => main(Deno.args))
