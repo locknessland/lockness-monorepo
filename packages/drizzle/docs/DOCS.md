@@ -64,7 +64,8 @@ First, the DSN as a whole:
 
 - **No control character** (a tab, a newline, any other character below U+0020,
   or DEL) and **no leading space.** WHATWG drops or strips them before it
-  parses, so the DSN a driver reads would not be the one checked.
+  parses, so the DSN a driver reads would not be the one checked. That includes
+  a trailing newline, which a DSN read from a file often ends with: trim it.
 - **A scheme is followed by `//`.** `postgres:app:pw@db/prod` is refused: a
   driver would read everything after `postgres:` as the database name. Only
   `file:` and `sqlite:` paths may omit the `//`.
@@ -73,7 +74,8 @@ Then, in the grammar below, the **authority** is the text after `scheme://` up
 to the first `/`, `?` or `#`, and the **tail** is everything after it. A DSN is
 accepted when:
 
-1. **The tail holds no raw `@`.** Write `%40` in a path or query string.
+1. **The tail holds no raw `@`.** Write `%40` in a path, query string or
+   fragment.
 2. **The authority holds at most one `@`, and the user and password use only the
    allowed characters:** `A-Za-z0-9-._~!$&'()*+,;=:` and percent-encoded bytes
    (`%XX`). Each percent sequence must decode as UTF-8. Every other character
@@ -83,10 +85,12 @@ accepted when:
    `:`), optionally followed by `:port`.
 4. **The DSN is a valid WHATWG URL** once the host list is cut to its first
    host.
-5. **A host list with a comma does not also appear before the host part.**
-   postgres.js cuts the list by replacing its first match anywhere in the DSN.
-   With `postgres://app:xdb1,db2x@db1,db2/prod`, that match is inside the
-   password, so the password would be rewritten.
+5. **A host list with a comma does not also appear before the host part, and
+   holds no `$`.** postgres.js cuts the list by replacing its first match
+   anywhere in the DSN. With `postgres://app:xdb1,db2x@db1,db2/prod`, that match
+   is inside the password, so the password would be rewritten; the user is
+   checked the same way. The replacement also reads `$` as a pattern, which can
+   splice the password into the database name.
 
 | Accepted                                 | Why                                   |
 | :--------------------------------------- | :------------------------------------ |
@@ -173,7 +177,7 @@ timeout.
 | Member          | Round trips | Meaning                                                                                                                                                                                                                                                                                                                                                                                         |
 | :-------------- | :---------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `connect()`     | 0           | Checks the DSN, loads the driver and builds the client. `success: false` means the DSN was refused, the client package is missing, or the client rejected the URL; no client is kept, so a retry is legal. Prints one line unless `silent: true`. **Throws** `Database is already configured; call close() before connect() again` when the instance already holds a client or is building one. |
-| `probe()`       | 1           | Runs `SELECT 1`. Throws `Database is not connected` before `connect()` or after `close()`. Otherwise it re-throws a driver failure: the exact DSN is replaced with `<dsn redacted>`, and a message holding a credential (the password, or a credential query value such as `authToken`) is withheld whole (see below).                                                                          |
+| `probe()`       | 1           | Runs `SELECT 1`. Throws `Database is not connected` before `connect()` or after `close()`. Otherwise it re-throws a driver failure: the exact DSN is replaced with `<dsn redacted>`, and a message holding a credential (the password, or a credential query value such as `authToken`) is withheld whole (see [When a probe failure is withheld](#when-a-probe-failure-is-withheld)).          |
 | `close()`       | 0           | Closes the client. Waits for a `connect()` still in flight, then closes what it built: once `close()` resolves, no client exists. Safe to call twice, or before `connect()`. After it, `connect()` is legal again.                                                                                                                                                                              |
 | `db`            | 0           | The Drizzle instance of the configured client. Throws `Database is not connected` before `connect()` and after `close()`. Read-only: stub it in tests with `setDriverFactory()`, not by assignment.                                                                                                                                                                                             |
 | `isConnected()` | 0           | `true` once a client is configured and until `close()`. It does **not** mean that the database is reachable. Call `probe()` to find out.                                                                                                                                                                                                                                                        |
@@ -194,6 +198,33 @@ throws, and the boot fails. To point the instance at another database, call
 | DSN refused (see [DSN format](#dsn-format))       | `connect()` returns `success: false` with a fixed message that quotes no part of the DSN. Boot continues.                                                                                                                | `/ready` returns `503` with `database: down`. `db:seed` and `db:check` print the error once and exit 1.                               |
 | Client package missing, or URL the client rejects | `connect()` returns `success: false` and, unless `silent: true`, logs a `❌` line: the package and import error (withheld if it holds a credential), or the client's message withheld (error name only). Boot continues. | `/ready` returns `503` with `database: down`. `db:seed` and `db:check` print the error once and exit 1.                               |
 | Host unreachable, bad credentials, database down  | Nothing is sent, so nothing is reported.                                                                                                                                                                                 | `/ready` returns `503` within 3 s. The first query gets the driver's error. `db:check` reports it, withheld if it holds a credential. |
+
+### When a probe failure is withheld
+
+`probe()` (and so `/ready` and `db:check`) re-throws a driver failure with the
+exact DSN replaced by `<dsn redacted>`. When the message or the error name still
+holds a form of a credential, the message is withheld whole:
+
+```text
+The database probe failed (<Name>); its message is withheld because it contains a database credential
+```
+
+The forms checked are the password as written, percent-decoded, and as
+`new URL()` encodes it, and each credential query value such as `authToken`. The
+password is never replaced inside the driver's text: replacing `postgres` would
+also mask `user "postgres"`, and the masked spot would show where the password
+is.
+
+**Development setups hit this often.** When the password also appears as a user,
+database or host name, as in the Docker default `postgres:postgres`, most probe
+failures quote it and are withheld. To see the driver's message, use a password
+that no user, database or host name contains.
+
+**Known limit.** A withheld message still tells the reader that a form of the
+password occurs in the driver's text, though never where. A short password (`e`,
+`5432`) occurs in most texts, so it withholds most messages. The #425 ruling
+accepts this residue rather than refusing short passwords or withholding every
+message: it is a documented limit, not a defect.
 
 ### Server notices
 
@@ -1214,11 +1245,13 @@ before any driver sees it; see [DSN format](#dsn-format). What that changes:
 - **Newly refused:** a DSN whose user or password holds any character outside
   `A-Za-z0-9-._~!$&'()*+,;=:` and `%XX`. That includes `^ | { } [ ] < > " \`, a
   backtick, a space, a non-ASCII character, a raw `@`, and a `%` not followed by
-  two hex digits. Also refused: a raw `@` in the path or query string, a control
-  character or leading space anywhere, a scheme with no `//` (other than `file:`
-  and `sqlite:`), and a comma host list that also appears in the password. These
-  DSNs may have worked before. `connect()` now returns `success: false` with the
-  fixed message
+  two hex digits. Also refused: a raw `@` in the path, query string or fragment;
+  a control character anywhere, including the trailing newline a DSN read from a
+  file often ends with; a leading space; a scheme with no `//` (other than
+  `file:` and `sqlite:`); a comma host list that also appears in the user or
+  password; and a `$` in a comma host list. [DSN format](#dsn-format) is the
+  complete list. These DSNs may have worked before. `connect()` now returns
+  `success: false` with the fixed message
   `DSN is not a valid URL; percent-encode reserved characters in the password`,
   and no driver is loaded.
 - **The fix:** percent-encode the password, for example with
@@ -1237,7 +1270,8 @@ before any driver sees it; see [DSN format](#dsn-format). What that changes:
   contains a database credential`
   instead. A dev setup such as `postgres:postgres` therefore loses its probe
   diagnostics. Use a password that does not also appear as a user, database or
-  host name.
+  host name; see
+  [When a probe failure is withheld](#when-a-probe-failure-is-withheld).
 - **Still accepted unchanged:** multi-host DSNs with or without ports
   (`h1:5432,h2:5433`), IPv6 hosts, percent-encoded host names, and SQLite
   `file:` paths.

@@ -259,10 +259,14 @@ export class Database<D extends Dialect = 'postgres'> {
      *   hold only `A-Za-z0-9-._~!$&'()*+,;=:` and `%XX`; every other
      *   character must be percent-encoded — for example `^ | { } [ ] < > "
      *   \`, a backtick, a space, a non-ASCII character, a raw `@`, and a `%`
-     *   not followed by two hex digits. A raw `@` in the path or query
-     *   string, a control character, and a scheme with no `//` (other than
-     *   `file:` and `sqlite:`) are refused too. The message is fixed and
-     *   quotes nothing from the DSN.
+     *   not followed by two hex digits. Also refused: a raw `@` in the
+     *   path, query string or fragment; a control character anywhere,
+     *   including the trailing newline a DSN read from a file often ends
+     *   with; a leading space; a scheme with no `//` (other than `file:` and
+     *   `sqlite:`); a comma host list that also appears in the user or
+     *   password; and a `$` in a comma host list. The `### DSN format`
+     *   section of the package docs is the complete list. The message is
+     *   fixed and quotes nothing from the DSN.
      * - **The client package is missing.** The message names the package and
      *   the import error, which never holds the DSN — unless the import error
      *   holds the password (`postgres:postgres` names the package), in which
