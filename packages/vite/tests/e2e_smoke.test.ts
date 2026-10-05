@@ -25,6 +25,7 @@ import {
     isViteInternalRequest,
 } from '../src/plugins/dev_server.ts'
 import demoApp from '../demo/main.ts'
+import { isOffline } from './offline.ts'
 
 const DEMO_DIR = join(dirname(fromFileUrl(import.meta.url)), '..', 'demo')
 
@@ -67,9 +68,7 @@ async function runDemoBuild(
             reason: `build exceeded ${timeoutMs}ms`,
         }
     }
-    const offline =
-        /error sending request|failed to fetch|dns error|tcp connect error|connection refused|network is unreachable|os error (50|51|65|111)|error trying to connect/i
-    if (output.code !== 0 && offline.test(stderr)) {
+    if (output.code !== 0 && isOffline(stderr, { refused: true })) {
         return {
             code: output.code,
             stderr,

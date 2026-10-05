@@ -59,7 +59,7 @@ mechanism and the date. An entry that could have been guessed does not belong._
 
 <!-- generated:tests -->
 
-10 test files for 19 source files:
+11 test files for 20 source files:
 
 - `packages/vite/tests/build.test.ts`
 - `packages/vite/tests/client_entry.test.ts`
@@ -69,10 +69,25 @@ mechanism and the date. An entry that could have been guessed does not belong._
 - `packages/vite/tests/dev_server.test.ts`
 - `packages/vite/tests/e2e_smoke.test.ts`
 - `packages/vite/tests/hmr.test.ts`
+- `packages/vite/tests/offline.test.ts`
 - `packages/vite/tests/shared.test.ts`
 - `packages/vite/tests/vite_assets.test.ts`
 
 <!-- /generated:tests -->
+
+### The offline classifier (`tests/offline.ts`)
+
+**Not counted above as a test, and not internal.** `isOffline` is the one answer
+to "did this command fail because the machine is offline?" — the only reason a
+toolchain suite may skip instead of fail (#157). It started in
+`e2e_smoke.test.ts` and was copied twice into `scripts/`; #450 gave it this one
+home. **Consumers outside the package**: `scripts/kit_migrations_test.ts` and
+`scripts/kit_instructions_test.ts`. A change to what it recognises changes when
+those suites skip.
+
+A refused connection counts only with `{ refused: true }`, for a command whose
+sole connection is to a package registry. `kit_instructions_test.ts` leaves it
+off on purpose: it points `PG*` at a closed port, so a refusal there is a fault.
 
 ## Before you call it done
 
@@ -85,7 +100,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 10 test files directly —
+Then, specific to this package: run its 11 test files directly —
 
 ```bash
 deno test -A packages/vite/

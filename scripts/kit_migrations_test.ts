@@ -15,8 +15,8 @@
  *
  * Steps 2 and 3 spawn the pinned npm drizzle-kit, so they need its package.
  * On a cold offline machine they skip with a printed reason — only on a
- * recognised network error, the #157 pattern of
- * `packages/vite/tests/e2e_smoke.test.ts`; any other failure fails.
+ * recognised network error (`isOffline`, the #157 classifier shared from
+ * `packages/vite/tests/offline.ts`); any other failure fails.
  *
  * @module
  */
@@ -26,6 +26,7 @@ import { join } from '@std/path'
 import { readMigrationFiles } from 'drizzle-orm/migrator'
 import { type KitName, registerInitCommand } from '@lockness/init'
 import type { Cli } from '@lockness/cli'
+import { isOffline } from '../packages/vite/tests/offline.ts'
 import {
     compareMigrations,
     diffKitMigrations,
@@ -39,18 +40,15 @@ import {
     shippedKitMigrations,
 } from './kit_migrations.ts'
 
-/** A network failure fetching the npm package — the only reason to skip. */
-const OFFLINE =
-    /error sending request|failed to fetch|dns error|tcp connect error|connection refused|network is unreachable|os error (50|51|65|111)|error trying to connect/i
-
 /**
- * Whether a drizzle-kit failure is the machine being offline.
+ * Whether a drizzle-kit failure is the machine being offline. drizzle-kit
+ * `generate` connects to nothing but the registry, so a refusal counts.
  *
  * @param output - What drizzle-kit (or Deno fetching it) printed.
  * @returns True on a recognised network error.
  */
 function offline(output: string): boolean {
-    return OFFLINE.test(output)
+    return isOffline(output, { refused: true })
 }
 
 /**

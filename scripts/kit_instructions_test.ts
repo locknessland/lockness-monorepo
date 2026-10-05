@@ -32,8 +32,10 @@
  *
  * Steps 2 and 3 run the app's commands, which resolve npm packages; on a cold
  * offline machine they are skipped with a printed reason — only on a
- * recognised network error, the #157 pattern of
- * `packages/vite/tests/e2e_smoke.test.ts`. Step 1 needs no network.
+ * recognised network error (`isOffline`, the #157 classifier shared from
+ * `packages/vite/tests/offline.ts`). A refused connection is NOT one here:
+ * step 3 points `PG*` at a closed port, so a refusal is a fault to report.
+ * Step 1 needs no network.
  *
  * Only the `deno task <x>` grammar is read: `./nessy <x>`, `deno run … cli.ts
  * <x>` in prose, and descriptions such as "run the compile task" are not.
@@ -44,12 +46,9 @@
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { join } from '@std/path'
 import { type KitName, KITS } from '@lockness/init'
+import { isOffline } from '../packages/vite/tests/offline.ts'
 import { shipsMigrations } from './kit_migrations.ts'
 import { scaffoldKit } from './kit_smoke.ts'
-
-/** A network failure fetching a package — the only reason to skip. */
-const OFFLINE =
-    /error sending request|failed to fetch|dns error|tcp connect error|network is unreachable|os error (50|51|65)|error trying to connect/i
 
 /** How long one app command may take — the first one installs npm deps. */
 const COMMAND_TIMEOUT_MS = 300_000
@@ -240,7 +239,7 @@ for (const kit of Object.keys(KITS) as KitName[]) {
             )
 
             const listed = await inApp(dir, ['task', 'cli', 'list'])
-            if (!listed.ok && OFFLINE.test(listed.output)) {
+            if (!listed.ok && isOffline(listed.output)) {
                 console.warn(
                     `[#444] skipped the CLI and database steps for ${kit} — the app's npm packages are unavailable offline`,
                 )
