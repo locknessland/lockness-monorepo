@@ -8,7 +8,7 @@
  * @since 0.2.0
  */
 
-import type { BootstrapStep } from '../types.ts'
+import type { BootstrapContext, BootstrapStep } from '../types.ts'
 import { getDatabaseUrl } from '../helpers.ts'
 import {
     defaultImportModule,
@@ -17,6 +17,48 @@ import {
 import { container } from '@lockness/container'
 import { registerHealthCheck } from '@lockness/contract'
 import { SHUTDOWN_PRIORITY } from '../../shutdown_registry.ts'
+
+/** The notice reporter port `@lockness/drizzle` declares, structurally. */
+interface NoticeReporter {
+    warn(message: string, fields: Readonly<Record<string, unknown>>): void
+    debug(message: string, fields: Readonly<Record<string, unknown>>): void
+}
+
+/**
+ * Build the reporter PostgreSQL server notices go to (#454).
+ *
+ * `@lockness/drizzle` may not import `@lockness/logger` — its dependency
+ * ceiling forbids it — so the wiring happens here, at the composition root,
+ * the way the scheduler step wires its reporter (#505). Not shared with that
+ * step: the two ports have different method sets, and two cases are below the
+ * Rule of Three.
+ *
+ * @param context - The bootstrap context: its `logger` key and its importer.
+ * @returns A reporter backed by the application's logger, or `undefined` when
+ * the kernel does not set `logger` — drizzle's console fallback then applies.
+ * @throws {MissingOptionalPackageError} When `logger` is set and
+ * `@lockness/logger` does not resolve.
+ */
+async function buildNoticeReporter(
+    context: BootstrapContext,
+): Promise<NoticeReporter | undefined> {
+    const loggerModule = await loadConfiguredPackage<{
+        logger: () => {
+            warn: (m: string, f?: Record<string, unknown>) => Promise<void>
+            debug: (m: string, f?: Record<string, unknown>) => Promise<void>
+        }
+    }>(context.config, 'logger', context.importModule ?? defaultImportModule)
+
+    if (!loggerModule) return undefined
+
+    const { logger } = loggerModule
+    // The port is synchronous; the logger's methods are async. Not awaited:
+    // the reporter runs inside postgres.js's socket handler.
+    return {
+        warn: (message, fields) => void logger().warn(message, { ...fields }),
+        debug: (message, fields) => void logger().debug(message, { ...fields }),
+    }
+}
 
 /**
  * Database initialization step.
@@ -27,6 +69,8 @@ import { SHUTDOWN_PRIORITY } from '../../shutdown_registry.ts'
  * - Import @lockness/drizzle if database is configured
  * - Configure the database client using URL from config or environment —
  *   with zero round trips (#420)
+ * - With `logger: true`, route PostgreSQL server notices to the application's
+ *   logger — warnings at `warn`, the rest at `debug` (#454)
  * - Register the `database` readiness check behind `/ready`
  * - Refuse the boot if `database` is set and the package does not resolve
  */
@@ -42,6 +86,7 @@ export const databaseStep: BootstrapStep = {
                     url: string,
                     options?: {
                         driver?: 'postgres' | 'mysql' | 'sqlite'
+                        notices?: NoticeReporter
                     },
                 ): Promise<{ success: boolean; error?: string }>
                 probe(): Promise<unknown>
@@ -85,7 +130,12 @@ export const databaseStep: BootstrapStep = {
             // configure in one process, such as an `@OnBoot` hook that also
             // calls `connect()`. That is a wiring error, like `App instance
             // not created`, so it fails boot with drizzle's own message.
-            await db.connect(url, { driver })
+            //
+            // With `logger: true`, PostgreSQL notices go to the logger (#454);
+            // without it, no `notices` key, and drizzle's console fallback
+            // prints a warning as one line and discards the rest.
+            const notices = await buildNoticeReporter(context)
+            await db.connect(url, notices ? { driver, notices } : { driver })
 
             // Announce a readiness probe for `/ready` (#218). `probe()` runs
             // `SELECT 1`; a throw (connection down) surfaces as `down`, never as

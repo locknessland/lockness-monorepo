@@ -123,3 +123,79 @@ Deno.test('#420 a client that cannot be built does not stop boot, and /ready rep
         assertEquals(result.ok, false)
     })
 })
+
+// -----------------------------------------------------------------------------
+// #454 — `logger: true` routes PostgreSQL notices to @lockness/logger
+// -----------------------------------------------------------------------------
+
+/** The options the step handed `Database.connect`, captured by a spy. */
+type ConnectOptions = Parameters<Database['connect']>[1]
+
+/**
+ * Run the step with `config`, an importer that serves a fake
+ * `@lockness/logger`, and the container `Database`'s `connect` replaced by a
+ * spy. Returns what `connect` received, every logger call, and every import.
+ */
+async function runStepCapturingConnect(
+    config: Record<string, unknown>,
+): Promise<{
+    readonly options: ConnectOptions[]
+    readonly logged: string[]
+    readonly imported: string[]
+}> {
+    const options: ConnectOptions[] = []
+    const logged: string[] = []
+    const imported: string[] = []
+    const fakeLogger = {
+        logger: () => ({
+            warn: (message: string, fields?: Record<string, unknown>) => {
+                logged.push(`warn:${message}:${JSON.stringify(fields)}`)
+                return Promise.resolve()
+            },
+            debug: (message: string, fields?: Record<string, unknown>) => {
+                logged.push(`debug:${message}:${JSON.stringify(fields)}`)
+                return Promise.resolve()
+            },
+        }),
+    }
+    await withFreshDatabase(async (db) => {
+        db.connect = (_url, given) => {
+            options.push(given)
+            return Promise.resolve({ success: true })
+        }
+        await databaseStep.run(
+            {
+                config: { database: { url: URL_UNDER_TEST }, ...config },
+                importModule: (specifier: string) => {
+                    imported.push(specifier)
+                    return specifier === '@lockness/logger'
+                        ? Promise.resolve(fakeLogger)
+                        : import(specifier)
+                },
+            } as unknown as Parameters<typeof databaseStep.run>[0],
+        )
+    })
+    return { options, logged, imported }
+}
+
+Deno.test('#454 logger: true passes notices whose warn and debug reach the logger', async () => {
+    const { options, logged } = await runStepCapturingConnect({ logger: true })
+
+    assertEquals(options.length, 1)
+    const notices = options[0]?.notices
+    if (!notices) throw new Error('connect received no notices reporter')
+    notices.warn('w', { code: '01000' })
+    notices.debug('n', { code: '42P06' })
+    assertEquals(logged, [
+        'warn:w:{"code":"01000"}',
+        'debug:n:{"code":"42P06"}',
+    ])
+})
+
+Deno.test('#454 without logger, connect receives no notices key and the logger is not imported', async () => {
+    const { options, imported } = await runStepCapturingConnect({})
+
+    assertEquals(options.length, 1)
+    assertEquals(Object.hasOwn(options[0] ?? {}, 'notices'), false)
+    assertEquals(imported.includes('@lockness/logger'), false)
+})
