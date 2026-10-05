@@ -109,7 +109,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-18 test files for 45 source files:
+19 test files for 45 source files:
 
 - `packages/cli/tests/app_file.test.ts`
 - `packages/cli/tests/cli_dispatch.test.ts`
@@ -129,6 +129,7 @@ Anything not listed is internal and free to change.
 - `packages/cli/tests/queue_commands.test.ts`
 - `packages/cli/tests/raw_errors.test.ts`
 - `packages/cli/tests/report.test.ts`
+- `packages/cli/tests/run_steps.test.ts`
 
 <!-- /generated:tests -->
 
@@ -143,7 +144,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 18 test files directly —
+Then, specific to this package: run its 19 test files directly —
 
 ```bash
 deno test -A packages/cli/

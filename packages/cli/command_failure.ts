@@ -97,3 +97,60 @@ export class CommandFailedError extends Error {
         this.exitCode = toFailureStatus(options.exitCode ?? MIN_FAILURE_STATUS)
     }
 }
+
+/** One step of a multi-step command, run by {@link runSteps}. */
+export interface CommandStep {
+    /** Names the step in the failure message, e.g. `repository`. */
+    readonly label: string
+    /** Does the step's work. A throw, synchronous or not, fails the step. */
+    readonly run: () => void | Promise<void>
+}
+
+/**
+ * Run every step of a multi-step command, then fail once naming the steps
+ * that failed — finish, then fail (#436, P1).
+ *
+ * A scaffolder that writes a model, a repository and a factory should not
+ * leave the user guessing which files exist after one write fails, nor stop
+ * at the first failure and skip files it could have written. So every step
+ * runs, in order, whatever the one before it did; then, if any failed, one
+ * {@link CommandFailedError} is thrown: `<n> of <m> steps failed: <labels>`,
+ * with the first failure as its `cause`, which `Cli.dispatch()` prints
+ * rendered after the message. Later failures are named by label only.
+ *
+ * @param steps - The steps, in the order they run.
+ * @returns A promise that resolves when every step passed.
+ * @throws {CommandFailedError} When at least one step threw.
+ *
+ * @example
+ * ```ts
+ * import { runSteps } from '@lockness/cli/command-failure'
+ *
+ * await runSteps([
+ *     { label: 'model', run: () => writeModel(name) },
+ *     { label: 'repository', run: () => writeRepository(name) },
+ * ])
+ * // throws CommandFailedError('1 of 2 steps failed: repository') if one write throws
+ * ```
+ */
+export async function runSteps(steps: readonly CommandStep[]): Promise<void> {
+    const failed: string[] = []
+    let firstFailure: unknown
+    for (const step of steps) {
+        try {
+            await step.run()
+        } catch (error) {
+            // Kept, not swallowed: the first failure becomes the cause of the
+            // failure thrown below, and every failed step is named in it.
+            if (failed.length === 0) firstFailure = error
+            failed.push(step.label)
+        }
+    }
+    if (failed.length === 0) return
+    throw new CommandFailedError(
+        `${failed.length} of ${steps.length} steps failed: ${
+            failed.join(', ')
+        }`,
+        { cause: firstFailure },
+    )
+}
