@@ -30,6 +30,7 @@
 
 import type { Dialect, MaintenanceConnection } from './drivers.ts'
 import { DEFAULT_BOOKKEEPING_SCHEMA } from './migration_settings.ts'
+import { executePassingPlannerErrors } from './planner_passthrough.ts'
 import { RefusedError } from './refusal.ts'
 import { backtick, literal, quote } from './sql_text.ts'
 
@@ -728,8 +729,8 @@ export function describeResetScope(scope: ResetScope): string {
  * and refuses or returns the plan, which the driver then runs in that unit.
  *
  * **A refusal comes back as itself.** Whatever the connection's `execute`
- * rejects with — a wrapper that redacts, a custom connection that re-wraps
- * every failure — an error the planner threw is rethrown unchanged, so the
+ * does with it — re-wraps it, swallows it, retries past it — an error the
+ * planner threw is rethrown unchanged (see `planner_passthrough.ts`), so the
  * command can still say "Nothing was dropped" for a `RefusedError`.
  *
  * @param connection - The maintenance connection.
@@ -752,23 +753,10 @@ export async function resetDatabase(
 ): Promise<void> {
     const policy = RESET_POLICIES[scope.dialect]
     policy.refuseScope?.(scope)
-    let planned: { readonly error: unknown } | undefined
-    try {
-        await connection.execute(async (read) => {
-            try {
-                return await policy.plan(read, scope)
-            } catch (error) {
-                // Recorded, then re-thrown: the driver must see the planner
-                // fail to roll its unit back.
-                planned = { error }
-                throw error
-            }
-        })
-    } catch (error) {
-        // Not swallowed: re-thrown, as the planner's own error when it
-        // failed, whatever the connection made of it.
-        throw planned ? planned.error : error
-    }
+    await executePassingPlannerErrors(
+        connection,
+        (read) => policy.plan(read, scope),
+    )
 }
 
 // =============================================================================

@@ -43,6 +43,7 @@ import {
     type NoticeReporter,
     reportNotice,
 } from './notice.ts'
+import { executePassingPlannerErrors } from './planner_passthrough.ts'
 import {
     holdsSecret,
     shownName,
@@ -414,20 +415,13 @@ export class Database<D extends Dialect = 'postgres'> {
         const { handle, held } = this.#client()
         const inner = handle.maintenance
         if (!inner) return undefined
-        const redacted = async <T>(run: () => Promise<T>): Promise<T> => {
-            try {
-                return await run()
-            } catch (error) {
-                throw new Error(
-                    renderFailure(error, held, maintenanceWithheld),
-                )
-            }
-        }
+        const redact = (error: unknown): Error =>
+            new Error(renderFailure(error, held, maintenanceWithheld))
         return {
             open: async () =>
                 redactedConnection(
-                    await redacted(() => inner.open()),
-                    redacted,
+                    await redacting(redact, () => inner.open()),
+                    redact,
                 ),
         }
     }
@@ -508,8 +502,24 @@ export class Database<D extends Dialect = 'postgres'> {
 // Maintenance
 // =============================================================================
 
-/** Runs one call, re-throwing its failure redacted against what is held. */
-type Redactor = <T>(run: () => Promise<T>) => Promise<T>
+/**
+ * Run one call, re-throwing its failure through `redact`.
+ *
+ * @param redact - Renders a failure against what is held.
+ * @param run - The call.
+ * @returns Whatever `run` resolves to.
+ * @throws `redact` of whatever `run` rejects with.
+ */
+async function redacting<T>(
+    redact: (error: unknown) => Error,
+    run: () => Promise<T>,
+): Promise<T> {
+    try {
+        return await run()
+    } catch (error) {
+        throw redact(error)
+    }
+}
 
 /**
  * Wrap a maintenance connection so every driver failure is redacted, while an
@@ -518,40 +528,29 @@ type Redactor = <T>(run: () => Promise<T>) => Promise<T>
  * The planner's own reads are redacted where they fail, before the planner
  * sees them, so whatever the planner then throws — a `RefusedError`, or a
  * read failure it lets through — is already safe, and is re-thrown
- * unchanged: re-rendering it would turn a refusal into a generic error and
- * lose the command's "Nothing was dropped" framing (#447).
+ * unchanged by `executePassingPlannerErrors`: re-rendering it would turn a
+ * refusal into a generic error and lose the command's "Nothing was dropped"
+ * framing (#447).
  *
  * @param connection - The driver's connection.
- * @param redacted - Redacts against the DSN captured with the handle.
+ * @param redact - Renders a failure against the DSN captured with the handle.
  * @returns The redacting connection.
  */
 function redactedConnection(
     connection: MaintenanceConnection,
-    redacted: Redactor,
+    redact: (error: unknown) => Error,
 ): MaintenanceConnection {
     return {
-        query: (sql) => redacted(() => connection.query(sql)),
-        execute: async (planner: MaintenancePlanner) => {
-            let planned: { readonly error: unknown } | undefined
-            try {
-                await connection.execute(async (read) => {
-                    try {
-                        return await planner((sql) => redacted(() => read(sql)))
-                    } catch (error) {
-                        // Recorded, then re-thrown so the driver rolls back.
-                        planned = { error }
-                        throw error
-                    }
-                })
-            } catch (error) {
-                // Not swallowed: the planner's error unchanged, any other
-                // failure redacted.
-                if (planned) throw planned.error
-                return redacted(() => Promise.reject(error))
-            }
-        },
-        migrate: (options) => redacted(() => connection.migrate(options)),
-        close: () => redacted(() => connection.close()),
+        query: (sql) => redacting(redact, () => connection.query(sql)),
+        execute: (planner: MaintenancePlanner) =>
+            executePassingPlannerErrors(
+                connection,
+                (read) => planner((sql) => redacting(redact, () => read(sql))),
+                redact,
+            ),
+        migrate: (options) =>
+            redacting(redact, () => connection.migrate(options)),
+        close: () => redacting(redact, () => connection.close()),
     }
 }
 

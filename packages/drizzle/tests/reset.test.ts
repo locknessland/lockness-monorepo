@@ -830,6 +830,132 @@ Deno.test("#447 a statement failure is the connection's error, not mistaken for 
     assert(!(error instanceof RefusedError))
 })
 
+/** Capture every `console.warn` line `fn` writes, and what it rejected with. */
+async function warned(fn: () => Promise<void>): Promise<{
+    readonly lines: string[]
+    readonly error: unknown
+}> {
+    const lines: string[] = []
+    const { warn } = console
+    console.warn = (...args: unknown[]) => void lines.push(args.join(' '))
+    try {
+        await fn()
+        return { lines, error: undefined }
+    } catch (error) {
+        return { lines, error }
+    } finally {
+        console.warn = warn
+    }
+}
+
+Deno.test('#447 a connection that retries never sees a stale refusal rethrown after its statements ran', async () => {
+    // The first planner call reads a malformed row and refuses; the retry
+    // reads a sound one, and its plan runs and commits.
+    let calls = 0
+    const ran: string[] = []
+    const retrying: MaintenanceConnection = {
+        query: () => Promise.resolve([]),
+        execute: async (planner) => {
+            const attempt = () =>
+                planner(() =>
+                    Promise.resolve(
+                        ++calls === 1
+                            ? [{ type: 'table', name: 42 }]
+                            : [{ type: 'table', name: 't' }],
+                    )
+                )
+            let plan: readonly string[]
+            try {
+                plan = await attempt()
+            } catch {
+                plan = await attempt()
+            }
+            ran.push(...plan)
+        },
+        migrate: () => Promise.resolve(),
+        close: () => Promise.resolve(),
+    }
+
+    await resetDatabase(retrying, scope('sqlite'))
+
+    assertEquals(calls, 2)
+    assertEquals(ran, [
+        'PRAGMA defer_foreign_keys = ON',
+        'DROP TABLE IF EXISTS "t"',
+    ])
+})
+
+Deno.test('#447 a refusal a connection swallows is raised anyway', async () => {
+    const swallowing: MaintenanceConnection = {
+        query: () => Promise.resolve([]),
+        execute: async (planner) => {
+            try {
+                await planner(() =>
+                    Promise.resolve([{ db: null, name: null, type: null }])
+                )
+            } catch {
+                // The fault under test: this connection drops the refusal.
+            }
+        },
+        migrate: () => Promise.resolve(),
+        close: () => Promise.resolve(),
+    }
+
+    const error = await assertRejects(
+        () => resetDatabase(swallowing, scope('mysql')),
+        RefusedError,
+    )
+    assertStringIncludes(error.reason, 'no database selected')
+})
+
+Deno.test('#447 a rollback that fails after a refusal keeps the refusal and logs the rollback failure', async () => {
+    const failingRollback: MaintenanceConnection = {
+        query: () => Promise.resolve([]),
+        execute: async (planner) => {
+            try {
+                await planner(() =>
+                    Promise.resolve([{ db: null, name: null, type: null }])
+                )
+            } catch {
+                throw new Error('ROLLBACK failed: connection lost')
+            }
+        },
+        migrate: () => Promise.resolve(),
+        close: () => Promise.resolve(),
+    }
+
+    const { lines, error } = await warned(() =>
+        resetDatabase(failingRollback, scope('mysql'))
+    )
+
+    assert(error instanceof RefusedError, String(error))
+    assertEquals(lines.length, 1, JSON.stringify(lines))
+    assertStringIncludes(lines[0], 'ROLLBACK failed: connection lost')
+})
+
+Deno.test('#447 an execute error that carries the refusal as its cause is not logged twice', async () => {
+    const { maintenance } = fakeMaintenance({
+        'information_schema.TABLES': mysqlRows(null, []),
+    })
+    const wrapping: MaintenanceConnection = {
+        ...maintenance,
+        execute: async (planner) => {
+            try {
+                await maintenance.execute(planner)
+            } catch (error) {
+                throw new Error('wrapped', { cause: error })
+            }
+        },
+    }
+
+    const { lines, error } = await warned(() =>
+        resetDatabase(wrapping, scope('mysql'))
+    )
+
+    assert(error instanceof RefusedError, String(error))
+    assertEquals(lines, [])
+})
+
 // -----------------------------------------------------------------------------
 // The one line db:fresh prints
 // -----------------------------------------------------------------------------
