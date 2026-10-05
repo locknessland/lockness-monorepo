@@ -53,9 +53,13 @@ const OFFLINE =
 /** How long one app command may take — the first one installs npm deps. */
 const COMMAND_TIMEOUT_MS = 300_000
 
-/** `deno task <task> [<command>]`, as a user would copy it. */
+/**
+ * `deno task <task> [<command>]`, as a user would copy it. Flags between
+ * `task` and its name (`deno task -q compile`) and prose wrapped across a line
+ * are read too.
+ */
 const INSTRUCTION =
-    /deno task ([a-z][\w:-]*)(?:[ \t]+([a-z][\w-]*:[\w:-]+|[a-z][\w-]*))?/g
+    /deno\s+task\s+(?:-\S+\s+)*([a-z][\w:-]*)(?:[ \t]+([a-z][\w-]*:[\w:-]+|[a-z][\w-]*))?/g
 
 /** A task that runs the app's CLI: `… cli.ts <command>`. */
 const CLI_TASK = /\bcli\.ts[ \t]+([a-z][\w:-]*)/
@@ -67,8 +71,8 @@ const SKIPPED_DIRS: ReadonlySet<string> = new Set([
     '.git',
 ])
 
-/** Files that carry text a user reads. */
-const TEXT_FILE = /(\.(md|ts|tsx|json|css|sh)|^\.env.*)$/
+/** Files that carry text a user reads, or a command a build runs unattended. */
+const TEXT_FILE = /(\.(md|ts|tsx|json|css|sh)|^\.env.*|^Dockerfile)$/
 
 /**
  * Run `deno` inside the app with no database configured.
@@ -187,7 +191,10 @@ async function instructions(dir: string): Promise<Instruction[]> {
 }
 
 for (const kit of Object.keys(KITS) as KitName[]) {
-    Deno.test(`#444 #453 QA ${kit}: the app's instructions run, and its db commands refuse without DATABASE_URL`, async (t) => {
+    const refusal = shipsMigrations(kit)
+        ? ', and its db commands refuse without DATABASE_URL'
+        : ''
+    Deno.test(`#444 #453 QA ${kit}: the app's instructions run${refusal}`, async (t) => {
         const workdir = await Deno.makeTempDir({ prefix: 'lockness-444-qa-' })
         try {
             const scaffold = await scaffoldKit(kit, workdir)
