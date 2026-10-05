@@ -9,7 +9,7 @@
  * - File overwrite protection
  */
 
-import { assertEquals, assertStringIncludes } from '@std/assert'
+import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { exists } from '@std/fs/exists'
 import { dirname, fromFileUrl, join } from '@std/path'
 
@@ -39,7 +39,7 @@ async function cleanupTempDir(dir: string): Promise<void> {
 /**
  * Run CLI command and capture output
  */
-async function runCli(args: string[]): Promise<{
+async function runCli(args: string[], cwd?: string): Promise<{
     stdout: string
     stderr: string
     exitCode: number
@@ -51,6 +51,8 @@ async function runCli(args: string[]): Promise<{
 
     const command = new Deno.Command(Deno.execPath(), {
         args: ['run', '-A', cliPath, ...args],
+        cwd,
+        env: { NO_COLOR: '1' },
         stdout: 'piped',
         stderr: 'piped',
     })
@@ -62,6 +64,21 @@ async function runCli(args: string[]): Promise<{
         stderr: new TextDecoder().decode(stderr),
         exitCode: code,
     }
+}
+
+/**
+ * Assert the standalone exit contract on a failed run (#436): a non-zero
+ * status, exactly one `❌` line across both streams, and no `error: Uncaught`
+ * — the tool reports through `runEntry`, never through `Deno.exit()` or an
+ * escaped throw.
+ */
+function assertFailedOnce(
+    result: { stdout: string; stderr: string; exitCode: number },
+): void {
+    const out = result.stdout + result.stderr
+    assert(result.exitCode !== 0, out)
+    assertEquals(out.split('❌').length - 1, 1, out)
+    assert(!out.includes('error: Uncaught'), out)
 }
 
 // =============================================================================
@@ -250,15 +267,20 @@ Deno.test('CLI: unknown component shows error', async () => {
     const tempDir = await createTempDir()
 
     try {
-        const { stderr, exitCode } = await runCli([
+        const result = await runCli([
             'add',
             'nonexistent',
             '--dir',
             tempDir,
         ])
 
-        assertEquals(exitCode, 1)
-        assertStringIncludes(stderr, 'Unknown component')
+        assertFailedOnce(result)
+        assertEquals(result.exitCode, 1)
+        // The usage hint rides on the one failure line (D4: one-line message).
+        assertStringIncludes(
+            result.stderr,
+            '❌ Unknown component: nonexistent. Use "list" to see available components.',
+        )
     } finally {
         await cleanupTempDir(tempDir)
     }
@@ -268,10 +290,10 @@ Deno.test('CLI: add without components shows error', async () => {
     const tempDir = await createTempDir()
 
     try {
-        const { stderr, exitCode } = await runCli(['add', '--dir', tempDir])
+        const result = await runCli(['add', '--dir', tempDir])
 
-        assertEquals(exitCode, 1)
-        assertStringIncludes(stderr, 'No components specified')
+        assertFailedOnce(result)
+        assertStringIncludes(result.stderr, '❌ No components specified')
     } finally {
         await cleanupTempDir(tempDir)
     }
@@ -289,10 +311,60 @@ Deno.test('CLI: help flag shows usage information', async () => {
 })
 
 Deno.test('CLI: unknown command shows error', async () => {
-    const { stderr, exitCode } = await runCli(['unknown'])
+    const result = await runCli(['unknown'])
 
-    assertEquals(exitCode, 1)
-    assertStringIncludes(stderr, 'Unknown command')
+    assertFailedOnce(result)
+    assertStringIncludes(
+        result.stderr,
+        '❌ Unknown command: unknown. Use "--help" to see available commands.',
+    )
+})
+
+Deno.test('CLI: an unexpected error is reported once under the tool label', async () => {
+    const tempDir = await createTempDir()
+
+    try {
+        // A file where `lib/` should be makes the directory creation throw.
+        await Deno.writeTextFile(join(tempDir, 'lib'), '')
+        const result = await runCli(['add', 'utils', '--dir', tempDir])
+
+        assertFailedOnce(result)
+        assertStringIncludes(result.stderr, '❌ ui failed:')
+    } finally {
+        await cleanupTempDir(tempDir)
+    }
+})
+
+Deno.test('CLI: add still succeeds when only the deno.json update fails', async () => {
+    const tempDir = await createTempDir()
+
+    try {
+        // Unparseable config in the working directory: the files are written,
+        // then the update falls back to printing manual instructions.
+        await Deno.writeTextFile(join(tempDir, 'deno.json'), '{ not json')
+        const result = await runCli(
+            ['add', 'button', '--dir', join(tempDir, 'out')],
+            tempDir,
+        )
+        const out = result.stdout + result.stderr
+
+        assertEquals(result.exitCode, 0, out)
+        assert(!out.includes('❌'), out)
+        assertStringIncludes(result.stderr, 'Failed to update deno.json')
+        assertStringIncludes(result.stdout, 'Please add dependencies manually')
+        assertEquals(
+            await exists(
+                join(tempDir, 'out', 'components', 'ui', 'Button.tsx'),
+            ),
+            true,
+        )
+        assertEquals(
+            await Deno.readTextFile(join(tempDir, 'deno.json')),
+            '{ not json',
+        )
+    } finally {
+        await cleanupTempDir(tempDir)
+    }
 })
 
 // Note: Remote execution testing (fetching from JSR) is not included here

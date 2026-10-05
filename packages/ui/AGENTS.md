@@ -26,7 +26,7 @@ User-facing documentation: [README.md](README.md) ·
 
 | Direction                                 | Packages                                 |
 | :---------------------------------------- | :--------------------------------------- |
-| Imports (static)                          | `hono`, `markdown`                       |
+| Imports (static)                          | `cli`, `hono`, `markdown`                |
 | Imports (soft, loaded at runtime by name) | —                                        |
 | Imported by                               | —                                        |
 | **Must never import**                     | nothing — no package depends on this one |

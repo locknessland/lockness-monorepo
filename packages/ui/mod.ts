@@ -26,6 +26,8 @@
  * @module @lockness/ui
  */
 
+import { CommandFailedError } from '@lockness/cli/command-failure'
+import { runEntry } from '@lockness/cli/entry'
 import { parseArgs } from '@std/cli/parse-args'
 import { ensureDir } from '@std/fs/ensure-dir'
 import { exists } from '@std/fs/exists'
@@ -263,10 +265,9 @@ async function addComponents(
     force: boolean,
 ): Promise<void> {
     if (components.length === 0) {
-        console.error(
-            '❌ No components specified. Use "list" to see available components.',
+        throw new CommandFailedError(
+            'No components specified. Use "list" to see available components.',
         )
-        Deno.exit(1)
     }
 
     const packageDir = await getPackageDir()
@@ -276,9 +277,9 @@ async function addComponents(
     // Resolve all components and their dependencies
     for (const name of components) {
         if (!REGISTRY[name]) {
-            console.error(`❌ Unknown component: ${name}`)
-            console.log('   Use "list" to see available components.')
-            Deno.exit(1)
+            throw new CommandFailedError(
+                `Unknown component: ${name}. Use "list" to see available components.`,
+            )
         }
         toInstall.add(name)
 
@@ -355,8 +356,16 @@ async function addComponents(
 // Main
 // =============================================================================
 
-async function main(): Promise<void> {
-    const args = parseArgs(Deno.args, {
+/**
+ * Run the CLI on `argv`. A failure throws — {@link runEntry} prints it once
+ * and sets the exit status; nothing here touches process state.
+ *
+ * @param argv - The command-line arguments, without the program name.
+ * @throws {CommandFailedError} On an unknown command, an unknown component or
+ *   an `add` with no component.
+ */
+async function main(argv: string[]): Promise<void> {
+    const args = parseArgs(argv, {
         string: ['dir'],
         boolean: ['help', 'force'],
         alias: { h: 'help', d: 'dir', f: 'force' },
@@ -378,16 +387,10 @@ async function main(): Promise<void> {
             printList()
             break
         default:
-            console.error(`❌ Unknown command: ${command}`)
-            printHelp()
-            Deno.exit(1)
+            throw new CommandFailedError(
+                `Unknown command: ${command}. Use "--help" to see available commands.`,
+            )
     }
 }
 
-// Run the CLI with proper error handling
-if (import.meta.main) {
-    main().catch((error) => {
-        console.error('❌ Error:', error.message)
-        Deno.exit(1)
-    })
-}
+if (import.meta.main) await runEntry('ui', () => main(Deno.args))
