@@ -131,6 +131,7 @@ Anything not listed is internal and free to change.
 - `packages/cli/tests/raw_errors.test.ts`
 - `packages/cli/tests/report.test.ts`
 - `packages/cli/tests/run_steps.test.ts`
+- `packages/cli/tests/stub_scaffold_remote.test.ts`
 
 <!-- /generated:tests -->
 
