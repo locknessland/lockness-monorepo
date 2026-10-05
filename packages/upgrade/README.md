@@ -165,13 +165,22 @@ console.log(result)
 
 ## Error Handling
 
-The tool handles common errors gracefully:
+Run as a tool, a failed upgrade prints one `❌` line and exits non-zero, so a
+script or CI step stops on it.
 
-- **File Not Found**: Returns error if `deno.json` doesn't exist
-- **No Imports**: Returns error if no `imports` section exists
-- **No Lockness Packages**: Returns error if no `@lockness/*` packages found
-- **Network Issues**: Returns error if JSR API is unreachable (5s timeout)
-- **Invalid JSON**: Returns error if `deno.json` is malformed
+From `Upgrader.upgrade()`, two expected outcomes come back in the result as
+`{ success: false, error }`:
+
+- **No Imports**: no `imports` section exists
+- **No Lockness Packages**: no `@lockness/*` packages found
+
+Anything else is **thrown** as it was raised (since v0.5.0; it used to be
+stringified into `error`):
+
+- **File Not Found**: `Deno.errors.NotFound` if `deno.json` doesn't exist
+- **Invalid JSON**: a `SyntaxError` if `deno.json` is malformed
+- **Network Issues**: the version provider's error if the JSR API is unreachable
+  (5s timeout)
 
 ## Troubleshooting
 

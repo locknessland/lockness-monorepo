@@ -183,12 +183,13 @@ done
 Use the upgrader programmatically in scripts:
 
 ```typescript
-import { Upgrader } from 'jsr:@lockness/upgrade/upgrader'
-import { createVersionProvider } from 'jsr:@lockness/upgrade/version_fetcher'
+import { createVersionProvider, Upgrader } from 'jsr:@lockness/upgrade'
 
 const versionProvider = createVersionProvider()
 const upgrader = new Upgrader(versionProvider)
 
+// Throws on a missing or malformed deno.json, a failed version fetch or a
+// failed write (since v0.5.0; these used to come back as `result.error`).
 const result = await upgrader.upgrade({
     targetVersion: '0.2.0',
     dryRun: true,
@@ -196,18 +197,20 @@ const result = await upgrader.upgrade({
 })
 
 if (result.success) {
-    console.log(`Upgraded ${result.packages?.length} packages`)
-    for (const pkg of result.packages!) {
-        console.log(`${pkg.name}: ${pkg.oldVersion} → ${pkg.newVersion}`)
+    console.log(`Upgraded ${result.upgrades.length} packages`)
+    for (const pkg of result.upgrades) {
+        console.log(`${pkg.name}: ${pkg.currentVersion} → ${pkg.targetVersion}`)
     }
 } else {
+    // No imports, or no @lockness/* package.
     console.error(result.error)
 }
 ```
 
 ## Error Handling
 
-The tool handles common errors gracefully:
+Run as a tool, a failed upgrade prints one `❌` line and exits non-zero. The
+common causes:
 
 ### "No Lockness packages found in imports"
 
