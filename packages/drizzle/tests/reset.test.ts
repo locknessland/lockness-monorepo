@@ -211,9 +211,15 @@ Deno.test('#435 mysql plan refuses rows naming more than one database', () => {
 })
 
 Deno.test('#435 mysql plan refuses a catalogue that returned no row', () => {
-    assertThrows(
+    const error = assertThrows(
         () => planMysqlReset([], '__drizzle_migrations'),
         RefusedError,
+    )
+
+    // The reason, not the type: every MySQL refusal is a RefusedError.
+    assertEquals(
+        error.reason,
+        'the catalogue returned no row, not even the database name',
     )
 })
 
@@ -455,13 +461,43 @@ Deno.test('#435 R7 the check probes pg_depend as it is now, never the census que
     assertEquals(check.includes('pg_catalog.pg_class'), false)
 })
 
+/** Every binary comparison or assignment in a SQL text, as written. */
+const COMPARISON = /[^\s(]+\s*(?::=|<>|!=|<=|>=|=|<|>)\s*[^\s);]+/g
+
+/** The three key columns a baseline row and its `pg_depend` row share. */
+const ESCAPED_JOIN = [
+    'd.classid = c.classid',
+    'd.objid = c.objid',
+    'd.objsubid = c.objsubid',
+]
+
 Deno.test('#435 R7 no count comparison remains', () => {
     const { baseline, check } = census()
 
-    assertEquals(baseline.includes('count('), false)
-    assertEquals(/\b(baseline|remaining)\b/.test(check), false)
-    assertEquals(/<>\s*\w+;/.test(check), false)
+    // The baseline records objects, never a total to compare against.
+    assertEquals(/\b(count|sum)\s*\(/i.test(baseline), false, baseline)
     assertEquals(baseline.includes('tgisinternal'), false)
+
+    // The check counts one thing: the baseline rows pg_depend lost.
+    assertEquals(check.match(/\bcount\s*\(/gi)?.length, 1, check)
+    assertStringIncludes(
+        check,
+        'SELECT count(*) INTO escaped FROM pg_temp.lockness_fresh_census c\n' +
+            'WHERE NOT EXISTS (',
+    )
+    // No variable can hold a second count: only these two are declared.
+    assertStringIncludes(
+        check,
+        'DECLARE\n    escaped bigint;\n    labels text;\nBEGIN\n',
+    )
+    // And the only comparisons are the join keys and `escaped > 0`, whatever
+    // operator or spelling a reintroduced count comparison would use.
+    assertEquals(check.match(COMPARISON), [
+        ...ESCAPED_JOIN,
+        'escaped > 0',
+        ...ESCAPED_JOIN,
+    ])
+    assertEquals(/\bDISTINCT\s+FROM\b/i.test(check), false, check)
 })
 
 Deno.test('#435 R7 the RAISE names the count, the first ten escaped objects and the rollback', () => {
