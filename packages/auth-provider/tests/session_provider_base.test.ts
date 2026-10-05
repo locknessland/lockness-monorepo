@@ -411,3 +411,51 @@ Deno.test('the base exposes no credential primitive', () => {
         assertEquals(exported.includes(name), false, `${name} is exported`)
     }
 })
+
+// -----------------------------------------------------------------------------
+// A broken token id
+// -----------------------------------------------------------------------------
+
+Deno.test('a row read back without an id does not verify', async () => {
+    for (const id of [null, undefined]) {
+        const { provider, store, alice } = setup()
+        const token = await provider.createRememberToken(alice, THIRTY_DAYS_S)
+        store.patch(token.identifier, {
+            id: id as unknown as number,
+        })
+        assertEquals(
+            await provider.verifyRememberToken(token.value),
+            null,
+            `id ${String(id)}`,
+        )
+    }
+})
+
+Deno.test('recycle refuses a token without an identifier, before any write', async () => {
+    for (const identifier of [null, undefined]) {
+        const { provider, store, alice } = setup()
+        const created = await provider.createRememberToken(alice, THIRTY_DAYS_S)
+        const verified = await provider.verifyRememberToken(created.value)
+        assert(verified)
+        const writesBefore = store.writes.length
+
+        await assertRejects(
+            () =>
+                provider.recycleRememberToken(
+                    alice,
+                    {
+                        ...verified.token,
+                        identifier: identifier as unknown as number,
+                    },
+                    THIRTY_DAYS_S,
+                ),
+            TypeError,
+            'identifier',
+        )
+        assertEquals(store.writes.length, writesBefore, 'nothing was written')
+        assert(
+            await provider.verifyRememberToken(created.value),
+            'the old token still verifies',
+        )
+    }
+})
