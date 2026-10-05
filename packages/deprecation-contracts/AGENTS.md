@@ -23,7 +23,7 @@ names does not belong here._
 
 | Direction                                 | Packages                                                                                |
 | :---------------------------------------- | :-------------------------------------------------------------------------------------- |
-| Imports (static)                          | —                                                                                       |
+| Imports (static)                          | `cli`                                                                                   |
 | Imports (soft, loaded at runtime by name) | —                                                                                       |
 | Imported by                               | `core`, `realtime`                                                                      |
 | **Must never import**                     | `core`, `realtime` — each already reaches this package, so importing one closes a cycle |
@@ -69,9 +69,10 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-1 test file for 9 source files:
+2 test files for 9 source files:
 
 - `packages/deprecation-contracts/tests/deprecation.test.ts`
+- `packages/deprecation-contracts/tests/install.test.ts`
 
 <!-- /generated:tests -->
 
@@ -86,7 +87,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 1 test file directly —
+Then, specific to this package: run its 2 test files directly —
 
 ```bash
 deno test -A packages/deprecation-contracts/
