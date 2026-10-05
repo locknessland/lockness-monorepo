@@ -22,11 +22,11 @@ execute in sequence:
 5. **Devtools** (210) - Enable devtools (development only)
 6. **Middleware** (300) - Register global middlewares
 7. **Boot Hooks** (310) - Execute `@OnBoot` methods
-8. **Middleware Discovery** (400) - Auto-discover named middlewares
-9. **Listener Registration** (410) - Register event listeners
-10. **Events** (500) - Emit KernelBooted event
-11. **App Initialization** (550) - Initialize controllers and static files
-12. **Devtools Routes** (600) - Collect routes for devtools
+8. **Listener Registration** (410) - Register event listeners
+9. **Events** (500) - Emit KernelBooted event
+10. **App Initialization** (550) - Initialize controllers, named middlewares and
+    static files
+11. **Devtools Routes** (600) - Collect routes for devtools
 
 **Benefits:**
 

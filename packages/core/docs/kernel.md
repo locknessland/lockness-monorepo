@@ -27,12 +27,11 @@ steps sequentially:
 5. **Devtools** (order: 210) - Enables devtools in development
 6. **Middleware** (order: 300) - Registers global middlewares
 7. **Boot Hooks** (order: 310) - Executes `@OnBoot` methods
-8. **Middleware Discovery** (order: 400) - Auto-discovers named middlewares
-9. **Listener Registration** (order: 410) - Registers event listeners
-10. **Events** (order: 500) - Emits KernelBooted event
-11. **App Initialization** (order: 550) - Initializes controllers and static
-    files
-12. **Devtools Routes** (order: 600) - Collects routes for devtools
+8. **Listener Registration** (order: 410) - Registers event listeners
+9. **Events** (order: 500) - Emits KernelBooted event
+10. **App Initialization** (order: 550) - Initializes controllers, named
+    middlewares and static files
+11. **Devtools Routes** (order: 600) - Collects routes for devtools
 
 This architecture ensures:
 
