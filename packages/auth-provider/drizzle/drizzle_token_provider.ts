@@ -184,8 +184,11 @@ export class DrizzleTokenProvider<
     }
 
     /**
+     * Select the one row whose `hash` column equals `hash`. The column is
+     * unique, so `limit(1)` costs nothing and documents the expectation.
+     *
      * @param hash - The hash to match.
-     * @returns The matching row, or `null`.
+     * @returns The matching row, or `null`. Query errors propagate.
      */
     protected async findTokenRecordByHash(
         hash: string,
@@ -208,8 +211,12 @@ export class DrizzleTokenProvider<
     }
 
     /**
+     * Delete one row, matching on both id and owner so that a caller can
+     * never revoke another user's token by guessing its id.
+     *
      * @param userId - The owner the deletion is scoped by.
      * @param tokenId - The row id.
+     * @returns Nothing; a foreign or missing id deletes nothing.
      */
     protected async deleteTokenRecord(
         userId: string | number,
@@ -221,7 +228,11 @@ export class DrizzleTokenProvider<
     }
 
     /**
+     * Delete every row owned by `userId` — revocation of all of a user's
+     * tokens, for instance after a password change.
+     *
      * @param userId - The owner.
+     * @returns Nothing.
      */
     protected async deleteTokenRecordsForUser(
         userId: string | number,
@@ -231,8 +242,12 @@ export class DrizzleTokenProvider<
     }
 
     /**
+     * Stamp `lastUsedAt` on one row, recording that its token just
+     * authenticated a request.
+     *
      * @param tokenId - The row id.
      * @param at - The time of use.
+     * @returns Nothing.
      */
     protected async touchTokenRecord(
         tokenId: string | number,
