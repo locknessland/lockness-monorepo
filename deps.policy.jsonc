@@ -241,6 +241,10 @@
         },
 
         // ---- Orchestration: the only package a user application imports.
+        // `@lockness/cli` is a dev/test dependency only: core's commands throw
+        // a local failure class (`cli/command_failure.ts`), and the test that
+        // runs it through the real `Cli.dispatch` lives under `tests/`, which
+        // this scan excludes (#436). Core loads no `cli` code at runtime.
         "core": {
             "tier": "orchestration",
             "allow": [

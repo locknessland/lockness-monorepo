@@ -30,7 +30,8 @@
         "@lockness/deprecation-contracts": "jsr:@lockness/deprecation-contracts@^0.4.0",
         "@lockness/events": "jsr:@lockness/events@^0.4.0",
         "@lockness/scheduler": "jsr:@lockness/scheduler@^0.4.0",
-        "@lockness/crypto": "jsr:@lockness/crypto@^0.4.0"
+        "@lockness/crypto": "jsr:@lockness/crypto@^0.4.0",
+        "@lockness/cli": "jsr:@lockness/cli@^0.4.0"
     },
     "compilerOptions": {
         "jsx": "precompile",
