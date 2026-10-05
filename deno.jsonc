@@ -62,7 +62,7 @@
         // task; this SETS the gate, `packages/drizzle/tests/live_postgres.ts`
         // reads it. They also need LOCKNESS_POSTGRES_URL, a loopback superuser
         // connection: the kit suite creates and drops `lockness_kit_*` databases.
-        "test:postgres": "LOCKNESS_POSTGRES_INTEGRATION=1 deno test -A packages/drizzle/tests/fresh_postgres_live.test.ts scripts/kit_migrations_live_test.ts scripts/kit_token_flow_live_test.ts scripts/remember_me_live_test.ts",
+        "test:postgres": "LOCKNESS_POSTGRES_INTEGRATION=1 deno test -A packages/drizzle/tests/fresh_postgres_live.test.ts scripts/kit_migrations_live_test.ts scripts/kit_token_flow_live_test.ts scripts/kit_push_live_test.ts scripts/remember_me_live_test.ts",
         "test:coverage": "rm -rf coverage && deno test -A --coverage=coverage packages/ app/ && deno coverage coverage --lcov > coverage/lcov.info && deno coverage coverage",
         "coverage:floor": "deno run -A scripts/coverage_floor.ts --check",
         "coverage:floor:update": "deno run -A scripts/coverage_floor.ts --update",

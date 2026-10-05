@@ -155,8 +155,9 @@ every such suite is destructive. The precedent is `@lockness/redis`'s
 
 **Consumers outside the package** import it by relative path, so a change here
 changes them too: `scripts/kit_migrations_live_test.ts`,
-`scripts/kit_token_flow_live_test.ts` and `scripts/remember_me_live_test.ts`
-(#450). Inside the package: `tests/fresh_postgres_live.test.ts`.
+`scripts/kit_token_flow_live_test.ts`, `scripts/kit_push_live_test.ts` (#445)
+and `scripts/remember_me_live_test.ts` (#450). Inside the package:
+`tests/fresh_postgres_live.test.ts`.
 
 ## Before you call it done
 

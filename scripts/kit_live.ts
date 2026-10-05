@@ -20,6 +20,8 @@ export interface AppCommandResult {
     readonly ok: boolean
     /** Its stdout and stderr, concatenated, for a failure message. */
     readonly output: string
+    /** Its stderr alone, for a check that it wrote nothing there (#445). */
+    readonly stderr: string
 }
 
 /**
@@ -31,7 +33,7 @@ export interface AppCommandResult {
  *
  * @param dir - The app.
  * @param args - `deno` arguments.
- * @returns The exit status and combined output.
+ * @returns The exit status, the combined output, and stderr alone.
  *
  * @example
  * ```ts
@@ -59,9 +61,11 @@ export async function inApp(
         },
     ).output()
     const decoder = new TextDecoder()
+    const error = decoder.decode(stderr)
     return {
         ok: success,
-        output: decoder.decode(stdout) + decoder.decode(stderr),
+        output: decoder.decode(stdout) + error,
+        stderr: error,
     }
 }
 

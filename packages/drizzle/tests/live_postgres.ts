@@ -8,8 +8,9 @@
  * that drifts. The precedent is `packages/redis/tests/live_broker.ts`.
  *
  * **Consumers outside this package** — a change here changes them too:
- * `scripts/kit_migrations_live_test.ts`, `scripts/kit_token_flow_live_test.ts`
- * and `scripts/remember_me_live_test.ts` import it by relative path. This
+ * `scripts/kit_migrations_live_test.ts`, `scripts/kit_token_flow_live_test.ts`,
+ * `scripts/kit_push_live_test.ts` and `scripts/remember_me_live_test.ts`
+ * import it by relative path. This
  * package's `AGENTS.md` names them as well (#450).
  *
  * Not a `.test.ts` file, so `deno test` does not collect it.
