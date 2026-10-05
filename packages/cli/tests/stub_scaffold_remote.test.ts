@@ -11,7 +11,6 @@
  */
 
 import {
-    assert,
     assertEquals,
     assertInstanceOf,
     assertRejects,
@@ -19,6 +18,7 @@ import {
 } from '@std/assert'
 import { join } from '@std/path'
 import { Stub } from '../stubs.ts'
+import { CommandFailedError } from '../command_failure.ts'
 
 /** Serve `files` (path → body); any other path answers 404. */
 function serveStubs(
@@ -81,10 +81,10 @@ Deno.test('Stub.scaffoldFrom (remote) - finishes the other files, then rejects n
         // failed ones.
         assertEquals(await Deno.readTextFile(join(target, 'a.ts')), 'a')
         assertEquals(await Deno.readTextFile(join(target, 'c.ts')), 'c')
-        // One line, naming each failed file; the first failure is the cause.
-        assert(!error.message.includes('\n'), error.message)
-        assertStringIncludes(error.message, '2 of 4')
-        assertStringIncludes(error.message, 'b.ts.stub, d.ts.stub')
+        // One `runSteps` failure naming each failed file; the first failure
+        // is the cause.
+        assertInstanceOf(error, CommandFailedError)
+        assertEquals(error.message, '2 of 4 steps failed: b.ts.stub, d.ts.stub')
         assertInstanceOf(error.cause, Error)
         assertStringIncludes(error.cause.message, '404')
         // Reported once, by the throw — no warning on the side.

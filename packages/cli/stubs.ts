@@ -18,6 +18,7 @@
  */
 
 import { dirname, fromFileUrl, join } from '@std/path'
+import { runSteps } from './command_failure.ts'
 
 /**
  * Stub template data for placeholder replacement.
@@ -182,9 +183,10 @@ export class Stub {
      * ignored the list and copied everything, so a caller selecting a subset
      * got its subset from JSR and the entire tree from a checkout.
      * @throws {Error} When scaffolding from URL without fileList
-     * @throws {Error} When, from a URL, some listed files could not be fetched
-     * or written. Every other file is written first; the message names the
-     * failed files and the first failure is the `cause`.
+     * @throws {CommandFailedError} When, from a URL, some listed files could
+     * not be fetched or written. Every other file is written first; the
+     * message is `runSteps`' `<n> of <m> steps failed: <files>` and the first
+     * failure is the `cause`.
      *
      * @example
      * ```ts
@@ -213,22 +215,16 @@ export class Stub {
             await Deno.mkdir(targetDir, { recursive: true })
 
             // Finish, then fail (#436, P1): a file that cannot be fetched or
-            // written does not stop the others, and is reported once, by the
-            // throw below — never skipped with a warning, which left a
-            // project quietly incomplete behind a green terminal.
-            const failed: string[] = []
-            let firstFailure: unknown
-            for (const file of fileList) {
-                const sourceUrl = `${sourceDir}/${file}`
-                const targetPath = join(targetDir, file.replace('.stub', ''))
-
-                try {
-                    const response = await fetch(sourceUrl)
+            // written does not stop the others, and is reported once, by
+            // `runSteps` — never skipped with a warning, which left a project
+            // quietly incomplete behind a green terminal.
+            await runSteps(fileList.map((file) => ({
+                label: file,
+                run: async () => {
+                    const response = await fetch(`${sourceDir}/${file}`)
                     if (!response.ok) {
                         await response.body?.cancel()
-                        throw new Error(
-                            `HTTP ${response.status} for ${file}`,
-                        )
+                        throw new Error(`HTTP ${response.status} for ${file}`)
                     }
 
                     let content = await response.text()
@@ -240,25 +236,14 @@ export class Stub {
                         content = content.replace(regex, value)
                     }
 
+                    const targetPath = join(
+                        targetDir,
+                        file.replace('.stub', ''),
+                    )
                     await Deno.mkdir(dirname(targetPath), { recursive: true })
                     await Deno.writeTextFile(targetPath, content)
-                } catch (error) {
-                    // Kept, not swallowed: the first failure becomes the
-                    // cause of the error thrown after the loop, and every
-                    // failed file is named in its message.
-                    if (failed.length === 0) firstFailure = error
-                    failed.push(file)
-                }
-            }
-
-            if (failed.length > 0) {
-                throw new Error(
-                    `Could not scaffold ${failed.length} of ${fileList.length} stub files from ${sourceDir}: ${
-                        failed.join(', ')
-                    }`,
-                    { cause: firstFailure },
-                )
-            }
+                },
+            })))
             return
         }
 
