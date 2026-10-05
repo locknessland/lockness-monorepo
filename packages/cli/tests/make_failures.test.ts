@@ -300,3 +300,25 @@ Deno.test('make:crud finishes, then fails', async (t) => {
         assertEquals(error.length, 0)
     })
 })
+
+Deno.test('make:controller when the routes registry cannot be written', async (t) => {
+    await t.step('warns with the routes:generate hint, exits 0', async () => {
+        await inTempDir(async () => {
+            // A directory where the registry goes makes its write fail.
+            await Deno.mkdir('app/routes.ts', { recursive: true })
+
+            const { result, warn, error } = await captureConsole(() =>
+                makeCli().dispatch(['make:controller', 'User'])
+            )
+
+            assertEquals(result, 0)
+            assertEquals(error, [])
+            assertEquals(warn.length, 1, String(warn))
+            const line = String(warn[0][0])
+            assertStringIncludes(line, 'routes:generate')
+            // D4: the caught error's text is not printed.
+            assert(!/os error|directory/i.test(line), line)
+            await Deno.stat('app/controller/user_controller.tsx')
+        })
+    })
+})
