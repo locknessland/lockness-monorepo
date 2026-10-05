@@ -4709,6 +4709,7 @@
       },
       "packages/mail": {
         "dependencies": [
+          "jsr:@lockness/cli@0.4",
           "jsr:@lockness/contract@0.4",
           "jsr:@std/assert@1",
           "jsr:@std/path@1"

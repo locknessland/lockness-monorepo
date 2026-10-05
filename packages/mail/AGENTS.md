@@ -37,13 +37,13 @@ application installs it, or the feature stays off.
 
 <!-- generated:surface -->
 
-| Kind      | Exports                                                                                                                                                                                                                                                                                                                                                                                        |
-| :-------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| class     | `ConsoleMailDriver`, `Mail`, `MailPackageMissingError`, `MailQueueNotConfiguredError`, `Mailable`, `MemoryMailDriver`, `ResendMailDriver`, `SmtpMailDriver`                                                                                                                                                                                                                                    |
-| function  | `capturePreview`, `capturedMails`, `configureMail`, `configureMailQueue`, `disableMailPreview`, `enableMailPreview`, `getMailConfig`, `getMailableFactory`, `handleMailJob`, `handleMakeMail`, `isContained`, `isMailPreviewEnabled`, `mail`, `mailPreviewHandler`, `queueMailable`, `registerMailCommands`, `registerMailable`, `resetMailPreview`, `resetMailQueue`, `resetMailableRegistry` |
-| interface | `CapturedMail`, `Cli`, `MailAddress`, `MailAttachment`, `MailConfig`, `MailDriver`, `MailMessage`, `MailResult`, `MailableContent`, `QueuedMailJob`                                                                                                                                                                                                                                            |
-| typeAlias | `MailDispatcher`, `MailableFactory`, `ModuleImporter`                                                                                                                                                                                                                                                                                                                                          |
-| variable  | `MAIL_DIR`                                                                                                                                                                                                                                                                                                                                                                                     |
+| Kind      | Exports                                                                                                                                                                                                                                                                                                                                                                      |
+| :-------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| class     | `ConsoleMailDriver`, `Mail`, `MailPackageMissingError`, `MailQueueNotConfiguredError`, `Mailable`, `MemoryMailDriver`, `ResendMailDriver`, `SmtpMailDriver`                                                                                                                                                                                                                  |
+| function  | `capturePreview`, `capturedMails`, `configureMail`, `configureMailQueue`, `disableMailPreview`, `enableMailPreview`, `getMailConfig`, `getMailableFactory`, `handleMailJob`, `isContained`, `isMailPreviewEnabled`, `mail`, `mailPreviewHandler`, `queueMailable`, `registerMailCommands`, `registerMailable`, `resetMailPreview`, `resetMailQueue`, `resetMailableRegistry` |
+| interface | `CapturedMail`, `Cli`, `MailAddress`, `MailAttachment`, `MailConfig`, `MailDriver`, `MailMessage`, `MailResult`, `MailableContent`, `QueuedMailJob`                                                                                                                                                                                                                          |
+| typeAlias | `MailDispatcher`, `MailableFactory`, `ModuleImporter`                                                                                                                                                                                                                                                                                                                        |
+| variable  | `MAIL_DIR`                                                                                                                                                                                                                                                                                                                                                                   |
 
 Anything not listed is internal and free to change.
 
@@ -66,8 +66,9 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-4 test files for 14 source files:
+5 test files for 14 source files:
 
+- `packages/mail/tests/cli_commands.test.ts`
 - `packages/mail/tests/mail.test.ts`
 - `packages/mail/tests/mailable.test.ts`
 - `packages/mail/tests/preview.test.ts`
@@ -86,7 +87,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 4 test files directly —
+Then, specific to this package: run its 5 test files directly —
 
 ```bash
 deno test -A packages/mail/

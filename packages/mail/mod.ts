@@ -72,7 +72,6 @@ export {
 } from './preview.ts'
 export {
     type Cli,
-    handleMakeMail,
     isContained,
     MAIL_DIR,
     registerMailCommands,

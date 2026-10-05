@@ -71,7 +71,11 @@ Deno.test('make:mail scaffolds + rejects a traversal name', async () => {
         const path = await handleMakeMail(['Welcome'])
         assertEquals(path, 'app/mail/welcome_mail.ts')
         assert(await Deno.readTextFile(`${dir}/app/mail/welcome_mail.ts`))
-        assertEquals(await handleMakeMail(['../../etc/x']), undefined)
+        const error = await assertRejects(
+            () => handleMakeMail(['../../etc/x']),
+            Error,
+        )
+        assertEquals((error as Error & { exitCode?: unknown }).exitCode, 1)
     } finally {
         Deno.chdir(prev)
         await Deno.remove(dir, { recursive: true })

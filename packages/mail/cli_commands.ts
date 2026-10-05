@@ -18,6 +18,18 @@ export interface Cli {
     register(name: string, handler: CommandHandler, description?: string): void
 }
 
+/**
+ * A failed mail command. `@lockness/cli` recognises a failure by its shape — an
+ * integer `exitCode` — so mail raises one without importing the CLI: the
+ * dispatcher prints the message once and exits with this status. Deliberately
+ * not exported (#436, D1).
+ */
+class MailCommandError extends Error {
+    /** The process exit status the dispatcher maps this failure to. */
+    readonly exitCode = 1
+    override readonly name = 'MailCommandError'
+}
+
 /** Where mailables are scaffolded. */
 export const MAIL_DIR = './app/mail'
 /** Mailable-name shape allowlist (PascalCase-ish). */
@@ -47,26 +59,26 @@ async function processStub(
 /**
  * `make:mail <Name>` — scaffold a `Mailable` subclass.
  *
+ * Internal: reached through `registerMailCommands`, not the package barrel.
+ *
  * @param args - CLI args; first non-flag token is the mailable name.
- * @returns The path written, or `undefined` when rejected.
+ * @returns The path written.
+ * @throws {MailCommandError} When the name is missing or malformed, or its
+ *   path would leave {@link MAIL_DIR}.
  */
-export async function handleMakeMail(
-    args: string[],
-): Promise<string | undefined> {
+export async function handleMakeMail(args: string[]): Promise<string> {
     const name = args.find((a) => !a.startsWith('-'))
     if (!name || !NAME_RE.test(name)) {
-        console.error(
-            `❌ Invalid mailable name${
+        throw new MailCommandError(
+            `Invalid mailable name${
                 name ? ` "${name}"` : ''
             } — letters and digits only`,
         )
-        return undefined
     }
     const fileName = `${name.toLowerCase()}_mail.ts`
     const filePath = join(MAIL_DIR, fileName)
     if (!isContained(MAIL_DIR, filePath)) {
-        console.error(`❌ Refusing to write outside ${MAIL_DIR}`)
-        return undefined
+        throw new MailCommandError(`Refusing to write outside ${MAIL_DIR}`)
     }
     const content = await processStub('mailable', { Model: name })
     await Deno.mkdir(dirname(filePath), { recursive: true })
