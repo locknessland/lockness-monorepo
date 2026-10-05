@@ -1,6 +1,8 @@
 /**
- * @fileoverview #435 — what `db:fresh` reads from `drizzle.config.ts`, and
- * every configuration it refuses before anything is dropped (R2, R3).
+ * @fileoverview #435, #442 — what `db:migrate` and `db:fresh` read from
+ * `drizzle.config.ts`, and every configuration they refuse before they touch
+ * the database (R2, R3). `db:fresh` alone reads its reset scope,
+ * `schemaFilter`, through `loadFreshSettings`.
  *
  * The config is passed straight to the parser through the loader seam. R3 is
  * proven against a real temporary folder, through the default reader, which
@@ -12,6 +14,7 @@
 import { assertEquals, assertRejects, assertStringIncludes } from '@std/assert'
 import { join } from '@std/path'
 import {
+    loadFreshSettings,
     loadMigrationSettings,
     type MigrationReader,
 } from '../migration_settings.ts'
@@ -59,19 +62,50 @@ Deno.test('#435 settings carry the defaults drizzle-kit uses', async () => {
         folder: './database/migrations',
         table: '__drizzle_migrations',
         schema: 'drizzle',
-        schemaFilter: ['public'],
         migrations: 2,
         statements: ['A', 'B', 'C'],
     })
     assertEquals(folders, ['./database/migrations'])
 })
 
-Deno.test('#435 settings honour migrations.table, migrations.schema and schemaFilter', async () => {
+Deno.test('#442 MigrationSettings carries no schemaFilter: it is db:fresh’s reset scope', async () => {
+    const settings = await loadMigrationSettings(
+        () => Promise.resolve({ ...base, schemaFilter: ['app'] }),
+        reader().read,
+    )
+    assertEquals(Object.hasOwn(settings, 'schemaFilter'), false)
+    // @ts-expect-error — the field moved to db:fresh's own settings.
+    assertEquals(settings.schemaFilter, undefined)
+})
+
+Deno.test('#442 loadFreshSettings adds the reset scope, from one import of the config', async () => {
+    let loads = 0
+    const { folders, read } = reader([['A']])
+    const settings = await loadFreshSettings(() => {
+        loads++
+        return Promise.resolve({ ...base, schemaFilter: ['app', 'auth'] })
+    }, read)
+
+    assertEquals(loads, 1)
+    assertEquals(folders, ['./database/migrations'])
+    assertEquals(settings, {
+        dialect: 'postgres',
+        kitDialect: 'postgresql',
+        url: 'postgres://u:p@h:5432/app',
+        folder: './database/migrations',
+        table: '__drizzle_migrations',
+        schema: 'drizzle',
+        schemaFilter: ['app', 'auth'],
+        migrations: 1,
+        statements: ['A'],
+    })
+})
+
+Deno.test('#435 settings honour migrations.table and migrations.schema', async () => {
     const settings = await loadMigrationSettings(
         () =>
             Promise.resolve({
                 ...base,
-                schemaFilter: ['app', 'auth'],
                 migrations: { table: 'history', schema: 'meta' },
             }),
         reader().read,
@@ -79,15 +113,35 @@ Deno.test('#435 settings honour migrations.table, migrations.schema and schemaFi
 
     assertEquals(settings.table, 'history')
     assertEquals(settings.schema, 'meta')
-    assertEquals(settings.schemaFilter, ['app', 'auth'])
 })
 
-Deno.test('#435 a single schemaFilter string is a one-schema scope', async () => {
-    const settings = await loadMigrationSettings(
-        () => Promise.resolve({ ...base, schemaFilter: 'app' }),
+Deno.test('#435 schemaFilter defaults to public, and a single string is a one-schema scope', async () => {
+    for (
+        const [schemaFilter, expected] of [
+            [undefined, ['public']],
+            ['app', ['app']],
+        ] as const
+    ) {
+        const settings = await loadFreshSettings(
+            () => Promise.resolve({ ...base, schemaFilter }),
+            reader().read,
+        )
+        assertEquals(settings.schemaFilter, expected)
+    }
+})
+
+Deno.test('#435 a non-postgres scope ignores schemaFilter', async () => {
+    const settings = await loadFreshSettings(
+        () =>
+            Promise.resolve({
+                ...base,
+                dialect: 'sqlite',
+                dbCredentials: { url: 'file:./app.db' },
+                schemaFilter: 42,
+            }),
         reader().read,
     )
-    assertEquals(settings.schemaFilter, ['app'])
+    assertEquals(settings.schemaFilter, ['public'])
 })
 
 Deno.test('#435 mysql and sqlite keep no bookkeeping schema', async () => {
@@ -704,7 +758,7 @@ Deno.test('#442 R2 accepts the documented url alternatives verbatim', async () =
     }
 })
 
-Deno.test('#435 R2 refuses a malformed migrations or schemaFilter entry', async () => {
+Deno.test('#435 R2 refuses a malformed migrations entry', async () => {
     await assertRefused(
         () => Promise.resolve({ ...base, migrations: { table: '' } }),
         '`migrations.table`',
@@ -713,14 +767,26 @@ Deno.test('#435 R2 refuses a malformed migrations or schemaFilter entry', async 
         () => Promise.resolve({ ...base, migrations: { schema: 3 } }),
         '`migrations.schema`',
     )
-    await assertRefused(
-        () => Promise.resolve({ ...base, schemaFilter: [] }),
-        '`schemaFilter`',
-    )
-    await assertRefused(
-        () => Promise.resolve({ ...base, schemaFilter: ['public', 1] }),
-        '`schemaFilter`',
-    )
+})
+
+Deno.test('#442 a malformed schemaFilter refuses db:fresh’s settings only, before the journal is read', async () => {
+    for (const schemaFilter of [[], 42, ['public', 1]]) {
+        const config = () => Promise.resolve({ ...base, schemaFilter })
+        const { folders, read } = reader()
+        const error = await assertRejects(
+            () => loadFreshSettings(config, read),
+            RefusedError,
+        )
+        assertEquals(
+            error.reason,
+            'drizzle.config.ts: `schemaFilter` must be a schema name or a ' +
+                'list of them',
+        )
+        assertEquals(folders, [], 'the migrations were read after a refusal')
+
+        const settings = await loadMigrationSettings(config, reader().read)
+        assertEquals(settings.url, base.dbCredentials.url)
+    }
 })
 
 // -----------------------------------------------------------------------------

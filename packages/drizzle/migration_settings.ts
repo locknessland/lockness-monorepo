@@ -1,11 +1,14 @@
 /**
- * @fileoverview What `db:fresh` reads from `drizzle.config.ts` (#435), and the
- * configurations it refuses before anything is dropped.
+ * @fileoverview What `db:migrate` and `db:fresh` read from `drizzle.config.ts`
+ * (#435, #442), and the configurations they refuse before they touch the
+ * database.
  *
- * `db:fresh` resets and migrates in one process, over one connection, so it
- * reads the same file `drizzle-kit migrate` reads — `out`,
- * `dbCredentials.url`, `dialect`, `migrations.table`, `migrations.schema`
- * and `schemaFilter` — and nothing else:
+ * Both commands migrate in-process, through one loader, so they cannot
+ * disagree about which database a config names. They read `out`,
+ * `dbCredentials.url`, `dialect`, `migrations.table` and `migrations.schema`,
+ * and nothing else; `db:fresh` alone also reads its reset scope,
+ * `schemaFilter`, through {@link loadFreshSettings}. Only `drizzle.config.ts`
+ * is read: drizzle-kit's `.js` and `.json` fallbacks are not searched.
  *
  * - **R2** — the file cannot be imported (its error is withheld, since it may
  *   quote the DSN; only an identifier-shaped error name is shown); `out` is
@@ -20,7 +23,11 @@
  *   the singlestore and gel dialects.
  * - **R3** — the journal, or a file it lists, is missing. The migrations are
  *   read up front with drizzle-orm's own `readMigrationFiles`: a database is
- *   never wiped that could not then be migrated.
+ *   never wiped that could not then be migrated, and `db:migrate` refuses
+ *   before it connects rather than after.
+ *
+ * Every refusal is a {@link RefusedError} carrying only its reason; the
+ * command that caught it adds its own name and outcome.
  *
  * @module @lockness/drizzle/migration_settings
  * @since 0.4.1
@@ -37,8 +44,9 @@ import { vettedErrorName } from './error_name.ts'
 import { RefusedError } from './refusal.ts'
 
 /**
- * Loads the `drizzle.config.ts` default export. The seam `db:fresh` reads its
- * configuration through; a test passes the config object directly.
+ * Loads the `drizzle.config.ts` default export. The seam `db:migrate` and
+ * `db:fresh` read their configuration through; a test passes the config
+ * object directly.
  *
  * @returns The default export, unvalidated.
  */
@@ -56,7 +64,11 @@ export type MigrationReader = (
 ) => Promise<readonly (readonly string[])[]>
 
 /**
- * Everything `db:fresh` acts on, read once from `drizzle.config.ts`.
+ * Everything `db:migrate` and `db:fresh` act on, read once from
+ * `drizzle.config.ts`.
+ *
+ * Since v0.5.0 it carries no `schemaFilter`: that is `db:fresh`'s reset
+ * scope, not a migration setting (#442).
  */
 export interface MigrationSettings {
     /** The runtime dialect the connection is opened with. */
@@ -71,12 +83,18 @@ export interface MigrationSettings {
     readonly table: string
     /** postgres only: `migrations.schema`, default `drizzle`. */
     readonly schema: string | undefined
-    /** postgres only: `schemaFilter`, default `['public']` — the reset scope. */
-    readonly schemaFilter: readonly string[]
     /** How many migrations the journal lists. */
     readonly migrations: number
     /** Every migration statement, in order. */
     readonly statements: readonly string[]
+}
+
+/**
+ * The `db:fresh` settings: the shared ones plus the reset scope. Internal.
+ */
+export interface FreshSettings extends MigrationSettings {
+    /** postgres only: `schemaFilter`, default `['public']` — the reset scope. */
+    readonly schemaFilter: readonly string[]
 }
 
 /** The bookkeeping table drizzle-kit and drizzle-orm default to. */
@@ -125,8 +143,8 @@ const defaultReadMigrations: MigrationReader = async (folder) => {
 }
 
 /**
- * Read and validate the `db:fresh` settings. Nothing touches the database
- * here; every failure is a refusal.
+ * Read and validate the settings `db:migrate` and `db:fresh` share. Nothing
+ * touches the database here; every failure is a refusal.
  *
  * @param loadConfig - Loads the `drizzle.config.ts` default export.
  * @param readMigrations - Reads the migrations folder; drizzle-orm's reader
@@ -145,14 +163,73 @@ export async function loadMigrationSettings(
     loadConfig: MigrationConfigLoader,
     readMigrations: MigrationReader = defaultReadMigrations,
 ): Promise<MigrationSettings> {
-    let config: unknown
+    const config = await importConfig(loadConfig)
+    return await withMigrations(parseConfig(config), readMigrations)
+}
+
+/**
+ * Read and validate the `db:fresh` settings: the shared ones plus the reset
+ * scope, from the same single import of `drizzle.config.ts`. The scope is
+ * checked with the rest of the config, before the journal is read.
+ *
+ * @param loadConfig - Loads the `drizzle.config.ts` default export.
+ * @param readMigrations - Reads the migrations folder; drizzle-orm's reader
+ *   by default.
+ * @returns The validated settings, with `schemaFilter`.
+ * @throws {RefusedError} R2 when the configuration cannot be acted on,
+ *   including a malformed postgres `schemaFilter`; R3 when the migrations
+ *   cannot be read.
+ *
+ * @example
+ * ```ts
+ * const settings = await loadFreshSettings(defaultLoadMigrationConfig)
+ * settings.schemaFilter // ['public']
+ * ```
+ */
+export async function loadFreshSettings(
+    loadConfig: MigrationConfigLoader,
+    readMigrations: MigrationReader = defaultReadMigrations,
+): Promise<FreshSettings> {
+    const config = await importConfig(loadConfig)
+    const parsed = parseConfig(config)
+    const schemaFilter = parsed.kitDialect === 'postgresql' && isRecord(config)
+        ? schemaFilterOf(config.schemaFilter)
+        : DEFAULT_SCHEMA_FILTER
+    return {
+        ...(await withMigrations(parsed, readMigrations)),
+        schemaFilter,
+    }
+}
+
+/**
+ * Import `drizzle.config.ts` through the loader, once.
+ *
+ * @param loadConfig - Loads the default export.
+ * @returns The default export, unvalidated.
+ * @throws {RefusedError} R2 when the import fails, its error withheld.
+ */
+async function importConfig(
+    loadConfig: MigrationConfigLoader,
+): Promise<unknown> {
     try {
-        config = await loadConfig()
+        return await loadConfig()
     } catch (error) {
         throw importRefused(error)
     }
-    const parsed = parseConfig(config)
+}
 
+/**
+ * Read the migrations folder a validated config names (R3).
+ *
+ * @param parsed - Every setting read from the config itself.
+ * @param readMigrations - Reads the migrations folder.
+ * @returns The complete settings.
+ * @throws {RefusedError} R3 when the journal or a file it lists is missing.
+ */
+async function withMigrations(
+    parsed: Omit<MigrationSettings, 'migrations' | 'statements'>,
+    readMigrations: MigrationReader,
+): Promise<MigrationSettings> {
     let migrations: readonly (readonly string[])[]
     try {
         migrations = await readMigrations(parsed.folder)
@@ -197,7 +274,7 @@ function importRefused(error: unknown): RefusedError {
  *
  * @param config - The `drizzle.config.ts` default export.
  * @returns Every setting except those read from the migrations folder.
- * @throws {RefusedError} On the first field `db:fresh` cannot act on.
+ * @throws {RefusedError} On the first field neither command can act on.
  */
 function parseConfig(
     config: unknown,
@@ -237,17 +314,13 @@ function parseConfig(
         DEFAULT_TABLE
     const schema = optionalName(migrations.schema, '`migrations.schema`') ??
         DEFAULT_SCHEMA
-    const postgres = kitDialect === 'postgresql'
     return {
         dialect: DIALECT_FROM_KIT[kitDialect as KitDialect],
         kitDialect: kitDialect as KitDialect,
         url,
         folder: config.out,
         table,
-        schema: postgres ? schema : undefined,
-        schemaFilter: postgres
-            ? schemaFilterOf(config.schemaFilter)
-            : DEFAULT_SCHEMA_FILTER,
+        schema: kitDialect === 'postgresql' ? schema : undefined,
     }
 }
 

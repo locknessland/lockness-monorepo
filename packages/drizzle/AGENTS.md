@@ -102,7 +102,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-20 test files for 18 source files:
+21 test files for 18 source files:
 
 - `packages/drizzle/tests/app_file.test.ts`
 - `packages/drizzle/tests/cli_commands.test.ts`
@@ -116,6 +116,7 @@ Anything not listed is internal and free to change.
 - `packages/drizzle/tests/maintenance.test.ts`
 - `packages/drizzle/tests/make_factory.test.ts`
 - `packages/drizzle/tests/make_model_dialect.test.ts`
+- `packages/drizzle/tests/migrate_libsql.test.ts`
 - `packages/drizzle/tests/migration_settings.test.ts`
 - `packages/drizzle/tests/multi_db.test.ts`
 - `packages/drizzle/tests/notice.test.ts`
@@ -146,7 +147,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 20 test files directly —
+Then, specific to this package: run its 21 test files directly —
 
 ```bash
 deno test -A packages/drizzle/

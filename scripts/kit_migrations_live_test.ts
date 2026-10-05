@@ -10,7 +10,9 @@
  *
  * 1. `deno task db:migrate` creates every table the shipped snapshot names,
  *    and every foreign key with its `ON DELETE` action;
- * 2. a second `db:migrate` applies nothing;
+ * 2. a second `db:migrate` applies nothing, and prints no raw server notice:
+ *    since #442 it migrates in-process, so the `schema "drizzle" already
+ *    exists, skipping` notice goes through the #454 reporter;
  * 3. `deno task cli db:fresh` accepts the folder, empties the database and
  *    re-applies it.
  *
@@ -132,6 +134,15 @@ for (const kit of migratingKits()) {
                     ])
                     assert(again.ok, again.output)
                     assertEquals(await applied(), 1)
+                    // A raw postgres.js notice prints as an object holding
+                    // these fields; the #454 reporter prints none of them.
+                    for (const field of ['severity_local', 'routine']) {
+                        assertEquals(
+                            again.output.includes(field),
+                            false,
+                            `a raw notice object was printed:\n${again.output}`,
+                        )
+                    }
 
                     // 3. db:fresh accepts the folder, empties, re-applies.
                     await db`INSERT INTO users (email, password)

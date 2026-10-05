@@ -201,7 +201,7 @@ Deno.test('#444 web and api ship migrations; slim ships none', () => {
 Deno.test('#444 a migrating kit ships drizzle.config.ts and registers db:*', async () => {
     for (const kit of KIT_NAMES) {
         const migrates = MIGRATING_KITS.includes(kit)
-        // Without the config, drizzle-kit migrate and db:fresh have nothing
+        // Without the config, db:migrate and db:fresh have nothing
         // to read; without `lockness.packages`, `db:migrate` is an unknown
         // command — and the kit's README tells the user to run it.
         assertEquals(

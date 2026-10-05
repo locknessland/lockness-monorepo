@@ -20,10 +20,11 @@
  *    runs `cli.ts <command>`, names a command the app's CLI registers;
  * 3. for the kits that ship migrations, with `DATABASE_URL` unset — the
  *    state the scaffold ships in — the drizzle config holds no credentials at
- *    all, `db:migrate` fails saying a url is required, and `db:fresh`
- *    refuses before connecting. A fallback url of ANY spelling would point a
- *    destructive command at a database nobody chose; `kits.test.ts` only
- *    catches the `?? ''` spelling.
+ *    all, and `db:migrate` and `db:fresh` both refuse before connecting,
+ *    saying `dbCredentials` is not set (#442: `db:migrate` reads the config
+ *    in-process, as `db:fresh` does). A fallback url of ANY spelling would
+ *    point a destructive command at a database nobody chose; `kits.test.ts`
+ *    only catches the `?? ''` spelling.
  *
  * Step 3 is ordered so this test cannot itself be destructive: the config is
  * proven credential-free before `db:fresh` runs, `.env` is proven to set no
@@ -284,7 +285,7 @@ for (const kit of Object.keys(KITS) as KitName[]) {
             if (!shipsMigrations(kit)) return
 
             await t.step(
-                'unset DATABASE_URL: no credentials, db:migrate fails, db:fresh refuses',
+                'unset DATABASE_URL: no credentials, db:migrate and db:fresh refuse',
                 async () => {
                     const dotenv = await Deno.readTextFile(join(dir, '.env'))
                     assertEquals(
@@ -307,7 +308,12 @@ for (const kit of Object.keys(KITS) as KitName[]) {
                     assertEquals(migrate.ok, false, migrate.output)
                     assertStringIncludes(
                         migrate.output,
-                        'connection "url" or "host", "database" are required',
+                        'db:migrate refused: drizzle.config.ts: ' +
+                            '`dbCredentials` is not set',
+                    )
+                    assertStringIncludes(
+                        migrate.output,
+                        'No migration was applied.',
                     )
 
                     const fresh = await inApp(dir, ['task', 'cli', 'db:fresh'])

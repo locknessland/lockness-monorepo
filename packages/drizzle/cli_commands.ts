@@ -35,6 +35,8 @@ import type { SchemaMaintenance } from './drivers.ts'
 import { DRIZZLE_KIT_SPECIFIER } from './generators/dialect_schema.ts'
 import {
     defaultLoadMigrationConfig,
+    type FreshSettings,
+    loadFreshSettings,
     loadMigrationSettings,
     type MigrationConfigLoader,
     type MigrationSettings,
@@ -114,7 +116,8 @@ export type SeederLoader = (
 
 /**
  * One open connection's schema-maintenance capability, plus the way to close
- * it — what `db:fresh` resets and migrates through (#435).
+ * it — what `db:fresh` resets and migrates through (#435), and what
+ * `db:migrate` migrates through (#442).
  */
 export type MaintenanceSession = SchemaMaintenance & {
     /** Close the connection. Called on every path that opened it. */
@@ -122,13 +125,13 @@ export type MaintenanceSession = SchemaMaintenance & {
 }
 
 /**
- * Opens the connection `db:fresh` works on, from the settings read out of
- * `drizzle.config.ts` — the same url and dialect `drizzle-kit` would use.
+ * Opens the connection `db:migrate` and `db:fresh` work on, from the settings
+ * read out of `drizzle.config.ts` — its url and dialect.
  *
- * @param settings - The validated `db:fresh` settings.
+ * @param settings - The validated settings.
  * @returns The open session.
  * @throws When the client cannot be configured, or has no maintenance
- *   capability (a refusal: nothing is dropped).
+ *   capability (a refusal: nothing is changed).
  */
 export type MaintenanceOpener = (
     settings: MigrationSettings,
@@ -150,9 +153,9 @@ export interface DrizzleCommandDeps {
     readonly runCommand: CommandRunner
     /** Seeder-loader port replacing `db:seed`'s dynamic import. */
     readonly loadSeeder: SeederLoader
-    /** `db:fresh`: loads the `drizzle.config.ts` default export. */
+    /** `db:migrate` and `db:fresh`: loads the `drizzle.config.ts` default export. */
     readonly loadMigrationConfig: MigrationConfigLoader
-    /** `db:fresh`: opens the connection it resets and migrates through. */
+    /** `db:migrate` and `db:fresh`: opens the connection they migrate through. */
     readonly openMaintenance: MaintenanceOpener
 }
 
@@ -166,8 +169,10 @@ type SeederConstructor = new () => { run(): Promise<void> }
 // =============================================================================
 
 /**
- * Drizzle Kit CLI command base. The `npm:` specifier is a hard-rule-2
- * exception, pinned exactly — see {@link DRIZZLE_KIT_SPECIFIER} (#437).
+ * Drizzle Kit CLI command base, for `db:generate`, `db:push`, `db:studio` and
+ * `db:status`, and for the fallback a kit-only `db:migrate` refusal names. The
+ * `npm:` specifier is a hard-rule-2 exception, pinned exactly — see
+ * {@link DRIZZLE_KIT_SPECIFIER} (#437).
  */
 const DRIZZLE_KIT_ARGS = ['run', '-A', DRIZZLE_KIT_SPECIFIER] as const
 
@@ -260,14 +265,15 @@ export const defaultLoadSeeder: SeederLoader = (relativePath) =>
 /**
  * Production opener: configures the container's `Database` from the
  * `drizzle.config.ts` url and dialect, and hands out its redacting
- * maintenance capability.
+ * maintenance capability. Being the in-process client, it routes postgres
+ * notices through the #454 reporter.
  *
- * @param settings - The validated `db:fresh` settings.
+ * @param settings - The validated settings.
  * @returns The session; closing it closes the `Database`.
  * @throws {Error} When the client cannot be configured (the redacted
  *   `ConnectionResult.error`).
- * @throws {RefusedError} R4: the driver offers no maintenance
- *   capability — a custom driver factory need not.
+ * @throws {RefusedError} R4, `kitOnly`: the driver offers no maintenance
+ *   capability — a custom driver factory need not. The client is closed.
  */
 const defaultOpenMaintenance: MaintenanceOpener = async (settings) => {
     const db = container.get<Database>(Database)
@@ -285,7 +291,9 @@ const defaultOpenMaintenance: MaintenanceOpener = async (settings) => {
         await db.close()
         throw new RefusedError(
             `the '${settings.dialect}' driver offers no schema maintenance ` +
-                '(a custom driver factory?)',
+                '(a custom driver factory?): give the factory a ' +
+                '`maintenance` capability',
+            { kitOnly: true },
         )
     }
     return { ...maintenance, close: () => db.close() }
@@ -363,27 +371,40 @@ function refuseInProduction(command: string, args: readonly string[]): void {
 }
 
 /**
- * What each schema command says after a refusal: that it changed nothing.
- * The sentence belongs to the command, so the shared loader never has to know
- * which command called it (#442).
+ * How each schema command frames a refusal: the sentence saying it changed
+ * nothing, and whether it names drizzle-kit as the fallback for a
+ * configuration only drizzle-kit can run. Both belong to the command, so the
+ * shared loader never has to know which command called it (#442).
+ *
+ * `db:fresh` never names the fallback: drizzle-kit has no equivalent, and
+ * `drizzle-kit drop` deletes migration files.
  */
-const REFUSAL_OUTCOME = {
-    'db:fresh': 'Nothing was dropped',
+const REFUSAL_FRAME = {
+    'db:migrate': { outcome: 'No migration was applied', kitFallback: true },
+    'db:fresh': { outcome: 'Nothing was dropped', kitFallback: false },
 } as const
 
 /** A command that frames a {@link RefusedError}. */
-type RefusingCommand = keyof typeof REFUSAL_OUTCOME
+type RefusingCommand = keyof typeof REFUSAL_FRAME
 
 /**
  * Frame a refusal for the command that caught it:
- * `<command> refused: <reason>. <outcome>.`
+ * `<command> refused: <reason>. <outcome>.`, with the drizzle-kit command
+ * inserted before the last sentence when the command offers it and the
+ * configuration is `kitOnly`. The command is built from the same pinned
+ * argv the other commands run, so the advice cannot drift from the pin.
  *
  * @param command - The command that refused.
  * @param error - The refusal, carrying only its reason.
  * @returns The message the command fails with.
  */
 function refusalMessage(command: RefusingCommand, error: RefusedError): string {
-    return `${command} refused: ${error.reason}. ${REFUSAL_OUTCOME[command]}.`
+    const frame = REFUSAL_FRAME[command]
+    const fallback = frame.kitFallback && error.kitOnly
+        ? '; drizzle-kit can still apply this configuration: ' +
+            `deno ${DRIZZLE_KIT_ARGS.join(' ')} migrate`
+        : ''
+    return `${command} refused: ${error.reason}${fallback}. ${frame.outcome}.`
 }
 
 /**
@@ -407,6 +428,66 @@ function failureMessage(
 }
 
 /**
+ * Handle `db:migrate` — apply every pending migration in-process, through the
+ * settings loader and the maintenance opener `db:fresh` uses (#442), so the
+ * two commands cannot reach different databases from one config.
+ *
+ * Order: the settings from `drizzle.config.ts` (R2, R3), the connection (R4),
+ * drizzle-orm's migrator; the connection is closed on every path that opened
+ * it. There is no production guard: this is the deploy step
+ * (`./nessy db:migrate && ./nessy start`). Nothing is spawned.
+ *
+ * @param deps - The I/O seams.
+ * @throws {CommandFailedError} On any failure; a refusal says that no
+ *   migration was applied, and names drizzle-kit when it can still run the
+ *   configuration.
+ */
+async function handleMigrate(deps: DrizzleCommandDeps): Promise<void> {
+    console.log('🚀 Running migrations...')
+
+    let settings: MigrationSettings
+    try {
+        settings = await loadMigrationSettings(deps.loadMigrationConfig)
+    } catch (error) {
+        throw new CommandFailedError(failureMessage('db:migrate', error), {
+            cause: error,
+        })
+    }
+
+    let session: MaintenanceSession
+    try {
+        session = await deps.openMaintenance(settings)
+    } catch (error) {
+        throw new CommandFailedError(
+            failureMessage(
+                'db:migrate',
+                error,
+                'Could not open the database: ',
+            ),
+            { cause: error },
+        )
+    }
+
+    try {
+        try {
+            await session.migrate({
+                folder: settings.folder,
+                table: settings.table,
+                schema: settings.schema,
+            })
+        } catch (error) {
+            throw new CommandFailedError(
+                `Failed to apply migrations: ${getErrorMessage(error)}`,
+                { cause: error },
+            )
+        }
+        console.log('✅ Migrations applied successfully')
+    } finally {
+        await session.close()
+    }
+}
+
+/**
  * Handle `db:fresh` — empty the managed scope, then apply every migration,
  * in one process over one connection (#435).
  *
@@ -427,9 +508,9 @@ async function handleFresh(
 ): Promise<void> {
     refuseInProduction('db:fresh', args)
 
-    let settings: MigrationSettings
+    let settings: FreshSettings
     try {
-        settings = await loadMigrationSettings(deps.loadMigrationConfig)
+        settings = await loadFreshSettings(deps.loadMigrationConfig)
     } catch (error) {
         throw new CommandFailedError(failureMessage('db:fresh', error), {
             cause: error,
@@ -622,7 +703,7 @@ async function loadDatabaseSeeder(
  *
  * Adds the following commands to the CLI:
  * - `db:generate` - Generate migration files from schema changes
- * - `db:migrate` - Run pending database migrations
+ * - `db:migrate` - Run pending database migrations, in-process
  * - `db:push` - Push schema changes directly to database
  * - `db:studio` - Open Drizzle Studio GUI
  * - `db:status` - Check the migration history for consistency
@@ -641,7 +722,8 @@ async function loadDatabaseSeeder(
  * @param overrides - Optional I/O-seam overrides for testing; each unset field
  *   defaults to real I/O (the container-resolved connection, `Deno.Command`,
  *   a dynamic seeder import, the `drizzle.config.ts` import, and the
- *   container's `Database` opened from it).
+ *   container's `Database` opened from it). `db:migrate` runs through the
+ *   last two, not the command runner.
  *
  * @example
  * ```ts
@@ -713,11 +795,7 @@ export function registerDrizzleCommands(
 
     cli.register(
         'db:migrate',
-        async () => {
-            console.log('🚀 Running migrations...')
-            await runKitOrFail('migrate', 'Failed to apply migrations')
-            console.log('✅ Migrations applied successfully')
-        },
+        () => handleMigrate(deps),
         'Run pending database migrations',
     )
 

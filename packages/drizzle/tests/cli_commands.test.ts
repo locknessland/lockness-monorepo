@@ -3,12 +3,12 @@
  *
  * The `db:*` commands are exercised through the injectable seams of
  * {@link registerDrizzleCommands} — a command-runner, a connection port, a
- * seeder-loader, and for `db:fresh` a config loader and a maintenance opener —
- * so no test opens a real database, spawns a real process, or hits the
- * network. The five shell-out commands are validated by asserting the
- * **constructed `drizzle-kit` argv**, never by executing it. `db:fresh`
- * (#435) spawns nothing: its tests run with a runner and prompt APIs that
- * throw if called.
+ * seeder-loader, and for `db:migrate` and `db:fresh` a config loader and a
+ * maintenance opener — so no test opens a real database, spawns a real
+ * process, or hits the network. The four shell-out commands are validated by
+ * asserting the **constructed `drizzle-kit` argv**, never by executing it.
+ * `db:fresh` (#435) and `db:migrate` (#442) spawn nothing: their tests run
+ * with a runner that throws if called.
  *
  * @module @lockness/drizzle/tests/cli_commands
  */
@@ -27,10 +27,12 @@ import {
     type CommandRunner,
     type CommandSpec,
     type DbConnection,
+    type DrizzleCommandDeps,
     type MaintenanceSession,
     registerDrizzleCommands,
     type SeederLoader,
 } from '../cli_commands.ts'
+import type { MigrateOptions } from '../drivers.ts'
 import type { MigrationSettings } from '../migration_settings.ts'
 import { DRIZZLE_KIT_SPECIFIER } from '../generators/dialect_schema.ts'
 
@@ -123,7 +125,6 @@ Deno.test('registerDrizzleCommands - registers the full db:* / make:* set', () =
 
 const shellCommands: ReadonlyArray<readonly [string, string]> = [
     ['db:generate', 'generate'],
-    ['db:migrate', 'migrate'],
     ['db:push', 'push'],
     ['db:studio', 'studio'],
     ['db:status', 'check'],
@@ -196,24 +197,33 @@ Deno.test('db:status - only claims migration-history consistency, never drift', 
 })
 
 Deno.test('wiring - a real Cli exits 1 on a failed db:migrate, printing one error line', async () => {
-    const errors: unknown[][] = []
-    const { log, error } = console
-    console.log = () => {}
-    console.error = (...args: unknown[]) => void errors.push(args)
-    try {
-        const cli = new Cli()
-        registerDrizzleCommands(cli, { runCommand: fakeRunner([1]).run })
+    await withMigrations(async (folder) => {
+        const errors: unknown[][] = []
+        const { log, error } = console
+        console.log = () => {}
+        console.error = (...args: unknown[]) => void errors.push(args)
+        try {
+            const cli = new Cli()
+            registerDrizzleCommands(
+                cli,
+                migrateDeps({
+                    dialect: 'sqlite',
+                    out: folder,
+                    dbCredentials: { url: 'file:./migrate-test.db' },
+                }, { failMigrate: true }).deps,
+            )
 
-        const status = await cli.dispatch(['db:migrate'])
+            const status = await cli.dispatch(['db:migrate'])
 
-        assertEquals(status, 1)
-        assertEquals(errors, [[
-            '❌ Failed to apply migrations (drizzle-kit migrate exited 1)',
-        ]])
-    } finally {
-        console.log = log
-        console.error = error
-    }
+            assertEquals(status, 1)
+            assertEquals(errors, [[
+                '❌ Failed to apply migrations: migrate failed',
+            ]])
+        } finally {
+            console.log = log
+            console.error = error
+        }
+    })
 })
 
 for (const [command, subcommand] of shellCommands) {
@@ -1059,7 +1069,9 @@ Deno.test('db:fresh - R2 and R3 refuse before the connection is opened', async (
             )
 
             assert(error instanceof CommandFailedError, label)
-            assertStringIncludes(error.message, 'Nothing was dropped', label)
+            assert(error.message.startsWith('db:fresh refused: '), label)
+            assert(error.message.endsWith('. Nothing was dropped.'), label)
+            assertEquals(error.message.includes('drizzle-kit'), false, label)
             assertEquals(calls, [], `${label}: the connection was opened`)
             assertEquals(lines.join('\n').includes('refreshed'), false, label)
         }
@@ -1259,6 +1271,7 @@ Deno.test('db:fresh - R4 refuses a driver without the maintenance capability', a
             assert(error instanceof CommandFailedError, String(error))
             assertStringIncludes(error.message, 'schema maintenance')
             assertStringIncludes(error.message, 'Nothing was dropped')
+            assertEquals(error.message.includes('drizzle-kit'), false)
             assertEquals(container.get(Database).isConnected(), false)
         } finally {
             container.delete(Database)
@@ -1314,5 +1327,561 @@ Deno.test('db:fresh --allow-production - runs under production with the override
         assertEquals(error, undefined)
         assertEquals(calls.at(-1), 'close')
         assertEquals(calls.includes('migrate'), true)
+    })
+})
+
+// -----------------------------------------------------------------------------
+// db:migrate (#442) — in-process, through the db:fresh settings and opener
+// -----------------------------------------------------------------------------
+
+/** The drizzle-kit fallback clause a kit-only `db:migrate` refusal carries. */
+const KIT_CLAUSE = '; drizzle-kit can still apply this configuration: ' +
+    `deno run -A ${DRIZZLE_KIT_SPECIFIER} migrate`
+
+/**
+ * A value no output may quote, assembled at runtime so no scanner reads a
+ * credential into the source.
+ */
+const SENTINEL = ['sentinel', 'not-a-real-secret'].join('-')
+
+/**
+ * The `db:migrate` seams around a fake session that records every call and
+ * every set of migrate options. `runCommand` counts and throws: `db:migrate`
+ * must spawn nothing.
+ */
+function migrateDeps(
+    config: unknown,
+    options: {
+        readonly failMigrate?: boolean
+        readonly openError?: unknown
+    } = {},
+) {
+    const calls: string[] = []
+    const opened: MigrationSettings[] = []
+    const migrated: MigrateOptions[] = []
+    const spawned: CommandSpec[] = []
+    const session: MaintenanceSession = {
+        query: () => {
+            calls.push('query')
+            return Promise.resolve([])
+        },
+        execute: () => {
+            calls.push('execute')
+            return Promise.resolve()
+        },
+        migrate: (migrate) => {
+            calls.push('migrate')
+            migrated.push(migrate)
+            return options.failMigrate
+                ? Promise.reject(new Error('migrate failed'))
+                : Promise.resolve()
+        },
+        close: () => {
+            calls.push('close')
+            return Promise.resolve()
+        },
+    }
+    const deps: Partial<DrizzleCommandDeps> = {
+        runCommand: (spec) => {
+            spawned.push(spec)
+            throw new Error('db:migrate spawned a process')
+        },
+        loadMigrationConfig: () => Promise.resolve(config),
+        openMaintenance: (settings) => {
+            calls.push('open')
+            opened.push(settings)
+            return options.openError === undefined
+                ? Promise.resolve(session)
+                : Promise.reject(options.openError)
+        },
+    }
+    return { calls, opened, migrated, spawned, deps }
+}
+
+/** Run one command on a fresh FakeCli, outside production; capture it. */
+async function invoke(
+    command: string,
+    deps: Partial<DrizzleCommandDeps>,
+    ...args: string[]
+): Promise<{ readonly lines: string[]; readonly error: unknown }> {
+    const cli = new FakeCli()
+    registerDrizzleCommands(cli, deps)
+    return await capture(() =>
+        withAppEnv(undefined, () => cli.run(command, ...args))
+    )
+}
+
+Deno.test('#442 db:migrate hands out, migrations.table and migrations.schema to the migrator', async () => {
+    await withMigrations(async (folder) => {
+        const cases: Array<[string, Record<string, unknown>, MigrateOptions]> =
+            [
+                ['postgres custom', {
+                    dialect: 'postgresql',
+                    out: folder,
+                    dbCredentials: { url: 'postgres://app@localhost/app' },
+                    migrations: { table: 'history', schema: 'meta' },
+                }, { folder, table: 'history', schema: 'meta' }],
+                ['postgres defaults', {
+                    dialect: 'postgresql',
+                    out: folder,
+                    dbCredentials: { url: 'postgres://app@localhost/app' },
+                }, {
+                    folder,
+                    table: '__drizzle_migrations',
+                    schema: 'drizzle',
+                }],
+                ['mysql', {
+                    dialect: 'mysql',
+                    out: folder,
+                    dbCredentials: { url: 'mysql://app@localhost/app' },
+                    migrations: { table: 'history', schema: 'ignored' },
+                }, { folder, table: 'history', schema: undefined }],
+            ]
+        for (const [label, config, expected] of cases) {
+            const { calls, migrated, deps } = migrateDeps(config)
+
+            const { lines, error } = await invoke('db:migrate', deps)
+
+            assertEquals(error, undefined, label)
+            assertEquals(migrated, [expected], label)
+            assertEquals(calls, ['open', 'migrate', 'close'], label)
+            assertEquals(lines, [
+                '🚀 Running migrations...',
+                '✅ Migrations applied successfully',
+            ], label)
+        }
+    })
+})
+
+Deno.test('#442 db:migrate and db:fresh hand the migrator identical options', async () => {
+    await withMigrations(async (folder) => {
+        const { migrated, deps } = migrateDeps({
+            dialect: 'postgresql',
+            out: folder,
+            dbCredentials: { url: 'postgres://app@localhost/app' },
+            migrations: { table: 'history', schema: 'meta' },
+        })
+
+        assertEquals((await invoke('db:migrate', deps)).error, undefined)
+        assertEquals((await invoke('db:fresh', deps)).error, undefined)
+
+        assertEquals(migrated.length, 2)
+        assertEquals(migrated[0], migrated[1])
+    })
+})
+
+Deno.test('#442 db:migrate spawns nothing', async () => {
+    await withMigrations(async (folder) => {
+        const { spawned, deps } = migrateDeps({
+            dialect: 'sqlite',
+            out: folder,
+            dbCredentials: { url: 'file:./migrate-test.db' },
+        })
+
+        const { error } = await invoke('db:migrate', deps)
+
+        assertEquals(error, undefined)
+        assertEquals(spawned, [])
+    })
+})
+
+Deno.test('#442 db:migrate runs in production without --allow-production', async () => {
+    await withMigrations(async (folder) => {
+        const { calls, deps } = migrateDeps({
+            dialect: 'sqlite',
+            out: folder,
+            dbCredentials: { url: 'file:./migrate-test.db' },
+        })
+        const cli = new FakeCli()
+        registerDrizzleCommands(cli, deps)
+
+        const { error } = await capture(() =>
+            withAppEnv('production', () => cli.run('db:migrate'))
+        )
+
+        assertEquals(error, undefined)
+        assertEquals(calls, ['open', 'migrate', 'close'])
+    })
+})
+
+/** One refused configuration, as `db:migrate` must report it. */
+interface MigrateRefusal {
+    readonly label: string
+    readonly config: (folder: string) => Record<string, unknown>
+    readonly holds: readonly string[]
+    readonly kitOnly: boolean
+}
+
+/** A config for `dialect` with `dbCredentials` replaced. */
+const credentials =
+    (dialect: string, dbCredentials: unknown) =>
+    (folder: string): Record<string, unknown> => ({
+        dialect,
+        out: folder,
+        dbCredentials,
+    })
+
+/** A postgresql config with `extra` merged in. */
+const postgresWith =
+    (extra: Record<string, unknown>) =>
+    (folder: string): Record<string, unknown> => ({
+        dialect: 'postgresql',
+        out: folder,
+        dbCredentials: { url: 'postgres://app@localhost/app' },
+        ...extra,
+    })
+
+/** Every row of the #442 table, and every #456 form. */
+const MIGRATE_REFUSALS: readonly MigrateRefusal[] = [
+    {
+        label: 'postgresql host fields',
+        config: credentials('postgresql', { host: 'h', password: 'p' }),
+        holds: [
+            'host fields (`host`, `password`)',
+            '`postgresql://<user>:<password>@<host>:<port>/<database>`',
+        ],
+        kitOnly: false,
+    },
+    {
+        label: 'mysql host fields',
+        config: credentials('mysql', { host: 'h', database: 'd' }),
+        holds: [
+            'host fields (`host`, `database`)',
+            '`mysql://<user>:<password>@<host>:<port>/<database>`',
+        ],
+        kitOnly: false,
+    },
+    {
+        label: 'ssl mode',
+        config: credentials('postgresql', {
+            url: 'postgres://app@localhost/app',
+            ssl: 'require',
+        }),
+        holds: ['`dbCredentials.ssl` is set', '`?sslmode=verify-full`'],
+        kitOnly: false,
+    },
+    {
+        label: 'ssl certificate',
+        config: credentials('postgresql', {
+            url: 'postgres://app@localhost/app',
+            ssl: { ca: 'x' },
+        }),
+        holds: ['an `ssl` certificate cannot be written in a url'],
+        kitOnly: true,
+    },
+    {
+        label: 'turso authToken',
+        config: credentials('turso', {
+            url: 'libsql://app.example',
+            authToken: 't',
+        }),
+        holds: [
+            '`dbCredentials.authToken` is set',
+            '`?authToken=<token>`',
+        ],
+        kitOnly: false,
+    },
+    {
+        label: 'url and host fields',
+        config: credentials('postgresql', {
+            url: 'postgres://app@localhost/app',
+            port: 5432,
+        }),
+        holds: ['sets both `url` and host fields (`port`)', 'remove the host'],
+        kitOnly: false,
+    },
+    {
+        label: 'an unknown key',
+        config: credentials('postgresql', {
+            url: 'postgres://app@localhost/app',
+            secretArn: 'x',
+        }),
+        holds: ['holds keys Lockness does not read', 'remove them'],
+        kitOnly: false,
+    },
+    ...['aws-data-api', 'pglite', 'd1-http', 'expo', 'durable-sqlite'].map(
+        (driver): MigrateRefusal => ({
+            label: `driver ${driver}`,
+            config: postgresWith({ driver }),
+            holds: [
+                `\`driver\` is '${driver}', a client Lockness does not run`,
+            ],
+            kitOnly: true,
+        }),
+    ),
+    {
+        label: 'another driver',
+        config: postgresWith({ driver: 'turso' }),
+        holds: ['`driver` is set', 'remove `driver`'],
+        kitOnly: false,
+    },
+    ...['singlestore', 'gel'].map((dialect): MigrateRefusal => ({
+        label: `dialect ${dialect}`,
+        config: postgresWith({ dialect }),
+        holds: [`\`dialect\` is '${dialect}', which Lockness does not run`],
+        kitOnly: true,
+    })),
+    {
+        label: 'out not set',
+        config: postgresWith({ out: undefined }),
+        holds: [
+            '`out` (the migrations folder) is not set',
+            'set `out` to your migrations folder',
+        ],
+        kitOnly: false,
+    },
+    ...([
+        ['postgresql', 'postgres://localhost:5432/'],
+        ['postgresql', 'postgres://localhost/app?database=other'],
+        ['postgresql', 'postgres://app@x%2Ch:5432/app'],
+        ['mysql', 'mysql://localhost:3306/'],
+        ['sqlite', 'file:'],
+        ['turso', 'file://'],
+    ] as const).map(([dialect, url]): MigrateRefusal => ({
+        label: `#456 ${dialect} ${url}`,
+        config: credentials(dialect, { url }),
+        holds: ['`dbCredentials.url` names no database', 'put it in the path'],
+        kitOnly: false,
+    })),
+]
+
+for (const refusal of MIGRATE_REFUSALS) {
+    Deno.test(`#442 db:migrate refuses before connecting: ${refusal.label}`, async () => {
+        await withMigrations(async (folder) => {
+            const { opened, spawned, deps } = migrateDeps(
+                refusal.config(folder),
+            )
+
+            const { lines, error } = await invoke('db:migrate', deps)
+
+            assert(error instanceof CommandFailedError, String(error))
+            assertEquals(error.exitCode, 1)
+            const message = error.message
+            assert(
+                message.startsWith('db:migrate refused: drizzle.config.ts: '),
+                message,
+            )
+            assert(message.endsWith('. No migration was applied.'), message)
+            for (const fragment of refusal.holds) {
+                assertStringIncludes(message, fragment)
+            }
+            assertEquals(message.includes(KIT_CLAUSE), refusal.kitOnly, message)
+            if (refusal.kitOnly) {
+                assert(
+                    message.endsWith(
+                        `${KIT_CLAUSE}. No migration was applied.`,
+                    ),
+                    message,
+                )
+            }
+            assertEquals(opened.length, 0, 'the connection was opened')
+            assertEquals(spawned, [])
+            assertEquals(
+                lines.join('\n').includes('applied successfully'),
+                false,
+            )
+        })
+    })
+}
+
+Deno.test('#442 no db:migrate refusal quotes a credential', async () => {
+    await withMigrations(async (folder) => {
+        const configs: Record<string, unknown>[] = [
+            credentials('postgresql', {
+                host: 'h',
+                user: 'app',
+                password: SENTINEL,
+            })(folder),
+            credentials('turso', {
+                url: 'libsql://app.example',
+                authToken: SENTINEL,
+            })(folder),
+            credentials('postgresql', {
+                url: `postgres://app:${SENTINEL}@h/app`,
+                host: 'h',
+            })(folder),
+            credentials('postgresql', {
+                url: `postgres://app:${SENTINEL}@h/`,
+            })(folder),
+            credentials('postgresql', {
+                url: 'postgres://app@h/app',
+                [SENTINEL]: SENTINEL,
+            })(folder),
+            postgresWith({ driver: SENTINEL })(folder),
+            postgresWith({ dialect: SENTINEL })(folder),
+        ]
+        for (const config of configs) {
+            const { deps } = migrateDeps(config)
+
+            const { lines, error } = await invoke('db:migrate', deps)
+
+            assert(error instanceof CommandFailedError, String(error))
+            const output = [...lines, error.message, error.stack ?? ''].join(
+                '\n',
+            )
+            assertEquals(output.includes(SENTINEL), false, output)
+        }
+    })
+})
+
+Deno.test('#442 a malformed schemaFilter blocks db:fresh, not db:migrate', async () => {
+    await withMigrations(async (folder) => {
+        for (const schemaFilter of [[], 42]) {
+            const config = postgresWith({ schemaFilter })(folder)
+
+            const migrate = migrateDeps(config)
+            const migrated = await invoke('db:migrate', migrate.deps)
+            assertEquals(migrated.error, undefined, String(migrated.error))
+            assertEquals(migrate.migrated.length, 1)
+
+            const fresh = migrateDeps(config)
+            const { error } = await invoke('db:fresh', fresh.deps)
+            assert(error instanceof CommandFailedError, String(error))
+            assertStringIncludes(error.message, '`schemaFilter`')
+            assertEquals(fresh.opened.length, 0)
+        }
+    })
+})
+
+Deno.test('#442 db:migrate accepts the documented url alternatives verbatim', async () => {
+    await withMigrations(async (folder) => {
+        for (
+            const [dialect, url] of [
+                ['turso', 'libsql://app.example?authToken=<token>'],
+                [
+                    'postgresql',
+                    'postgresql://app@h:5432/app?sslmode=verify-full&sslrootcert=system',
+                ],
+                [
+                    'mysql',
+                    'mysql://app@h:3306/app?ssl=%7B%22rejectUnauthorized%22%3Atrue%7D',
+                ],
+            ]
+        ) {
+            const { opened, deps } = migrateDeps(
+                credentials(dialect, { url })(folder),
+            )
+
+            const { error } = await invoke('db:migrate', deps)
+
+            assertEquals(error, undefined, url)
+            assertEquals(opened.map((s) => s.url), [url])
+        }
+    })
+})
+
+Deno.test('#442 db:migrate refuses a missing journal before connecting', async () => {
+    await withMigrations(async (folder) => {
+        const { opened, deps } = migrateDeps({
+            dialect: 'sqlite',
+            out: `${folder}/absent`,
+            dbCredentials: { url: 'file:./migrate-test.db' },
+        })
+
+        const { error } = await invoke('db:migrate', deps)
+
+        assert(error instanceof CommandFailedError, String(error))
+        assertStringIncludes(
+            error.message,
+            'db:migrate refused: the migrations',
+        )
+        assertStringIncludes(error.message, 'No migration was applied.')
+        assertEquals(opened.length, 0)
+    })
+})
+
+Deno.test('#442 db:migrate frames R4 with the drizzle-kit clause, and closes the client', async () => {
+    await withMigrations(async (folder) => {
+        container.delete(Database)
+        try {
+            container.get(Database).setDriverFactory(
+                'sqlite',
+                () =>
+                    Promise.resolve({
+                        db: {},
+                        close: () => Promise.resolve(),
+                        probe: () => Promise.resolve(),
+                    }),
+            )
+            const { deps } = migrateDeps({
+                dialect: 'sqlite',
+                out: folder,
+                dbCredentials: { url: 'file:./migrate-test.db' },
+            })
+
+            const { error } = await invoke('db:migrate', {
+                runCommand: deps.runCommand,
+                loadMigrationConfig: deps.loadMigrationConfig,
+            })
+
+            assert(error instanceof CommandFailedError, String(error))
+            assertEquals(
+                error.message,
+                "db:migrate refused: the 'sqlite' driver offers no schema " +
+                    'maintenance (a custom driver factory?): give the ' +
+                    `factory a \`maintenance\` capability${KIT_CLAUSE}. ` +
+                    'No migration was applied.',
+            )
+            assertEquals(container.get(Database).isConnected(), false)
+        } finally {
+            container.delete(Database)
+        }
+    })
+})
+
+Deno.test('#442 a failed db:migrate exits 1, prints no success line, and closes', async () => {
+    await withMigrations(async (folder) => {
+        const { calls, deps } = migrateDeps({
+            dialect: 'sqlite',
+            out: folder,
+            dbCredentials: { url: 'file:./migrate-test.db' },
+        }, { failMigrate: true })
+
+        const { lines, error } = await invoke('db:migrate', deps)
+
+        assert(error instanceof CommandFailedError, String(error))
+        assertEquals(
+            error.message,
+            'Failed to apply migrations: migrate failed',
+        )
+        assertEquals(error.exitCode, 1)
+        assertEquals(lines.join('\n').includes('applied successfully'), false)
+        assertEquals(calls.at(-1), 'close', 'the session was not closed')
+    })
+})
+
+Deno.test('#442 db:migrate on a client that cannot be configured exits 1', async () => {
+    await withMigrations(async (folder) => {
+        const { deps } = migrateDeps({
+            dialect: 'sqlite',
+            out: folder,
+            dbCredentials: { url: 'file:./migrate-test.db' },
+        }, { openError: new Error('Database not configured: no client') })
+
+        const { lines, error } = await invoke('db:migrate', deps)
+
+        assert(error instanceof CommandFailedError, String(error))
+        assertEquals(
+            error.message,
+            'Could not open the database: Database not configured: no client',
+        )
+        assertEquals(lines.join('\n').includes('applied successfully'), false)
+    })
+})
+
+Deno.test('#442 db:fresh frames a kit-only refusal as before, with no drizzle-kit clause', async () => {
+    await withMigrations(async (folder) => {
+        const { deps } = migrateDeps(postgresWith({ driver: 'pglite' })(folder))
+
+        const { error } = await invoke('db:fresh', deps)
+
+        assert(error instanceof CommandFailedError, String(error))
+        assertEquals(
+            error.message,
+            "db:fresh refused: drizzle.config.ts: `driver` is 'pglite', a " +
+                'client Lockness does not run; it connects through ' +
+                'postgres.js, mysql2 and libsql only. Nothing was dropped.',
+        )
+        assertEquals(error.message.includes('drizzle-kit'), false)
     })
 })
