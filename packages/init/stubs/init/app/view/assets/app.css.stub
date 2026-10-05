@@ -1,28 +1,68 @@
 /**
- * Main application CSS file
- * 
- * Add your custom styles here.
- * You can use any CSS framework you like (Tailwind, Bootstrap, etc.)
- * or write plain CSS.
+ * Tailwind v4 entry point.
+ *
+ * `deno task css:build` compiles this file to public/css/app.css, which
+ * app/view/layouts/main_layout.tsx links; `deno task css:watch` does the same
+ * on every change. Both run the Tailwind CLI (`@tailwindcss/cli` in deno.json).
+ * Tailwind comes from npm because it is not published on JSR.
+ *
+ * `source('../..')` scans app/ for class names, so a class used anywhere in
+ * your views, components or controllers gets a rule.
  */
+@import 'tailwindcss' source('../..');
 
+/**
+ * Design tokens, as plain CSS variables. Use one directly with the v4
+ * parenthesis syntax: `bg-(--primary)`, `text-(--muted-foreground)`.
+ */
 :root {
-    --primary-color: #3b82f6;
-    --text-color: #1f2937;
-    --bg-color: #ffffff;
+    --background: #ffffff;
+    --foreground: #1f2937;
+    --primary: #3b82f6;
+    --primary-foreground: #ffffff;
+    --secondary: #f3f4f6;
+    --secondary-foreground: #1f2937;
+    --accent: #f3f4f6;
+    --accent-foreground: #1f2937;
+    --card: #ffffff;
+    --card-foreground: #1f2937;
+    --muted-foreground: #6b7280;
+    --border: #e5e7eb;
 }
 
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
+/**
+ * The same tokens as theme colours, so `bg-primary`, `text-card-foreground`,
+ * `border-border` and the rest exist as utilities. app/view/components/ui.tsx
+ * uses them. `inline` makes each utility read the variable at runtime, so
+ * overriding a token in :root (or under a class) restyles everything using it.
+ */
+@theme inline {
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-border: var(--border);
 }
 
-body {
-    font-family: system-ui, -apple-system, sans-serif;
-    line-height: 1.6;
-    color: var(--text-color);
-    background: var(--bg-color);
+/**
+ * Base styles go in the base layer. An unlayered rule outranks every Tailwind
+ * utility, whatever its specificity: a bare `* { padding: 0 }` here would
+ * silently cancel `p-6` everywhere.
+ */
+@layer base {
+    body {
+        font-family: system-ui, -apple-system, sans-serif;
+        line-height: 1.6;
+        color: var(--foreground);
+        background: var(--background);
+    }
 }
 
 /* Your custom styles here */

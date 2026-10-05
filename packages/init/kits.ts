@@ -59,7 +59,6 @@ const COMMON: readonly string[] = [
 
 /** The JSX + Tailwind view layer. `web` only. */
 const VIEW: readonly string[] = [
-    'postcss.config.js.stub',
     'scripts/dev.sh.stub',
     'app/view/app.ts.stub',
     'app/view/assets/app.css.stub',
