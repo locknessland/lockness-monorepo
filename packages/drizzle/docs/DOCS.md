@@ -209,6 +209,9 @@ holds a form of a credential, the message is withheld whole:
 The database probe failed (<Name>); its message is withheld because it contains a database credential
 ```
 
+The `(<Name>)` part is left out when the error has no name, or when the name
+itself holds the credential.
+
 The forms checked are the password as written, percent-decoded, and as
 `new URL()` encodes it, and each credential query value such as `authToken`. The
 password is never replaced inside the driver's text: replacing `postgres` would
@@ -222,8 +225,8 @@ that no user, database or host name contains.
 
 **Known limit.** A withheld message still tells the reader that a form of the
 password occurs in the driver's text, though never where. A short password (`e`,
-`5432`) occurs in most texts, so it withholds most messages. The #425 ruling
-accepts this residue rather than refusing short passwords or withholding every
+`5432`) occurs in most texts, so it withholds most messages. This residue is
+accepted by design, rather than refusing short passwords or withholding every
 message: it is a documented limit, not a defect.
 
 ### Server notices
