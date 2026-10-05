@@ -938,3 +938,34 @@ Deno.test('#497 names that only contain the letters survive', () => {
         assertEquals(redactQueryCredentials(text), text)
     }
 })
+
+// ============================================================================
+// #528: every cut passes the marker on, whatever the value it ends
+// ============================================================================
+
+Deno.test('#528 an empty pair a cut starts passes the marker on', () => {
+    // The empty pair sits inside the masked value before it, so the pair
+    // after it does too: an exemption there would show the password's tail.
+    assertRedacted({
+        [`pwd=${HEAD};token=;code=${TAIL}`]: 'pwd=***;token=;code=***',
+        [`pwd=${HEAD},secret=,code=${TAIL}`]: 'pwd=***,secret=,code=***',
+        [`pwd=${HEAD};token=;max_tokens=4096`]: 'pwd=***;token=;max_tokens=***',
+        [`--password=${HEAD}&token=&code=${TAIL}&${MID}`]:
+            '--password=***&token=&code=***',
+    })
+    // A kept count masks nothing, so the pair after it keeps its own rule.
+    assertEquals(
+        redactQueryCredentials('max_tokens=4096;code=23505'),
+        'max_tokens=4096;code=23505',
+    )
+})
+
+Deno.test('#528 an empty value a cut ends passes the marker on', () => {
+    assertRedacted({
+        [`--password=,code=${TAIL},retry=${MID}`]: '--password=,code=***',
+        [`Pwd=;max_tokens=${PIN}`]: 'Pwd=;max_tokens=***',
+    })
+    // The accepted cost, pinned so a change is a decision: an empty raw
+    // credential value before a separator and a bare `code` masks that code.
+    assertEquals(redactQueryCredentials('token=;code=23505'), 'token=;code=***')
+})

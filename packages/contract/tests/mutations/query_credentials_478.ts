@@ -3,9 +3,10 @@
  * regressions their fold-in introduced (rows labelled `#494`), the gaps
  * the #494 reviews found (rows labelled `#499`), the raw value that hid the
  * credential pair after it (rows labelled `#500`), the `;` and `,` cut and
- * the raw end of a pair a cut starts (rows labelled `#525` and `#524`), and
- * the numeric-PIN names and qualified `code` compounds the net printed in
- * clear (rows labelled `#497`).
+ * the raw end of a pair a cut starts (rows labelled `#525` and `#524`), the
+ * numeric-PIN names and qualified `code` compounds the net printed in clear
+ * (rows labelled `#497`), and the cut that dropped its marker after an empty
+ * value (rows labelled `#528`).
  *
  * Runs under the shared contract in `harness.ts`, which refuses to start unless
  * the suites are already green and the target files are clean, and requires
@@ -391,6 +392,27 @@ const MUTATIONS: Mutation[] = [
             'inherited = separatorEnd(text, end)\n                cutHere = true\n',
         ]],
         killedBy: "a count before a cut keeps the next pair's own rule",
+    },
+    // ---- #528 every cut passes the marker on ---------------------------------
+    {
+        label:
+            '#528 the marker set only after a masked value — `pwd=M;token=;code=M` shows',
+        file: CREDENTIALS,
+        edits: [[
+            '            copied = end\n        }\n        if (cutHere) inherited = separatorEnd(text, end)',
+            '            copied = end\n            if (cutHere) inherited = separatorEnd(text, end)\n        }',
+        ]],
+        killedBy: 'an empty pair a cut starts passes the marker on',
+    },
+    {
+        label:
+            '#528 the marker skips an empty value — `--password=,code=M` shows',
+        file: CREDENTIALS,
+        edits: [[
+            'if (cutHere) inherited = separatorEnd(text, end)',
+            'if (cutHere && (end > valueStart || cut)) inherited = separatorEnd(text, end)',
+        ]],
+        killedBy: 'an empty value a cut ends passes the marker on',
     },
     {
         label:
