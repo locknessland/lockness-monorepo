@@ -51,36 +51,38 @@ Anything not listed is internal and free to change.
 
 ## Where to work
 
-| Concern                                                   | Path                    |
-| --------------------------------------------------------- | ----------------------- |
-| Service and public API                                    | `mod.ts`                |
-| DSN check run before any driver factory (#425)            | `dsn.ts`                |
-| What a withheld failure may show: the vetted error name   | `error_name.ts`         |
-| Dialects, default driver factories, `loadClient`          | `drivers.ts`            |
-| `db:*` command wiring, seams and the production guard     | `cli_commands.ts`       |
-| `db:fresh` reset policy: scope, planners, refusals (#435) | `reset.ts`              |
-| `db:fresh` settings read from `drizzle.config.ts`         | `migration_settings.ts` |
-| `make:model` / `make:seeder` / `make:factory` generators  | `generators/`           |
-| Project bootstrap                                         | `install.ts`            |
-| Generated file templates                                  | `stubs/`                |
+| Concern                                                     | Path                    |
+| ----------------------------------------------------------- | ----------------------- |
+| Service and public API                                      | `mod.ts`                |
+| DSN check run before any driver factory (#425)              | `dsn.ts`                |
+| What a withheld failure may show: the vetted error name     | `error_name.ts`         |
+| Dialects, default driver factories, `loadClient`            | `drivers.ts`            |
+| `db:*` command wiring, seams and the production guard       | `cli_commands.ts`       |
+| `db:fresh` reset policy: scope, planners, refusals (#435)   | `reset.ts`              |
+| `db:migrate` / `db:fresh` settings from `drizzle.config.ts` | `migration_settings.ts` |
+| The shared refusal (`RefusedError`), framed per command     | `refusal.ts`            |
+| `make:model` / `make:seeder` / `make:factory` generators    | `generators/`           |
+| Project bootstrap                                           | `install.ts`            |
+| Generated file templates                                    | `stubs/`                |
 
 ## Pitfalls
 
 - The `db:*` commands are tested hermetically through the seams of
   `registerDrizzleCommands` (command runner, connection, seeder loader, and for
-  `db:fresh` the config loader and maintenance opener) — no real database or
-  `drizzle-kit` process. A new command gets a seam, not a spawned process, in
-  its test.
+  `db:migrate` and `db:fresh` the config loader and maintenance opener) — no
+  real database or `drizzle-kit` process. A new command gets a seam, not a
+  spawned process, in its test.
 - A `db:*` failure is a thrown `CommandFailedError`, never a printed `❌` and a
   return — that exits 0 and CI reads it as success (#428). Import the class from
   `@lockness/cli/command-failure`, not the barrel: `mod.ts` re-exports these
   commands and core loads this package at boot.
-- `db:fresh` never shells out to `drizzle-kit`: it resets through
-  `DriverHandle.maintenance` and runs drizzle-orm's migrator in-process (#435).
-  `drizzle-kit drop` deletes a migration file — never call it. The `drizzle-kit`
-  the other commands run is pinned exactly at `DRIZZLE_KIT_SPECIFIER` (#437);
-  the init kits and the root `deno.jsonc` must map the same one, and a test
-  checks it.
+- `db:migrate` and `db:fresh` never shell out to `drizzle-kit`: they run
+  drizzle-orm's migrator in-process through `DriverHandle.maintenance`, from one
+  settings loader (#435, #442). Do not give `db:migrate` the production guard:
+  it is the deploy step. `drizzle-kit drop` deletes a migration file — never
+  call it. The `drizzle-kit` the other commands run is pinned exactly at
+  `DRIZZLE_KIT_SPECIFIER` (#437); the init kits and the root `deno.jsonc` must
+  map the same one, and a test checks it.
 - `drizzle-kit check` (behind `db:status`) validates the migrations folder only;
   it never reads the schema or the database. Do not word `db:status` as a drift
   or pending-migrations check.

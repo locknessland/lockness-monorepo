@@ -196,8 +196,8 @@ PostgreSQL sends _notices_ alongside query results: a `WARNING` such as
 `schema "drizzle" already exists, skipping` on every idempotent
 `CREATE … IF NOT EXISTS`. Left to itself, postgres.js prints each one as a raw
 object on stdout. Every client this package opens (the `Database` service,
-`db:fresh`, `db:seed`, `db:check` and the installer's connection probe) routes
-them by severity instead:
+`db:migrate`, `db:fresh`, `db:seed`, `db:check` and the installer's connection
+probe) routes them by severity instead:
 
 | Severity                         | Goes to          | Without a logger (the default)                                              | With `logger: true` on the kernel |
 | :------------------------------- | :--------------- | :-------------------------------------------------------------------------- | :-------------------------------- |
@@ -232,10 +232,9 @@ them by severity instead:
 - **A custom driver factory** receives the routed callback as
   `options.onNotice`, its optional second parameter. A factory that takes only
   the url keeps working, and its notices are its own business.
-- **Not covered.** `db:migrate`, `db:generate`, `db:push` and `db:status` run
-  `drizzle-kit` in a subprocess, which opens its own client with no notice
-  handler; on an already-migrated database `db:migrate` still prints the raw
-  object (tracked by #442). MySQL and SQLite warnings are not routed.
+- **Not covered.** `db:generate`, `db:push` and `db:status` run `drizzle-kit` in
+  a subprocess, which opens its own client with no notice handler. MySQL and
+  SQLite warnings are not routed.
 
 ### Monitoring: `/health` for liveness, `/ready` for readiness
 
@@ -512,6 +511,43 @@ deno task cli db:fresh
 deno task cli db:push
 ```
 
+### `db:migrate`
+
+`db:migrate` runs in-process: it reads `drizzle.config.ts` (`dialect`, `out`,
+`dbCredentials.url`, `migrations.table`, `migrations.schema`) and applies the
+pending migrations with drizzle-orm's own migrator, through the same client the
+app uses. It spawns no `drizzle-kit` process and has no production guard — it is
+the deploy step. It accepts one credential form, the one the runtime connects
+with:
+
+```typescript
+dbCredentials: {
+    url: Deno.env.get('DATABASE_URL')!
+}
+```
+
+Host fields (`host`, `port`, `user`, `password`, `database`), `ssl`, a Turso
+`authToken` and any other key are refused in one message that names each form
+and its url alternative: `?sslmode=require` / `?sslmode=verify-full` (postgres),
+`?ssl=<percent-encoded JSON>` (mysql), `?authToken=<token>` (Turso). An `ssl`
+certificate object, a `driver` (`aws-data-api`, `pglite`, `d1-http`, `expo`,
+`durable-sqlite`) and the `singlestore` and `gel` dialects have no in-process
+path: the refusal names `deno run -A npm:drizzle-kit@0.31.10 migrate` instead.
+`out` must be set, and only `drizzle.config.ts` is read. A url that names no
+database is refused, as for [`db:fresh`](#dbfresh).
+
+Each refusal is printed as
+`db:migrate refused: drizzle.config.ts: <reason>. No
+migration was applied.` and
+nothing is connected. `db:migrate` and `db:fresh` share one settings loader, so
+they cannot disagree about which database a config names; `db:migrate` skips
+only `db:fresh`'s production guard and its `schemaFilter` checks. A missing
+journal is refused before connecting. The command prints
+`🚀 Running migrations...` and `✅ Migrations applied
+successfully`, and a
+failure as `Could not open the database: …` or `Failed to
+apply migrations: …`.
+
 ### `db:fresh`
 
 `db:fresh` resets and migrates in one process, from one configuration. It reads
@@ -593,12 +629,13 @@ it reads the config or connects.
   the file directly to see the error.
 - `dbCredentials` does not name one database. Each fault has its own message,
   and none quotes the URL: `dbCredentials` is not set or is not an object;
-  `dbCredentials.url` is not set or is not a string; `dbCredentials` holds keys
-  besides `url`; or `dbCredentials.url` is **empty or only whitespace**. A
-  driver given no URL falls back to its own default target, so an empty URL
-  would reset a database the config never named. It is what
-  `url: Deno.env.get('DATABASE_URL') ?? ''` yields with the variable unset,
-  which is why its message points at the variable.
+  `dbCredentials.url` is not set or is not a string; `dbCredentials` holds any
+  form besides `url`, refused as for [`db:migrate`](#dbmigrate); or
+  `dbCredentials.url` is **empty or only whitespace**. A driver given no URL
+  falls back to its own default target, so an empty URL would reset a database
+  the config never named. It is what `url: Deno.env.get('DATABASE_URL') ?? ''`
+  yields with the variable unset, which is why its message points at the
+  variable.
 - `dbCredentials.url` is not empty but **names no database**. A driver falls
   back to a default target here too: postgres.js connects to `PGDATABASE`, or to
   a database named after the connecting user (the URL's username, or the OS
@@ -636,9 +673,9 @@ it reads the config or connects.
 - postgres: a migration creates a schema outside `schemaFilter`, or a schema to
   drop holds extension members.
 
-`db:fresh` prints one line naming the dialect and the scope — never the DSN.
-`db:migrate` still runs `drizzle-kit migrate`, which accepts credential forms
-that `db:fresh` refuses.
+`db:fresh` prints one line naming the dialect and the scope — never the DSN. It
+never names drizzle-kit as a fallback: drizzle-kit has no equivalent, and
+`drizzle-kit drop` deletes migration files.
 
 ### Database Commands
 
@@ -669,7 +706,7 @@ A failure is printed once on stderr as `❌ <message>`; for the commands that ru
 | Command       | Exits `1` when                                                                                                                                                                                                                   |
 | :------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `db:generate` | `drizzle-kit generate` exits non-zero                                                                                                                                                                                            |
-| `db:migrate`  | `drizzle-kit migrate` exits non-zero                                                                                                                                                                                             |
+| `db:migrate`  | it is refused (see [`db:migrate`](#dbmigrate)), the client cannot be configured, or the migrator fails                                                                                                                           |
 | `db:push`     | `drizzle-kit push` exits non-zero                                                                                                                                                                                                |
 | `db:studio`   | `drizzle-kit studio` exits non-zero                                                                                                                                                                                              |
 | `db:status`   | `drizzle-kit check` exits non-zero. It validates the migrations folder only (snapshot versions, malformed snapshots, collisions); it reads neither the schema nor the database, so it reports no drift and no pending migrations |

@@ -163,6 +163,29 @@ deno task cli db:generate
 deno task cli db:migrate
 ```
 
+`db:migrate` runs in-process: it reads `drizzle.config.ts` (`dialect`, `out`,
+`dbCredentials.url`, `migrations.table`, `migrations.schema`) and applies the
+pending migrations with drizzle-orm's own migrator, through the same client the
+app uses. It spawns no `drizzle-kit` process and has no production guard — it is
+the deploy step. It accepts one credential form, the one the runtime connects
+with:
+
+```typescript
+dbCredentials: {
+    url: Deno.env.get('DATABASE_URL')!
+}
+```
+
+Host fields (`host`, `port`, `user`, `password`, `database`), `ssl`, a Turso
+`authToken` and any other key are refused in one message that names each form
+and its url alternative: `?sslmode=require` / `?sslmode=verify-full` (postgres),
+`?ssl=<percent-encoded JSON>` (mysql), `?authToken=<token>` (Turso). An `ssl`
+certificate object, a `driver` (`aws-data-api`, `pglite`, `d1-http`, `expo`,
+`durable-sqlite`) and the `singlestore` and `gel` dialects have no in-process
+path: the refusal names `deno run -A npm:drizzle-kit@0.31.10 migrate` instead.
+`out` must be set, and only `drizzle.config.ts` is read. A url that names no
+database is refused, as for `db:fresh` below.
+
 **Check the migrations folder for consistency** (snapshots and collisions; it
 does not detect schema drift):
 
@@ -206,16 +229,17 @@ On MySQL, `DATABASE()` and the table list are read in one statement, and every
 It is refused in production unless you pass `--allow-production`, the same guard
 as `db:seed`. It is also refused, before anything is dropped, when the config
 cannot be loaded, has no `out` or names a `driver`; when `dbCredentials` is
-missing or not an object, holds keys besides `url`, or its `url` is missing, not
-a string, empty or only whitespace (as `Deno.env.get('DATABASE_URL') ?? ''` is
-with the variable unset), or names no database — `postgres://localhost:5432/`,
-which a URL ending in an unset `DB_NAME` yields, or a `file:` URL with no path;
-MySQL included, checked before it connects; on postgres, when the URL carries a
-`database` query key or an encoded comma in its host, either of which lets the
-driver pick a database other than the path's; when the migrations journal or a
-file it lists is missing; when the driver has no schema-maintenance support;
-when MySQL has no database selected, or selects a system database (`mysql`,
-`sys`, `performance_schema`, `information_schema`); and, on postgres, when
+missing or not an object, holds any form besides `url` (refused as for
+`db:migrate` above), or its `url` is missing, not a string, empty or only
+whitespace (as `Deno.env.get('DATABASE_URL') ?? ''` is with the variable unset),
+or names no database — `postgres://localhost:5432/`, which a URL ending in an
+unset `DB_NAME` yields, or a `file:` URL with no path; MySQL included, checked
+before it connects; on postgres, when the URL carries a `database` query key or
+an encoded comma in its host, either of which lets the driver pick a database
+other than the path's; when the migrations journal or a file it lists is
+missing; when the driver has no schema-maintenance support; when MySQL has no
+database selected, or selects a system database (`mysql`, `sys`,
+`performance_schema`, `information_schema`); and, on postgres, when
 `schemaFilter` or `migrations.schema` names a system schema
 (`information_schema` or any `pg_*`), or a migration creates a schema outside
 `schemaFilter`. A config that cannot be imported is refused without its error
@@ -250,13 +274,14 @@ failure once on stderr, so scripts and CI can stop on it:
 deno task cli db:migrate && deno task start
 ```
 
-| Command                                             | Exits `1` when                                                                                        |
-| :-------------------------------------------------- | :---------------------------------------------------------------------------------------------------- |
-| `db:generate`, `db:migrate`, `db:push`, `db:studio` | the `drizzle-kit` subcommand exits non-zero                                                           |
-| `db:status`                                         | `drizzle-kit check` exits non-zero (it validates the migrations folder only)                          |
-| `db:check`                                          | the client cannot be configured or the `SELECT 1` probe fails                                         |
-| `db:fresh`                                          | it is refused, the reset fails (migrations are then not run), or the migrate step fails               |
-| `db:seed`                                           | production without `--allow-production`, no client, no seeder to load, or the seeder's `run()` throws |
+| Command                               | Exits `1` when                                                                                        |
+| :------------------------------------ | :---------------------------------------------------------------------------------------------------- |
+| `db:generate`, `db:push`, `db:studio` | the `drizzle-kit` subcommand exits non-zero                                                           |
+| `db:migrate`                          | it is refused, the client cannot be configured, or the migrator fails                                 |
+| `db:status`                           | `drizzle-kit check` exits non-zero (it validates the migrations folder only)                          |
+| `db:check`                            | the client cannot be configured or the `SELECT 1` probe fails                                         |
+| `db:fresh`                            | it is refused, the reset fails (migrations are then not run), or the migrate step fails               |
+| `db:seed`                             | production without `--allow-production`, no client, no seeder to load, or the seeder's `run()` throws |
 
 Details: [docs/DOCS.md](docs/DOCS.md#exit-codes).
 
@@ -518,7 +543,8 @@ await database.db.transaction(async (tx) => {
 
 ## Upgrading to v0.5.0
 
-One item. **No migration step is required.**
+Two items. **Migration step:** if your `drizzle.config.ts` uses anything but
+`dbCredentials: { url }`, rewrite it as a url (item 2).
 
 ### 1. PostgreSQL server notices no longer print as raw objects
 
@@ -531,15 +557,55 @@ are discarded unless the kernel sets `logger: true`, which sends them to
 the logger instead, or pass `ConnectionOptions.notices` to `connect()`.
 
 `DriverFactory` gained an optional second parameter, `options.onNotice`. A
-factory written for one parameter still compiles. `db:migrate` runs
-`drizzle-kit`, which still prints raw notices (#442). See
+factory written for one parameter still compiles. See
 [Server notices](docs/DOCS.md#server-notices).
+
+### 2. `db:migrate` runs in-process
+
+It no longer spawns `drizzle-kit migrate`. It reads `drizzle.config.ts` the way
+`db:fresh` does and migrates through Lockness's own client. Act on any of these
+that apply to your config:
+
+1. **Host fields** (`host`, `port`, `user`, `password`, `database`) are refused.
+   Write
+   `dbCredentials: { url: 'postgresql://user:password@host:port/database' }` (or
+   `mysql://…`), with the password percent-encoded.
+2. **`ssl`** is refused. Put it in the url: `?sslmode=require` or
+   `?sslmode=verify-full` (`&sslrootcert=system` for the system store) on
+   postgresql, or `?ssl=<percent-encoded JSON>` on mysql. An `ssl` object
+   holding a certificate (`ca`, `cert`, `key`) has no url form: run
+   `drizzle-kit migrate` directly.
+3. **Turso `authToken`** is refused. Append it to the url as
+   `?authToken=<token>`.
+4. **`driver`** (`aws-data-api`, `pglite`, `d1-http`, `expo`, `durable-sqlite`)
+   and the **`singlestore`** and **`gel`** dialects are refused: run
+   `drizzle-kit migrate` directly.
+5. **A url that names no database** is refused: a postgresql or mysql url with
+   nothing in its path, a postgresql url with a `?database=` key or an encoded
+   comma (`%2C`) in the host, or a sqlite or turso `file:` url with no path. Put
+   the database name in the path.
+6. **`out` must be set.** drizzle-kit defaulted it to `./drizzle`.
+7. **Only `drizzle.config.ts`** in the working directory is read. drizzle-kit
+   also found `drizzle.config.js` and `.json`.
+8. **An empty or missing `dbCredentials.url`** is refused instead of being
+   handed to the driver's own default target.
+9. **A custom `DriverFactory`** registered in your CLI process must provide
+   `maintenance`, or `db:migrate` refuses.
+10. **TypeScript:** `MigrationSettings` no longer has `schemaFilter`. A test
+    that faked `db:migrate` through the `runCommand` seam of
+    `registerDrizzleCommands` now has to override `loadMigrationConfig` and
+    `openMaintenance`.
+
+No action needed: `db:generate`, `db:push`, `db:studio` and `db:status` still
+run drizzle-kit. drizzle-kit's own progress lines are gone, and a PostgreSQL
+notice is no longer printed as a raw object.
 
 ## Dependencies
 
 - `drizzle-orm` - ORM library
-- `drizzle-kit` - CLI tools for migrations, pinned to exactly `0.31.10` (the
-  `db:*` commands run it, and `install.ts` maps it in your `deno.json`)
+- `drizzle-kit` - CLI tools for migrations, pinned to exactly `0.31.10`
+  (`db:generate`, `db:push`, `db:studio` and `db:status` run it, and
+  `install.ts` maps it in your `deno.json`)
 - `drizzle-zod` - Zod schema generation
 - `postgres` - PostgreSQL client
 
