@@ -58,6 +58,8 @@ Anything not listed is internal and free to change.
 | What a withheld failure may show: the vetted error name     | `error_name.ts`         |
 | Dialects, default driver factories, `loadClient`            | `drivers.ts`            |
 | `db:*` command wiring, seams and the production guard       | `cli_commands.ts`       |
+| Command-runner port and its default `Deno.Command` runner   | `command_runner.ts`     |
+| Seeder-loader port and its default `importAppFile` loader   | `seeder_loader.ts`      |
 | Verdict on a drizzle-kit run: exit code plus stderr (#445)  | `kit_outcome.ts`        |
 | `db:fresh` reset policy: scope, planners, refusals (#435)   | `reset.ts`              |
 | `db:migrate` / `db:fresh` settings from `drizzle.config.ts` | `migration_settings.ts` |
@@ -96,6 +98,12 @@ Anything not listed is internal and free to change.
   its held DSN together before any await; reading `held` back from `this` later
   lets a racing `close()` strip the redaction (pinned by
   `tests/mutations/lifecycle_427.ts`, M12).
+- A symbol reachable through an `exports` entry is public; `@internal` does not
+  hide it. A helper meant to be internal goes in a module `exports` does not
+  list — `command_runner.ts`, `seeder_loader.ts`, `migration_settings.ts`,
+  `kit_outcome.ts` — and its tests import it by relative path (#564). A port
+  type a public signature names is re-exported; its default implementation is
+  not.
 - It imports `@lockness/cli` at runtime (`install.ts`, `cli_commands.ts`), so it
   must not be imported from `cli` in return — that would close a cycle.
 - Issue #26 proposes a Kysely sibling; it must not deprecate or reshape this
