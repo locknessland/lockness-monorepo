@@ -430,8 +430,10 @@ function isCountName(normalised: string): boolean {
  * path keeps its single compound reading (`user.code=X&a=b` renders); a raw
  * credential value outside a URL eats the bracket pair after it
  * (`card[cvc]=314&card[number]=4242` renders `card[cvc]=***`); a query name
- * that begins with a bracket takes URL mode (`?[x]password=A&B` renders
- * `?[x]password=***&B`); a cut shows its separator and its bracketed name,
+ * that begins with a bracket, or has one before its field segment, takes URL
+ * mode, so the text after the next `&` shows (`?[x]password=A&B` renders
+ * `?[x]password=***&B`; likewise `&a[b]password=`, `&x]token=` and
+ * `#V[key=`); a cut shows its separator and its bracketed name,
  * and `[` and `]` join the run such a cut can show; and `[auth]code=23505`,
  * `config[key]=v` and, in a URL or form body, `error[code]=E_X` are pinned
  * over-matches.

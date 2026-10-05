@@ -177,10 +177,11 @@ Anything not listed is internal and free to change.
   a dotted path keeps its single compound reading (`user.code=X&a=b` renders);
   outside a URL a raw credential value eats the bracket pair after it
   (`card[cvc]=314&card[number]=4242` → `card[cvc]=***`); a query name that
-  begins with a bracket takes URL mode (`?[x]password=A&B` →
-  `?[x]password=***&B`); `[` and `]` join the run a cut can show (#529); and
-  `[auth]code=23505`, `config[key]=v` and, in a URL or form body,
-  `error[code]=E_X` are pinned over-matches.
+  begins with a bracket, or has one before its field segment, takes URL mode, so
+  the text after the next `&` shows (`?[x]password=A&B` → `?[x]password=***&B`;
+  likewise `&a[b]password=`, `&x]token=` and `#V[key=`); `[` and `]` join the
+  run a cut can show (#529); and `[auth]code=23505`, `config[key]=v` and, in a
+  URL or form body, `error[code]=E_X` are pinned over-matches.
 - **A compile failure is recognised by its message shape, never by class or
   `code`** (`logging/compile_diagnostic.ts`). Deno reports a parse failure as a
   `TypeError` with `ERR_MODULE_NOT_FOUND`, the same pair "Module not found"
