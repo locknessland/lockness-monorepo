@@ -588,8 +588,10 @@ only `db:fresh`'s production guard and its `schemaFilter` checks. A missing
 journal is refused before connecting. The command prints
 `🚀 Running migrations...` and `✅ Migrations applied
 successfully`, and a
-failure as `Could not open the database: …` or `Failed to
-apply migrations: …`.
+failure as `❌ Could not open the database caused by: …` or
+`❌ Failed to apply
+migrations caused by: …`: the message names the step, and
+the error behind it is printed once, rendered, as the cause.
 
 ### `db:status`: pending migrations
 
@@ -685,11 +687,11 @@ connection, opened once and closed on every path (#447):
 **A failed run.** Every refusal comes before anything is dropped. Once the reset
 has committed, the migrate runs; if it fails, the managed scope **stays
 emptied**, on every dialect, and the command fails with
-`The database was emptied, but the migrations failed: …`. Fix the migration and
-run `db:fresh` again. A reset that fails is reported as
-`Failed to empty the database; migrations were not run: …`: on postgres and
-libsql nothing was dropped, and on MySQL, whose DDL auto-commits, the statements
-before the failure were kept.
+`The database was emptied, but the migrations failed`, followed by the migrate's
+error as the cause. Fix the migration and run `db:fresh` again. A reset that
+fails is reported as `Failed to empty the database; migrations were not run`,
+with its cause: on postgres and libsql nothing was dropped, and on MySQL, whose
+DDL auto-commits, the statements before the failure were kept.
 
 "Fresh" empties a **managed scope**, not "what the migrations created":
 
