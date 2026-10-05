@@ -5,8 +5,9 @@
  * credential pair after it (rows labelled `#500`), the `;` and `,` cut and
  * the raw end of a pair a cut starts (rows labelled `#525` and `#524`), the
  * numeric-PIN names and qualified `code` compounds the net printed in clear
- * (rows labelled `#497`), and the cut that dropped its marker after an empty
- * value (rows labelled `#528`).
+ * (rows labelled `#497`), the cut that dropped its marker after an empty
+ * value (rows labelled `#528`), and the bracketed form and query names both
+ * walks stopped inside (rows labelled `#526`).
  *
  * Runs under the shared contract in `harness.ts`, which refuses to start unless
  * the suites are already green and the target files are clean, and requires
@@ -413,6 +414,143 @@ const MUTATIONS: Mutation[] = [
             'if (cutHere && (end > valueStart || cut)) inherited = separatorEnd(text, end)',
         ]],
         killedBy: 'an empty value a cut ends passes the marker on',
+    },
+    // ---- #526 bracketed form and query names ---------------------------------
+    {
+        label: '#526 brackets are no name characters — `card[cvc]=M` shows',
+        file: CREDENTIALS,
+        edits: [[
+            "new Set(['.', '_', '~', '-', ...BRACKETS])",
+            "new Set(['.', '_', '~', '-'])",
+        ]],
+        killedBy:
+            'a bracketed name is classified by its field segment, raw or encoded',
+    },
+    {
+        label:
+            '#526 the walk left stops at a raw bracket — `user[password]=M` shows',
+        file: CREDENTIALS,
+        edits: [[
+            'if (!isNameCharacter(text[j - 1])) break',
+            'if (!isNameCharacter(text[j - 1]) || BRACKETS.has(text[j - 1])) break',
+        ]],
+        killedBy:
+            'a bracketed name is classified by its field segment, raw or encoded',
+    },
+    {
+        label:
+            '#526 the walk left stops at `%5B`/`%5D` — `card%5Bpin%5D=M` shows',
+        file: CREDENTIALS,
+        edits: [[
+            'if (!isNameCharacter(decoded)) break\n            j -= 3',
+            'if (!isNameCharacter(decoded) || BRACKETS.has(decoded)) break\n            j -= 3',
+        ]],
+        killedBy:
+            'a bracketed name is classified by its field segment, raw or encoded',
+    },
+    {
+        label:
+            '#526 the lookahead stops at a raw bracket — `pwd=M&card[cvc]="M M"` shows',
+        file: CREDENTIALS,
+        edits: [[
+            'if (!isNameCharacter(text[j])) break',
+            'if (!isNameCharacter(text[j]) || BRACKETS.has(text[j])) break',
+        ]],
+        killedBy:
+            'a credential pair after a separator is found through its brackets',
+    },
+    {
+        label:
+            '#526 the lookahead stops at `%5B`/`%5D` — `Pwd=M;card%5Bcvc%5D="M M"` shows',
+        file: CREDENTIALS,
+        edits: [[
+            'if (!isNameCharacter(decoded)) break\n            j += 3',
+            'if (!isNameCharacter(decoded) || BRACKETS.has(decoded)) break\n            j += 3',
+        ]],
+        killedBy:
+            'a credential pair after a separator is found through its brackets',
+    },
+    {
+        label:
+            '#526 the outer name classified instead of the field — `user[code]=M&state=1` shows',
+        file: CREDENTIALS,
+        edits: [[
+            'const match = classifyNormalised(normalise(field ?? decoded))',
+            'const match = classifyNormalised(normalise(field === undefined ? decoded : decoded.split(/[[\\]]/)[0]))',
+        ]],
+        killedBy: 'a bracketed `code` field takes the bare `code` rule',
+    },
+    {
+        label:
+            '#526 a bracketed name read as its path only — `user[code]=M&state=1` shows',
+        file: CREDENTIALS,
+        edits: [[
+            'const match = classifyNormalised(normalise(field ?? decoded))',
+            'const match = classifyNormalised(normalise(decoded))',
+        ]],
+        killedBy: 'a bracketed `code` field takes the bare `code` rule',
+    },
+    {
+        // The same edit as the row above, on purpose (the #499/#500
+        // precedent): the path-only reading loses both a nested form's `code`
+        // and a name after a log prefix, and `killedBy` names one test, so
+        // each behaviour gets its own row to prove its own test catches it.
+        label:
+            '#526 a bracketed name read as its path only — `[INFO]code=M&a=b` shows',
+        file: CREDENTIALS,
+        edits: [[
+            'const match = classifyNormalised(normalise(field ?? decoded))',
+            'const match = classifyNormalised(normalise(decoded))',
+        ]],
+        killedBy:
+            'a bracket in a log prefix leaves the name after it classified',
+    },
+    {
+        label:
+            '#526 an index segment taken as the field — `user[code][]=M&state=1` shows',
+        file: CREDENTIALS,
+        edits: [[
+            'if (hasLetter(decoded, j + 1, end)) return decoded.slice(j + 1, end)',
+            'return decoded.slice(j + 1, end)',
+        ]],
+        killedBy: 'a bracketed `code` field takes the bare `code` rule',
+    },
+    {
+        label:
+            '#526 the path no longer qualifies the field — `verification[code]=M` shows',
+        file: CREDENTIALS,
+        edits: [[
+            "return classifyNormalised(normalise(decoded)) === 'stem' ? 'stem' : match",
+            'return match',
+        ]],
+        killedBy: 'the path qualifies a field across the brackets',
+    },
+    {
+        label:
+            '#526 the path overrides the field — `max[api_tokens]=<digits>` kept as a count',
+        file: CREDENTIALS,
+        edits: [[
+            "return classifyNormalised(normalise(decoded)) === 'stem' ? 'stem' : match",
+            'return classifyNormalised(normalise(decoded)) ?? match',
+        ]],
+        killedBy: 'the path qualifies a field across the brackets',
+    },
+    {
+        // Wall-clock, like the #499 and #500 linearity rows: no structural
+        // signal exists without a test-only counter in the production module.
+        // The mutant reads to the end of the name at every bracket, so the
+        // index-only shape goes quadratic; it is sized below the others so
+        // the mutant still finishes. Margin measured at #526: seconds per
+        // mutant run against the 1000 ms limit, milliseconds for the real
+        // scan. Re-measure if it survives.
+        label:
+            '#526 the field read to the end of the name at every bracket — the scan goes quadratic',
+        file: CREDENTIALS,
+        edits: [[
+            'if (hasLetter(decoded, j + 1, end)) return',
+            'if (hasLetter(decoded, j + 1, decoded.length)) return',
+        ]],
+        killedBy: 'the scan stays linear on bracketed names',
     },
     {
         label:

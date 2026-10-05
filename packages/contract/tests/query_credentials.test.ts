@@ -952,6 +952,7 @@ Deno.test('#528 an empty pair a cut starts passes the marker on', () => {
         [`pwd=${HEAD};token=;max_tokens=4096`]: 'pwd=***;token=;max_tokens=***',
         [`--password=${HEAD}&token=&code=${TAIL}&${MID}`]:
             '--password=***&token=&code=***',
+        [`pwd=${HEAD};card[cvc]=;code=${TAIL}`]: 'pwd=***;card[cvc]=;code=***',
     })
     // A kept count masks nothing, so the pair after it keeps its own rule.
     assertEquals(
@@ -964,8 +965,204 @@ Deno.test('#528 an empty value a cut ends passes the marker on', () => {
     assertRedacted({
         [`--password=,code=${TAIL},retry=${MID}`]: '--password=,code=***',
         [`Pwd=;max_tokens=${PIN}`]: 'Pwd=;max_tokens=***',
+        [`--password=,user[code]=${TAIL},retry=${MID}`]:
+            '--password=,user[code]=***',
     })
     // The accepted cost, pinned so a change is a decision: an empty raw
     // credential value before a separator and a bare `code` masks that code.
     assertEquals(redactQueryCredentials('token=;code=23505'), 'token=;code=***')
+})
+
+// ============================================================================
+// #526: bracketed form and query names (`card[cvc]`, `user[password]`)
+// ============================================================================
+
+Deno.test('#526 a bracketed name is classified by its field segment, raw or encoded', () => {
+    // The field is the last bracket segment that holds a letter; an index
+    // segment (`[]`, `[0]`) names a position, so it is skipped, and a name
+    // whose segments are all indexes reads as its path.
+    assertRedacted({
+        [`card[cvc]=${PIN}`]: 'card[cvc]=***',
+        [`/pay?card[cvc]=${PIN}&card[number]=4242`]:
+            '/pay?card[cvc]=***&card[number]=4242',
+        [`card[pin]=${PIN}`]: 'card[pin]=***',
+        [`card%5Bpin%5D=${PIN}`]: 'card%5Bpin%5D=***',
+        [`card%5bpin%5d=${PIN}`]: 'card%5bpin%5d=***',
+        [`card[cvc%5D=${PIN}`]: 'card[cvc%5D=***',
+        [`card%5Bcvc]=${PIN}`]: 'card%5Bcvc]=***',
+        [`data[cvv]=${PIN}`]: 'data[cvv]=***',
+        [`user[password]=${M}`]: 'user[password]=***',
+        [`/x?auth[token]=${M}`]: '/x?auth[token]=***',
+        [`a[b][password]=${M}`]: 'a[b][password]=***',
+        [`password[]=${M}`]: 'password[]=***',
+        [`password[0]=${M}`]: 'password[0]=***',
+        [`password[-1]=${M}`]: 'password[-1]=***',
+        [`card[cvc][]=${PIN}`]: 'card[cvc][]=***',
+        [`card[cvc][0]=${PIN}`]: 'card[cvc][0]=***',
+        [`user[password_confirmation]=${M}`]: 'user[password_confirmation]=***',
+    })
+    for (
+        const name of [
+            'card[cvc]',
+            'card%5Bcvc%5D',
+            'auth[token]',
+            'password[]',
+        ]
+    ) {
+        assert(isCredentialParamName(name), name)
+    }
+})
+
+Deno.test('#526 a bracketed `code` field takes the bare `code` rule', () => {
+    // A bracket container is structure, so the field is literally `code`: an
+    // OAuth code in a URL, after `&amp;` or in a form body, a diagnostic
+    // elsewhere.
+    assertRedacted({
+        [`user[code]=${M}&state=1`]: 'user[code]=***&state=1',
+        [`/cb?user[code]=${M}`]: '/cb?user[code]=***',
+        [`two_factor[code]=${PIN}&commit=Verify`]:
+            'two_factor[code]=***&commit=Verify',
+        [`user[code][]=${M}&state=1`]: 'user[code][]=***&state=1',
+        [`/x?y=1&amp;card[cvc]=${PIN}`]: '/x?y=1&amp;card[cvc]=***',
+        [`/cb?state=1&amp;user[code]=${M}`]: '/cb?state=1&amp;user[code]=***',
+    })
+    for (
+        const text of [
+            'status[code]=503',
+            'error status[code]=503 retry',
+            'user[code]=23505',
+            'user[zip_code]=75001',
+            'order[promo_code]=SAVE10',
+        ]
+    ) {
+        assertEquals(redactQueryCredentials(text), text)
+    }
+})
+
+Deno.test('#526 the path qualifies a field across the brackets', () => {
+    // The whole path, read as a dotted name is, can only raise the field's
+    // result to `stem`, never lower it.
+    const digits = '12' + '3456'
+    assertEquals(
+        redactQueryCredentials(`verification[code]=${PIN}`),
+        'verification[code]=***',
+    )
+    assertEquals(redactQueryCredentials(`pin[code]=${PIN}`), 'pin[code]=***')
+    assertRedacted({
+        [`password[confirmation]=${M}`]: 'password[confirmation]=***',
+    })
+    assertEquals(
+        redactQueryCredentials(`max[api_tokens]=${digits}`),
+        'max[api_tokens]=***',
+    )
+    // A pinned over-match: a stem prefix qualifies the code after it.
+    assertEquals(redactQueryCredentials('[auth]code=23505'), '[auth]code=***')
+})
+
+Deno.test('#526 non-credential bracket names still render', () => {
+    for (
+        const text of [
+            'card[number]=4242',
+            'filter[status]=open',
+            'page[size]=20',
+            'token[type]=bearer',
+            'api_key[id]=k1',
+            'limits[max_tokens]=4096',
+            'max_tokens[0]=4096',
+            'usage[total_tokens]=9012',
+            '[0]=x',
+            '[]=x',
+            'max_tokens=4096;code=23505',
+            '?token=&page=1',
+        ]
+    ) {
+        assertEquals(redactQueryCredentials(text), text)
+    }
+    for (
+        const name of ['card[number]', 'token[type]', 'filter[status]', '[0]']
+    ) {
+        assertEquals(isCredentialParamName(name), false, name)
+    }
+})
+
+Deno.test('#526 a credential pair after a separator is found through its brackets', () => {
+    // The lookahead reads the bracketed name as the walk left does, so the
+    // pair is cut and masked by its own rule.
+    assertRedacted({
+        [`code=${M}&grant[type]=authorization_code`]:
+            'code=***&grant[type]=authorization_code',
+        [`pwd=${HEAD}&card[cvc]="${TAIL} ${MID}"`]: 'pwd=***&card[cvc]="***"',
+        [`Pwd=${HEAD};card%5Bcvc%5D="${TAIL} ${MID}"`]:
+            'Pwd=***;card%5Bcvc%5D="***"',
+        [`--password=${HEAD}&card[cvc]=${TAIL}&${MID}`]:
+            '--password=***&card[cvc]=***',
+        [`--password=${HEAD}&user[code]=${TAIL}&${MID}`]:
+            '--password=***&user[code]=***',
+        [`Pwd=${HEAD};limits[max_tokens]=4096`]:
+            'Pwd=***;limits[max_tokens]=***',
+    })
+    // A non-credential bracket lookahead does not cut.
+    assertEquals(
+        redactQueryCredentials('--password=ab&x[y]=cd'),
+        '--password=***',
+    )
+})
+
+Deno.test('#526 a bracket in a log prefix leaves the name after it classified', () => {
+    // As on `main`, where the walk stopped at the bracket: a reading of the
+    // path alone would lose these.
+    const digits = '12' + '3456'
+    assertRedacted({
+        [`[INFO]password=${M}`]: '[INFO]password=***',
+        [`[INFO]code=${M}&a=b`]: '[INFO]code=***&a=b',
+    })
+    assertEquals(
+        redactQueryCredentials(`[max]api_tokens=${digits}`),
+        '[max]api_tokens=***',
+    )
+})
+
+Deno.test('#526 the accepted cost: what a bracketed name still shows', () => {
+    // Pinned so a change to any of these is a decision, not a drift.
+    for (
+        const [text, expected] of [
+            // A credential container with a generic field name.
+            ['password[value]=x', 'password[value]=x'],
+            // A doubly encoded bracket, like `%253D`.
+            ['card%255Bcvc%255D=314', 'card%255Bcvc%255D=314'],
+            // A blank inside a segment ends the walk there.
+            ['user[pass word]=x', 'user[pass word]=x'],
+            // An unqualified container's `code` in free text.
+            ['user[code]=x', 'user[code]=x'],
+            // A raw value outside a URL eats its neighbour.
+            ['card[cvc]=314&card[number]=4242', 'card[cvc]=***'],
+            // A query name that begins with a bracket takes URL mode.
+            ['?[x]password=A&B', '?[x]password=***&B'],
+        ]
+    ) {
+        assertEquals(redactQueryCredentials(text), expected, text)
+    }
+})
+
+Deno.test('#526 the scan stays linear on bracketed names', () => {
+    // Eight shapes, about 256 KB each: one long bracket name, an index-only
+    // name (sized smaller, so the quadratic mutant the battery runs still
+    // finishes), `x]=` repeated, encoded brackets, `&a[` lookaheads, a cut
+    // chain of empty bracket pairs, `;card[cvc]=a` chains and `user[code]=a&`
+    // runs. A fixed limit on the best of up to three runs, as for #500.
+    const size = 256 << 10
+    for (
+        const text of [
+            'a' + '[b]'.repeat(size / 3) + '=x',
+            '[0]'.repeat(49152) + '=x',
+            'x]='.repeat(size / 3),
+            '%5Ba%5D'.repeat(size / 7) + '=x',
+            '--password=a' + '&a['.repeat(size / 3),
+            'password=' + '&a[token]='.repeat(size / 10),
+            'password=' + ';card[cvc]=a'.repeat(size / 12),
+            'user[code]=a&'.repeat(size / 13),
+        ]
+    ) {
+        assertScanUnder(text.slice(0, 24), text)
+    }
 })
