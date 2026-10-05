@@ -5,7 +5,8 @@
     "exports": {
         ".": "./mod.ts",
         "./commands": "./core_commands.ts",
-        "./command-failure": "./command_failure.ts"
+        "./command-failure": "./command_failure.ts",
+        "./entry": "./entry.ts"
     },
     "publish": {
         "exclude": [
