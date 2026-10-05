@@ -638,13 +638,20 @@ remember-me lifecycle, and both providers store tokens through it.
   Drizzle provider never stored a remember-me token, so there is no data to
   migrate.
 - **`KyselySessionProvider`:** pass `rememberTokensTable: 'remember_me_tokens'`
-  (or your table name) explicitly, and add a column:
+  (or your table name) explicitly, and add a column. On PostgreSQL:
 
   ```sql
+  -- PostgreSQL
   ALTER TABLE remember_me_tokens ADD COLUMN first_issued_at TIMESTAMP;
   UPDATE remember_me_tokens SET first_issued_at = created_at;
   ALTER TABLE remember_me_tokens ALTER COLUMN first_issued_at SET NOT NULL;
   ```
+
+  MySQL sets the constraint with
+  `ALTER TABLE remember_me_tokens MODIFY first_issued_at TIMESTAMP NOT NULL`
+  instead of the last statement. SQLite cannot add NOT NULL to an existing
+  column: rebuild the table (create the new shape, copy the rows with
+  `first_issued_at = created_at`, drop the old one, rename).
 
   Rows written by v0.4.x expired after one thousandth of the configured
   remember-me age (about 43 minutes at the 30-day default). Deleting them all

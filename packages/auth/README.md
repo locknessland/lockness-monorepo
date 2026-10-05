@@ -345,9 +345,13 @@ The Drizzle providers live in
 [`@lockness/auth-provider`](../auth-provider/docs/DOCS.md), not in this package:
 
 ```typescript
+import { verifyPassword } from '@lockness/auth'
 import { DrizzleSessionProvider } from '@lockness/auth-provider/drizzle'
 import { eq } from 'drizzle-orm'
+// Your app's own bindings: the Drizzle schema, and the connected
+// `Database` service from @lockness/drizzle (e.g. resolved from the container).
 import { rememberMeTokens, users } from './schema.ts'
+import { database } from './database.ts'
 
 const provider = new DrizzleSessionProvider({
     db: () => database.db,
