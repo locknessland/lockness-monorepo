@@ -193,6 +193,23 @@ Deno.test('reportThrown - a failure without a cause prints its message alone', a
     assertEquals(onlyLine(error), '❌ No kit named "x"')
 })
 
+Deno.test('report - a credential in an unexpected error never reaches stderr', async () => {
+    const [password, apiKey] = ['pw', 'key'].map(fakeSecret)
+    const thrown = new TypeError(
+        `connect postgres://app:${password}@db.test/app then ` +
+            `${['api', 'key'].join('_')}=${apiKey}`,
+    )
+    const { result, error } = await withRawErrors(
+        undefined,
+        () => captureErrors(() => cliThrowing(thrown).dispatch(['task'])),
+    )
+    assertEquals(result, 1)
+    const line = onlyLine(error)
+    assert(line.startsWith('❌ task failed: TypeError: '), line)
+    assert(!line.includes(password), line)
+    assert(!line.includes(apiKey), line)
+})
+
 Deno.test('reportThrown - the label is rendered on the catch-all branch', async () => {
     const { error } = await withRawErrors(
         undefined,
