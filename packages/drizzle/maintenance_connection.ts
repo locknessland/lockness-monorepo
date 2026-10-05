@@ -23,6 +23,7 @@ import type {
     MaintenancePlanner,
     MigrateOptions,
 } from './drivers.ts'
+import { settleInOrder } from './settle_in_order.ts'
 
 /** A catalogue row, keyed by column name. */
 type Row = Record<string, unknown>
@@ -202,18 +203,31 @@ export function libsqlConnection(
         query: async (sql) => rowsOf(await client.execute(sql)),
         execute: async (planner) => {
             const tx = await client.transaction('write')
-            try {
-                await runPlan(
-                    planner,
-                    async (sql) => rowsOf(await tx.execute(sql)),
-                    (sql) => tx.execute(sql),
-                )
-                await tx.commit()
-            } finally {
-                // A rollback unless committed; then it only hands the
-                // connection back.
-                tx.close()
-            }
+            // The close is a rollback unless the plan committed; then it
+            // only hands the connection back. A close that fails never
+            // replaces the planner's or the statement's error: it is logged.
+            await settleInOrder([
+                {
+                    what: 'run the reset',
+                    run: async () => {
+                        await runPlan(
+                            planner,
+                            async (sql) => rowsOf(await tx.execute(sql)),
+                            (sql) => tx.execute(sql),
+                        )
+                        await tx.commit()
+                    },
+                },
+                {
+                    what: 'close the libsql transaction',
+                    // A throw in the executor becomes the rejection.
+                    run: () =>
+                        new Promise<void>((resolve) => {
+                            tx.close()
+                            resolve()
+                        }),
+                },
+            ])
         },
         migrate,
         close: () => Promise.resolve(),

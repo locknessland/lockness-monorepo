@@ -44,6 +44,24 @@ import {
 } from '../maintenance_connection.ts'
 import { RefusedError } from '../refusal.ts'
 
+/** Capture every `console.warn` line `fn` writes, and what it rejected with. */
+async function warned(fn: () => Promise<unknown>): Promise<{
+    readonly lines: string[]
+    readonly error: unknown
+}> {
+    const lines: string[] = []
+    const { warn } = console
+    console.warn = (...args: unknown[]) => void lines.push(args.join(' '))
+    try {
+        await fn()
+        return { lines, error: undefined }
+    } catch (error) {
+        return { lines, error }
+    } finally {
+        console.warn = warn
+    }
+}
+
 /** A url with no credential, assembled at run time. */
 const PG_URL = ['postgres:', '//app@db.example', ':5432/app'].join('')
 const MYSQL_URL = ['mysql:', '//app@db.example', ':3306/app'].join('')
@@ -201,7 +219,7 @@ Deno.test('#447 postgres: query, the migrator and close all use the dedicated cl
  * A fake mysql2 loader: the pool throws on every use but `end`; each
  * `createConnection` returns a numbered connection that records its calls.
  */
-function fakeMysql() {
+function fakeMysql(drizzleFailsOnConnection = false) {
     const events: string[] = []
     const wrapped: unknown[] = []
     const connections: unknown[] = []
@@ -221,6 +239,9 @@ function fakeMysql() {
         Promise.resolve({
             drizzle: (client: unknown) => {
                 wrapped.push(client)
+                if (drizzleFailsOnConnection && client !== pool) {
+                    throw new Error('drizzle could not wrap the connection')
+                }
                 return {}
             },
             mysql: {
@@ -283,12 +304,25 @@ Deno.test('#447 mysql: a planner that refuses runs no statement and keeps its ow
     assertEquals(fake.events, ['1:connect', '1:READ 1'])
 })
 
+Deno.test("#447 mysql: a connection drizzle cannot wrap is closed, and open fails with drizzle's error", async () => {
+    const fake = fakeMysql(true)
+    const handle = await mysqlDriverFactory(fake.load)(MYSQL_URL)
+
+    await assertRejects(
+        () => handle.maintenance!.open(),
+        Error,
+        'drizzle could not wrap the connection',
+    )
+
+    assertEquals(fake.events, ['1:connect', '1:end'])
+})
+
 // -----------------------------------------------------------------------------
 // libsql — one write transaction
 // -----------------------------------------------------------------------------
 
 /** A fake libsql client whose one transaction records its calls. */
-function fakeLibsql() {
+function fakeLibsql(closeFails = false) {
     const events: string[] = []
     const result = (sql: string) => ({ columns: ['sql'], rows: [[sql]] })
     const client: LibsqlMaintenanceClient = {
@@ -307,7 +341,10 @@ function fakeLibsql() {
                     events.push('commit')
                     return Promise.resolve()
                 },
-                close: () => void events.push('close'),
+                close: () => {
+                    events.push('close')
+                    if (closeFails) throw new Error('ROLLBACK failed')
+                },
             })
         },
     }
@@ -342,6 +379,45 @@ Deno.test('#447 libsql: a planner that refuses closes the transaction uncommitte
     await assertRejects(() => connection.execute(REFUSING), RefusedError, 'no')
 
     assertEquals(events, ['transaction:write', 'tx:READ 1', 'close'])
+})
+
+Deno.test("#447 libsql: a transaction close that fails keeps the planner's refusal, and is logged", async () => {
+    const { events, client } = fakeLibsql(true)
+    const connection = libsqlConnection(client, () => Promise.resolve())
+
+    const { lines, error } = await warned(() => connection.execute(REFUSING))
+
+    assert(error instanceof RefusedError, String(error))
+    assertEquals(events, ['transaction:write', 'tx:READ 1', 'close'])
+    assertEquals(lines.length, 1, JSON.stringify(lines))
+    assert(lines[0].includes('ROLLBACK failed'), lines[0])
+})
+
+Deno.test("#447 libsql: a transaction close that fails keeps the statement's error, and is logged", async () => {
+    const { client } = fakeLibsql(true)
+    const failing: LibsqlMaintenanceClient = {
+        ...client,
+        transaction: async (mode) => {
+            const tx = await client.transaction(mode)
+            return {
+                ...tx,
+                execute: (sql) =>
+                    sql === 'DROP B'
+                        ? Promise.reject(new Error('DROP B failed'))
+                        : tx.execute(sql),
+            }
+        },
+    }
+    const connection = libsqlConnection(failing, () => Promise.resolve())
+
+    const { lines, error } = await warned(() => connection.execute(PLANNER))
+
+    assert(
+        error instanceof Error && error.message === 'DROP B failed',
+        String(error),
+    )
+    assertEquals(lines.length, 1, JSON.stringify(lines))
+    assert(lines[0].includes('ROLLBACK failed'), lines[0])
 })
 
 Deno.test("#447 libsql: close leaves the handle's client open", async () => {

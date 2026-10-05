@@ -35,6 +35,7 @@ import {
     mysqlConnection,
     postgresConnection,
 } from './maintenance_connection.ts'
+import { rejectAfter } from './settle_in_order.ts'
 
 /**
  * Database schema type for Drizzle ORM — the generic constraint the dialect
@@ -541,7 +542,16 @@ export function mysqlDriverFactory(
             maintenance: {
                 open: async () => {
                     const connection = await mysql.createConnection(url)
-                    const db = drizzle(connection)
+                    let db: MySql2Database<DatabaseSchema>
+                    try {
+                        db = drizzle(connection)
+                    } catch (error) {
+                        // Opened, so closed: the caller never received it.
+                        return rejectAfter(error, [{
+                            what: 'close the maintenance connection',
+                            run: () => connection.end(),
+                        }])
+                    }
                     return mysqlConnection(
                         connection,
                         async ({ folder, table }) => {
