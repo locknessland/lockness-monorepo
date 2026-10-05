@@ -18,7 +18,6 @@ project.
 | ----------------------------------- | ----------------------------------------------------------------- | ----- |
 | `cli.ts`                            | `packages/init/stubs/init/cli.ts.stub`                            | ✅    |
 | `main.ts`                           | `packages/init/stubs/init/main.ts.stub`                           | ✅    |
-| `postcss.config.js`                 | `packages/init/stubs/init/postcss.config.js.stub`                 | ✅    |
 | `public/img/lockness-logo.svg`      | `packages/init/stubs/init/public/img/lockness-logo.svg`           | ✅    |
 | `public/favicon.ico`                | `packages/init/stubs/init/public/favicon.ico`                     | ✅    |
 | `public/favicon-16x16.png`          | `packages/init/stubs/init/public/favicon-16x16.png`               | ✅    |

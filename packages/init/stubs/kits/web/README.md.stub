@@ -103,6 +103,18 @@ explicitly (`@AuthRequired('admin')`) when you add others.
 
 ## Tailwind v4
 
+`app/view/assets/app.css` is the entry point. It imports Tailwind, and
+`deno task css:build` compiles it with the Tailwind CLI into
+`public/css/app.css`, the stylesheet `app/view/layouts/main_layout.tsx` links.
+`css:watch` runs the same command and rebuilds on every change. Tailwind scans
+`app/` for class names, so a class written anywhere there gets a rule.
+`tailwindcss` and `@tailwindcss/cli` come from npm: Tailwind is not on JSR.
+
+The entry file declares design tokens as CSS variables in `:root`, and exposes
+them as theme colours in `@theme inline` — that is what makes `bg-primary` or
+`text-muted-foreground` exist. Put base styles inside `@layer base { … }`: an
+unlayered rule outranks every utility, whatever its specificity.
+
 CSS variables use **parentheses**, arbitrary literals use brackets:
 
 ```html

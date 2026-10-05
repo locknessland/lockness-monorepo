@@ -77,9 +77,13 @@ deno task kits:smoke --keep       # leave the scaffolds on disk
 ```
 
 Each kit is scaffolded, **repointed at the local workspace**, then type-checked,
-tested and booted over real HTTP. The repointing matters: left alone a scaffold
-resolves the last published release, which is precisely the version that cannot
-contain the change you are about to push. CI runs this as its own job.
+tested, built with its own `deno task build` and booted over real HTTP. For the
+`web` kit the build must emit Tailwind's output: the smoke fails a
+`public/css/app.css` that lacks a rule for a utility class the kit's own views
+use, which is what a copy of the entry file looks like (#506). The repointing
+matters: left alone a scaffold resolves the last published release, which is
+precisely the version that cannot contain the change you are about to push. CI
+runs this as its own job.
 
 ### Version Control
 
@@ -511,8 +515,8 @@ deno task build
 ```
 
 Prepares the app to run: it regenerates `app/routes.ts` from your controllers,
-and in the `web` kit also builds `public/css/app.css`. It compiles nothing. For
-a standalone binary, run `deno task cli compile`; see
+and in the `web` kit also compiles `public/css/app.css` with Tailwind. It builds
+no binary. For a standalone binary, run `deno task cli compile`; see
 [compilation.md](../../../docs/compilation.md).
 
 ### Environment Variables
@@ -594,11 +598,12 @@ Verify `DATABASE_URL` in `.env` and ensure PostgreSQL is running:
 
 ## Upgrading to v0.5.0
 
-Six items. The first and third are for `web` and `api` apps scaffolded from
+Seven items. The first and third are for `web` and `api` apps scaffolded from
 v0.4.x; `slim` has no database and is not affected by them. The second, fourth
 and fifth are for every app, of any kit, scaffolded before v0.5.0. If you take
 item 4, which replaces the `Dockerfile`, item 2 is already done. The sixth is
-for `web` and `api` apps, and **without it they do not boot on v0.5.0**.
+for `web` and `api` apps, and **without it they do not boot on v0.5.0**. The
+seventh is for `web` apps only, whose stylesheet never ran through Tailwind.
 
 For item 1, **migration step:** add the drizzle wiring to `deno.json` and
 `drizzle.config.ts`, then regenerate the migrations (database never migrated) or
@@ -1020,6 +1025,53 @@ deno add jsr:@lockness/cache
  …
 -    cache: cacheConfig,
 ```
+
+### 7. web apps scaffolded before v0.5.0: run Tailwind in `css:build`
+
+The kit's `postcss.config.js` had no plugins, so `css:build` copied
+`app/view/assets/app.css` to `public/css/app.css` unchanged. Tailwind never ran,
+and every utility class, the kit's own included, rendered unstyled (#506). Since
+v0.5.0 the kit builds its stylesheet with the Tailwind v4 CLI, as the framework
+does. `@lockness/upgrade` only rewrites specifiers, so apply these by hand.
+
+`deno.json` — Tailwind comes from npm because it is not on JSR:
+
+```diff
+     "tasks": {
+-        "css:build": "deno run -A npm:postcss-cli@11 app/view/assets/app.css -o public/css/app.css",
+-        "css:watch": "deno run -A npm:postcss-cli@11 app/view/assets/app.css -o public/css/app.css --watch",
++        "css:build": "deno run -A @tailwindcss/cli -i app/view/assets/app.css -o public/css/app.css",
++        "css:watch": "deno run -A @tailwindcss/cli -i app/view/assets/app.css -o public/css/app.css --watch=always",
+     },
+     "imports": {
+-        "postcss": "npm:postcss@^8.4.49",
+-        "postcss-cli": "npm:postcss-cli@^11.0.0"
++        "tailwindcss": "npm:tailwindcss@^4.1.18",
++        "@tailwindcss/cli": "npm:@tailwindcss/cli@^4.1.18"
+     }
+```
+
+`--watch=always` keeps the watcher alive when its stdin is closed, which is the
+case when `scripts/dev.sh` starts it in the background; a bare `--watch` exits
+there before building anything.
+
+`app/view/assets/app.css` — import Tailwind first, and scan `app/` for classes:
+
+```diff
++@import 'tailwindcss' source('../..');
+```
+
+In the same file, delete the generated `* { margin: 0; padding: 0; … }` reset,
+or move your own base rules inside `@layer base { … }`. Tailwind's preflight
+already resets margins and padding, and an **unlayered rule outranks every
+utility**: left as it was, that reset cancels `p-6`, `mx-auto` and the rest. For
+the colour utilities `app/view/components/ui.tsx` uses (`bg-primary`,
+`text-card-foreground`, `border-border` …), copy the `:root` tokens and the
+`@theme inline` block from the `app.css` a v0.5.0 scaffold writes.
+
+Delete `postcss.config.js`; nothing reads it. Then run `deno task css:build`,
+check that `public/css/app.css` starts with a `tailwindcss v4` banner, and
+commit `deno.lock`.
 
 ## See Also
 
