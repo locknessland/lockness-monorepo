@@ -41,9 +41,13 @@ deno add @lockness/auth @lockness/auth-provider
 ```typescript
 import { DrizzleSessionProvider } from '@lockness/auth-provider/drizzle'
 import { SessionGuard } from '@lockness/auth'
+import { rememberMeTokens } from './schema.ts'
 
 const sessionProvider = new DrizzleSessionProvider({
     db: () => database.db,
+    // The Drizzle table OBJECT (see "Remember Tokens Table"), not its name.
+    // Passing it turns remember-me on; omit it to leave remember-me off.
+    rememberTokensTable: rememberMeTokens,
     findUserById: async (db, id) => {
         return await db.query.users.findFirst({
             where: (u, { eq }) => eq(u.id, id),
@@ -58,11 +62,15 @@ const sessionProvider = new DrizzleSessionProvider({
         }
         return null
     },
-    enableRememberTokens: true,
 })
 
 const sessionGuard = new SessionGuard(sessionProvider, sessionManager)
 ```
+
+Only the SHA-256 hash of a remember-me token is stored. A token expires
+`expiresIn` **seconds** after it is issued (the guard passes its
+`rememberMeTokensAge`), its `firstIssuedAt` survives every recycle, and
+`deleteRememberToken` only deletes a token that belongs to the user it is given.
 
 ### Drizzle (Token Auth)
 
@@ -126,7 +134,9 @@ const sessionProvider = new KyselySessionProvider({
         }
         return null
     },
-    enableRememberTokens: true,
+    // Columns are fixed: id, user_id, token_hash, expires_at,
+    // first_issued_at, created_at. Omit to leave remember-me off.
+    rememberTokensTable: 'remember_me_tokens',
 })
 
 const sessionGuard = new SessionGuard(sessionProvider, sessionManager)
@@ -136,23 +146,20 @@ const sessionGuard = new SessionGuard(sessionProvider, sessionManager)
 
 ### SessionProviderBase
 
-Abstract base for session-based authentication.
-
-**Provides:**
-
-- Token generation (cryptographically secure)
-- Token hashing (SHA-256)
-- Password verification (customizable)
+Abstract base for session-based authentication. It owns the remember-me
+lifecycle (create, verify, delete, delete all, recycle) over a
+`RememberTokenStore` you pass as `super({ rememberTokens: store })`.
 
 **Must implement:**
 
 - `findById(id)` - Find user by ID
 - `findByCredentials(email, password)` - Find user and verify password
 - `verifyPassword(plain, hash)` - Password verification
-- `createRememberToken(user, expiresIn)` - Create remember tokens
-- `verifyRememberToken(token)` - Verify remember tokens
-- `deleteRememberToken(user, tokenId)` - Delete tokens
-- `recycleRememberToken(user, tokenId, expiresIn)` - Rotate tokens
+
+**For remember-me, a store implements:** `insert(record)`, `findByHash(hash)`,
+`delete(userId, tokenId)` (scoped by owner) and `deleteAllForUser(userId)`. Do
+not override the remember-me methods themselves: they hold the expiry, ownership
+and origin checks.
 
 ### TokenProviderBase
 
@@ -196,7 +203,7 @@ import { DataSource } from 'typeorm'
 
 export class TypeORMSessionProvider<User> extends SessionProviderBase<User> {
     constructor(private db: DataSource) {
-        super()
+        super() // no store: remember-me off
     }
 
     async findById(id: string | number): Promise<User | null> {
@@ -219,28 +226,12 @@ export class TypeORMSessionProvider<User> extends SessionProviderBase<User> {
     async verifyPassword(plain: string, hash: string): Promise<boolean> {
         return await bcrypt.compare(plain, hash)
     }
-
-    async createRememberToken(user: User, expiresIn: number) {
-        // Implement using TypeORM
-    }
-
-    async verifyRememberToken(token: string) {
-        // Implement using TypeORM
-    }
-
-    async deleteRememberToken(user: User, tokenId: string | number) {
-        // Implement using TypeORM
-    }
-
-    async recycleRememberToken(
-        user: User,
-        tokenId: string | number,
-        expiresIn: number,
-    ) {
-        // Implement using TypeORM
-    }
 }
 ```
+
+With remember-me, pass a `RememberTokenStore` to `super()` instead of
+implementing the remember-me methods — see
+[docs/DOCS.md](docs/DOCS.md#creating-a-custom-provider).
 
 ## Password Hashing
 
@@ -266,17 +257,22 @@ const provider = new DrizzleSessionProvider({
 
 ### Remember Tokens Table
 
+`DrizzleSessionProvider` reads it through the property names `id`, `userId`,
+`hash`, `expiresAt`, `firstIssuedAt` and `createdAt` of the table object passed
+as `rememberTokensTable`; `KyselySessionProvider` uses the column names below.
+
 ```sql
 CREATE TABLE remember_me_tokens (
   id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  token_hash VARCHAR(255) NOT NULL UNIQUE,
+  token_hash VARCHAR(64) NOT NULL UNIQUE,
   expires_at TIMESTAMP NOT NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+  first_issued_at TIMESTAMP NOT NULL,
+  created_at TIMESTAMP NOT NULL
 );
 
+-- The UNIQUE constraint already indexes token_hash.
 CREATE INDEX idx_remember_tokens_user_id ON remember_me_tokens(user_id);
-CREATE INDEX idx_remember_tokens_expires_at ON remember_me_tokens(expires_at);
 ```
 
 ### Access Tokens Table

@@ -289,7 +289,13 @@ export interface SessionWithRememberMeProviderContract<
     User extends Authenticatable = Authenticatable,
 > extends SessionUserProviderContract<User> {
     /**
-     * Create a remember me token for a user
+     * Create a remember me token for a user.
+     *
+     * @param user - The token's owner.
+     * @param expiresIn - Lifetime of the token, in **seconds** — the guard
+     *   passes its `rememberMeTokensAge`, the same number it gives the
+     *   cookie's `maxAge`.
+     * @returns The new token, `value` holding the plaintext for the cookie.
      */
     createRememberToken(user: User, expiresIn: number): Promise<RememberMeToken>
 

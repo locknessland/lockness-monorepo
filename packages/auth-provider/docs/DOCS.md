@@ -38,23 +38,46 @@ deno add @lockness/auth @lockness/auth-provider
 
 ### SessionProviderBase
 
-Abstract base for session-based authentication with remember tokens.
+Abstract base for session-based authentication with remember tokens. It owns the
+whole remember-me lifecycle, over a storage port it is given, so every binding
+gets the same security decisions (#457).
 
-**Provides:**
+**Provides (do not override):**
 
-- Token generation (cryptographically secure random tokens)
-- Token hashing (SHA-256)
-- Password verification (customizable)
+- `createRememberToken(user, expiresIn)` — 40 random bytes, stored as their
+  SHA-256 hash; the plaintext is returned once. `expiresIn` is in **seconds**
+  (the guard passes `rememberMeTokensAge`, the cookie's `maxAge`).
+  `firstIssuedAt` is set to the creation instant and stored.
+- `verifyRememberToken(token)` — allows only a token whose hash matches, that is
+  unexpired, that has a valid `firstIssuedAt`, and whose user still exists. A
+  `null` or invalid expiry or origin denies. A storage error **rejects** rather
+  than resolving to `null`. The returned token's `value` is `''`.
+- `deleteRememberToken(user, tokenId)` — scoped by owner: another user's id is a
+  no-op.
+- `deleteAllRememberTokens(user)` — revokes every token of that user.
+- `recycleRememberToken(user, token, expiresIn)` — validates its input before
+  any write, deletes the old token, then inserts a new one carrying the old
+  `firstIssuedAt`. If the insert fails, the user is logged out.
+
+Without a store, remember-me is off: create and recycle throw, verify returns
+`null`, and both deletes do nothing.
 
 **Must implement:**
 
 - `findById(id)` - Find user by ID
 - `findByCredentials(email, password)` - Find and verify user
 - `verifyPassword(plain, hash)` - Password comparison
-- `createRememberToken(user, expiresIn)` - Create remember-me tokens
-- `verifyRememberToken(token)` - Verify remember tokens
-- `deleteRememberToken(user, tokenId)` - Delete specific token
-- `recycleRememberToken(user, tokenId, expiresIn)` - Rotate token on use
+
+**For remember-me, pass a `RememberTokenStore`** as
+`super({ rememberTokens: store })`:
+
+- `insert(record)` - Store a row, return it with its (non-null) id
+- `findByHash(hash)` - The row with exactly that hash, or `null`; no expiry
+  filter, the base decides expiry
+- `delete(userId, tokenId)` - Delete one row, only if `userId` owns it
+- `deleteAllForUser(userId)` - Delete every row of one user
+
+Store steps must let errors propagate.
 
 ### TokenProviderBase
 
@@ -112,9 +135,13 @@ Abstract base for HTTP Basic Authentication.
 import { DrizzleSessionProvider } from '@lockness/auth-provider/drizzle'
 import { SessionGuard } from '@lockness/auth'
 import * as bcrypt from 'bcrypt'
+import { rememberMeTokens } from './schema.ts'
 
 const sessionProvider = new DrizzleSessionProvider({
     db: () => database.db,
+    // The Drizzle table OBJECT (see "Remember Tokens Table"), not its name.
+    // Passing it turns remember-me on; omit it to leave remember-me off.
+    rememberTokensTable: rememberMeTokens,
     findUserById: async (db, id) => {
         return await db.query.users.findFirst({
             where: (u, { eq }) => eq(u.id, id),
@@ -132,7 +159,6 @@ const sessionProvider = new DrizzleSessionProvider({
     verifyPassword: async (plain, hash) => {
         return await bcrypt.compare(plain, hash)
     },
-    enableRememberTokens: true,
 })
 
 const sessionGuard = new SessionGuard(sessionProvider, sessionManager)
@@ -221,7 +247,9 @@ const sessionProvider = new KyselySessionProvider({
         }
         return null
     },
-    enableRememberTokens: true,
+    // The table's columns are fixed (see "Remember Tokens Table").
+    // Omit the option to leave remember-me off.
+    rememberTokensTable: 'remember_me_tokens',
 })
 
 const sessionGuard = new SessionGuard(sessionProvider, sessionManager)
@@ -231,19 +259,25 @@ const sessionGuard = new SessionGuard(sessionProvider, sessionManager)
 
 ### Remember Tokens Table
 
-Required for session auth with remember-me functionality:
+Required for session auth with remember-me functionality.
+`DrizzleSessionProvider` reads and writes it through the Drizzle table object
+passed as `rememberTokensTable`; the contract is on that object's **property
+names** (`id`, `userId`, `hash`, `expiresAt`, `firstIssuedAt`, `createdAt`), all
+NOT NULL, so the SQL column names are yours. `KyselySessionProvider` has no
+table object, so it uses exactly the column names below:
 
 ```sql
 CREATE TABLE remember_me_tokens (
   id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  token_hash VARCHAR(255) NOT NULL UNIQUE,
+  token_hash VARCHAR(64) NOT NULL UNIQUE,
   expires_at TIMESTAMP NOT NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+  first_issued_at TIMESTAMP NOT NULL,
+  created_at TIMESTAMP NOT NULL
 );
 
+-- The UNIQUE constraint already indexes token_hash.
 CREATE INDEX idx_remember_tokens_user_id ON remember_me_tokens(user_id);
-CREATE INDEX idx_remember_tokens_expires_at ON remember_me_tokens(expires_at);
 ```
 
 ### Access Tokens Table
@@ -284,9 +318,11 @@ export const rememberMeTokens = pgTable('remember_me_tokens', {
     userId: integer('user_id').notNull().references(() => users.id, {
         onDelete: 'cascade',
     }),
-    tokenHash: varchar('token_hash', { length: 255 }).notNull().unique(),
+    // The provider needs the property `hash`; the column may be named freely.
+    hash: varchar('token_hash', { length: 64 }).notNull().unique(),
     expiresAt: timestamp('expires_at').notNull(),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
+    firstIssuedAt: timestamp('first_issued_at').notNull(),
+    createdAt: timestamp('created_at').notNull(),
 })
 
 export const accessTokens = pgTable('access_tokens', {
@@ -355,85 +391,49 @@ export class TypeORMSessionProvider<User> extends SessionProviderBase<User> {
     async verifyPassword(plain: string, hash: string): Promise<boolean> {
         return await bcrypt.compare(plain, hash)
     }
-
-    async createRememberToken(user: User, expiresIn: number) {
-        const token = this.generateToken()
-        const tokenHash = this.hashToken(token)
-        const expiresAt = new Date(Date.now() + expiresIn * 1000)
-
-        const tokenRecord = await this.db.getRepository(RememberToken).save({
-            userId: user.id,
-            tokenHash,
-            expiresAt,
-        })
-
-        return { id: tokenRecord.id, token }
-    }
-
-    async verifyRememberToken(token: string) {
-        const tokenHash = this.hashToken(token)
-        const tokenRecord = await this.db.getRepository(RememberToken)
-            .findOne({ where: { tokenHash } })
-
-        if (!tokenRecord || tokenRecord.expiresAt < new Date()) {
-            return null
-        }
-
-        return { userId: tokenRecord.userId, tokenId: tokenRecord.id }
-    }
-
-    async deleteRememberToken(user: User, tokenId: string | number) {
-        await this.db.getRepository(RememberToken).delete({
-            id: tokenId,
-            userId: user.id,
-        })
-    }
-
-    async recycleRememberToken(
-        user: User,
-        tokenId: string | number,
-        expiresIn: number,
-    ) {
-        const newToken = this.generateToken()
-        const tokenHash = this.hashToken(newToken)
-        const expiresAt = new Date(Date.now() + expiresIn * 1000)
-
-        await this.db.getRepository(RememberToken).update(
-            { id: tokenId, userId: user.id },
-            { tokenHash, expiresAt },
-        )
-
-        return newToken
-    }
 }
 ```
+
+For remember-me, implement the four-step `RememberTokenStore` port and pass it
+to `super()`. The base does the rest — minting, hashing, expiry, ownership and
+the origin — so the store only moves rows:
+
+```typescript
+import type { RememberTokenStore } from '@lockness/auth-provider/base'
+
+function typeormRememberStore(db: DataSource): RememberTokenStore {
+    const repo = () => db.getRepository(RememberToken)
+    return {
+        insert: async (record) => await repo().save(record),
+        findByHash: async (hash) => await repo().findOneBy({ hash }) ?? null,
+        delete: async (userId, id) => {
+            await repo().delete({ id, userId })
+        },
+        deleteAllForUser: async (userId) => {
+            await repo().delete({ userId })
+        },
+    }
+}
+
+export class TypeORMSessionProvider<User> extends SessionProviderBase<User> {
+    constructor(private db: DataSource) {
+        super({ rememberTokens: typeormRememberStore(db) })
+    }
+    // findById, findByCredentials and verifyPassword as above
+}
+```
+
+`delete` must be scoped by owner, and no step may swallow an error. The
+remember-me methods (`createRememberToken`, `verifyRememberToken`,
+`deleteRememberToken`, `deleteAllRememberTokens`, `recycleRememberToken`) are
+not overridden: overriding them still compiles, but bypasses the policy.
 
 ## Token Security
 
-### Token Generation
-
-Providers use `crypto.getRandomValues()` for cryptographically secure tokens:
-
-```typescript
-protected generateToken(): string {
-    const buffer = new Uint8Array(32)
-    crypto.getRandomValues(buffer)
-    return Array.from(buffer, b => b.toString(16).padStart(2, '0')).join('')
-}
-```
-
-### Token Hashing
-
-Tokens are hashed before storage using SHA-256:
-
-```typescript
-protected hashToken(token: string): string {
-    const encoder = new TextEncoder()
-    const data = encoder.encode(token)
-    const hashBuffer = crypto.subtle.digestSync('SHA-256', data)
-    return Array.from(new Uint8Array(hashBuffer), b => b.toString(16).padStart(2, '0')).join('')
-}
-```
+Tokens come from `crypto.getRandomValues()` (40 bytes, 80 hex characters) and
+only their SHA-256 hash is stored. Generation and hashing are internal to the
+base classes: no subclass can reach them, so no binding can store a weaker
+credential.
 
 ## Complete Usage Example
 
@@ -450,7 +450,7 @@ import {
 } from '@lockness/auth-provider/drizzle'
 import { sessionMiddleware } from '@lockness/session'
 import { database } from './database.ts'
-import { accessTokens } from './schema.ts'
+import { accessTokens, rememberMeTokens } from './schema.ts'
 import * as bcrypt from 'bcrypt'
 
 const app = createApp()
@@ -473,7 +473,7 @@ const sessionProvider = new DrizzleSessionProvider({
         return null
     },
     verifyPassword: async (plain, hash) => await bcrypt.compare(plain, hash),
-    enableRememberTokens: true,
+    rememberTokensTable: rememberMeTokens,
 })
 
 // Token provider for API routes
@@ -542,10 +542,11 @@ app.use(
 
 ## Upgrading to v0.5.0
 
-Two items, both breaking at compile time. **Migration steps:** pass your Drizzle
+Three items, all breaking. **Migration steps:** pass your Drizzle
 `access_tokens` table object as `tokensTable`, and reshape the table to the
 seven-property contract before you regenerate migrations; then wrap every
-provider's `db` option in a function.
+provider's `db` option in a function; then replace `enableRememberTokens` with
+`rememberTokensTable`, adding the `first_issued_at` column.
 
 ### 1. `DrizzleTokenProvider` takes `tokensTable` as a Drizzle table, and `access_tokens` is reshaped
 
@@ -618,6 +619,48 @@ a closed client.
 For an app scaffolded from a v0.4.x `web` or `api` kit, the exact changes to
 `createUserProvider` and its call sites are item 3 of
 [`@lockness/init`'s v0.5.0 notes](../../init/docs/DOCS.md#upgrading-to-v050).
+
+### 3. Remember-me tokens now work, and their configuration changed
+
+Before, `DrizzleSessionProvider` never stored a remember-me token, and
+`KyselySessionProvider` stored one with a thousandth of its lifetime and no
+origin (#457). Now [`SessionProviderBase`](#sessionproviderbase) owns the
+remember-me lifecycle, and both providers store tokens through it.
+
+- **`enableRememberTokens` is removed.** Passing it throws a `TypeError`.
+  Remember-me is on when you pass `rememberTokensTable`, and off when you omit
+  it.
+- **`DrizzleSessionProvider`: `rememberTokensTable` is now your Drizzle table
+  object, not a table name.** It needs the column properties `id`, `userId`,
+  `hash` (unique), `expiresAt`, `firstIssuedAt` and `createdAt`, all NOT NULL.
+  The SQL column names are yours to choose (see
+  [Remember Tokens Table](#remember-tokens-table)). Before this release the
+  Drizzle provider never stored a remember-me token, so there is no data to
+  migrate.
+- **`KyselySessionProvider`:** pass `rememberTokensTable: 'remember_me_tokens'`
+  (or your table name) explicitly, and add a column:
+
+  ```sql
+  ALTER TABLE remember_me_tokens ADD COLUMN first_issued_at TIMESTAMP;
+  UPDATE remember_me_tokens SET first_issued_at = created_at;
+  ALTER TABLE remember_me_tokens ALTER COLUMN first_issued_at SET NOT NULL;
+  ```
+
+  Rows written by v0.4.x expired after one thousandth of the configured
+  remember-me age (about 43 minutes at the 30-day default). Deleting them all
+  instead is equally safe.
+- **`SessionProviderBase`: the remember-me lifecycle is now built in.** A custom
+  ORM binding implements `RememberTokenStore` (`insert`, `findByHash`,
+  `delete(userId, tokenId)`, `deleteAllForUser(userId)`) and passes it as
+  `super({ rememberTokens: store })`. It no longer implements the five
+  remember-me methods. Overriding them still compiles, but it bypasses the
+  expiry, ownership and origin checks, and it is unsupported. The protected
+  helpers `generateTokenValue()` and `hashTokenValue()` are removed.
+- **`assertAccessTokensTable` and `AccessTokenColumn` are no longer exported.**
+  The provider runs the check itself at construction. `DrizzleAccessTokensTable`
+  and the new `DrizzleRememberTokensTable` stay public.
+- **Remember-me rows now expire after the configured `rememberMeTokensAge`, in
+  seconds,** as documented, instead of a thousandth of it.
 
 ## Contributing
 

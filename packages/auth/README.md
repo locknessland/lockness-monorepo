@@ -341,47 +341,58 @@ class InMemoryProvider implements SessionUserProviderContract<User> {
 
 ### Drizzle Provider (Production)
 
-We provide optional Drizzle helpers:
+The Drizzle providers live in
+[`@lockness/auth-provider`](../auth-provider/docs/DOCS.md), not in this package:
 
 ```typescript
-import { DrizzleSessionProvider } from '@lockness/auth'
+import { DrizzleSessionProvider } from '@lockness/auth-provider/drizzle'
+import { eq } from 'drizzle-orm'
+import { rememberMeTokens, users } from './schema.ts'
 
 const provider = new DrizzleSessionProvider({
     db: () => database.db,
+    // The Drizzle table OBJECT, not its name. Passing it turns remember-me on.
+    rememberTokensTable: rememberMeTokens,
     findUserById: async (db, id) => {
-        return await db.query.users.findFirst({
-            where: (users, { eq }) => eq(users.id, id),
-        })
+        const [user] = await db.select().from(users)
+            .where(eq(users.id, Number(id))).limit(1)
+        return user ?? null
     },
     findUserByCredentials: async (db, email, password) => {
-        const user = await db.query.users.findFirst({
-            where: (users, { eq }) => eq(users.email, email),
-        })
-        if (user && await bcrypt.compare(password, user.password)) {
+        const [user] = await db.select().from(users)
+            .where(eq(users.email, email)).limit(1)
+        if (user && await verifyPassword(password, user.password)) {
             return user
         }
         return null
     },
-    enableRememberTokens: true,
-    rememberTokensTable: 'remember_me_tokens',
 })
 ```
 
 **Database Schema for Remember Me:**
 
+The provider reads the table through its property names (`id`, `userId`, `hash`,
+`expiresAt`, `firstIssuedAt`, `createdAt`), all NOT NULL; the SQL column names
+are yours:
+
 ```sql
 CREATE TABLE remember_me_tokens (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    token_hash VARCHAR(255) NOT NULL UNIQUE,
-    expires_at TIMESTAMP NOT NULL,
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash VARCHAR(64) NOT NULL UNIQUE,
+  expires_at TIMESTAMP NOT NULL,
+  first_issued_at TIMESTAMP NOT NULL,
+  created_at TIMESTAMP NOT NULL
 );
 
-CREATE INDEX idx_remember_tokens_hash ON remember_me_tokens(token_hash);
-CREATE INDEX idx_remember_tokens_user ON remember_me_tokens(user_id);
+-- The UNIQUE constraint already indexes token_hash.
+CREATE INDEX idx_remember_tokens_user_id ON remember_me_tokens(user_id);
 ```
+
+Only the SHA-256 hash of a token is stored. `firstIssuedAt` is the origin the
+guard's `rememberMeAbsoluteLifetime` cap is measured from, and every recycle
+keeps it. A row expires `rememberMeTokensAge` **seconds** after it is issued,
+the same number the guard gives the cookie's `Max-Age`.
 
 **Database Schema for Access Tokens:**
 

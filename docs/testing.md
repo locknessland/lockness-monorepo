@@ -319,6 +319,13 @@ runs a probe inside the app — the README's `POST /auth/token` must authenticat
 `GET /auth/me`, only the token's hash may be stored, and an unknown, expired or
 revoked token must be refused.
 
+And `scripts/remember_me_live_test.ts` (#457): on its own throwaway database
+(`lockness_remember_<random>`) it wires the real `SessionGuard` to the real
+`DrizzleSessionProvider`. Login with remember must store only the token's hash,
+for the cookie's `Max-Age` in seconds. The cookie must authenticate and recycle,
+keeping `first_issued_at`. Deletes must be scoped to their owner. An unknown,
+expired or revoked token must be refused.
+
 ## Mutation batteries
 
 A test that passes proves the code ran. It does not prove the test would have
