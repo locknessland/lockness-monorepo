@@ -56,8 +56,13 @@ restore caches `test.yml` wrote. A new check goes into `gate` (via
 `scripts/gate.ts`) or a job of its own that `publish` needs, never into
 `publish`.
 
-> Both workflows use `deno-version: v2.x`. Bump with caution — pin a specific
-> minor if you need stability.
+**Toolchain pin (#481).** Every `publish.yml` job installs the exact Deno
+version in `.dvmrc` (`deno-version-file`), never a range. `test.yml`'s `test`
+job tests it in its `pinned` lane, beside a floating `v2.x` lane; its other
+jobs float on `v2.x`. To move the pin, follow
+[releasing.md](../../../docs/releasing.md#the-deno-version-that-publishes):
+`.dvmrc` and the init Dockerfile stub's `ARG DENO_VERSION` move together, and
+`scripts/ci_deno_pin_test.ts` holds the shape.
 
 ## Release pipeline — through `/ship`
 
@@ -119,6 +124,7 @@ workspace and asserts the lockfile admits the new version.
 | `scripts/bump.ts`                                   | `deno task bump:legacy` — arbitrary version jumps; exports `updateRootJsonc`   |
 | `scripts/lockfile.ts`                               | `refreshLockfile()` — the `deno.lock` refresh both bump paths end with (#429)  |
 | `.github/workflows/publish.yml`                     | JSR publish triggered by `release: published`                                 |
+| `.dvmrc`                                            | the exact Deno version `publish.yml` installs and `test.yml`'s `pinned` lane tests (#481) |
 | `.github/workflows/test.yml`                        | PR gate: `deno task gate --leaks`, plus coverage / live-broker / kits jobs    |
 | `.claude/skills/ship/phases/tag.md`                 | tag phase contract, `/ship` step 2 (Specnaut 4.4.0 moved it out of `/specnaut`) |
 | `.claude/skills/ship/phases/release.md`             | release phase contract (vendored; never run on its own here)                   |

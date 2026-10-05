@@ -394,6 +394,31 @@ validation. `/ship` step 5 boots the api kit from real JSR after the publish to
 cover these. That is a confirmation, not the gate. A failure there blocks the
 announcement and calls for a patch release.
 
+### The Deno version that publishes
+
+`publish.yml`'s `gate`, `kits` and `publish` jobs all install the one exact Deno
+version in `.dvmrc`, at the repository root (#481). `test.yml`'s `pinned` matrix
+lane reads the same file, beside a floating `v2.x` lane that catches new
+releases early. The version is stated once, so the version that publishes is a
+version CI tested, and every job of one release run uses the same toolchain.
+That matters because `deno publish` rewrites what it uploads (#474): the
+toolchain decides whether a published package works.
+
+To move the pin:
+
+1. Wait for the `v2.x` lane of `test.yml` to be green on the new version: it
+   already runs whatever 2.x is newest.
+2. Write the new exact `x.y.z` into `.dvmrc`, never a range.
+3. Set `ARG DENO_VERSION` in `packages/init/stubs/init/Dockerfile.stub` to the
+   same version: scaffolded apps build on it, and
+   `scripts/dockerfile_healthcheck_test.ts` fails until the two agree.
+4. Run `deno fmt` and `deno task gate`, and land it as a `ci` commit before the
+   release it is meant for.
+
+`scripts/ci_deno_pin_test.ts` fails if `.dvmrc` stops holding an exact version,
+if a `publish.yml` job installs Deno any other way, or if `test.yml`'s `pinned`
+lane stops reading the file.
+
 ## Irreversibility
 
 A published JSR version cannot be unpublished. A release publishes **all 27
