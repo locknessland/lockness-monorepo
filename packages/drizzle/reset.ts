@@ -28,6 +28,7 @@
 import type { Dialect, SchemaMaintenance } from './drivers.ts'
 import { DEFAULT_BOOKKEEPING_SCHEMA } from './migration_settings.ts'
 import { RefusedError } from './refusal.ts'
+import { backtick, literal, quote } from './sql_text.ts'
 
 /**
  * What a reset needs to know — a subset of the `db:fresh` settings.
@@ -762,34 +763,4 @@ function text(row: Row, column: string): string {
         )
     }
     return value
-}
-
-/**
- * A double-quoted identifier (sqlite, postgres).
- *
- * @param name - The identifier.
- * @returns It, quoted, with `"` doubled.
- */
-function quote(name: string): string {
-    return `"${name.replaceAll('"', '""')}"`
-}
-
-/**
- * A backtick-quoted identifier (MySQL).
- *
- * @param name - The identifier.
- * @returns It, quoted, with `` ` `` doubled.
- */
-function backtick(name: string): string {
-    return `\`${name.replaceAll('`', '``')}\``
-}
-
-/**
- * A standard SQL string literal (postgres, `standard_conforming_strings`).
- *
- * @param value - The text.
- * @returns It, single-quoted, with `'` doubled.
- */
-function literal(value: string): string {
-    return `'${value.replaceAll("'", "''")}'`
 }
