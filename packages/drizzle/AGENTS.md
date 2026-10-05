@@ -138,6 +138,24 @@ with `deno task mutate` (all of them, one at a time) or
 
 <!-- /generated:tests -->
 
+### The live-postgres harness (`tests/live_postgres.ts`)
+
+**Not counted above as a test, and not internal.** It decides, once, whether a
+suite that needs a real Postgres runs at all and which server it may touch —
+every such suite is destructive. The precedent is `@lockness/redis`'s
+`tests/live_broker.ts`.
+
+| Export           | What it decides                                                                                                                 |
+| :--------------- | :------------------------------------------------------------------------------------------------------------------------------ |
+| `LIVE_POSTGRES`  | Whether a gated suite runs. The **only** reader of `LOCKNESS_POSTGRES_INTEGRATION`; the root `test:postgres` task sets it.      |
+| `assertLoopback` | Refuses a url unless every host postgres.js would try is a loopback host — read from postgres.js's own parse, not the url text. |
+| `liveUrl()`      | `LOCKNESS_POSTGRES_URL`, passed through `assertLoopback`.                                                                       |
+
+**Consumers outside the package** import it by relative path, so a change here
+changes them too: `scripts/kit_migrations_live_test.ts`,
+`scripts/kit_token_flow_live_test.ts` and `scripts/remember_me_live_test.ts`
+(#450). Inside the package: `tests/fresh_postgres_live.test.ts`.
+
 ## Before you call it done
 
 <!-- generated:gate -->
