@@ -6,15 +6,20 @@
  */
 
 import type { Cli } from '@lockness/cli'
+// The subpath, never the barrel: `mod.ts` re-exports this module, so a barrel
+// import would load every built-in command into `@lockness/openapi` (#436).
+import { CommandFailedError } from '@lockness/cli/command-failure'
 import { generateOpenAPISpec } from './generator.ts'
 import { loadDocumentedControllers } from './discovery.ts'
-import { type ControllerClass, renderError } from '@lockness/contract'
+import type { ControllerClass } from '@lockness/contract'
 
 /**
  * Register the OpenAPI commands.
  *
  * Commands registered:
- * - docs:generate - Write an OpenAPI document from the app's controllers
+ * - docs:generate - Write an OpenAPI document from the app's controllers. It
+ *   fails by throwing, so `Cli.dispatch` prints the failure once and returns a
+ *   non-zero status.
  *
  * @param cli - The CLI instance to register commands on.
  *
@@ -37,10 +42,11 @@ export function registerOpenAPICommands(cli: Cli): void {
             try {
                 controllers = await loadDocumentedControllers()
             } catch (error) {
-                console.error(
-                    `❌ Error scanning controllers: ${renderError(error)}`,
-                )
-                return
+                // D4 rule 2: name the step, carry the error as the cause;
+                // `Cli.dispatch` prints both once and exits non-zero (#436).
+                throw new CommandFailedError('Could not scan the controllers', {
+                    cause: error,
+                })
             }
 
             // Generate spec

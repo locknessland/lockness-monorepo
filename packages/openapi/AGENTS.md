@@ -67,9 +67,10 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-5 test files for 8 source files:
+6 test files for 8 source files:
 
 - `packages/openapi/tests/api_docs_controller_stub.test.ts`
+- `packages/openapi/tests/cli_failure.test.ts`
 - `packages/openapi/tests/discovery.test.ts`
 - `packages/openapi/tests/generator.test.ts`
 - `packages/openapi/tests/generator_resources.test.ts`
@@ -88,7 +89,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 5 test files directly —
+Then, specific to this package: run its 6 test files directly —
 
 ```bash
 deno test -A packages/openapi/

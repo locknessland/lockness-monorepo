@@ -1,119 +1,151 @@
 #!/usr/bin/env -S deno run -A
 /**
- * OpenAPI Package Installer
+ * @fileoverview OpenAPI package installer: configures `@lockness/openapi` in
+ * the current Lockness project.
  *
- * Automatically configures the @lockness/openapi package in your project.
+ * Its work is the default-exported {@link install}, which reports failure by
+ * throwing and never touches process state; run as a script, `runEntry`
+ * prints the failure once and sets a non-zero exit status (#436).
  *
  * Usage:
  *   deno run -A jsr:@lockness/openapi/install
  *   or
  *   deno task cli package:install openapi
+ *
+ * @module @lockness/openapi/install
  */
 
 import { addPackage, Stub } from '@lockness/cli'
+import { CommandFailedError, runSteps } from '@lockness/cli/command-failure'
+import { runEntry } from '@lockness/cli/entry'
 import { dirname, fromFileUrl, join } from '@std/path'
 
-async function createDocsController() {
-    const controllerPath = './app/controller/api_docs_controller.ts'
-
+/**
+ * Whether `path` exists. Only "not found" means no; any other error (a
+ * permission denied, say) is a real failure and propagates.
+ */
+async function exists(path: string): Promise<boolean> {
     try {
-        await Deno.stat(controllerPath)
-        console.log('ℹ️  ApiDocsController already exists, skipping...')
-        return false
-    } catch {
-        // Handle both local file:// and remote https:// URLs
-        let stubsDir: string
-        if (import.meta.url.startsWith('file://')) {
-            const currentDir = dirname(fromFileUrl(import.meta.url))
-            stubsDir = join(currentDir, 'stubs')
-        } else {
-            stubsDir = new URL('./stubs', import.meta.url).href
-        }
-
-        const content = await Stub.renderFrom(
-            stubsDir,
-            '',
-            'api_docs_controller',
-            {
-                title: 'Lockness API',
-                version: '1.0.0',
-                description: 'Full-stack Deno framework API documentation',
-            },
-        )
-
-        await Deno.writeTextFile(controllerPath, content)
-        console.log('✓ Created app/controller/api_docs_controller.ts')
+        await Deno.stat(path)
         return true
+    } catch (error) {
+        if (error instanceof Deno.errors.NotFound) return false
+        throw error
     }
 }
 
-async function checkProjectStructure() {
+/**
+ * Write `app/controller/api_docs_controller.ts` unless it already exists.
+ *
+ * @returns Whether the controller was created.
+ */
+async function createDocsController(): Promise<boolean> {
+    const controllerPath = './app/controller/api_docs_controller.ts'
+
+    if (await exists(controllerPath)) {
+        console.log('ℹ️  ApiDocsController already exists, skipping...')
+        return false
+    }
+
+    // Handle both local file:// and remote https:// URLs
+    const stubsDir = import.meta.url.startsWith('file://')
+        ? join(dirname(fromFileUrl(import.meta.url)), 'stubs')
+        : new URL('./stubs', import.meta.url).href
+
+    const content = await Stub.renderFrom(
+        stubsDir,
+        '',
+        'api_docs_controller',
+        {
+            title: 'Lockness API',
+            version: '1.0.0',
+            description: 'Full-stack Deno framework API documentation',
+        },
+    )
+
+    await Deno.writeTextFile(controllerPath, content)
+    console.log('✓ Created app/controller/api_docs_controller.ts')
+    console.log('\n⚠️  Routes need to be regenerated:')
+    console.log('   Run: deno task routes:generate')
+    return true
+}
+
+/**
+ * Refuse to run outside a Lockness project, before anything is written.
+ *
+ * @throws {CommandFailedError} When the project layout is missing.
+ */
+async function checkProjectStructure(): Promise<void> {
     const checks = [
         { path: './app/controller', name: 'app/controller directory' },
         { path: './deno.json', name: 'deno.json' },
     ]
 
     for (const check of checks) {
-        try {
-            await Deno.stat(check.path)
-        } catch {
-            console.error(
-                `❌ ${check.name} not found. Are you in a Lockness project?`,
+        if (!(await exists(check.path))) {
+            throw new CommandFailedError(
+                `${check.name} not found. Are you in a Lockness project?`,
             )
-            return false
         }
     }
-    return true
 }
 
-async function main() {
+/**
+ * Install `@lockness/openapi` into the project in the current directory:
+ * register the package in `deno.json` and scaffold `ApiDocsController`.
+ *
+ * Both steps run even when the other fails (#436, FR-010); then one failure
+ * names the steps that failed.
+ *
+ * @returns A promise that resolves once the package is installed.
+ * @throws {CommandFailedError} When the current directory is not a Lockness
+ * project, or when a step failed.
+ *
+ * @example
+ * ```ts
+ * import install from '@lockness/openapi/install'
+ *
+ * await install()
+ * ```
+ */
+export default async function install(): Promise<void> {
     console.log('🌊 Installing @lockness/openapi...\n')
 
-    // Check if we're in a valid Lockness project
-    if (!(await checkProjectStructure())) {
-        Deno.exit(1)
-    }
+    await checkProjectStructure()
 
     let changesMade = false
+    await runSteps([
+        {
+            label: 'add to deno.json',
+            run: async () => {
+                await addPackage('openapi')
+                changesMade = true
+            },
+        },
+        {
+            label: 'ApiDocsController',
+            run: async () => {
+                if (await createDocsController()) changesMade = true
+            },
+        },
+    ])
 
-    // 1. Add package to deno.json
-    try {
-        await addPackage('openapi')
-        changesMade = true
-    } catch (error) {
-        console.error('❌ Failed to add package to deno.json:', error)
-    }
-
-    // 2. Create ApiDocsController
-    const controllerCreated = await createDocsController()
-    if (controllerCreated) {
-        changesMade = true
-    }
-
-    // 3. Check if routes need to be regenerated
-    if (controllerCreated) {
-        console.log('\n⚠️  Routes need to be regenerated:')
-        console.log('   Run: deno task routes:generate')
-    }
-
-    // 4. Display success message
-    if (changesMade) {
-        console.log('\n✅ @lockness/openapi installed successfully!\n')
-        console.log('📖 Next steps:')
-        console.log('   1. Start your dev server: deno task dev')
-        console.log('   2. Visit: http://localhost:8888/api-docs')
-        console.log('   3. Document your routes with @ApiDoc decorator\n')
-        console.log('📝 Generate static OpenAPI spec:')
-        console.log('   deno task cli docs:generate\n')
-        console.log('📚 Documentation:')
-        console.log(
-            '   https://github.com/locknessland/lockness-monorepo/tree/main/packages/openapi\n',
-        )
-    } else {
+    if (!changesMade) {
         console.log('\n✓ @lockness/openapi is already configured\n')
+        return
     }
+
+    console.log('\n✅ @lockness/openapi installed successfully!\n')
+    console.log('📖 Next steps:')
+    console.log('   1. Start your dev server: deno task dev')
+    console.log('   2. Visit: http://localhost:8888/api-docs')
+    console.log('   3. Document your routes with @ApiDoc decorator\n')
+    console.log('📝 Generate static OpenAPI spec:')
+    console.log('   deno task cli docs:generate\n')
+    console.log('📚 Documentation:')
+    console.log(
+        '   https://github.com/locknessland/lockness-monorepo/tree/main/packages/openapi\n',
+    )
 }
 
-if (import.meta.main) {
-    await main()
-}
+if (import.meta.main) await runEntry('openapi install', () => install())
