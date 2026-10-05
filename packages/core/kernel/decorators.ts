@@ -134,8 +134,10 @@ export interface OnBootOptions {
  *     @OnBoot({ priority: 100 })
  *     async connectDatabase(app: App) {
  *         const db = container.get<Database>(Database)
- *         await db.connect(Deno.env.get('DATABASE_URL')!)
- *         console.log('✅ Database connected')
+ *         // Configures the client only (no round trip) and logs its own
+ *         // `✅ Database configured` line; reachability is `probe()`'s job.
+ *         const result = await db.connect(Deno.env.get('DATABASE_URL')!)
+ *         if (!result.success) throw new Error(result.error)
  *     }
  *
  *     @OnBoot({ priority: 50 })

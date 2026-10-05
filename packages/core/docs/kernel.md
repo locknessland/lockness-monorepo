@@ -158,11 +158,14 @@ Use `@OnBoot` with the declarative `@Kernel` decorator:
 ```typescript
 // app/kernel.ts
 import {
+    type App,
+    container,
     createApp,
     DeclareGlobalMiddleware,
     Kernel,
     OnBoot,
 } from '@lockness/core'
+import { Database } from '@lockness/drizzle'
 import { sessionMiddleware } from '@lockness/session'
 
 @Kernel({
@@ -178,8 +181,11 @@ export class AppKernel {
     ]
 
     @OnBoot({ priority: 100 })
-    async onDatabaseReady(app: App) {
-        console.log('✅ Database connected')
+    async verifyDatabase(app: App) {
+        // One round trip (SELECT 1). `/ready` already runs it; probe at boot
+        // only when the app should refuse to start with the database down.
+        await container.get(Database).probe()
+        console.log('✅ Database reachable')
     }
 
     @OnBoot({ priority: 50 })
@@ -195,6 +201,12 @@ const app = await createApp(AppKernel)
 app.listen(8888)
 ```
 
+The `database` key only configures the client at boot, with no round trip, so
+reaching the hooks proves nothing about reachability. `probe()` is the one
+explicit check, and a throw from a boot hook stops the boot. Skip it on a
+scale-to-zero database, where it wakes the compute on every cold start — see
+[Failing boot when the database is down](../../drizzle/docs/DOCS.md#failing-boot-when-the-database-is-down).
+
 ### Pattern 2: Kernel Inheritance
 
 Extend a base kernel with boot tasks:
@@ -208,8 +220,9 @@ import { Kernel, OnBoot } from '@lockness/core'
 })
 export class BaseKernel {
     @OnBoot({ priority: 100 })
-    async logDatabaseReady(app: App) {
-        console.log('✅ Database connected')
+    async logDatabaseConfigured(app: App) {
+        // Configured, not checked: no query has run yet.
+        console.log('✅ Database configured')
     }
 }
 
@@ -244,8 +257,9 @@ Execute tasks based on environment or app state:
 })
 class AppKernel {
     @OnBoot({ priority: 100 })
-    async onDatabaseReady(app: App) {
-        console.log('✅ Database connected')
+    async onDatabaseConfigured(app: App) {
+        // Configured, not checked: no query has run yet.
+        console.log('✅ Database configured')
     }
 
     @OnBoot({ priority: 50 })

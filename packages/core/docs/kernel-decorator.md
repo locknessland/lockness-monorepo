@@ -174,8 +174,10 @@ export class AppKernel {
     globalMiddlewares = [LoggerMiddleware]
 
     @OnBoot({ priority: 100 })
-    async connectDatabase(app: App) {
-        console.log('✅ Database connected')
+    async logDatabaseConfigured(app: App) {
+        // `database` above configured the client with no round trip; call
+        // `Database.probe()` here only if boot should fail when it is down.
+        console.log('✅ Database configured')
     }
 
     @OnBoot({ priority: 50 })
