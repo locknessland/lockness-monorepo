@@ -11,6 +11,7 @@
  */
 
 import { assert, assertEquals, assertRejects } from '@std/assert'
+import { join } from '@std/path'
 import { Cli } from '@lockness/cli'
 import { handleMakeFlag, registerFeaturesCommands } from '../cli_commands.ts'
 
@@ -26,6 +27,50 @@ async function captureErrors<T>(
     } finally {
         console.error = original
     }
+}
+
+/** Where {@link inSandbox} puts the working directory, below its root. */
+const SANDBOX_CWD = ['a', 'b', 'c']
+
+/**
+ * Run `fn` with the working directory three levels inside a fresh temp root,
+ * then report every path left under that root besides the directories it
+ * made. A regression that writes — even through `../../` — writes into the
+ * root and shows up here, never in the checkout.
+ *
+ * `Deno.chdir` is process-global, so this relies on `deno test` running a
+ * file's cases one after another (the default).
+ */
+async function inSandbox<T>(
+    fn: () => Promise<T>,
+): Promise<{ result: T; written: string[] }> {
+    const root = await Deno.makeTempDir()
+    const cwd = join(root, ...SANDBOX_CWD)
+    await Deno.mkdir(cwd, { recursive: true })
+    const previous = Deno.cwd()
+    Deno.chdir(cwd)
+    try {
+        const result = await fn()
+        const made = SANDBOX_CWD.map((_, i) =>
+            join('', ...SANDBOX_CWD.slice(0, i + 1))
+        )
+        const written = (await listTree(root)).filter((p) => !made.includes(p))
+        return { result, written }
+    } finally {
+        Deno.chdir(previous)
+        await Deno.remove(root, { recursive: true })
+    }
+}
+
+/** Every path under `dir`, relative to it, depth first. */
+async function listTree(dir: string, prefix = ''): Promise<string[]> {
+    const paths: string[] = []
+    for await (const entry of Deno.readDir(join(dir, prefix))) {
+        const path = prefix === '' ? entry.name : join(prefix, entry.name)
+        paths.push(path)
+        if (entry.isDirectory) paths.push(...await listTree(dir, path))
+    }
+    return paths
 }
 
 /** Assert `error` is the features package's one-line failure with exit code 1. */
@@ -47,20 +92,21 @@ Deno.test('make:flag with no name throws a failure with exitCode 1 and prints no
     assertEquals(errors.length, 0, 'the dispatcher is the only printer')
 })
 
-Deno.test('make:flag with a traversal name throws a failure with exitCode 1', async () => {
-    const error = await assertRejects(
-        () => handleMakeFlag(['../../etc/x']),
-        Error,
+Deno.test('make:flag with a traversal name throws a failure with exitCode 1 and writes nothing', async () => {
+    const { result: error, written } = await inSandbox(() =>
+        assertRejects(() => handleMakeFlag(['../../etc/x']), Error)
     )
     assertCommandFailure(error, '"../../etc/x"')
+    assertEquals(written, [], 'nothing written, inside the sandbox or above it')
 })
 
 Deno.test('make:flag through the real Cli.dispatch exits 1 with exactly one ❌ line', async () => {
     const cli = new Cli()
     registerFeaturesCommands(cli)
-    const { result: status, errors } = await captureErrors(() =>
-        cli.dispatch(['make:flag'])
+    const { result: { result: status, errors }, written } = await inSandbox(
+        () => captureErrors(() => cli.dispatch(['make:flag'])),
     )
+    assertEquals(written, [])
     assertEquals(status, 1)
     assertEquals(errors.length, 1)
     const line = String(errors[0][0])
