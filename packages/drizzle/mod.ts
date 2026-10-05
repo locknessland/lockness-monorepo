@@ -41,7 +41,12 @@ import {
     type NoticeReporter,
     reportNotice,
 } from './notice.ts'
-import { holdsSecret, shownName, UNREADABLE_NAME } from './error_name.ts'
+import {
+    holdsSecret,
+    shownName,
+    UNREADABLE_NAME,
+    vettedErrorName,
+} from './error_name.ts'
 
 export { registerDrizzleCommands } from './cli_commands.ts'
 export type {
@@ -573,12 +578,13 @@ type Classified =
     | { readonly kind: 'other'; readonly name: string | undefined }
 
 /**
- * Classify a factory failure, reading nothing from it outside one guard.
+ * Classify a factory failure, reading nothing from it unguarded.
  *
  * `instanceof` walks the prototype chain, and a Proxy can throw there; a
  * `name` getter can throw too. Either would make `connect()` reject instead of
- * returning `success: false`. So the checks, the read and the identifier test
- * all run under one `try`, whose catch answers {@link UNREADABLE_NAME}. That
+ * returning `success: false`. So the missing-package check runs under a `try`,
+ * and the name is read by {@link vettedErrorName}, which guards its own read;
+ * both answer {@link UNREADABLE_NAME} when reading throws. That
  * marker goes into the one failure message, which is always returned and
  * logged at ERROR unless the caller silenced it to report it itself — the
  * failure is reported, not swallowed.
@@ -593,11 +599,10 @@ function classify(error: unknown, secrets: readonly string[]): Classified {
         if (error instanceof ClientUnavailableError) {
             return { kind: 'missing', error }
         }
-        const name = error instanceof Error ? error.name : undefined
-        return { kind: 'other', name: shownName(name, secrets) }
     } catch {
         return { kind: 'other', name: UNREADABLE_NAME }
     }
+    return { kind: 'other', name: vettedErrorName(error, secrets) }
 }
 
 /**
