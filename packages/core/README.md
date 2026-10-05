@@ -529,11 +529,12 @@ export class UserController {
 
 ## Upgrading to v0.5.0
 
-Eight items. **Migration step:** for every optional feature your `@Kernel()`
+Nine items. **Migration step:** for every optional feature your `@Kernel()`
 configures, make sure the package is in your `deno.json`; add `telemetry: true`
 and `logger: true` if you relied on those packages switching on by presence;
-give a `schedulerLock` with `driver: 'redis'` its `redis` connection; and fix or
-delete any listener or schedule file that fails to load.
+give a `schedulerLock` with `driver: 'redis'` its `redis` connection; fix or
+delete any listener or schedule file that fails to load; and let a script that
+ran a failing command on purpose tolerate its non-zero status.
 
 ### 1. A configured optional package that does not resolve refuses the boot
 
@@ -664,6 +665,39 @@ deprecation notice per boot naming its removal in v0.6.0, and changes nothing
 else. **No step is required** unless you run with `STRICT_DEPRECATIONS=true`,
 where the notice refuses the boot. Delete the field from your `@Kernel()`
 `database` config before v0.6.0, when it stops type-checking.
+
+### 9. A failed command exits non-zero
+
+Until v0.5.0 only `db:*` honoured the exit contract. Elsewhere a failed command
+printed `❌ <reason>` and **exited 0**: every `make:*` generator (the built-in
+ones and those of drizzle, mail, notification, features, search and i18n),
+`compile`, `router:list`, `queue:retry`, `nessy:install`, `package:*`,
+`auth:install` and `docs:generate` among them. So
+`./nessy make:controller User && git add .`, a CI step or
+`RUN deno task cli compile` in a Dockerfile went green on a failure (#436).
+
+- **Every failed command now exits `1`**, or the code it sets, and prints one
+  line on stderr: `❌ <message>`, then `caused by: <error>` when a caught error
+  caused it. A usage hint is on the same line instead of the next.
+- **`compile` stops before `deno compile`** when route generation, a pre-compile
+  script or a declared asset fails, so no binary is built. A failed route
+  generation used to print a warning and build from the stale `app/routes.ts`; a
+  missing asset was skipped. The child process's output still passes through.
+  See [When a step fails](../../docs/compilation.md#when-a-step-fails).
+- **Commands that write several files finish, then fail.** `make:model -a`,
+  `make:crud`, `make:controller --view`, `auth:install` and the openapi and
+  drizzle installers run every step, then exit `1` naming the steps that failed
+  (`1 of 4 steps failed: repository`).
+- **The standalone tools** (`jsr:@lockness/init`, `jsr:@lockness/ui`,
+  `jsr:@lockness/upgrade`, `jsr:@lockness/<pkg>/install`) print a failure as one
+  redacted `❌` line through `runEntry` and set the exit status instead of
+  calling `Deno.exit()`. An unexpected error prints its frames, redacted.
+- **The `./nessy` wrapper** exits `1` for `./nessy install` and `./nessy bump`
+  with no argument. Your project keeps the script it was given until you
+  regenerate it with `deno task cli nessy:install`.
+- **The fix:** a script that runs a command which may fail harmlessly must say
+  so (`./nessy make:controller User || true`). A script that branched on the
+  output text can branch on the status instead.
 
 ## 📚 Technical Reference
 

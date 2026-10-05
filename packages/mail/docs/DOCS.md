@@ -262,3 +262,24 @@ SMTP_PASS=your-app-password
 # Resend
 RESEND_API_KEY=<your-resend-api-key>
 ```
+
+## Upgrading to v0.5.0
+
+One item. **Migration step:** if your code imports `handleMakeMail`, run
+`make:mail` through the CLI instead.
+
+### 1. `handleMakeMail` is no longer exported, and `make:mail` fails non-zero
+
+`handleMakeMail`, the handler behind `make:mail`, was exported from
+`@lockness/mail`. On a missing or malformed name it printed `❌` itself and
+returned `undefined`, so `make:mail` exited `0` on a failure (#436). It is now
+internal: it throws a failure the CLI prints once, and `make:mail` exits `1`:
+
+```text
+❌ Invalid mailable name "welcome-mail" — letters and digits only
+```
+
+`registerMailCommands` is still exported and is the way to add the command to a
+`Cli`. Code that called `handleMakeMail` directly can dispatch the command
+instead (`await cli.dispatch(['make:mail', 'Welcome'])`, which returns the exit
+status) or write the file itself.

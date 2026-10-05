@@ -401,6 +401,43 @@ The upgrade tool:
 - Has 5-second timeout for network requests
 - Validates JSON before writing
 
+## Upgrading to v0.5.0
+
+Two items. **Migration step:** if your code calls `Upgrader.upgrade()`, catch
+what it throws; `result.error` now holds only the two expected outcomes.
+
+### 1. `Upgrader.upgrade()` lets unexpected errors throw
+
+`upgrade()` used to catch every error and stringify it into
+`{ success: false, error }`, which dropped its type, its stack and its `cause`
+(#436). Two expected outcomes still come back in the result: a `deno.json` with
+no `imports`, and one with no `@lockness/*` package. Everything else is thrown
+as it was raised: `Deno.errors.NotFound` for a missing config file, a
+`SyntaxError` for a malformed one, the version provider's error for a JSR
+timeout or error status, and a failed write.
+
+```diff
+-const result = await upgrader.upgrade({ dryRun: true })
+-if (!result.success) console.error(result.error)
++try {
++    const result = await upgrader.upgrade({ dryRun: true })
++    if (!result.success) console.error(result.error) // no imports, or no @lockness/* package
++} catch (error) {
++    // missing or malformed deno.json, JSR unreachable, write failed
++}
+```
+
+### 2. The tool prints an unexpected failure with its stack frames
+
+Run as `deno run jsr:@lockness/upgrade`, the tool still exits `1` on every
+failure, now without calling `Deno.exit()`. The two expected outcomes still
+print one line (`❌ No Lockness packages found in imports`). The failures item 1
+now throws reach the tool's catch-all instead: a missing `deno.json` or a JSR
+network error prints `❌ upgrade failed:`, then the error rendered with up to
+ten stack frames, credentials redacted, then a hint line. The first line still
+says what went wrong. A script that matched the old one-line text should match
+the exit status instead.
+
 ## Contributing
 
 Found a bug or have a feature request? Open an issue on

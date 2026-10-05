@@ -601,10 +601,12 @@ await database.db.transaction(async (tx) => {
 
 ## Upgrading to v0.5.0
 
-Four items. **Migration steps:** if your `drizzle.config.ts` uses anything but
+Six items. **Migration steps:** if your `drizzle.config.ts` uses anything but
 `dbCredentials: { url }`, rewrite it as a url (item 2); if it falls back to a
 default url, remove the fallback (item 3); if you override `runCommand`, return
-`{ code, stderr }` (item 4).
+`{ code, stderr }` (item 4); if a script ran `db:status` for the folder-only
+check, run `db:validate` instead (item 5); if a script matches a `db:*` failure
+line, match its first part only (item 6).
 
 ### 1. PostgreSQL server notices no longer print as raw objects
 
@@ -731,6 +733,27 @@ exits `1` while any is not applied (#439).
   writes one, so only a hand-edited journal is affected.
 
 See [`db:status`: pending migrations](docs/DOCS.md#dbstatus-pending-migrations).
+
+### 6. A `db:*` failure prints its cause once, after the message
+
+A failed `db:*` command quoted the error behind it inside its own message, raw:
+`❌ Failed to apply migrations: <driver message>`. `db:check` printed two lines,
+the second a `💡` hint. Now the message names only the step, and the error
+behind it follows on the same line, rendered with credentials redacted (#436):
+
+```text
+❌ Failed to apply migrations caused by: PostgresError [42P07]: relation "users" already exists
+❌ Database connection failed. Check your DATABASE_URL in .env caused by: …
+```
+
+- **Exit status unchanged:** still `1`.
+- **Who is affected:** a script that matched the old text, such as
+  `Failed to apply migrations:` with its colon, or the `💡` line. Match the
+  start of the line, up to `caused by:`, or better, the exit status.
+- **What is no longer printed:** what `renderError` leaves out — the cause's own
+  stack frames, its `detail` and `hint`, and anything past two cause links.
+  `LOCKNESS_CLI_RAW_ERRORS` does not change these lines: it applies only to an
+  error a command did not expect.
 
 ## Dependencies
 

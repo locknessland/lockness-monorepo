@@ -77,3 +77,20 @@ deno task cli make:notification InvoicePaid
 ```
 
 See [docs/notifications.md](../../docs/notifications.md) for the full guide.
+
+## Upgrading to v0.5.0
+
+One item. **Migration step:** if your code imports `handleMakeNotification`, run
+`make:notification` through the CLI instead.
+
+### 1. `handleMakeNotification` is no longer exported, and `make:notification` fails non-zero
+
+`handleMakeNotification`, the handler behind `make:notification`, was exported
+from `@lockness/notification`. On a missing or malformed name it printed `❌`
+itself and returned `undefined`, so `make:notification` exited `0` on a failure
+(#436). It is now internal: it throws a failure the CLI prints once, and
+`make:notification` exits `1`. `registerNotificationCommands` is still exported
+and is the way to add the command to a `Cli`; code that called
+`handleMakeNotification` directly can dispatch the command instead
+(`await cli.dispatch(['make:notification', 'InvoicePaid'])` returns the exit
+status).

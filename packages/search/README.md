@@ -38,3 +38,19 @@ The query is **tokenised as data** — never compiled into a regular expression
 (no ReDoS) — and query/document sizes are bounded. External engines
 (Meilisearch, Typesense) can be plugged behind `SearchDriver`; the memory driver
 is the reference implementation.
+
+## Upgrading to v0.5.0
+
+One item. **Migration step:** if your code imports `handleMakeSearchable`, run
+`make:searchable` through the CLI instead.
+
+### 1. `handleMakeSearchable` is no longer exported, and `make:searchable` fails non-zero
+
+`handleMakeSearchable`, the handler behind `make:searchable`, was exported from
+`@lockness/search`. On a missing or malformed name it printed `❌` itself and
+returned `undefined`, so `make:searchable` exited `0` on a failure (#436). It is
+now internal: it throws a failure the CLI prints once, and `make:searchable`
+exits `1`. `registerSearchCommands` is still exported and is the way to add the
+command to a `Cli`; code that called `handleMakeSearchable` directly can
+dispatch the command instead (`await cli.dispatch(['make:searchable', 'Post'])`
+returns the exit status).
