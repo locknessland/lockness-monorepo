@@ -854,6 +854,14 @@ when drizzle-kit exits 0 after writing to stderr; see
 | `db:fresh`    | it is refused (see [`db:fresh`](#dbfresh)), the reset fails — migrations are then **not** run — or the migrate step fails                                                                                                                   |
 | `db:seed`     | the environment is production without `--allow-production`, `DATABASE_URL` is unset or blank, the client cannot be configured, the seeder file is missing or exports no seeder, or the seeder's own `run()` throws (printed with its stack) |
 
+The `make:*` generators and the installer follow the same rule:
+
+| Command                         | Exits `1` when                                                                                                                                                                                       |
+| :------------------------------ | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `make:model`                    | no model name is given, or a file it was asked for cannot be written. Every requested file is still attempted; the failure names the ones that were not written (`1 of 4 steps failed: repository`)  |
+| `make:seeder`, `make:factory`   | no name is given, or the file cannot be written                                                                                                                                                      |
+| `jsr:@lockness/drizzle/install` | `./src` or `./deno.json` is missing (nothing is written), or a setup step fails. Every step is still attempted, then the failure names those that failed. A failed connection test is only a warning |
+
 ### `db:generate` and `db:push` without a terminal
 
 drizzle-kit 0.31.10's exit code does not report what `generate` and `push` did.

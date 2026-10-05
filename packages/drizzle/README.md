@@ -325,6 +325,10 @@ deno task cli db:migrate && deno task start
 | `db:fresh`                            | it is refused, the reset fails (migrations are then not run), or the migrate step fails                                    |
 | `db:seed`                             | production without `--allow-production`, no client, no seeder to load, or the seeder's `run()` throws                      |
 
+The `make:*` generators and `jsr:@lockness/drizzle/install` also exit `1` on
+failure. `make:model -a` and the installer finish every step first, then name
+the ones that failed.
+
 Details: [docs/DOCS.md](docs/DOCS.md#exit-codes).
 
 ### When `DATABASE_URL` is unset
