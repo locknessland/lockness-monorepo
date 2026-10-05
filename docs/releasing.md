@@ -406,14 +406,19 @@ toolchain decides whether a published package works.
 
 To move the pin:
 
-1. Wait for the `v2.x` lane of `test.yml` to be green on the new version: it
-   already runs whatever 2.x is newest.
+1. Check the `v2.x` lane of `test.yml` for an early signal. It only proves the
+   newest 2.x, so it says nothing about an older target.
 2. Write the new exact `x.y.z` into `.dvmrc`, never a range.
 3. Set `ARG DENO_VERSION` in `packages/init/stubs/init/Dockerfile.stub` to the
    same version: scaffolded apps build on it, and
-   `scripts/dockerfile_healthcheck_test.ts` fails until the two agree.
-4. Run `deno fmt` and `deno task gate`, and land it as a `ci` commit before the
-   release it is meant for.
+   `scripts/dockerfile_healthcheck_test.ts` fails until the two agree. Update
+   the two `--build-arg DENO_VERSION=` examples too, in the same stub's header
+   comment and in `docs/deployment.md`. No test holds those.
+4. Run `deno fmt` and `deno task gate`, and land it as one `build` commit before
+   the release it is meant for. It moves a CI pin and a stub that ships to
+   scaffolded apps together, and the Dockerfile test keeps them from being
+   split. The `pinned` lane going green on that push is what makes the new
+   version a tested one.
 
 `scripts/ci_deno_pin_test.ts` fails if `.dvmrc` stops holding an exact version,
 if a `publish.yml` job installs Deno any other way, or if `test.yml`'s `pinned`
