@@ -121,7 +121,9 @@ export async function decideGate(
         } catch (error) {
             return {
                 gate: 'run',
-                reason: `ref updates unreadable (${(error as Error).message})`,
+                reason: `ref updates unreadable (${
+                    error instanceof Error ? error.message : String(error)
+                })`,
             }
         }
         if (updates.length === 0) {
@@ -253,18 +255,34 @@ async function spawnGate(): Promise<number> {
     }
 }
 
+/** The secret scan program {@link spawnScan} starts by default. */
+const SCAN_PROGRAM = fromFileUrl(
+    new URL('./prepush_secret_scan.ts', import.meta.url),
+)
+
 /**
- * Start `scripts/prepush_secret_scan.ts` as its own program and write `input`
- * to its stdin, unchanged.
+ * Start the secret scan as its own program and write `input` to its stdin,
+ * unchanged.
  *
+ * A scan that exits 0 without reading all of `input` did not judge the push:
+ * the write fails (a broken pipe) and the result is `1`, never the scan's `0`.
+ *
+ * @internal Exported for `scripts/prepush_test.ts` only; the hook always
+ *   runs it with the default `scan`.
  * @param input - git's ref-update bytes.
+ * @param scan - The scan program's path. Defaults to
+ *   `scripts/prepush_secret_scan.ts`; tests hand in a stub.
  * @returns The scan's exit code; `1` when it could not be started, and never
  *   `0` when its stdin could not be written in full.
+ * @example
+ * ```ts
+ * const code = await spawnScan(new TextEncoder().encode(refLines))
+ * ```
  */
-async function spawnScan(input: Uint8Array): Promise<number> {
-    const scan = fromFileUrl(
-        new URL('./prepush_secret_scan.ts', import.meta.url),
-    )
+export async function spawnScan(
+    input: Uint8Array,
+    scan: string = SCAN_PROGRAM,
+): Promise<number> {
     let child: Deno.ChildProcess
     try {
         child = new Deno.Command(Deno.execPath(), {
@@ -299,11 +317,18 @@ if (import.meta.main) {
         await new Response(Deno.stdin.readable).arrayBuffer(),
     )
     const toplevel = await runGit(['rev-parse', '--show-toplevel'], Deno.cwd())
+    if (!toplevel.ok) {
+        console.error(
+            `[pre-push] git rev-parse --show-toplevel failed (exit ${toplevel.code}: ${
+                toplevel.stderr || 'no stderr'
+            }); deciding from ${Deno.cwd()}`,
+        )
+    }
     const cwd = toplevel.ok ? toplevel.stdout : Deno.cwd()
     Deno.exit(
         await runPrepush(input, cwd, {
             runGate: spawnGate,
-            runScan: spawnScan,
+            runScan: (bytes) => spawnScan(bytes),
         }),
     )
 }
