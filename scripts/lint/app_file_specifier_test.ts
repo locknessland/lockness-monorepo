@@ -5,9 +5,10 @@
 
 import { assertEquals } from '@std/assert'
 import plugin, { inScope } from './app_file_specifier.ts'
+import { REPO_ROOT } from './repo_path.ts'
 
 /** Lint `source` as a package source file and return the rule's hit count. */
-function hits(source: string, file = '/repo/packages/x/mod.ts'): number {
+function hits(source: string, file = `${REPO_ROOT}packages/x/mod.ts`): number {
     return Deno.lint.runPlugin(plugin, file, source)
         .filter((d) => d.id === 'lockness/app-file-specifier').length
 }
@@ -60,13 +61,27 @@ for (const [label, source] of NEGATIVES) {
 
 Deno.test('app-file-specifier - reports nothing in tests or outside packages', () => {
     const source = 'await import(`file://${p}`)'
-    assertEquals(hits(source, '/repo/packages/x/tests/a.ts'), 0)
-    assertEquals(hits(source, '/repo/packages/x/a.test.ts'), 0)
-    assertEquals(hits(source, '/repo/packages/x/a_test.ts'), 0)
-    assertEquals(hits(source, '/repo/scripts/a.ts'), 0)
+    assertEquals(hits(source, `${REPO_ROOT}packages/x/tests/a.ts`), 0)
+    assertEquals(hits(source, `${REPO_ROOT}packages/x/a.test.ts`), 0)
+    assertEquals(hits(source, `${REPO_ROOT}packages/x/a_test.ts`), 0)
+    assertEquals(hits(source, `${REPO_ROOT}scripts/a.ts`), 0)
 })
 
 Deno.test('app-file-specifier - inScope reads Windows separators', () => {
-    assertEquals(inScope('C:\\repo\\packages\\x\\mod.ts'), true)
-    assertEquals(inScope('C:\\repo\\packages\\x\\tests\\a.ts'), false)
+    assertEquals(inScope('C:\\repo\\packages\\x\\mod.ts', 'C:\\repo'), true)
+    assertEquals(
+        inScope('C:\\repo\\packages\\x\\tests\\a.ts', 'C:\\repo'),
+        false,
+    )
+})
+
+Deno.test('app-file-specifier - inScope ignores where the checkout lives', () => {
+    assertEquals(
+        inScope('/home/tests/repo/packages/x/mod.ts', '/home/tests/repo'),
+        true,
+    )
+    assertEquals(
+        inScope('/srv/packages/repo/scripts/x.ts', '/srv/packages/repo'),
+        false,
+    )
 })

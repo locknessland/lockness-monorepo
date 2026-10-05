@@ -31,6 +31,8 @@
  * @module scripts/lint/app_file_specifier
  */
 
+import { isTestPath, REPO_ROOT, repoPath } from './repo_path.ts'
+
 /** The rule's message, naming the one sanctioned way. */
 const MESSAGE =
     'Hand-built app-file specifier: import app files through importAppFile() from @lockness/contract/app-file/internal (#477)'
@@ -44,13 +46,14 @@ const HINT =
  * Whether the rule applies to a file: published package source only.
  *
  * @param filename - The file being linted, as Deno hands it over.
- * @returns `true` under `/packages/`, outside tests.
+ * @param root - The repository root. Defaults to the repository holding this
+ *   rule; tests pass another to place the checkout elsewhere.
+ * @returns `true` under the repository's `packages/`, outside tests.
  */
-export function inScope(filename: string): boolean {
-    const path = filename.replaceAll('\\', '/')
-    if (!path.includes('/packages/')) return false
-    if (path.includes('/tests/')) return false
-    return !path.endsWith('.test.ts') && !path.endsWith('_test.ts')
+export function inScope(filename: string, root: string = REPO_ROOT): boolean {
+    const path = repoPath(filename, root)
+    if (path === undefined || !path.startsWith('packages/')) return false
+    return !isTestPath(path)
 }
 
 /** Whether `node` is a `Deno.cwd()` call. */

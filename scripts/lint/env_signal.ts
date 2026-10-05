@@ -18,6 +18,8 @@
  * @module scripts/lint/env_signal
  */
 
+import { isTestPath, REPO_ROOT, repoPath } from './repo_path.ts'
+
 /** The rule's message, naming the sanctioned way. */
 const MESSAGE =
     'Raw environment-signal read: use resolveEnvName() / isProduction() / isExplicitlyDevelopment() from @lockness/core or @lockness/contract (#504)'
@@ -32,28 +34,27 @@ const SIGNALS = new Set(['APP_ENV', 'DENO_ENV'])
 
 /** The two files that own the raw reads. */
 const OWNERS = [
-    '/packages/contract/environment_read.ts',
-    '/packages/contract/environment_legacy.ts',
+    'packages/contract/environment_read.ts',
+    'packages/contract/environment_legacy.ts',
 ]
 
 /**
  * Whether the rule applies to a file.
  *
  * @param filename - The file being linted, as Deno hands it over.
- * @returns `true` under `/packages/`, `/app/` or `/config/`, outside tests and
- * the resolver's own files.
+ * @param root - The repository root. Defaults to the repository holding this
+ *   rule; tests pass another to place the checkout elsewhere.
+ * @returns `true` under the repository's `packages/`, `app/` or `config/`,
+ * outside tests and the resolver's own files.
  */
-export function inScope(filename: string): boolean {
-    const path = filename.replaceAll('\\', '/')
-    if (
-        !['/packages/', '/app/', '/config/'].some((dir) => path.includes(dir))
-    ) {
+export function inScope(filename: string, root: string = REPO_ROOT): boolean {
+    const path = repoPath(filename, root)
+    if (path === undefined) return false
+    if (!['packages/', 'app/', 'config/'].some((dir) => path.startsWith(dir))) {
         return false
     }
-    if (path.includes('/tests/')) return false
-    if (path.endsWith('.test.ts') || path.endsWith('_test.ts')) return false
-    if (path.endsWith('.test.tsx')) return false
-    return !OWNERS.some((owner) => path.endsWith(owner))
+    if (isTestPath(path)) return false
+    return !OWNERS.includes(path)
 }
 
 /** The string value of a literal or a substitution-free template, if any. */

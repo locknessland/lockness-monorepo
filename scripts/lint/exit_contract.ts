@@ -29,7 +29,7 @@
  * @module scripts/lint/exit_contract
  */
 
-import { fromFileUrl } from '@std/path'
+import { isTestPath, REPO_ROOT, repoPath } from './repo_path.ts'
 
 /** The files allowed to call `Deno.exit()`: process-level exits, not commands. */
 const EXIT_OWNERS = [
@@ -39,9 +39,6 @@ const EXIT_OWNERS = [
 
 /** The file allowed to write `Deno.exitCode`: the CLI's one status mapping. */
 const EXIT_CODE_OWNERS = ['packages/cli/report.ts']
-
-/** The repository root: this file is `scripts/lint/exit_contract.ts`. */
-const REPO_ROOT = fromFileUrl(new URL('../../', import.meta.url))
 
 /** The `mod.ts` files that hold a standalone tool's command code. */
 const COMMAND_MODS = ['ui', 'upgrade', 'init']
@@ -65,27 +62,9 @@ const PRINT_HINT =
     '`// deno-lint-ignore lockness-exit/printed-failure` with the reason on ' +
     'the line above.'
 
-/** `filename` with forward slashes. */
-function normalize(filename: string): string {
-    return filename.replaceAll('\\', '/')
-}
-
-/**
- * `filename` relative to `root`, with forward slashes.
- *
- * @returns The relative path, or `undefined` when the file is not under
- *   `root`.
- */
-function repoPath(filename: string, root: string): string | undefined {
-    const base = normalize(root).replace(/\/?$/, '/')
-    const path = normalize(filename)
-    return path.startsWith(base) ? path.slice(base.length) : undefined
-}
-
 /** Whether the repository-relative `path` is a test or a stub template. */
 function isTestOrStub(path: string): boolean {
-    if (/(^|\/)(tests|stubs)\//.test(path)) return true
-    return /[._]test\.tsx?$/.test(path)
+    return isTestPath(path) || /(^|\/)stubs\//.test(path)
 }
 
 /**

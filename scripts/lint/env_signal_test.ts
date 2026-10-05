@@ -5,9 +5,10 @@
 
 import { assertEquals } from '@std/assert'
 import plugin, { inScope } from './env_signal.ts'
+import { REPO_ROOT } from './repo_path.ts'
 
 /** Lint `source` as `file` and return the rule's hit count. */
-function hits(source: string, file = '/repo/packages/x/mod.ts'): number {
+function hits(source: string, file = `${REPO_ROOT}packages/x/mod.ts`): number {
     return Deno.lint.runPlugin(plugin, file, source)
         .filter((d) => d.id === 'lockness-env/env-signal').length
 }
@@ -48,25 +49,39 @@ for (const [label, source] of NEGATIVES) {
 
 Deno.test('env-signal - reports in packages, app and config', () => {
     const source = "const e = Deno.env.get('APP_ENV')"
-    assertEquals(hits(source, '/repo/app/service/x.ts'), 1)
-    assertEquals(hits(source, '/repo/config/app.ts'), 1)
-    assertEquals(hits(source, '/repo/app/view/pages/errors/h.tsx'), 1)
+    assertEquals(hits(source, `${REPO_ROOT}app/service/x.ts`), 1)
+    assertEquals(hits(source, `${REPO_ROOT}config/app.ts`), 1)
+    assertEquals(hits(source, `${REPO_ROOT}app/view/pages/errors/h.tsx`), 1)
 })
 
 Deno.test('env-signal - reports nothing in tests, scripts, or the resolver itself', () => {
     const source = "const e = Deno.env.get('DENO_ENV')"
-    assertEquals(hits(source, '/repo/packages/x/tests/a.ts'), 0)
-    assertEquals(hits(source, '/repo/packages/x/a.test.ts'), 0)
-    assertEquals(hits(source, '/repo/packages/x/a_test.ts'), 0)
-    assertEquals(hits(source, '/repo/scripts/kit_live.ts'), 0)
-    assertEquals(hits(source, '/repo/packages/contract/environment_read.ts'), 0)
+    assertEquals(hits(source, `${REPO_ROOT}packages/x/tests/a.ts`), 0)
+    assertEquals(hits(source, `${REPO_ROOT}packages/x/a.test.ts`), 0)
+    assertEquals(hits(source, `${REPO_ROOT}packages/x/a_test.ts`), 0)
+    assertEquals(hits(source, `${REPO_ROOT}scripts/kit_live.ts`), 0)
     assertEquals(
-        hits(source, '/repo/packages/contract/environment_legacy.ts'),
+        hits(source, `${REPO_ROOT}packages/contract/environment_read.ts`),
+        0,
+    )
+    assertEquals(
+        hits(source, `${REPO_ROOT}packages/contract/environment_legacy.ts`),
         0,
     )
 })
 
 Deno.test('env-signal - inScope reads Windows separators', () => {
-    assertEquals(inScope('C:\\repo\\config\\app.ts'), true)
-    assertEquals(inScope('C:\\repo\\packages\\x\\tests\\a.ts'), false)
+    assertEquals(inScope('C:\\repo\\config\\app.ts', 'C:\\repo'), true)
+    assertEquals(
+        inScope('C:\\repo\\packages\\x\\tests\\a.ts', 'C:\\repo'),
+        false,
+    )
+})
+
+Deno.test('env-signal - inScope ignores where the checkout lives', () => {
+    assertEquals(
+        inScope('/home/tests/repo/config/app.ts', '/home/tests/repo'),
+        true,
+    )
+    assertEquals(inScope('/srv/app/repo/scripts/x.ts', '/srv/app/repo'), false)
 })
