@@ -24,8 +24,6 @@ import { OPTIONAL_FEATURES } from '../packages/core/kernel/bootstrap/optional_pa
 const EXEMPT: Readonly<Record<string, string>> = {
     container:
         'a hard dependency declared soft before #505; stale, left for the core.soft cleanup the #505 disposition names',
-    'deprecation-contracts':
-        "declared so core/deno.json's existing specifier is visible in the graph (#392 review); no call site loads it yet",
 }
 
 /** Packages core loads through `importRequiredPackage` without a kernel key. */

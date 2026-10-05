@@ -50,12 +50,12 @@ This brief does not repeat it.
 
 <!-- generated:deps -->
 
-| Direction                                 | Packages                                                                                                                |
-| :---------------------------------------- | :---------------------------------------------------------------------------------------------------------------------- |
-| Imports (static)                          | `container`, `contract`, `crypto`, `events`, `hono`, `scheduler`                                                        |
-| Imports (soft, loaded at runtime by name) | `cache`, `container`, `deprecation-contracts`, `devtools`, `drizzle`, `i18n`, `logger`, `redis`, `session`, `telemetry` |
-| Imported by                               | —                                                                                                                       |
-| **Must never import**                     | nothing — no package depends on this one                                                                                |
+| Direction                                 | Packages                                                                                       |
+| :---------------------------------------- | :--------------------------------------------------------------------------------------------- |
+| Imports (static)                          | `container`, `contract`, `crypto`, `deprecation-contracts`, `events`, `hono`, `scheduler`      |
+| Imports (soft, loaded at runtime by name) | `cache`, `container`, `devtools`, `drizzle`, `i18n`, `logger`, `redis`, `session`, `telemetry` |
+| Imported by                               | —                                                                                              |
+| **Must never import**                     | nothing — no package depends on this one                                                       |
 
 Enforced by `deno task deps:analyze` against `deps.policy.jsonc`. A soft edge is
 deliberately **not** declared in this package's `deno.json`: the consuming
