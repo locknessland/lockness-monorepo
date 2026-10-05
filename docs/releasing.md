@@ -123,7 +123,7 @@ Deno's, the key rule, prefix keys and npm-derived subpaths such as
 failure names the package, file, line and specifier:
 
 ```
-❌ drizzle   drivers.ts:368: undeclared dynamic import — import('postgres')
+❌ b   mod.ts:2: undeclared dynamic import — import('x-lockness-undeclared')
 ```
 
 What no graph can read, a computed `import(spec)` or
@@ -131,10 +131,13 @@ What no graph can read, a computed `import(spec)` or
 `deno publish --dry-run --no-check --allow-dirty`. Every site it names
 unanalysable must be listed, per file and with a site count and a reason, under
 the package's `runtimeImports` in `deps.policy.jsonc`. An unlisted file, a count
-that drifts up or down, a stale entry, an empty reason, any other dry-run
+that drifts up or down, a stale entry, an empty reason, any other coded dry-run
 diagnostic and a non-zero exit are all red. So the dry-run is now part of every
 push, and its slow-type, missing-license and future warning codes are failures,
-not log noise.
+not log noise. "Coded" is the limit: a diagnostic is seen only as a
+`warning[<code>]` / `error[<code>]` header at the start of a line, after colour
+(SGR) sequences are stripped. A future non-fatal warning with no code, or a
+header behind another escape sequence such as an OSC-8 hyperlink, passes unseen.
 
 **A published `.tsx` needs a reason (#470).** Under `"jsx": "precompile"`, Deno
 transpiles a JSR `.tsx` with the _consuming_ app's `jsxImportSource`, ignoring

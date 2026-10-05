@@ -168,8 +168,8 @@ rather than re-implementing it, as D1 requires:
   `unanalyzable-import-meta-resolve`. Each site is inventoried, per file and
   with a count and a reason, under `runtimeImports` in `deps.policy.jsonc`, the
   runtime counterpart of `soft` (D3: one hand-written policy home). Drift either
-  way, an empty reason, any other dry-run diagnostic and a non-zero exit are
-  red.
+  way, an empty reason, any other coded dry-run diagnostic (a `warning[<code>]`
+  / `error[<code>]` header at the start of a line) and a non-zero exit are red.
 
 A static key scan was rejected: it re-implements the extractor (a hand grep got
 6 of 18 sites wrong) and the matcher, including the npm-derived subpaths that 7
@@ -177,7 +177,11 @@ of drizzle's 10 dynamic edges need. Residue: an inventory cannot prove a
 computed site works at runtime, and a same-file swap keeps its count. Templates
 Deno can analyse (`` `file://${path}` ``) are flagged by neither rule. Modules
 no export reaches are not walked, and the `deno info --json` shape can drift
-across Deno versions; the integration tests are the tripwire for that.
+across Deno versions; the integration tests are the tripwire for that. Rule B
+sees a dry-run diagnostic only through its coded header at column 0, after
+colour (SGR) sequences alone are stripped: a non-fatal warning Deno emits with
+no code, or a header prefixed by another escape sequence such as an OSC-8
+hyperlink, passes unseen (#469).
 
 ### 5.3 The policy file
 

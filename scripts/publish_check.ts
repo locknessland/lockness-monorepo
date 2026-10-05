@@ -24,7 +24,11 @@
  *
  * It **tolerates no failure**. A run is red if `deno check` exits non-zero, OR
  * a dynamic edge carries an error field, OR the workspace dry-run exits
- * non-zero or emits a diagnostic that is not inventoried (#463).
+ * non-zero or emits a coded diagnostic that is not inventoried (#463). A
+ * dry-run diagnostic is seen only as a `warning[<code>]` / `error[<code>]`
+ * header at the start of a line, once SGR colour sequences are stripped: a
+ * non-fatal warning with no code, or a header behind another escape sequence
+ * (an OSC-8 hyperlink, say), passes unseen.
  *
  * - **`deno check`** owns static imports and types, per staged package.
  * - **Dynamic edges** (Rule A): `deno check` exits 0 on an `import('…')` it
@@ -57,7 +61,7 @@
  * | `<pkg>/<file>: N unanalysable import site(s), …` | a runtime-import site missing from, or drifting against, the inventory |
  * | `<pkg>: publishes N .tsx file(s) (…), no "jsx" entry …` | a published `.tsx` the policy does not allow |
  * | `<pkg>: "jsx" entry …, but no .tsx is published …` | a stale `jsx` entry |
- * | `dry-run diagnostic: warning[…]` / `error[…]` | any other dry-run diagnostic |
+ * | `dry-run diagnostic: warning[…]` / `error[…]` | any other coded dry-run diagnostic (an uncoded one is not seen) |
  * | `deno publish --dry-run exited N: …` | the dry-run itself failed |
  * | anything else | unrecognised — still **fail** |
  *
@@ -450,11 +454,12 @@ export function withWorkspaceLinks(
 }
 
 /**
- * Remove ANSI colour sequences, so matching does not depend on whether the
- * child decided it was writing to a terminal.
+ * Remove ANSI colour (SGR, `ESC [ … m`) sequences, so matching does not
+ * depend on whether the child decided it was writing to a terminal. Only SGR:
+ * any other escape sequence, an OSC-8 hyperlink for one, is left in place.
  *
  * @param text - Raw process output.
- * @returns The text without escape sequences.
+ * @returns The text without SGR sequences.
  */
 function stripAnsi(text: string): string {
     // deno-lint-ignore no-control-regex
@@ -652,8 +657,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * @example
  * ```ts
  * const info = JSON.parse(stdoutOfDenoInfo)
- * dynamicImportFaults(info, '/tmp/lockness-publish-x/root/drizzle')
- * // -> [{ file: 'drivers.ts', line: 368, specifier: 'x', reason: 'undeclared dynamic import' }]
+ * dynamicImportFaults(info, '/placeholder/root/b')
+ * // -> [{ file: 'mod.ts', line: 8, specifier: 'x-lockness-undeclared', reason: 'undeclared dynamic import' }, …]
  * ```
  */
 export function dynamicImportFaults(
@@ -927,7 +932,10 @@ export function runtimeImportSites(
  * - a listed count differs from the dry-run's, up or down;
  * - a listed file has no sites left (a stale entry);
  * - an entry has no reason, or a malformed count;
- * - any other dry-run diagnostic appears.
+ * - any other coded dry-run diagnostic appears. Only what
+ *   {@link runtimeImportSites} parses reaches here: a diagnostic with no
+ *   `warning[<code>]` / `error[<code>]` header at the start of a line is not
+ *   seen.
  *
  * @param diagnostics - The parsed dry-run, from {@link runtimeImportSites}.
  * @param policy - The parsed `deps.policy.jsonc`, unvalidated; `undefined`
