@@ -652,7 +652,9 @@ from one statement â€” two reads from the pool could come from two connections â
 and every `DROP` is qualified as `` `db`.`name` ``, so the reset empties the
 database it read even if the dedicated connection selects another. The
 bookkeeping table is always dropped first, listed or not. The migrator still
-runs unqualified on the pool.
+runs unqualified on the pool. The reset, its destroyed connection and the
+system-database refusal are proven against a real MySQL 8.4 in the `live-mysql`
+CI job.
 
 **Guard.** Like `db:seed`, `db:fresh` refuses a production environment
 (`APP_ENV` is `production`) unless `--allow-production` is passed, and a

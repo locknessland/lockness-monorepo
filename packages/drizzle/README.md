@@ -228,7 +228,9 @@ created by another session meanwhile are not compared. This check is proven
 against a real postgres in the `live-postgres` CI job.
 
 On MySQL, `DATABASE()` and the table list are read in one statement, and every
-`DROP` names that database, so the reset cannot empty a different one.
+`DROP` names that database, so the reset cannot empty a different one. This, the
+destroyed connection and the system-database refusal are proven against a real
+MySQL 8.4 in the `live-mysql` CI job.
 
 It is refused in production unless you pass `--allow-production`, the same guard
 as `db:seed`. It is also refused, before anything is dropped, when the config

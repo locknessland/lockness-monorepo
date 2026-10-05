@@ -339,6 +339,43 @@ for the cookie's `Max-Age` in seconds. The cookie must authenticate and recycle,
 keeping `first_issued_at`. Deletes must be scoped to their owner. An unknown,
 expired or revoked token must be refused.
 
+The same suite holds one more postgres case (#446): the schema the reset empties
+but keeps comes out of it with the same owner and ACL. It creates one role,
+`lockness_fresh_owner`, for that case and drops it in the teardown.
+
+## Live-mysql integration tests
+
+`db:fresh` on MySQL rests on behaviour a plan test cannot observe: the dedicated
+connection that runs with `FOREIGN_KEY_CHECKS = 0` is destroyed, never returned
+to the pool, and every `DROP` lands in the database the catalogue read named.
+`packages/drizzle/tests/fresh_mysql_live.test.ts` runs the real MySQL driver,
+the reset and `db:fresh` against a server. The `live-mysql` CI job runs it
+against a MySQL 8.4 service on every push and pull request.
+
+It is skipped unless you turn it on:
+
+```bash
+# An empty root password: publish it on loopback only (127.0.0.1:), never on
+# every interface. Pick any free <port>.
+docker run -d --rm --name lockness-it-mysql -p 127.0.0.1:<port>:3306 \
+    -e MYSQL_ALLOW_EMPTY_PASSWORD=yes mysql:8.4
+
+LOCKNESS_MYSQL_URL=mysql://root@127.0.0.1:<port>/ deno task test:mysql
+
+docker stop lockness-it-mysql
+```
+
+| Variable                     | Default | Notes                                                                                       |
+| ---------------------------- | ------- | ------------------------------------------------------------------------------------------- |
+| `LOCKNESS_MYSQL_INTEGRATION` | unset   | `1` runs the suite. Set by `deno task test:mysql`.                                          |
+| `LOCKNESS_MYSQL_URL`         | unset   | Required. Refused unless mysql2's own parse of it names a loopback host and no socket path. |
+
+The suite creates and drops only the databases `lockness_fresh_mysql` and
+`lockness_fresh_mysql_other`; the url's own database, if it names one, is never
+touched. It points the driver at each system database (`mysql`, `sys`,
+`performance_schema`, `information_schema`) to prove the refusal, and never lets
+a statement run there.
+
 ## Mutation batteries
 
 A test that passes proves the code ran. It does not prove the test would have
