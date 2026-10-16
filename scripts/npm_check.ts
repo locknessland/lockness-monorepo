@@ -6,7 +6,7 @@
  *
  * Scope: every non-private package whose `engines` names bun or node
  * ({@link npmScope}) — the same predicate `npm:build` builds. Today that is
- * `@lockness/transform` alone. For each one, from its staged directory under
+ * `@lockness/transform` and `@lockness/runtime`. For each one, from its staged directory under
  * `_npm/`:
  *
  * 1. **Scope rule.** Its `package.json` `lockness.jsr` is empty: a package that

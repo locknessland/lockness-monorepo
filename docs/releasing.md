@@ -106,10 +106,10 @@ the pipeline is exercised long before the first npm release.
 
 **Scope.** One predicate decides it: a non-private package whose `package.json`
 `engines` names bun or node (`namesBunOrNode` in `scripts/manifests.ts`, the
-same predicate the runtime lanes use). Today that is `@lockness/transform`
-alone. A package joins the npm build when it declares bun or node, and `engines`
-stays monotonic over static edges, so every sibling a scoped package depends on
-is in the scope too.
+same predicate the runtime lanes use). Today that is `@lockness/transform` and
+`@lockness/runtime`. A package joins the npm build when it declares bun or node,
+and `engines` stays monotonic over static edges, so every sibling a scoped
+package depends on is in the scope too.
 
 **`deno task npm:build`** runs two steps:
 
