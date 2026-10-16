@@ -50,6 +50,16 @@ const EXIT_POSITIVES: ReadonlyArray<readonly [string, string]> = [
     ['exit destructured and renamed', 'const { exit: quit } = Deno'],
     ['exit destructured by a string key', "const { 'exit': quit } = Deno"],
     ['exit destructured in an assignment', 'let exit; ({ exit } = Deno)'],
+    // T019 (#596): the same shapes on Node's process object.
+    ['process.exit(1)', 'process.exit(1)'],
+    ['process.exit() with no status', 'process.exit()'],
+    ['a computed process.exit call', "process['exit'](1)"],
+    ['an assignment to process.exitCode', 'process.exitCode = 1'],
+    ['a compound assignment to process.exitCode', 'process.exitCode ??= 1'],
+    ['an increment of process.exitCode', 'process.exitCode++'],
+    ['exit destructured from process', 'const { exit } = process'],
+    ['exit imported from node:process', "import { exit } from 'node:process'"],
+    ['exit imported and renamed', "import { exit as quit } from 'process'"],
 ]
 
 for (const [label, source] of EXIT_POSITIVES) {
@@ -60,7 +70,17 @@ for (const [label, source] of EXIT_POSITIVES) {
 
 const EXIT_NEGATIVES: ReadonlyArray<readonly [string, string]> = [
     ['a read of Deno.exitCode', 'const status = Deno.exitCode'],
-    ['a look-alike object', 'process.exit(1); proc.exitCode = 1'],
+    ['a look-alike object', 'proc.exit(1); proc.exitCode = 1'],
+    ['a read of process.exitCode', 'const status = process.exitCode'],
+    [
+        'other members destructured from process',
+        'const { env, argv } = process',
+    ],
+    [
+        'other imports from node:process',
+        "import { env, argv } from 'node:process'",
+    ],
+    ['exit imported from another module', "import { exit } from './exit.ts'"],
     ['an unrelated Deno call', 'Deno.exitSignal?.()'],
     ['a returned status', 'return 1'],
     ['an increment of a look-alike', 'proc.exitCode++'],
@@ -69,7 +89,7 @@ const EXIT_NEGATIVES: ReadonlyArray<readonly [string, string]> = [
     ['other members destructured from Deno', 'const { env, args } = Deno'],
     // A copy of the status, not a write to it.
     ['exitCode destructured from Deno', 'const { exitCode } = Deno'],
-    ['exit destructured from another object', 'const { exit } = process'],
+    ['exit destructured from another object', 'const { exit } = proc'],
 ]
 
 for (const [label, source] of EXIT_NEGATIVES) {
@@ -107,6 +127,20 @@ test('process-exit - Deno.exit is allowed only in its two owners', () => {
         hits('process-exit', source, `${ROOT}packages/cli/report.ts`),
         1,
     )
+})
+
+test('process-exit - the owners own the process.* forms too (#596)', () => {
+    // An owner migrating off Deno keeps its right to exit, and no more.
+    const server = `${ROOT}packages/core/http/server.ts`
+    const report = `${ROOT}packages/cli/report.ts`
+    assertEquals(hits('process-exit', 'process.exit(1)', server), 0)
+    assertEquals(
+        hits('process-exit', "import { exit } from 'node:process'", server),
+        0,
+    )
+    assertEquals(hits('process-exit', 'process.exitCode = 1', server), 1)
+    assertEquals(hits('process-exit', 'process.exitCode = 1', report), 0)
+    assertEquals(hits('process-exit', 'process.exit(1)', report), 1)
 })
 
 test('process-exit - an owner is a repository path, not a suffix', () => {

@@ -10,10 +10,21 @@
  * under the other. `DENO_ENV` is read only by the tripwire
  * (`packages/contract/environment_legacy.ts`).
  *
- * Reports `Deno.env.get('APP_ENV')` / `Deno.env.get('DENO_ENV')` (any quote
- * style) in `packages/`, `app/` and `config/`, outside tests and the two
- * contract files. Writes (`Deno.env.set`) are not reads and pass. Markdown
- * examples are not linted.
+ * Reports, in `packages/`, `app/` and `config/`, outside tests and the owners
+ * below:
+ *
+ * - `Deno.env.get('APP_ENV')` / `Deno.env.get('DENO_ENV')` (any quote style);
+ * - a member read of either name on any object — `process.env.APP_ENV`,
+ *   `process.env['DENO_ENV']`, and `env.APP_ENV` on an environment handed in
+ *   as a parameter (#596, plan 274 T019). Any object, not only
+ *   `process.env`: the Node idiom is to pass `process.env` along, and a rule
+ *   keyed on the `process.env` spelling would miss the read where it happens;
+ * - either name destructured (`const { APP_ENV } = process.env`, a
+ *   `{ APP_ENV }` parameter).
+ *
+ * Writes (`Deno.env.set`, an assignment to `process.env.APP_ENV`, `delete`)
+ * are not reads and pass, and so does an object key or a type member named
+ * `APP_ENV`. Markdown examples are not linted.
  *
  * @module scripts/lint/env_signal
  */
@@ -27,15 +38,22 @@ const MESSAGE =
 /** The hint shown under the message. */
 const HINT =
     'APP_ENV is read in one place so the framework and the app never disagree. ' +
-    'DENO_ENV is no longer an environment signal.'
+    'DENO_ENV is no longer an environment signal. The owner list lives in ' +
+    'scripts/lint/env_signal.ts.'
 
 /** The variables only the resolver may read. */
 const SIGNALS = new Set(['APP_ENV', 'DENO_ENV'])
 
-/** The two files that own the raw reads. */
+/**
+ * The files that own a raw read: the contract resolver and its tripwire, and
+ * `@lockness/transform`'s production refusal, which runs before any
+ * `@lockness/*` package loads and may import none — so it repeats the
+ * resolver's trim/lower-case rule rather than importing it (#596).
+ */
 const OWNERS = [
     'packages/contract/environment_read.ts',
     'packages/contract/environment_legacy.ts',
+    'packages/transform/hook.ts',
 ]
 
 /**
@@ -81,7 +99,24 @@ function isDenoEnvGet(node: Deno.lint.Node): boolean {
         env.property.type === 'Identifier' && env.property.name === 'env'
 }
 
-/** The plugin, registered in the root `deno.jsonc` beside its sibling. */
+/**
+ * The name a property key spells when it is static (`APP_ENV` for
+ * `x.APP_ENV`, `x['APP_ENV']`, `{ APP_ENV }`), or `undefined`.
+ */
+function staticKey(key: Deno.lint.Node, computed: boolean): string | undefined {
+    if (!computed && key.type === 'Identifier') return key.name
+    return staticString(key)
+}
+
+/** Whether the member expression `node` is written to, not read. */
+function isWriteTarget(node: Deno.lint.MemberExpression): boolean {
+    const parent = node.parent
+    if (parent.type === 'AssignmentExpression') return parent.left === node
+    if (parent.type === 'UpdateExpression') return true
+    return parent.type === 'UnaryExpression' && parent.operator === 'delete'
+}
+
+/** The plugin, registered in the root `deno.jsonc` beside its siblings. */
 const plugin: Deno.lint.Plugin = {
     name: 'lockness-env',
     rules: {
@@ -94,6 +129,29 @@ const plugin: Deno.lint.Plugin = {
                         const name = staticString(node.arguments[0])
                         if (name === undefined || !SIGNALS.has(name)) return
                         context.report({ node, message: MESSAGE, hint: HINT })
+                    },
+                    MemberExpression(node) {
+                        const name = staticKey(node.property, node.computed)
+                        if (name === undefined || !SIGNALS.has(name)) return
+                        if (isWriteTarget(node)) return
+                        context.report({ node, message: MESSAGE, hint: HINT })
+                    },
+                    ObjectPattern(node) {
+                        for (const property of node.properties) {
+                            if (property.type !== 'Property') continue
+                            const name = staticKey(
+                                property.key,
+                                property.computed,
+                            )
+                            if (name === undefined || !SIGNALS.has(name)) {
+                                continue
+                            }
+                            context.report({
+                                node: property,
+                                message: MESSAGE,
+                                hint: HINT,
+                            })
+                        }
                     },
                 }
             },
