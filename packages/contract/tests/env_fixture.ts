@@ -14,7 +14,8 @@ export interface EnvCombo {
 
 /**
  * Run `fn` with `APP_ENV` and `DENO_ENV` set exactly as `combo` says, then put
- * both back as they were.
+ * both back as they were — once `fn` settles, when it returns a promise, so an
+ * async body (a whole boot) runs under the combination throughout.
  *
  * @param combo - The values to set; an absent or `undefined` key is deleted.
  * @param fn - The body to run under that combination.
@@ -27,12 +28,20 @@ export function withEnv<T>(combo: EnvCombo, fn: () => T): T {
     }
     const set = (key: string, value: string | undefined) =>
         value === undefined ? Deno.env.delete(key) : Deno.env.set(key, value)
-    set('APP_ENV', combo.APP_ENV)
-    set('DENO_ENV', combo.DENO_ENV)
-    try {
-        return fn()
-    } finally {
+    const restore = () => {
         set('APP_ENV', previous.APP_ENV)
         set('DENO_ENV', previous.DENO_ENV)
     }
+    set('APP_ENV', combo.APP_ENV)
+    set('DENO_ENV', combo.DENO_ENV)
+    let result: T
+    try {
+        result = fn()
+    } catch (error) {
+        restore()
+        throw error
+    }
+    if (result instanceof Promise) return result.finally(restore) as T
+    restore()
+    return result
 }
