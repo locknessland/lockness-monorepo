@@ -27,8 +27,8 @@
  * fail closed, because TypeScript drops a rejected value and the emit would
  * silently change.
  *
- * TypeScript comes from npm because it has no JSR build (hard rule #2
- * exception, recorded in `package.json` and `deps.policy.jsonc`), pinned
+ * TypeScript comes from npm because it has no JSR build (recorded in
+ * `package.json` and `deps.policy.jsonc`), pinned
  * exactly to 6.0.3: TypeScript 7 has no JavaScript API (#612).
  *
  * @module
