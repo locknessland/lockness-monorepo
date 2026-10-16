@@ -1,0 +1,47 @@
+{
+    "name": "@lockness/runtime",
+    "version": "0.4.0",
+    "description": "The one place Lockness learns which runtime it runs on (Deno, Bun or Node), and how to start a process or subscribe to a signal there",
+    "license": "MIT",
+    "type": "module",
+    "exports": {
+        ".": {
+            "lockness-source": "./mod.ts",
+            "default": "./dist/mod.js"
+        },
+        "./runtime": {
+            "lockness-source": "./runtime.ts",
+            "default": "./dist/runtime.js"
+        },
+        "./process": {
+            "lockness-source": "./process.ts",
+            "default": "./dist/process.js"
+        },
+        "./signals": {
+            "lockness-source": "./signals.ts",
+            "default": "./dist/signals.js"
+        }
+    },
+    "files": [
+        "dist"
+    ],
+    "engines": {
+        "deno": ">=2.2",
+        "bun": ">=1.4",
+        "node": ">=24"
+    },
+    "devDependencies": {
+        "@std/assert": "jsr:1"
+    },
+    "lockness": {
+        "publish": {
+            "exclude": [
+                "tests/"
+            ]
+        },
+        "tasks": {
+            "test": "deno test -A tests/",
+            "test:watch": "deno test -A --watch tests/"
+        }
+    }
+}

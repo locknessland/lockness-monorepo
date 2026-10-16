@@ -39,7 +39,8 @@
         "packages/vite",
         "packages/vite/demo",
         "packages/testing",
-        "packages/transform"
+        "packages/transform",
+        "packages/runtime"
     ],
     "devDependencies": {
         "@types/node": "^24.19.2",

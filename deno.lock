@@ -5090,6 +5090,16 @@
           ]
         }
       },
+      "packages/runtime": {
+        "dependencies": [
+          "jsr:@std/assert@1"
+        ],
+        "packageJson": {
+          "dependencies": [
+            "npm:@jsr/std__assert@1"
+          ]
+        }
+      },
       "packages/scheduler": {
         "dependencies": [
           "jsr:@lockness/container@0.4",

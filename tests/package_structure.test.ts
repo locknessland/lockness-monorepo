@@ -68,6 +68,7 @@ const PACKAGES: string[] = [
     'queue',
     'redis',
     'crypto',
+    'runtime',
     'telemetry',
     'scheduler',
     'session',
