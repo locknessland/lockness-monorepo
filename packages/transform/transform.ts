@@ -20,8 +20,9 @@
  * @module
  */
 
-import { existsSync } from 'node:fs'
+import { existsSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
+import process from 'node:process'
 import ts from 'typescript'
 import type { CompilerOptions, Diagnostic } from 'typescript'
 
@@ -48,13 +49,31 @@ const UNRUNNABLE_JSX: ReadonlySet<ts.JsxEmit | undefined> = new Set([
 ])
 
 /**
+ * The files that mark an app root. The `tsconfig.json` search never climbs
+ * past the nearest directory holding one: compiler options such as
+ * `jsxImportSource` decide which code is loaded, so a `tsconfig.json` planted
+ * in a shared ancestor must not govern the app (#618).
+ */
+const BOUNDARY = ['package.json', 'deno.json', 'deno.jsonc'] as const
+
+/** The group and other write bits. */
+const GROUP_OTHER_WRITE = 0o022
+
+/**
  * Find the `tsconfig.json` that governs a directory: the nearest one in it or
- * an ancestor, as the TypeScript language service does.
+ * an ancestor, as the TypeScript language service does — but never above the
+ * app root, the nearest directory holding a `package.json`, `deno.json` or
+ * `deno.jsonc`.
+ *
+ * The file found must belong to the current user and be writable by nobody
+ * else (on POSIX): its options decide which code the transform loads.
  *
  * @param fromDir - The directory the walk starts in, e.g. the directory of a
  *   source file.
  * @returns The absolute path of the nearest `tsconfig.json`, or `null` when the
- *   walk reaches the filesystem root without finding one.
+ *   walk reaches the app root or the filesystem root without finding one.
+ * @throws {Error} When the `tsconfig.json` found belongs to another user or is
+ *   writable by group or others.
  *
  * @example
  * ```ts
@@ -65,11 +84,41 @@ export function findTsconfig(fromDir: string): string | null {
     let dir = fromDir
     while (true) {
         const candidate = join(dir, TSCONFIG)
-        if (existsSync(candidate)) return candidate
+        if (existsSync(candidate)) {
+            assertOwnTsconfig(candidate)
+            return candidate
+        }
+        if (BOUNDARY.some((marker) => existsSync(join(dir, marker)))) {
+            return null
+        }
         const parent = dirname(dir)
         if (parent === dir) return null
         dir = parent
     }
+}
+
+/**
+ * Refuse a `tsconfig.json` another local user could have written. Windows,
+ * which has neither `getuid` nor POSIX mode bits, is not checked.
+ *
+ * @param path - The `tsconfig.json`.
+ * @throws {Error} When it belongs to another user or is writable by group or
+ *   others.
+ */
+function assertOwnTsconfig(path: string): void {
+    if (typeof process.getuid !== 'function') return
+    const stat = statSync(path)
+    let problem: string | undefined
+    if (stat.uid !== process.getuid()) problem = 'belongs to another user'
+    else if ((stat.mode & GROUP_OTHER_WRITE) !== 0) {
+        problem = 'is writable by group or others'
+    }
+    if (problem === undefined) return
+    throw new Error(
+        `@lockness/transform: ${path} ${problem}. Its compiler options ` +
+            `decide which code the transform loads, so it is not used. Make ` +
+            `it yours and writable by you alone (chmod go-w).`,
+    )
 }
 
 /**

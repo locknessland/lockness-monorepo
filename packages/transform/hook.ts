@@ -12,7 +12,9 @@
  *   `node_modules` segment. Declaration files are skipped. Dependencies are
  *   never transformed: a published package ships JavaScript.
  * - **Which options.** The `tsconfig.json` nearest to the file (TypeScript's own
- *   rule), read once per file and memoised per directory. A file with none is
+ *   rule), never above the app root (the nearest `package.json` / `deno.json`)
+ *   and only one the current user owns and alone can write; read once per
+ *   file and memoised per directory. A file with none is
  *   refused: the options have one home, and a silent default would make the
  *   dev emit differ from `lockness build`'s.
  * - **Where the cache lives.** Beside that `tsconfig.json`, which is the app
@@ -143,9 +145,11 @@ export function createLoadHook(
         }
         if (tsconfig === null) {
             throw new Error(
-                `@lockness/transform: no tsconfig.json governs ${fileName}. ` +
-                    `The app's tsconfig.json is where its compiler options ` +
-                    `(target, jsx) live; add one at the app root.`,
+                `@lockness/transform: no tsconfig.json governs ${fileName} ` +
+                    `(the search stops at the nearest directory holding a ` +
+                    `package.json or deno.json). The app's tsconfig.json is ` +
+                    `where its compiler options (target, jsx) live; add one ` +
+                    `at the app root.`,
             )
         }
         let project = projects.get(tsconfig)
