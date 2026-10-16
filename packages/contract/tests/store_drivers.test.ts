@@ -17,6 +17,7 @@ import {
     assertStringIncludes,
     assertThrows,
 } from '@std/assert'
+import { currentRuntime } from '@lockness/runtime/runtime'
 import {
     assertDenoKvRuntime,
     DenoKvUnavailableError,
@@ -33,9 +34,17 @@ test('assertDenoKvRuntime - on Deno it returns and refuses nothing', () => {
     assertEquals(assertDenoKvRuntime('cache', () => true), undefined)
 })
 
-test('assertDenoKvRuntime - the default probe answers true on Deno', () => {
-    // This suite runs on Deno today; the default must not refuse here.
-    assertEquals(assertDenoKvRuntime('session'), undefined)
+test('assertDenoKvRuntime - the default probe is the runtime detector (#598)', () => {
+    // Refuses exactly where the one detector says the runtime is not Deno, so
+    // the row holds on every lane: it returns on Deno, refuses on Bun and Node.
+    if (currentRuntime() === 'deno') {
+        assertEquals(assertDenoKvRuntime('session'), undefined)
+    } else {
+        assertThrows(
+            () => assertDenoKvRuntime('session'),
+            DenoKvUnavailableError,
+        )
+    }
 })
 
 test('assertDenoKvRuntime - off Deno it refuses, naming the subsystem and sqlite', () => {

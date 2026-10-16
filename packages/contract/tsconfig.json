@@ -16,6 +16,9 @@
     "references": [
         {
             "path": "../hono"
+        },
+        {
+            "path": "../runtime"
         }
     ]
 }

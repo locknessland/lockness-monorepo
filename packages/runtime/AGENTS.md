@@ -49,12 +49,12 @@ it.
 
 <!-- generated:deps -->
 
-| Direction                                 | Packages                                 |
-| :---------------------------------------- | :--------------------------------------- |
-| Imports (static)                          | —                                        |
-| Imports (soft, loaded at runtime by name) | —                                        |
-| Imported by                               | —                                        |
-| **Must never import**                     | nothing — no package depends on this one |
+| Direction                                 | Packages                                                                                                                                                                                                                                                                                                                                                                                                   |
+| :---------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Imports (static)                          | —                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Imports (soft, loaded at runtime by name) | —                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Imported by                               | `contract`                                                                                                                                                                                                                                                                                                                                                                                                 |
+| **Must never import**                     | `auth`, `auth-provider`, `cache`, `cli`, `container`, `contract`, `core`, `crypto`, `deprecation-contracts`, `devtools`, `drizzle`, `events`, `features`, `i18n`, `init`, `logger`, `mail`, `notification`, `openapi`, `queue`, `realtime`, `redis`, `search`, `session`, `socialite`, `sse`, `telemetry`, `testing`, `ui`, `upgrade` — each already reaches this package, so importing one closes a cycle |
 
 Enforced by `deno task deps:analyze` against `deps.policy.jsonc`. A soft edge is
 an optional peer in this package's `package.json`, never a dependency: the

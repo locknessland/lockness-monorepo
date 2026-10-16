@@ -85,7 +85,8 @@
         "deno": ">=2.2"
     },
     "dependencies": {
-        "@lockness/hono": "^0.4.0"
+        "@lockness/hono": "^0.4.0",
+        "@lockness/runtime": "^0.4.0"
     },
     "devDependencies": {
         "@std/assert": "jsr:1"

@@ -4755,6 +4755,7 @@
       "packages/contract": {
         "dependencies": [
           "jsr:@lockness/hono@0.4",
+          "jsr:@lockness/runtime@0.4",
           "jsr:@std/assert@1",
           "jsr:@std/fs@1",
           "jsr:@std/path@1"
@@ -4762,7 +4763,8 @@
         "packageJson": {
           "dependencies": [
             "npm:@jsr/std__assert@1",
-            "npm:@lockness/hono@0.4"
+            "npm:@lockness/hono@0.4",
+            "npm:@lockness/runtime@0.4"
           ]
         }
       },

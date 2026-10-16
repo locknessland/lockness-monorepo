@@ -14,6 +14,7 @@
  * @module @lockness/contract/store/internal
  */
 
+import { currentRuntime } from '@lockness/runtime/runtime'
 import type { DenoKvDriverName } from './drivers.ts'
 
 /** The driver this module guards. */
@@ -52,16 +53,15 @@ export class DenoKvUnavailableError extends Error {
 }
 
 /**
- * Whether this process runs on Deno.
- *
- * Interim: plan 274 §5 makes `packages/runtime/runtime.ts` the one runtime
- * detector, and this probe is replaced by a call to it when that package
- * lands (C12) — it is not a second detector to grow.
+ * Whether this process runs on Deno — asked of the one runtime detector
+ * (plan 274 §5, FR-002), never tested here.
  *
  * @returns `true` on Deno.
+ * @throws {UnsupportedRuntimeError} From the detector, on a runtime Lockness
+ *   does not support at all.
  */
 function runsOnDeno(): boolean {
-    return typeof (globalThis as { Deno?: unknown }).Deno === 'object'
+    return currentRuntime() === 'deno'
 }
 
 /**
@@ -75,6 +75,8 @@ function runsOnDeno(): boolean {
  *   `queue` or `scheduler lock`.
  * @param isDeno - The runtime probe; injectable for tests.
  * @throws {DenoKvUnavailableError} When the process does not run on Deno.
+ * @throws {UnsupportedRuntimeError} From the default probe, when the runtime
+ *   is not one Lockness supports (e.g. Bun below 1.4.0).
  *
  * @example
  * ```ts
