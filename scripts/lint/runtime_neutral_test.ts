@@ -41,23 +41,32 @@ fixturePackage('denoonly', { deno: '>=2.2' })
 fixturePackage('runtime', { deno: '>=2.2', bun: '>=1.4', node: '>=24' })
 mkdirSync(`${ROOT}packages/broken`, { recursive: true })
 writeFileSync(`${ROOT}packages/broken/package.json`, '{ not json')
+// The plugin carve-out is read from the fixture's own root deno.jsonc.
+writeFileSync(
+    `${ROOT}deno.jsonc`,
+    '{ "lint": { "plugins": [\n  // a comment, as in the real file\n  "./scripts/lint/rule.ts"\n] } }',
+)
 
 after(() => rmSync(ROOT, { recursive: true, force: true }))
 
 const OPTIONS = {
     root: ROOT,
     exempt: ['packages/neutral/kv_deno.ts'],
-    scripts: ['scripts/neutral.ts'],
+    denoBound: ['scripts/old.ts'],
 }
 const plugin = createRuntimeNeutralPlugin(OPTIONS)
 
 /** An in-scope package file no list names. */
 const NEUTRAL = `${ROOT}packages/neutral/mod.ts`
 
-/** Lint `source` as `file` and return the rule's hit count. */
-function hits(source: string, file = NEUTRAL): number {
+/** Lint `source` as `file` and return the hit count of `rule`. */
+function hits(
+    source: string,
+    file = NEUTRAL,
+    rule: 'no-deno' | 'neutral-imports' = 'no-deno',
+): number {
     return Deno.lint.runPlugin(plugin, file, source)
-        .filter((d) => d.id === 'lockness-runtime/no-deno').length
+        .filter((d) => d.id === `lockness-runtime/${rule}`).length
 }
 
 // ---------------------------------------------------------------------------
@@ -187,16 +196,105 @@ test('no-deno - lets packages/runtime/ import the hono adapters, nothing else', 
     assertEquals(hits('Deno.serve(() => new Response())', file), 1)
 })
 
-test('no-deno - lints a listed script, and no other script', () => {
-    assertEquals(hits('Deno.exit(1)', `${ROOT}scripts/neutral.ts`), 1)
+test('no-deno - lints every script outside the baseline and the plugins', () => {
+    // A new script is in scope by default: nothing has to opt it in.
+    assertEquals(hits('Deno.exit(1)', `${ROOT}scripts/new.ts`), 1)
+    assertEquals(hits('Deno.exit(1)', `${ROOT}scripts/sub/new.ts`), 1)
     assertEquals(
         hits(
             "import { x } from '@lockness/hono/deno'",
-            `${ROOT}scripts/neutral.ts`,
+            `${ROOT}scripts/new.ts`,
         ),
         1,
     )
-    assertEquals(hits('Deno.exit(1)', `${ROOT}scripts/other.ts`), 0)
+    assertEquals(hits('Deno.exit(1)', `${ROOT}scripts/old.ts`), 0)
+    assertEquals(hits('Deno.exit(1)', `${ROOT}scripts/lint/rule.ts`), 0)
+    assertEquals(hits('Deno.exit(1)', `${ROOT}scripts/new_test.ts`), 0)
+    assertEquals(hits('Deno.exit(1)', `${ROOT}scripts/tests/a.ts`), 0)
+})
+
+// ---------------------------------------------------------------------------
+// neutral-imports
+// ---------------------------------------------------------------------------
+
+const IMPORT_POSITIVES: ReadonlyArray<readonly [string, string]> = [
+    ['an import of a baseline script', "import { a } from './old.ts'"],
+    ['a type-only import of one', "import type { A } from './old.ts'"],
+    ['a re-export of one', "export { a } from './old.ts'"],
+    ['a star re-export of one', "export * from './old.ts'"],
+    ['a dynamic import of one', "const m = await import('./old.ts')"],
+    ['an import of a plugin module', "import p from './lint/rule.ts'"],
+    [
+        'an import of a Deno-only package',
+        "import { x } from '../packages/denoonly/mod.ts'",
+    ],
+    ['an import of a test helper', "import { t } from './new_test.ts'"],
+]
+
+for (const [label, source] of IMPORT_POSITIVES) {
+    test(`neutral-imports - flags ${label}`, () => {
+        assertEquals(
+            hits(source, `${ROOT}scripts/new.ts`, 'neutral-imports'),
+            1,
+        )
+    })
+}
+
+const IMPORT_NEGATIVES: ReadonlyArray<readonly [string, string]> = [
+    ['an import of an in-scope script', "import { b } from './other.ts'"],
+    ['an import up and back down', "import { b } from '../scripts/other.ts'"],
+    [
+        'an import of an in-scope package',
+        "import { x } from '../packages/neutral/mod.ts'",
+    ],
+    ['a bare specifier', "import { join } from '@std/path'"],
+    // Bare specifiers are B4's to resolve, even one spelled like a file here.
+    [
+        'a bare specifier spelled like a baseline file',
+        "import { a } from 'old.ts'",
+    ],
+    ['a node: built-in', "import { readFile } from 'node:fs/promises'"],
+    ['a computed dynamic import', 'const m = await import(specifier)'],
+]
+
+for (const [label, source] of IMPORT_NEGATIVES) {
+    test(`neutral-imports - leaves ${label} alone`, () => {
+        assertEquals(
+            hits(source, `${ROOT}scripts/new.ts`, 'neutral-imports'),
+            0,
+        )
+    })
+}
+
+test('neutral-imports - leaves package source to deps:analyze and engines', () => {
+    // Package edges are governed by deps.policy.jsonc and engines
+    // monotonicity, not by this script rule.
+    assertEquals(
+        hits(
+            "import { x } from '../denoonly/mod.ts'",
+            NEUTRAL,
+            'neutral-imports',
+        ),
+        0,
+    )
+})
+
+test('neutral-imports - binds in-scope scripts only', () => {
+    const source = "import { a } from './old.ts'"
+    // A plugin may import a neutral script; a baseline script may import anything.
+    assertEquals(
+        hits(source, `${ROOT}scripts/lint/rule.ts`, 'neutral-imports'),
+        0,
+    )
+    assertEquals(hits(source, `${ROOT}scripts/old.ts`, 'neutral-imports'), 0)
+    assertEquals(
+        hits(
+            "import { a } from '../old.ts'",
+            `${ROOT}scripts/lint/helper.ts`,
+            'neutral-imports',
+        ),
+        1,
+    )
 })
 
 test('no-deno - leaves files outside packages/ and the list alone', () => {
@@ -212,7 +310,9 @@ test('lintScope - names the scope each path falls in', () => {
         lintScope(`${ROOT}packages/runtime/mod.ts`, OPTIONS),
         'runtime',
     )
-    assertEquals(lintScope(`${ROOT}scripts/neutral.ts`, OPTIONS), 'script')
+    assertEquals(lintScope(`${ROOT}scripts/new.ts`, OPTIONS), 'script')
+    assertEquals(lintScope(`${ROOT}scripts/old.ts`, OPTIONS), undefined)
+    assertEquals(lintScope(`${ROOT}scripts/lint/rule.ts`, OPTIONS), undefined)
     assertEquals(
         lintScope(`${ROOT}packages/denoonly/mod.ts`, OPTIONS),
         undefined,
