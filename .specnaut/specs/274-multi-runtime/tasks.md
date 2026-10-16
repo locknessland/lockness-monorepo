@@ -54,9 +54,11 @@ on `main`. Precedent: the realtime epic shipped as specs 240–272, one feature 
 
 ### C03 · Hard rule #2 reworded
 
-- [ ] T003 [P] `docs`: replace hard rule #2 in `AGENTS.md` with the text accepted on 2026-10-16
+- [ ] T003 `docs`: replace hard rule #2 in `AGENTS.md` with the text accepted on 2026-10-16
   (plan §7, Q2) and mirror it in `.specnaut/memory/constitution.md` "Hard rules". `CLAUDE.md` is a
-  symlink to `AGENTS.md`: edit once.
+  symlink to `AGENTS.md`: edit once. **Lands in the same change as C09's closure check**, never
+  before: the new text forbids `@std/*` in published runtime code, which 53 runtime files still
+  import, so an earlier rewording would be a rule the tree already breaks.
 
 ### C04 · Test runner codemod: `Deno.test` → `node:test`
 
@@ -268,8 +270,8 @@ on `main`. Precedent: the realtime epic shipped as specs 240–272, one feature 
 
 ```text
 C01 ─────────────────────────────────────────────────────────────┐
-C02 ──┬─▶ C07, C09, C17, C18(T031), C23                          │
-C03 ──┴─▶ C09                                                    │
+C02 ──▶ C07, C09, C17, C18(T031), C23                            │
+C05, C09 ─▶ C03 (same change as C09's closure check)             │
 C04 ─▶ C08                                                       │
 C05 ─▶ C06 ─▶ C08 ─▶ C09 ─▶ C10                                  │
 C10 ─▶ C11 ─▶ C12 ─▶ C13 ─▶ C14                                  │
@@ -279,7 +281,7 @@ C20, C21, C22 ─▶ C23 ◀─────────────────�
 C23 ─▶ C24
 ```
 
-Parallel opportunities: C01–C05 start together; C16 runs beside C13–C15; within C14 each package is
+Parallel opportunities: C01, C02, C04 and C05 start together; C16 runs beside C13–C15; within C14 each package is
 independent; C21's three parts are independent.
 
 ## Implementation strategy
