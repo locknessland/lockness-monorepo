@@ -1,0 +1,45 @@
+{
+    "name": "@lockness/init",
+    "version": "0.4.0",
+    "description": "Project scaffolding and initialization for creating new Lockness applications with complete structure",
+    "license": "MIT",
+    "type": "module",
+    "exports": {
+        ".": {
+            "lockness-source": "./mod.ts",
+            "default": "./dist/mod.js"
+        }
+    },
+    "files": [
+        "dist",
+        "stubs"
+    ],
+    "engines": {
+        "deno": ">=2.2"
+    },
+    "dependencies": {
+        "@lockness/cli": "^0.4.0"
+    },
+    "devDependencies": {
+        "@lockness/core": "^0.4.0",
+        "@lockness/session": "^0.4.0"
+    },
+    "lockness": {
+        "jsr": {
+            "@std/cli": "^1.0.0",
+            "@std/expect": "^1.0.0",
+            "@std/fs": "^1.0.0",
+            "@std/path": "^1.0.0"
+        },
+        "publish": {
+            "exclude": [
+                "tests/"
+            ]
+        },
+        "tasks": {
+            "test": "deno test -A tests/",
+            "test:watch": "deno test -A --watch tests/"
+        },
+        "versionModule": true
+    }
+}

@@ -1,0 +1,44 @@
+{
+    "name": "@lockness/session",
+    "version": "0.4.0",
+    "description": "Multi-driver session management with encrypted cookie sessions, flash messages, and support for Memory, Deno KV, and Redis",
+    "license": "MIT",
+    "type": "module",
+    "exports": {
+        ".": {
+            "lockness-source": "./mod.ts",
+            "default": "./dist/mod.js"
+        }
+    },
+    "files": [
+        "dist"
+    ],
+    "engines": {
+        "deno": ">=2.2"
+    },
+    "dependencies": {
+        "@lockness/contract": "^0.4.0",
+        "@lockness/crypto": "^0.4.0",
+        "@lockness/redis": "^0.4.0",
+        "@lockness/hono": "^0.4.0"
+    },
+    "lockness": {
+        "jsr": {
+            "@std/assert": "1",
+            "@std/crypto": "^1",
+            "@std/path": "1"
+        },
+        "imports": {
+            "hono": "@lockness/hono"
+        },
+        "publish": {
+            "exclude": [
+                "tests/"
+            ]
+        },
+        "tasks": {
+            "test": "deno test -A tests/",
+            "test:watch": "deno test -A --watch tests/"
+        }
+    }
+}

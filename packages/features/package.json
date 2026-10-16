@@ -1,0 +1,40 @@
+{
+    "name": "@lockness/features",
+    "version": "0.4.0",
+    "description": "Feature flags for Lockness — per-scope resolution, deterministic percentage rollout, and a pluggable override store (memory default)",
+    "license": "MIT",
+    "type": "module",
+    "exports": {
+        ".": {
+            "lockness-source": "./mod.ts",
+            "default": "./dist/mod.js"
+        }
+    },
+    "files": [
+        "dist",
+        "stubs"
+    ],
+    "engines": {
+        "deno": ">=2.2"
+    },
+    "devDependencies": {
+        "@lockness/cli": "^0.4.0"
+    },
+    "lockness": {
+        "jsr": {
+            "@std/assert": "1",
+            "@std/path": "1"
+        },
+        "imports": {
+            "@lockness/cli": "@lockness/cli"
+        },
+        "publish": {
+            "exclude": [
+                "tests/"
+            ]
+        },
+        "tasks": {
+            "test": "deno test -A tests/"
+        }
+    }
+}

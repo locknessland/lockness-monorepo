@@ -1,0 +1,55 @@
+{
+    "name": "@lockness/auth-provider",
+    "version": "0.4.0",
+    "description": "Agnostic user providers for @lockness/auth. Support for Drizzle, Kysely, and more.",
+    "license": "MIT",
+    "type": "module",
+    "exports": {
+        ".": {
+            "lockness-source": "./mod.ts",
+            "default": "./dist/mod.js"
+        },
+        "./base": {
+            "lockness-source": "./base/mod.ts",
+            "default": "./dist/base/mod.js"
+        },
+        "./drizzle": {
+            "lockness-source": "./drizzle/mod.ts",
+            "default": "./dist/drizzle/mod.js"
+        },
+        "./kysely": {
+            "lockness-source": "./kysely/mod.ts",
+            "default": "./dist/kysely/mod.js"
+        }
+    },
+    "files": [
+        "dist"
+    ],
+    "engines": {
+        "deno": ">=2.2"
+    },
+    "dependencies": {
+        "@lockness/auth": "^0.4.0",
+        "drizzle-orm": "^0.36.3"
+    },
+    "devDependencies": {
+        "@lockness/testing": "^0.4.0"
+    },
+    "lockness": {
+        "imports": {
+            "drizzle-orm/postgres-js": "drizzle-orm/postgres-js",
+            "drizzle-orm/mysql2": "drizzle-orm/mysql2",
+            "drizzle-orm/libsql": "drizzle-orm/libsql"
+        },
+        "lint": {
+            "exclude": [
+                "node_modules"
+            ],
+            "rules": {
+                "exclude": [
+                    "no-explicit-any"
+                ]
+            }
+        }
+    }
+}

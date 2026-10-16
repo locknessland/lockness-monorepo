@@ -1,0 +1,75 @@
+{
+    "name": "@lockness/cli",
+    "version": "0.4.0",
+    "description": "Command-line interface system with extensible commands, package management, and code scaffolding",
+    "license": "MIT",
+    "type": "module",
+    "exports": {
+        ".": {
+            "lockness-source": "./mod.ts",
+            "default": "./dist/mod.js"
+        },
+        "./commands": {
+            "lockness-source": "./core_commands.ts",
+            "default": "./dist/core_commands.js"
+        },
+        "./command-failure": {
+            "lockness-source": "./command_failure.ts",
+            "default": "./dist/command_failure.js"
+        },
+        "./entry": {
+            "lockness-source": "./entry.ts",
+            "default": "./dist/entry.js"
+        }
+    },
+    "files": [
+        "dist",
+        "stubs"
+    ],
+    "engines": {
+        "deno": ">=2.2"
+    },
+    "dependencies": {
+        "@lockness/events": "^0.4.0",
+        "@lockness/contract": "^0.4.0",
+        "@lockness/queue": "^0.4.0"
+    },
+    "devDependencies": {
+        "@lockness/core": "^0.4.0",
+        "@lockness/drizzle": "^0.4.0",
+        "@lockness/features": "^0.4.0",
+        "@lockness/i18n": "^0.4.0",
+        "@lockness/mail": "^0.4.0",
+        "@lockness/notification": "^0.4.0",
+        "@lockness/openapi": "^0.4.0",
+        "@lockness/search": "^0.4.0",
+        "@lockness/container": "^0.4.0"
+    },
+    "lockness": {
+        "jsr": {
+            "@std/assert": "1",
+            "@std/fs": "1",
+            "@std/jsonc": "^1.0.0",
+            "@std/path": "^1.0.0"
+        },
+        "imports": {
+            "@lockness/core": "@lockness/core",
+            "@lockness/drizzle": "@lockness/drizzle",
+            "@lockness/features": "@lockness/features",
+            "@lockness/i18n": "@lockness/i18n",
+            "@lockness/mail": "@lockness/mail",
+            "@lockness/notification": "@lockness/notification",
+            "@lockness/openapi": "@lockness/openapi",
+            "@lockness/search": "@lockness/search"
+        },
+        "publish": {
+            "exclude": [
+                "tests/"
+            ]
+        },
+        "tasks": {
+            "test": "deno test -A tests/",
+            "test:watch": "deno test -A --watch tests/"
+        }
+    }
+}

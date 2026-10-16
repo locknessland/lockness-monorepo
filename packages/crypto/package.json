@@ -1,0 +1,35 @@
+{
+    "name": "@lockness/crypto",
+    "version": "0.4.0",
+    "description": "Application cryptography for Lockness — Crypt (AES-256-GCM), Hash (PBKDF2), and HMAC signing, keyed by APP_KEY",
+    "license": "MIT",
+    "type": "module",
+    "exports": {
+        ".": {
+            "lockness-source": "./mod.ts",
+            "default": "./dist/mod.js"
+        }
+    },
+    "files": [
+        "dist"
+    ],
+    "engines": {
+        "deno": ">=2.2"
+    },
+    "dependencies": {
+        "@lockness/contract": "^0.4.0"
+    },
+    "lockness": {
+        "jsr": {
+            "@std/assert": "1"
+        },
+        "publish": {
+            "exclude": [
+                "tests/"
+            ]
+        },
+        "tasks": {
+            "test": "deno test -A tests/"
+        }
+    }
+}

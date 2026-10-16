@@ -1,0 +1,21 @@
+{
+    "compilerOptions": {
+        "composite": true,
+        "rootDir": ".",
+        "outDir": "dist"
+    },
+    "include": [
+        "**/*.ts",
+        "**/*.tsx"
+    ],
+    "exclude": [
+        "dist",
+        "node_modules",
+        "tests/"
+    ],
+    "references": [
+        {
+            "path": "../contract"
+        }
+    ]
+}

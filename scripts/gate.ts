@@ -58,7 +58,7 @@ export interface GateOptions {
  * ```ts
  * gateSteps().at(-1)?.label                  // 'test'
  * gateSteps({ leaks: true }).at(-1)?.label   // 'test:leaks'
- * gateSteps({ registry: true })[6].args      // ['task', 'publish:check', '--registry']
+ * gateSteps({ registry: true })[7].args      // ['task', 'publish:check', '--registry']
  * ```
  */
 export function gateSteps(options: GateOptions = {}): GateStep[] {
@@ -67,6 +67,12 @@ export function gateSteps(options: GateOptions = {}): GateStep[] {
     if (options.registry === true) publishCheckArgs.push('--registry')
     return [
         { label: 'fmt --check', args: ['fmt', '--check'] },
+        // Before anything reads a generated deno.json: a stale one changes
+        // what lint, check and the suite resolve (#591).
+        {
+            label: 'manifests --check',
+            args: ['task', 'manifests', '--check'],
+        },
         { label: 'lint', args: ['lint'] },
         { label: 'check', args: ['check'] },
         { label: 'deps:analyze', args: ['task', 'deps:analyze'] },

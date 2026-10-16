@@ -1,0 +1,39 @@
+{
+    "name": "@lockness/inertia",
+    "version": "0.4.0",
+    "description": "Inertia.js server-side adapter for building modern SPAs with server-side routing",
+    "license": "MIT",
+    "type": "module",
+    "exports": {
+        ".": {
+            "lockness-source": "./mod.ts",
+            "default": "./dist/mod.js"
+        }
+    },
+    "files": [
+        "dist"
+    ],
+    "engines": {
+        "deno": ">=2.2"
+    },
+    "dependencies": {
+        "@lockness/hono": "^0.4.0"
+    },
+    "lockness": {
+        "jsr": {
+            "@std/assert": "1"
+        },
+        "imports": {
+            "hono": "@lockness/hono"
+        },
+        "publish": {
+            "exclude": [
+                "tests/"
+            ]
+        },
+        "tasks": {
+            "test": "deno test -A tests/",
+            "test:watch": "deno test -A --watch tests/"
+        }
+    }
+}

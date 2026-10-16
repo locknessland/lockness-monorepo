@@ -51,7 +51,7 @@ import type { ShutdownReport } from './kernel/shutdown_sequence.ts'
 import type { ShutdownHookMethod } from './kernel/shutdown_decorators.ts'
 import type { ShutdownConfig } from './kernel/kernel_decorators.ts'
 import { installShutdownSignals } from './kernel/signals.ts'
-import pkg from './deno.json' with { type: 'json' }
+import { VERSION } from './version.generated.ts'
 
 /**
  * Information about a registered route.
@@ -558,7 +558,7 @@ export class App {
     listen(port: number): ReturnType<ServerListener['listen']> {
         const server = this.serverListener.listen(this.rootHono, {
             port,
-            version: pkg.version,
+            version: VERSION,
         })
 
         // Retained so `shutdown()` can stop it first. What comes back is a

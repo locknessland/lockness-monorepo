@@ -1,0 +1,23 @@
+{
+    "compilerOptions": {
+        "composite": true,
+        "rootDir": ".",
+        "outDir": "dist"
+    },
+    "include": [
+        "mod.ts"
+    ],
+    "exclude": [
+        "dist",
+        "node_modules",
+        "tests/"
+    ],
+    "references": [
+        {
+            "path": "../hono"
+        },
+        {
+            "path": "../contract"
+        }
+    ]
+}

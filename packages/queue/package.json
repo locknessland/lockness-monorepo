@@ -1,0 +1,37 @@
+{
+    "name": "@lockness/queue",
+    "version": "0.4.0",
+    "description": "Background job processing system with multiple drivers (Memory, Deno KV, Redis), automatic retries with a dead-letter queue and retry command, and delayed execution",
+    "license": "MIT",
+    "type": "module",
+    "exports": {
+        ".": {
+            "lockness-source": "./mod.ts",
+            "default": "./dist/mod.js"
+        }
+    },
+    "files": [
+        "dist"
+    ],
+    "engines": {
+        "deno": ">=2.2"
+    },
+    "dependencies": {
+        "@lockness/contract": "^0.4.0",
+        "@lockness/redis": "^0.4.0"
+    },
+    "lockness": {
+        "jsr": {
+            "@std/assert": "1"
+        },
+        "publish": {
+            "exclude": [
+                "tests/"
+            ]
+        },
+        "tasks": {
+            "test": "deno test -A tests/",
+            "test:watch": "deno test -A --watch tests/"
+        }
+    }
+}

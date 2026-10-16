@@ -1,0 +1,56 @@
+{
+    "name": "@lockness/mail",
+    "version": "0.4.0",
+    "description": "Expressive email sending library with multiple driver support (SMTP, Resend, Console, Memory) and fluent API",
+    "license": "MIT",
+    "type": "module",
+    "exports": {
+        ".": {
+            "lockness-source": "./mod.ts",
+            "default": "./dist/mod.js"
+        }
+    },
+    "files": [
+        "dist",
+        "stubs"
+    ],
+    "engines": {
+        "deno": ">=2.2"
+    },
+    "dependencies": {
+        "@lockness/contract": "^0.4.0"
+    },
+    "peerDependencies": {
+        "@lockness/markdown": "^0.4.0",
+        "@lockness/queue": "^0.4.0"
+    },
+    "peerDependenciesMeta": {
+        "@lockness/markdown": {
+            "optional": true
+        },
+        "@lockness/queue": {
+            "optional": true
+        }
+    },
+    "devDependencies": {
+        "@lockness/cli": "^0.4.0"
+    },
+    "lockness": {
+        "jsr": {
+            "@std/assert": "1",
+            "@std/path": "1"
+        },
+        "imports": {
+            "@lockness/cli": "@lockness/cli"
+        },
+        "publish": {
+            "exclude": [
+                "tests/"
+            ]
+        },
+        "tasks": {
+            "test": "deno test -A tests/",
+            "test:watch": "deno test -A --watch tests/"
+        }
+    }
+}

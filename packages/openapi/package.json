@@ -1,0 +1,54 @@
+{
+    "name": "@lockness/openapi",
+    "version": "0.4.0",
+    "description": "OpenAPI 3.0 documentation generator with decorator-based route documentation and Swagger UI integration",
+    "license": "MIT",
+    "type": "module",
+    "exports": {
+        ".": {
+            "lockness-source": "./mod.ts",
+            "default": "./dist/mod.js"
+        },
+        "./install": {
+            "lockness-source": "./install.ts",
+            "default": "./dist/install.js"
+        }
+    },
+    "files": [
+        "dist",
+        "stubs"
+    ],
+    "engines": {
+        "deno": ">=2.2"
+    },
+    "dependencies": {
+        "@lockness/cli": "^0.4.0",
+        "@lockness/contract": "^0.4.0",
+        "@lockness/hono": "^0.4.0"
+    },
+    "devDependencies": {
+        "@lockness/core": "^0.4.0"
+    },
+    "lockness": {
+        "jsr": {
+            "@std/assert": "1",
+            "@std/path": "1"
+        },
+        "imports": {
+            "hono": "@lockness/hono"
+        },
+        "publish": {
+            "exclude": [
+                "tests/"
+            ]
+        },
+        "compilerOptions": {
+            "jsx": "precompile",
+            "jsxImportSource": "hono"
+        },
+        "tasks": {
+            "test": "deno test -A tests/",
+            "test:watch": "deno test -A --watch tests/"
+        }
+    }
+}

@@ -1,0 +1,24 @@
+{
+    "compilerOptions": {
+        "composite": true,
+        "rootDir": ".",
+        "outDir": "dist"
+    },
+    "include": [
+        "mod.ts",
+        "cli.ts",
+        "upgrader.ts",
+        "version_fetcher.ts",
+        "types.ts"
+    ],
+    "exclude": [
+        "dist",
+        "node_modules",
+        "tests/"
+    ],
+    "references": [
+        {
+            "path": "../cli"
+        }
+    ]
+}

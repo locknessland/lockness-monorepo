@@ -1,0 +1,42 @@
+{
+    "name": "@lockness/scheduler",
+    "version": "0.4.0",
+    "description": "Declarative cron-based task scheduling with the @Schedule decorator, presets, retries and graceful stop",
+    "license": "MIT",
+    "type": "module",
+    "exports": {
+        ".": {
+            "lockness-source": "./mod.ts",
+            "default": "./dist/mod.js"
+        }
+    },
+    "files": [
+        "dist"
+    ],
+    "engines": {
+        "deno": ">=2.2"
+    },
+    "devDependencies": {
+        "@lockness/contract": "^0.4.0",
+        "@lockness/container": "^0.4.0"
+    },
+    "lockness": {
+        "jsr": {
+            "@std/assert": "1",
+            "@std/testing": "^1.0.0"
+        },
+        "imports": {
+            "@lockness/contract": "@lockness/contract",
+            "@lockness/container": "@lockness/container"
+        },
+        "publish": {
+            "exclude": [
+                "tests/"
+            ]
+        },
+        "tasks": {
+            "test": "deno test -A tests/",
+            "test:watch": "deno test -A --watch tests/"
+        }
+    }
+}

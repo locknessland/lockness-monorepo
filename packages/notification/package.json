@@ -1,0 +1,68 @@
+{
+    "name": "@lockness/notification",
+    "version": "0.4.0",
+    "description": "Multi-channel notification delivery for Lockness — one Notification class fans out to mail/database/log/broadcast channels, each backing package loaded on demand",
+    "license": "MIT",
+    "type": "module",
+    "exports": {
+        ".": {
+            "lockness-source": "./mod.ts",
+            "default": "./dist/mod.js"
+        }
+    },
+    "files": [
+        "dist",
+        "stubs"
+    ],
+    "engines": {
+        "deno": ">=2.2"
+    },
+    "dependencies": {
+        "@lockness/contract": "^0.4.0",
+        "@lockness/container": "^0.4.0"
+    },
+    "peerDependencies": {
+        "@lockness/mail": "^0.4.0",
+        "@lockness/queue": "^0.4.0",
+        "@lockness/logger": "^0.4.0",
+        "@lockness/sse": "^0.4.0",
+        "@lockness/drizzle": "^0.4.0"
+    },
+    "peerDependenciesMeta": {
+        "@lockness/mail": {
+            "optional": true
+        },
+        "@lockness/queue": {
+            "optional": true
+        },
+        "@lockness/logger": {
+            "optional": true
+        },
+        "@lockness/sse": {
+            "optional": true
+        },
+        "@lockness/drizzle": {
+            "optional": true
+        }
+    },
+    "devDependencies": {
+        "@lockness/cli": "^0.4.0"
+    },
+    "lockness": {
+        "jsr": {
+            "@std/assert": "1",
+            "@std/path": "1"
+        },
+        "imports": {
+            "@lockness/cli": "@lockness/cli"
+        },
+        "publish": {
+            "exclude": [
+                "tests/"
+            ]
+        },
+        "tasks": {
+            "test": "deno test -A tests/"
+        }
+    }
+}

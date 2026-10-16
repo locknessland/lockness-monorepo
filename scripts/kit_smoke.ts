@@ -75,6 +75,7 @@ import { parse as parseJsonc } from '@std/jsonc'
 import { fromFileUrl, join } from '@std/path'
 import { generateAppKey, type KitName, KITS } from '@lockness/init'
 import { NEEDED_A_TERMINAL } from '../packages/drizzle/kit_outcome.ts'
+import { readWorkspaceMembers } from './manifests.ts'
 import {
     diffTree,
     MIGRATIONS_DIR,
@@ -1068,7 +1069,8 @@ async function readDenoConfig(dir: string): Promise<unknown> {
  * no `exports`, so it is not one.
  *
  * @param root - The workspace root.
- * @returns The members, in workspace order.
+ * @returns The members, in workspace order (the root `package.json`
+ *   `workspaces` list).
  * @throws {Error} When the root or a member has no readable config.
  *
  * @example
@@ -1080,12 +1082,8 @@ async function readDenoConfig(dir: string): Promise<unknown> {
 export async function publishableMembers(
     root: string,
 ): Promise<PublishableMember[]> {
-    const config = await readDenoConfig(root)
-    const workspace = isRecord(config) && Array.isArray(config.workspace)
-        ? config.workspace.filter((m): m is string => typeof m === 'string')
-        : []
     const members: PublishableMember[] = []
-    for (const member of workspace) {
+    for (const member of await readWorkspaceMembers(root)) {
         const pkg = await readDenoConfig(join(root, member))
         if (
             isRecord(pkg) && typeof pkg.name === 'string' &&

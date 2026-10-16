@@ -1,0 +1,49 @@
+{
+    "name": "@lockness/devtools",
+    "version": "0.4.0",
+    "description": "Development debugging toolbar and utilities for Lockness framework",
+    "license": "MIT",
+    "type": "module",
+    "exports": {
+        ".": {
+            "lockness-source": "./mod.ts",
+            "default": "./dist/mod.js"
+        }
+    },
+    "files": [
+        "dist"
+    ],
+    "engines": {
+        "deno": ">=2.2"
+    },
+    "dependencies": {
+        "@lockness/hono": "^0.4.0",
+        "@lockness/contract": "^0.4.0",
+        "@lockness/events": "^0.4.0",
+        "@lockness/session": "^0.4.0"
+    },
+    "lockness": {
+        "jsr": {
+            "@std/fs": "1",
+            "@std/path": "1"
+        },
+        "imports": {
+            "hono": "@lockness/hono"
+        },
+        "publish": {
+            "exclude": [
+                "tests/",
+                "docs/",
+                ".github/"
+            ]
+        },
+        "compilerOptions": {
+            "jsx": "precompile",
+            "jsxImportSource": "hono"
+        },
+        "tasks": {
+            "test": "deno test -A tests/",
+            "test:watch": "deno test -A --watch tests/"
+        }
+    }
+}

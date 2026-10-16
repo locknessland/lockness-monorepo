@@ -1,0 +1,38 @@
+{
+    "name": "@lockness/redis",
+    "version": "0.4.0",
+    "description": "Foundation raw-RESP Redis client for Lockness — one pooled connection with single-flight connect, TLS, self-heal, and lifecycle-drain close, shared by session, scheduler locks, and the durable queue driver",
+    "license": "MIT",
+    "type": "module",
+    "exports": {
+        ".": {
+            "lockness-source": "./mod.ts",
+            "default": "./dist/mod.js"
+        }
+    },
+    "files": [
+        "dist"
+    ],
+    "engines": {
+        "deno": ">=2.2"
+    },
+    "dependencies": {
+        "@lockness/contract": "^0.4.0"
+    },
+    "lockness": {
+        "jsr": {
+            "@std/assert": "1",
+            "@std/crypto": "^1",
+            "@std/testing": "^1.0.0"
+        },
+        "publish": {
+            "exclude": [
+                "tests/"
+            ]
+        },
+        "tasks": {
+            "test": "deno test -A tests/",
+            "test:watch": "deno test -A --watch tests/"
+        }
+    }
+}

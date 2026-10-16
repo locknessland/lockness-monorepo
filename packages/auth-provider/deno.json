@@ -9,6 +9,12 @@
         "./drizzle": "./drizzle/mod.ts",
         "./kysely": "./kysely/mod.ts"
     },
+    "publish": {
+        "exclude": [
+            "package.json",
+            "tsconfig.json"
+        ]
+    },
     "lint": {
         "exclude": [
             "node_modules"

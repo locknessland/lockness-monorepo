@@ -4565,20 +4565,42 @@
           "jsr:@lockness/hono@0.4",
           "jsr:@lockness/session@0.4",
           "jsr:@std/assert@1"
-        ]
+        ],
+        "packageJson": {
+          "dependencies": [
+            "npm:@lockness/contract@0.4",
+            "npm:@lockness/crypto@0.4",
+            "npm:@lockness/events@0.4",
+            "npm:@lockness/hono@0.4",
+            "npm:@lockness/session@0.4"
+          ]
+        }
       },
       "packages/auth-provider": {
         "dependencies": [
           "jsr:@lockness/auth@0.4",
           "npm:drizzle-orm@~0.36.3"
-        ]
+        ],
+        "packageJson": {
+          "dependencies": [
+            "npm:@lockness/auth@0.4",
+            "npm:@lockness/testing@0.4",
+            "npm:drizzle-orm@~0.36.3"
+          ]
+        }
       },
       "packages/cache": {
         "dependencies": [
           "jsr:@lockness/container@0.4",
           "jsr:@lockness/contract@0.4",
           "jsr:@std/assert@1"
-        ]
+        ],
+        "packageJson": {
+          "dependencies": [
+            "npm:@lockness/container@0.4",
+            "npm:@lockness/contract@0.4"
+          ]
+        }
       },
       "packages/cli": {
         "dependencies": [
@@ -4597,13 +4619,34 @@
           "jsr:@std/fs@1",
           "jsr:@std/jsonc@1",
           "jsr:@std/path@1"
-        ]
+        ],
+        "packageJson": {
+          "dependencies": [
+            "npm:@lockness/container@0.4",
+            "npm:@lockness/contract@0.4",
+            "npm:@lockness/core@0.4",
+            "npm:@lockness/drizzle@0.4",
+            "npm:@lockness/events@0.4",
+            "npm:@lockness/features@0.4",
+            "npm:@lockness/i18n@0.4",
+            "npm:@lockness/mail@0.4",
+            "npm:@lockness/notification@0.4",
+            "npm:@lockness/openapi@0.4",
+            "npm:@lockness/queue@0.4",
+            "npm:@lockness/search@0.4"
+          ]
+        }
       },
       "packages/container": {
         "dependencies": [
           "jsr:@lockness/contract@0.4",
           "jsr:@std/assert@1"
-        ]
+        ],
+        "packageJson": {
+          "dependencies": [
+            "npm:@lockness/contract@0.4"
+          ]
+        }
       },
       "packages/contract": {
         "dependencies": [
@@ -4611,7 +4654,12 @@
           "jsr:@std/assert@1",
           "jsr:@std/fs@1",
           "jsr:@std/path@1"
-        ]
+        ],
+        "packageJson": {
+          "dependencies": [
+            "npm:@lockness/hono@0.4"
+          ]
+        }
       },
       "packages/core": {
         "dependencies": [
@@ -4627,19 +4675,44 @@
           "jsr:@std/expect@1",
           "jsr:@std/fs@1",
           "jsr:@std/path@1"
-        ]
+        ],
+        "packageJson": {
+          "dependencies": [
+            "npm:@lockness/auth@0.4",
+            "npm:@lockness/cli@0.4",
+            "npm:@lockness/container@0.4",
+            "npm:@lockness/contract@0.4",
+            "npm:@lockness/crypto@0.4",
+            "npm:@lockness/deprecation-contracts@0.4",
+            "npm:@lockness/drizzle@0.4",
+            "npm:@lockness/events@0.4",
+            "npm:@lockness/hono@0.4",
+            "npm:@lockness/scheduler@0.4",
+            "npm:@lockness/session@0.4"
+          ]
+        }
       },
       "packages/crypto": {
         "dependencies": [
           "jsr:@lockness/contract@0.4",
           "jsr:@std/assert@1"
-        ]
+        ],
+        "packageJson": {
+          "dependencies": [
+            "npm:@lockness/contract@0.4"
+          ]
+        }
       },
       "packages/deprecation-contracts": {
         "dependencies": [
           "jsr:@lockness/cli@0.4",
           "jsr:@std/assert@1"
-        ]
+        ],
+        "packageJson": {
+          "dependencies": [
+            "npm:@lockness/cli@0.4"
+          ]
+        }
       },
       "packages/devtools": {
         "dependencies": [
@@ -4649,7 +4722,15 @@
           "jsr:@lockness/session@0.4",
           "jsr:@std/fs@1",
           "jsr:@std/path@1"
-        ]
+        ],
+        "packageJson": {
+          "dependencies": [
+            "npm:@lockness/contract@0.4",
+            "npm:@lockness/events@0.4",
+            "npm:@lockness/hono@0.4",
+            "npm:@lockness/session@0.4"
+          ]
+        }
       },
       "packages/drizzle": {
         "dependencies": [
@@ -4661,7 +4742,18 @@
           "npm:drizzle-orm@~0.36.3",
           "npm:mysql2@^3.24.3",
           "npm:postgres@^3.4.4"
-        ]
+        ],
+        "packageJson": {
+          "dependencies": [
+            "npm:@libsql/client@0.18",
+            "npm:@lockness/cli@0.4",
+            "npm:@lockness/container@0.4",
+            "npm:@lockness/contract@0.4",
+            "npm:drizzle-orm@~0.36.3",
+            "npm:mysql2@^3.24.3",
+            "npm:postgres@^3.4.4"
+          ]
+        }
       },
       "packages/events": {
         "dependencies": [
@@ -4670,21 +4762,39 @@
           "jsr:@std/assert@1",
           "jsr:@std/fs@1",
           "jsr:@std/path@1"
-        ]
+        ],
+        "packageJson": {
+          "dependencies": [
+            "npm:@lockness/contract@0.4",
+            "npm:@lockness/hono@0.4"
+          ]
+        }
       },
       "packages/features": {
         "dependencies": [
           "jsr:@lockness/cli@0.4",
           "jsr:@std/assert@1",
           "jsr:@std/path@1"
-        ]
+        ],
+        "packageJson": {
+          "dependencies": [
+            "npm:@lockness/cli@0.4"
+          ]
+        }
       },
       "packages/hono": {
         "dependencies": [
           "npm:@hono/zod-validator@0.7.6",
           "npm:hono-rate-limiter@0.5.3",
           "npm:hono@4.11.1"
-        ]
+        ],
+        "packageJson": {
+          "dependencies": [
+            "npm:@hono/zod-validator@0.7.6",
+            "npm:hono-rate-limiter@0.5.3",
+            "npm:hono@4.11.1"
+          ]
+        }
       },
       "packages/i18n": {
         "dependencies": [
@@ -4692,13 +4802,24 @@
           "jsr:@lockness/hono@0.4",
           "jsr:@std/assert@1",
           "jsr:@std/path@1"
-        ]
+        ],
+        "packageJson": {
+          "dependencies": [
+            "npm:@lockness/cli@0.4",
+            "npm:@lockness/hono@0.4"
+          ]
+        }
       },
       "packages/inertia": {
         "dependencies": [
           "jsr:@lockness/hono@0.4",
           "jsr:@std/assert@1"
-        ]
+        ],
+        "packageJson": {
+          "dependencies": [
+            "npm:@lockness/hono@0.4"
+          ]
+        }
       },
       "packages/init": {
         "dependencies": [
@@ -4707,13 +4828,25 @@
           "jsr:@std/expect@1",
           "jsr:@std/fs@1",
           "jsr:@std/path@1"
-        ]
+        ],
+        "packageJson": {
+          "dependencies": [
+            "npm:@lockness/cli@0.4",
+            "npm:@lockness/core@0.4",
+            "npm:@lockness/session@0.4"
+          ]
+        }
       },
       "packages/logger": {
         "dependencies": [
           "jsr:@lockness/contract@0.4",
           "jsr:@std/assert@1"
-        ]
+        ],
+        "packageJson": {
+          "dependencies": [
+            "npm:@lockness/contract@0.4"
+          ]
+        }
       },
       "packages/mail": {
         "dependencies": [
@@ -4721,14 +4854,25 @@
           "jsr:@lockness/contract@0.4",
           "jsr:@std/assert@1",
           "jsr:@std/path@1"
-        ]
+        ],
+        "packageJson": {
+          "dependencies": [
+            "npm:@lockness/cli@0.4",
+            "npm:@lockness/contract@0.4"
+          ]
+        }
       },
       "packages/markdown": {
         "dependencies": [
           "jsr:@libs/markdown@^2.1.0",
           "jsr:@lockness/hono@0.4",
           "jsr:@std/assert@1"
-        ]
+        ],
+        "packageJson": {
+          "dependencies": [
+            "npm:@lockness/hono@0.4"
+          ]
+        }
       },
       "packages/notification": {
         "dependencies": [
@@ -4737,7 +4881,14 @@
           "jsr:@lockness/contract@0.4",
           "jsr:@std/assert@1",
           "jsr:@std/path@1"
-        ]
+        ],
+        "packageJson": {
+          "dependencies": [
+            "npm:@lockness/cli@0.4",
+            "npm:@lockness/container@0.4",
+            "npm:@lockness/contract@0.4"
+          ]
+        }
       },
       "packages/openapi": {
         "dependencies": [
@@ -4746,14 +4897,28 @@
           "jsr:@lockness/hono@0.4",
           "jsr:@std/assert@1",
           "jsr:@std/path@1"
-        ]
+        ],
+        "packageJson": {
+          "dependencies": [
+            "npm:@lockness/cli@0.4",
+            "npm:@lockness/contract@0.4",
+            "npm:@lockness/core@0.4",
+            "npm:@lockness/hono@0.4"
+          ]
+        }
       },
       "packages/queue": {
         "dependencies": [
           "jsr:@lockness/contract@0.4",
           "jsr:@lockness/redis@0.4",
           "jsr:@std/assert@1"
-        ]
+        ],
+        "packageJson": {
+          "dependencies": [
+            "npm:@lockness/contract@0.4",
+            "npm:@lockness/redis@0.4"
+          ]
+        }
       },
       "packages/realtime": {
         "dependencies": [
@@ -4764,7 +4929,17 @@
           "jsr:@lockness/redis@0.4",
           "jsr:@std/assert@1",
           "jsr:@std/testing@1"
-        ]
+        ],
+        "packageJson": {
+          "dependencies": [
+            "npm:@lockness/contract@0.4",
+            "npm:@lockness/deprecation-contracts@0.4",
+            "npm:@lockness/events@0.4",
+            "npm:@lockness/hono@0.4",
+            "npm:@lockness/notification@0.4",
+            "npm:@lockness/redis@0.4"
+          ]
+        }
       },
       "packages/redis": {
         "dependencies": [
@@ -4772,7 +4947,12 @@
           "jsr:@std/assert@1",
           "jsr:@std/crypto@1",
           "jsr:@std/testing@1"
-        ]
+        ],
+        "packageJson": {
+          "dependencies": [
+            "npm:@lockness/contract@0.4"
+          ]
+        }
       },
       "packages/scheduler": {
         "dependencies": [
@@ -4780,14 +4960,25 @@
           "jsr:@lockness/contract@0.4",
           "jsr:@std/assert@1",
           "jsr:@std/testing@1"
-        ]
+        ],
+        "packageJson": {
+          "dependencies": [
+            "npm:@lockness/container@0.4",
+            "npm:@lockness/contract@0.4"
+          ]
+        }
       },
       "packages/search": {
         "dependencies": [
           "jsr:@lockness/cli@0.4",
           "jsr:@std/assert@1",
           "jsr:@std/path@1"
-        ]
+        ],
+        "packageJson": {
+          "dependencies": [
+            "npm:@lockness/cli@0.4"
+          ]
+        }
       },
       "packages/session": {
         "dependencies": [
@@ -4798,7 +4989,15 @@
           "jsr:@std/assert@1",
           "jsr:@std/crypto@1",
           "jsr:@std/path@1"
-        ]
+        ],
+        "packageJson": {
+          "dependencies": [
+            "npm:@lockness/contract@0.4",
+            "npm:@lockness/crypto@0.4",
+            "npm:@lockness/hono@0.4",
+            "npm:@lockness/redis@0.4"
+          ]
+        }
       },
       "packages/socialite": {
         "dependencies": [
@@ -4808,12 +5007,23 @@
           "jsr:@std/crypto@1",
           "jsr:@std/encoding@1",
           "jsr:@std/expect@1"
-        ]
+        ],
+        "packageJson": {
+          "dependencies": [
+            "npm:@lockness/contract@0.4",
+            "npm:@lockness/hono@0.4"
+          ]
+        }
       },
       "packages/sse": {
         "dependencies": [
           "jsr:@lockness/contract@0.4"
-        ]
+        ],
+        "packageJson": {
+          "dependencies": [
+            "npm:@lockness/contract@0.4"
+          ]
+        }
       },
       "packages/storage": {
         "dependencies": [
@@ -4822,7 +5032,13 @@
           "jsr:@std/path@1",
           "npm:@aws-sdk/client-s3@^3.709.0",
           "npm:@aws-sdk/s3-request-presigner@^3.709.0"
-        ]
+        ],
+        "packageJson": {
+          "dependencies": [
+            "npm:@aws-sdk/client-s3@^3.709.0",
+            "npm:@aws-sdk/s3-request-presigner@^3.709.0"
+          ]
+        }
       },
       "packages/telemetry": {
         "dependencies": [
@@ -4830,14 +5046,27 @@
           "jsr:@lockness/hono@0.4",
           "jsr:@std/assert@1",
           "npm:@opentelemetry/api@^1.9.1"
-        ]
+        ],
+        "packageJson": {
+          "dependencies": [
+            "npm:@lockness/contract@0.4",
+            "npm:@lockness/hono@0.4",
+            "npm:@opentelemetry/api@^1.9.1"
+          ]
+        }
       },
       "packages/testing": {
         "dependencies": [
           "jsr:@lockness/auth@0.4",
           "jsr:@lockness/hono@0.4",
           "jsr:@std/assert@1"
-        ]
+        ],
+        "packageJson": {
+          "dependencies": [
+            "npm:@lockness/auth@0.4",
+            "npm:@lockness/hono@0.4"
+          ]
+        }
       },
       "packages/ui": {
         "dependencies": [
@@ -4852,7 +5081,17 @@
           "npm:clsx@2.1.1",
           "npm:highlight.js@11.11.1",
           "npm:tailwind-merge@2.6.0"
-        ]
+        ],
+        "packageJson": {
+          "dependencies": [
+            "npm:@lockness/cli@0.4",
+            "npm:@lockness/hono@0.4",
+            "npm:@lockness/markdown@0.4",
+            "npm:clsx@2.1.1",
+            "npm:highlight.js@11.11.1",
+            "npm:tailwind-merge@2.6.0"
+          ]
+        }
       },
       "packages/upgrade": {
         "dependencies": [
@@ -4861,26 +5100,47 @@
           "jsr:@std/cli@1",
           "jsr:@std/jsonc@1",
           "jsr:@std/path@1"
-        ]
+        ],
+        "packageJson": {
+          "dependencies": [
+            "npm:@lockness/cli@0.4"
+          ]
+        }
       },
       "packages/validator": {
         "dependencies": [
           "jsr:@lockness/hono@0.4",
           "jsr:@std/assert@1",
           "npm:zod@^3.25.0"
-        ]
+        ],
+        "packageJson": {
+          "dependencies": [
+            "npm:@lockness/hono@0.4",
+            "npm:zod@^3.25.0"
+          ]
+        }
       },
       "packages/vite": {
         "dependencies": [
           "jsr:@std/assert@1",
           "jsr:@std/path@1",
           "npm:vite@8"
-        ]
+        ],
+        "packageJson": {
+          "dependencies": [
+            "npm:vite@8"
+          ]
+        }
       },
       "packages/vite/demo": {
         "dependencies": [
           "npm:vite@8"
-        ]
+        ],
+        "packageJson": {
+          "dependencies": [
+            "npm:vite@8"
+          ]
+        }
       }
     }
   }

@@ -1,0 +1,41 @@
+{
+    "name": "@lockness/testing",
+    "version": "0.4.0",
+    "description": "Test-support harness for Lockness applications — HTTP test client, actingAs, fakes and DB assertions. Import it from your tests only; nothing here is meant to run in production.",
+    "license": "MIT",
+    "private": true,
+    "type": "module",
+    "exports": {
+        ".": {
+            "lockness-source": "./mod.ts",
+            "default": "./dist/mod.js"
+        }
+    },
+    "files": [
+        "dist"
+    ],
+    "engines": {
+        "deno": ">=2.2"
+    },
+    "dependencies": {
+        "@lockness/hono": "^0.4.0",
+        "@lockness/auth": "^0.4.0"
+    },
+    "lockness": {
+        "jsr": {
+            "@std/assert": "1"
+        },
+        "imports": {
+            "hono": "@lockness/hono"
+        },
+        "publish": {
+            "exclude": [
+                "tests/"
+            ]
+        },
+        "tasks": {
+            "test": "deno test -A tests/",
+            "test:watch": "deno test -A --watch tests/"
+        }
+    }
+}

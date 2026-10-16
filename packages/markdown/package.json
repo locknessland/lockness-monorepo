@@ -1,0 +1,52 @@
+{
+    "name": "@lockness/markdown",
+    "version": "0.4.0",
+    "description": "Markdown to JSX renderer with a plain-HTML default component map (styled output via @lockness/ui/markdown)",
+    "license": "MIT",
+    "type": "module",
+    "exports": {
+        ".": {
+            "lockness-source": "./mod.tsx",
+            "default": "./dist/mod.js"
+        }
+    },
+    "files": [
+        "dist"
+    ],
+    "engines": {
+        "deno": ">=2.2"
+    },
+    "dependencies": {
+        "@lockness/hono": "^0.4.0"
+    },
+    "lockness": {
+        "jsr": {
+            "@std/assert": "1",
+            "@libs/markdown": "^2.1.0"
+        },
+        "imports": {
+            "hono": "@lockness/hono"
+        },
+        "publish": {
+            "include": [
+                "mod.tsx",
+                "parser.ts",
+                "renderer.tsx",
+                "types.ts",
+                "deno.json",
+                "README.md"
+            ],
+            "exclude": [
+                "tests/"
+            ]
+        },
+        "compilerOptions": {
+            "jsx": "precompile",
+            "jsxImportSource": "hono"
+        },
+        "tasks": {
+            "test": "deno test -A tests/",
+            "test:watch": "deno test -A --watch tests/"
+        }
+    }
+}

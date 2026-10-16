@@ -1,0 +1,25 @@
+{
+    "compilerOptions": {
+        "composite": true,
+        "rootDir": ".",
+        "outDir": "dist",
+        "jsx": "react-jsx",
+        "jsxImportSource": "hono"
+    },
+    "include": [
+        "mod.tsx",
+        "parser.ts",
+        "renderer.tsx",
+        "types.ts"
+    ],
+    "exclude": [
+        "dist",
+        "node_modules",
+        "tests/"
+    ],
+    "references": [
+        {
+            "path": "../hono"
+        }
+    ]
+}

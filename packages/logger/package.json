@@ -1,0 +1,36 @@
+{
+    "name": "@lockness/logger",
+    "version": "0.4.0",
+    "description": "Structured logging system with multiple levels, transports (Console, File, Memory), and contextual child loggers",
+    "license": "MIT",
+    "type": "module",
+    "exports": {
+        ".": {
+            "lockness-source": "./mod.ts",
+            "default": "./dist/mod.js"
+        }
+    },
+    "files": [
+        "dist"
+    ],
+    "engines": {
+        "deno": ">=2.2"
+    },
+    "dependencies": {
+        "@lockness/contract": "^0.4.0"
+    },
+    "lockness": {
+        "jsr": {
+            "@std/assert": "1"
+        },
+        "publish": {
+            "exclude": [
+                "tests/"
+            ]
+        },
+        "tasks": {
+            "test": "deno test -A tests/",
+            "test:watch": "deno test -A --watch tests/"
+        }
+    }
+}

@@ -4,6 +4,7 @@ import { type Cli, Stub } from '@lockness/cli'
 import { CommandFailedError, runSteps } from '@lockness/cli/command-failure'
 import { runEntry } from '@lockness/cli/entry'
 import { DEFAULT_KIT, type KitName, KITS, resolveKit } from './kits.ts'
+import { VERSION } from './version.generated.ts'
 
 export { DEFAULT_KIT, KITS, resolveKit } from './kits.ts'
 export type { Kit, KitName } from './kits.ts'
@@ -139,52 +140,27 @@ function validateVersion(version: string): boolean {
 }
 
 /**
- * Read this package's own version from its `deno.json`: from disk in a
- * checkout, over HTTP when run from JSR.
+ * Resolve version string to exact version or range.
  *
- * There is no fallback. The one it replaces answered a hard-coded `0.1.22`,
- * which scaffolded a project pinned to a framework release its stubs do not
- * match; a failure here now reaches the user with its real reason.
- *
- * @returns The version, e.g. `0.4.0`.
- * @throws {CommandFailedError} When JSR answers with an error status.
- * @throws {Error} When the file cannot be read, fetched or parsed.
- */
-async function readOwnVersion(): Promise<string> {
-    const url = new URL('./deno.json', import.meta.url)
-    if (url.protocol === 'file:') {
-        return JSON.parse(await Deno.readTextFile(fromFileUrl(url))).version
-    }
-    const response = await fetch(url)
-    if (!response.ok) {
-        await response.body?.cancel()
-        throw new CommandFailedError(
-            `Could not read the @lockness/init version (HTTP ${response.status})`,
-        )
-    }
-    return (await response.json()).version
-}
-
-/**
- * Resolve version string to exact version or range
+ * The latest is this package's own version, from its generated
+ * `version.generated.ts` (#591): one static import, the same in a checkout and
+ * from JSR. It replaced a read of `./deno.json` over the filesystem or HTTP.
  *
  * @param version - The `--use` value, or `undefined` for the latest.
  * @returns The version range to write into the scaffolded `deno.json`.
  * @throws {CommandFailedError} When `version` is not a form `--use` accepts:
  * the command failure itself (#436, D4 rule 4).
- * @throws {Error} When the latest version cannot be read; a fetch failure
- * propagates (see {@link readOwnVersion}).
  *
  * @example
  * ```typescript
- * await resolveVersion('0.1.15')   // '^0.1.15'
- * await resolveVersion('latest')   // '^0.4.0' (this package's version)
- * await resolveVersion('^0.1.0')   // '^0.1.0'
+ * resolveVersion('0.1.15')   // '^0.1.15'
+ * resolveVersion('latest')   // '^0.4.0' (this package's version)
+ * resolveVersion('^0.1.0')   // '^0.1.0'
  * ```
  */
-async function resolveVersion(version?: string): Promise<string> {
+function resolveVersion(version?: string): string {
     if (!version || version === 'latest') {
-        return `^${await readOwnVersion()}`
+        return `^${VERSION}`
     }
 
     if (!validateVersion(version)) {
@@ -302,14 +278,14 @@ async function runInit(args: string[]): Promise<void> {
         return
     }
     if (version) {
-        console.log(`@lockness/init v${await readOwnVersion()}`)
+        console.log(`@lockness/init v${VERSION}`)
         return
     }
 
     // Resolve the kit and the version BEFORE anything is written. A typo'd
     // --kit must not leave half a project on disk.
     const kit = resolveKit(rawKit)
-    const resolvedVersion = await resolveVersion(use)
+    const resolvedVersion = resolveVersion(use)
 
     const { base, overlay, isRemote } = stubRoots(kit)
     const definition = KITS[kit]

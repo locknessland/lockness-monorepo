@@ -1,0 +1,85 @@
+{
+    "name": "@lockness/contract",
+    "version": "0.4.0",
+    "description": "Shared contracts, types, and decorators for the Lockness framework to avoid circular dependencies",
+    "license": "MIT",
+    "type": "module",
+    "exports": {
+        ".": {
+            "lockness-source": "./mod.ts",
+            "default": "./dist/mod.js"
+        },
+        "./http": {
+            "lockness-source": "./http/mod.ts",
+            "default": "./dist/http/mod.js"
+        },
+        "./routing": {
+            "lockness-source": "./routing/mod.ts",
+            "default": "./dist/routing/mod.js"
+        },
+        "./lifecycle": {
+            "lockness-source": "./lifecycle/mod.ts",
+            "default": "./dist/lifecycle/mod.js"
+        },
+        "./lifecycle/internal": {
+            "lockness-source": "./lifecycle/disposables.ts",
+            "default": "./dist/lifecycle/disposables.js"
+        },
+        "./app-file/internal": {
+            "lockness-source": "./app_file.ts",
+            "default": "./dist/app_file.js"
+        },
+        "./logging/internal": {
+            "lockness-source": "./logging/internal.ts",
+            "default": "./dist/logging/internal.js"
+        },
+        "./lifecycle/health/internal": {
+            "lockness-source": "./lifecycle/health.ts",
+            "default": "./dist/lifecycle/health.js"
+        },
+        "./environment": {
+            "lockness-source": "./environment.ts",
+            "default": "./dist/environment.js"
+        },
+        "./environment/internal": {
+            "lockness-source": "./environment_legacy.ts",
+            "default": "./dist/environment_legacy.js"
+        },
+        "./pagination": {
+            "lockness-source": "./pagination/mod.ts",
+            "default": "./dist/pagination/mod.js"
+        },
+        "./resource": {
+            "lockness-source": "./resource/mod.ts",
+            "default": "./dist/resource/mod.js"
+        }
+    },
+    "files": [
+        "dist"
+    ],
+    "engines": {
+        "deno": ">=2.2"
+    },
+    "dependencies": {
+        "@lockness/hono": "^0.4.0"
+    },
+    "lockness": {
+        "jsr": {
+            "@std/assert": "1",
+            "@std/fs": "1",
+            "@std/path": "1"
+        },
+        "imports": {
+            "hono": "@lockness/hono"
+        },
+        "publish": {
+            "exclude": [
+                "tests/"
+            ]
+        },
+        "tasks": {
+            "test": "deno test -A tests/",
+            "test:watch": "deno test -A --watch tests/"
+        }
+    }
+}

@@ -1,0 +1,65 @@
+{
+    "name": "@lockness/ui",
+    "version": "0.4.0",
+    "description": "CLI for adding Hono JSX UI components (shadcn-style) to your Lockness project",
+    "license": "MIT",
+    "type": "module",
+    "exports": {
+        ".": {
+            "lockness-source": "./mod.ts",
+            "default": "./dist/mod.js"
+        },
+        "./components": {
+            "lockness-source": "./components.ts",
+            "default": "./dist/components.js"
+        },
+        "./markdown": {
+            "lockness-source": "./markdown.tsx",
+            "default": "./dist/markdown.js"
+        }
+    },
+    "files": [
+        "dist",
+        "components"
+    ],
+    "engines": {
+        "deno": ">=2.2"
+    },
+    "dependencies": {
+        "@lockness/cli": "^0.4.0",
+        "@lockness/hono": "^0.4.0",
+        "@lockness/markdown": "^0.4.0",
+        "clsx": "2.1.1",
+        "highlight.js": "11.11.1",
+        "tailwind-merge": "2.6.0"
+    },
+    "lockness": {
+        "jsr": {
+            "@std/assert": "1",
+            "@std/cli": "1",
+            "@std/fs": "1",
+            "@std/jsonc": "1",
+            "@std/path": "1"
+        },
+        "imports": {
+            "@lockness/hono/jsx-runtime": "@lockness/hono/jsx-runtime",
+            "hono": "@lockness/hono"
+        },
+        "publish": {
+            "exclude": [
+                "tests/",
+                "docs/",
+                ".github/"
+            ]
+        },
+        "compilerOptions": {
+            "jsx": "precompile",
+            "jsxImportSource": "hono"
+        },
+        "tasks": {
+            "test": "deno test -A tests/",
+            "test:watch": "deno test -A --watch tests/"
+        },
+        "versionModule": true
+    }
+}

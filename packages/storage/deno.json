@@ -2,7 +2,10 @@
     "name": "@lockness/storage",
     "version": "0.4.0",
     "license": "MIT",
-    "exports": "./mod.ts",
+    "description": "File storage abstraction with multiple drivers (Local, AWS S3, Cloudflare R2), stream support, and signed URLs",
+    "exports": {
+        ".": "./mod.ts"
+    },
     "tasks": {
         "test": "deno test -A tests/",
         "test:watch": "deno test -A --watch tests/"
@@ -20,15 +23,16 @@
             "README.md"
         ],
         "exclude": [
-            "tests/"
+            "tests/",
+            "package.json",
+            "tsconfig.json"
         ]
     },
     "imports": {
+        "@aws-sdk/client-s3": "npm:@aws-sdk/client-s3@^3.709.0",
+        "@aws-sdk/s3-request-presigner": "npm:@aws-sdk/s3-request-presigner@^3.709.0",
         "@std/assert": "jsr:@std/assert@1",
         "@std/path": "jsr:@std/path@1",
-        "@std/fs": "jsr:@std/fs@1",
-        "@aws-sdk/client-s3": "npm:@aws-sdk/client-s3@^3.709.0",
-        "@aws-sdk/s3-request-presigner": "npm:@aws-sdk/s3-request-presigner@^3.709.0"
-    },
-    "description": "File storage abstraction with multiple drivers (Local, AWS S3, Cloudflare R2), stream support, and signed URLs"
+        "@std/fs": "jsr:@std/fs@1"
+    }
 }

@@ -7,11 +7,10 @@
  * `deno publish` refuses the dirty checkout. v0.4.0's first publish failed that
  * way.
  *
- * Both bump paths call {@link refreshLockfile} after they write:
- * `scripts/bump-native.ts` (`deno task bump`) and `scripts/bump.ts`
- * (`deno task bump:legacy`). This module is the one home of the command, the
- * dry-run notice, and the failure and recovery message, so the two paths cannot
- * drift apart again (#429).
+ * `scripts/bump.ts` (`deno task bump`) calls {@link refreshLockfile} after it
+ * writes. This module is the one home of the command, the dry-run notice, and
+ * the failure and recovery message (#429). Two bump paths once shared it; the
+ * one bump replaced both (#591).
  *
  * @module scripts/lockfile
  *

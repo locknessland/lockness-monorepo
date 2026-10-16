@@ -8,18 +8,25 @@
  */
 
 import { test } from 'node:test'
-import { assert, assertEquals, assertStringIncludes } from '@std/assert'
+import {
+    assert,
+    assertEquals,
+    assertStringIncludes,
+    assertThrows,
+} from '@std/assert'
 import { parse as parseJsonc } from '@std/jsonc'
 import * as semver from '@std/semver'
 import {
+    bumpPackageManifest,
     getErrorMessage,
     isLocknessImport,
-    LOCKNESS_VERSION_PATTERN,
+    resolveTargetVersion,
     SEMVER_PATTERN,
     updateImportVersion,
     updateRootJsonc,
     VERSION_EXTRACT_PATTERN,
 } from '../scripts/bump.ts'
+import { readWorkspaceMembers } from '../scripts/manifests.ts'
 import {
     LOCKFILE_REFRESH_ARGS,
     lockfileRefreshFailure,
@@ -192,31 +199,81 @@ test('VERSION_EXTRACT_PATTERN - does not match non-Lockness', () => {
 })
 
 // =============================================================================
-// LOCKNESS_VERSION_PATTERN Tests (global regex)
+// bumpPackageManifest / resolveTargetVersion Tests (#591)
 // =============================================================================
 
-test('LOCKNESS_VERSION_PATTERN - matches multiple imports in content', () => {
-    const content = `
-import { App } from "jsr:@lockness/core@^0.1.0"
-import { Auth } from "jsr:@lockness/auth@~0.1.0"
-import { assert } from "jsr:@std/assert@^1.0.0"
-`
-    const matches = content.match(LOCKNESS_VERSION_PATTERN)
-    assertEquals(matches?.length, 2)
+test('bumpPackageManifest - moves the version and every @lockness/* range', () => {
+    const bumped = bumpPackageManifest({
+        name: '@lockness/auth',
+        version: '0.4.0',
+        dependencies: {
+            '@lockness/contract': '^0.4.0',
+            '@lockness/crypto': '~0.4.0',
+            'zod': '^3.25.0',
+        },
+        peerDependencies: { '@lockness/cache': '^0.4.0' },
+        devDependencies: { '@lockness/testing': '0.4.0' },
+        lockness: { jsr: { '@std/assert': '1' } },
+    }, '0.5.0')
+    assertEquals(bumped, {
+        name: '@lockness/auth',
+        version: '0.5.0',
+        dependencies: {
+            '@lockness/contract': '^0.5.0',
+            '@lockness/crypto': '~0.5.0',
+            'zod': '^3.25.0',
+        },
+        peerDependencies: { '@lockness/cache': '^0.5.0' },
+        devDependencies: { '@lockness/testing': '0.5.0' },
+        lockness: { jsr: { '@std/assert': '1' } },
+    })
 })
 
-test('LOCKNESS_VERSION_PATTERN - can be used for replacement', () => {
-    const content = 'jsr:@lockness/core@^0.1.0'
-    const replaced = content.replace(LOCKNESS_VERSION_PATTERN, '$1@$20.2.0$4')
-    assertEquals(replaced, 'jsr:@lockness/core@^0.2.0')
-})
-
-test('LOCKNESS_VERSION_PATTERN - replacement preserves a subpath (regression #162)', () => {
-    const content = 'import x from "jsr:@lockness/hono@^0.1.0/jsx-runtime"'
-    const replaced = content.replace(LOCKNESS_VERSION_PATTERN, '$1@$20.2.0$4')
+test('bumpPackageManifest - a member with no version keeps none, its ranges still move', () => {
+    // The vite demo: never published, so a bump must not add a version --
+    // but a pinned sibling range left behind would resolve from the registry.
     assertEquals(
-        replaced,
-        'import x from "jsr:@lockness/hono@^0.2.0/jsx-runtime"',
+        bumpPackageManifest({
+            private: true,
+            dependencies: { '@lockness/core': '^0.4.0', 'vite': '^8' },
+        }, '0.5.0'),
+        {
+            private: true,
+            dependencies: { '@lockness/core': '^0.5.0', 'vite': '^8' },
+        },
+    )
+})
+
+test('bumpPackageManifest - does not mutate its input', () => {
+    const input = {
+        version: '0.4.0',
+        dependencies: { '@lockness/a': '^0.4.0' },
+    }
+    bumpPackageManifest(input, '0.5.0')
+    assertEquals(input.dependencies['@lockness/a'], '^0.4.0')
+})
+
+test('resolveTargetVersion - flags, keywords and an absolute version', () => {
+    assertEquals(resolveTargetVersion({ patch: true }, '0.4.0'), '0.4.1')
+    assertEquals(resolveTargetVersion({ minor: true }, '0.4.1'), '0.5.0')
+    assertEquals(resolveTargetVersion({ major: true }, '0.4.1'), '1.0.0')
+    assertEquals(
+        resolveTargetVersion({ positional: 'minor' }, '0.4.0'),
+        '0.5.0',
+    )
+    // Any jump: the bump is no longer limited to one increment.
+    assertEquals(
+        resolveTargetVersion({ positional: '0.9.0' }, '0.4.0'),
+        '0.9.0',
+    )
+})
+
+test('resolveTargetVersion - refuses nothing to do and a malformed version', () => {
+    assertThrows(() => resolveTargetVersion({}, '0.4.0'), Error, 'Usage')
+    assertThrows(
+        () => resolveTargetVersion({ positional: 'v0.5.0' }, '0.4.0'),
+        Error,
+        'X.Y.Z',
     )
 })
 
@@ -273,43 +330,32 @@ test(
 )
 
 test('the root version is bumped in lockstep with its members', async () => {
-    // The rail's break, and the reason it survived to a release attempt: `deno
-    // task bump` routes to `scripts/bump-native.ts`, which delegates to `deno
-    // bump-version --workspace`. That command rewrites every workspace MEMBER
-    // and every cross-package specifier -- and not the root's own `version`,
-    // because the workspace root is not one of its members.
-    //
-    // `.specnaut/scripts/release/tag.sh` reads exactly that field to name the
-    // tag. Left stale, the next release computes the PREVIOUS version and is
-    // stopped only by that script's refusal to clobber an existing tag. v0.2.0
-    // shipped on the legacy script, which did bump the root, so nothing had
-    // ever exercised this path.
+    // `.specnaut/scripts/release/tag.sh` reads the root `deno.jsonc` `version`
+    // to name the tag. Left stale while the members moved, the next release
+    // computes the PREVIOUS version and is stopped only by that script's
+    // refusal to clobber an existing tag (#324).
     //
     // Asserted as an INVARIANT over the checked-in tree rather than by running
     // the bump: it holds after every correct bump and fails after a bump that
-    // moved the members without the root, which is the whole defect.
-    const rootText = await Deno.readTextFile('deno.jsonc')
-    const root = parseJsonc(rootText) as {
+    // moved the members without the root, which is the whole defect. Each
+    // member's package.json is its source manifest (#591), and its generated
+    // deno.json must say the same.
+    const root = parseJsonc(await Deno.readTextFile('deno.jsonc')) as {
         version: string
-        workspace: string[]
     }
 
     const drifted: string[] = []
-    for (const member of root.workspace) {
-        const manifest = `${member.replace(/^\.\//, '')}/deno.json`
-        let raw: string
-        try {
-            raw = await Deno.readTextFile(manifest)
-        } catch {
-            continue
-        }
-        const pkg = JSON.parse(raw) as { name?: string; version?: string }
-        // A member with no `version` is deliberately unpublished (the
-        // test-support harness). Silence is the right answer for it here; what
-        // this test is about is a member that HAS a version and disagrees.
-        if (pkg.version === undefined) continue
-        if (pkg.version !== root.version) {
-            drifted.push(`${pkg.name ?? manifest} = ${pkg.version}`)
+    for (const member of await readWorkspaceMembers('.')) {
+        for (const file of ['package.json', 'deno.json']) {
+            const pkg = JSON.parse(
+                await Deno.readTextFile(`${member}/${file}`),
+            ) as { name?: string; version?: string }
+            // A member with no `version` is an app (the vite demo), never
+            // published; what this test is about is one that HAS a version.
+            if (pkg.version === undefined) continue
+            if (pkg.version !== root.version) {
+                drifted.push(`${member}/${file} = ${pkg.version}`)
+            }
         }
     }
 
@@ -323,41 +369,31 @@ test('the root version is bumped in lockstep with its members', async () => {
     )
 })
 
-test('no workspace member pins a @lockness/* specifier off-version', async () => {
-    // The second half of the same defect, and the more dangerous half.
-    // `deno bump-version --workspace` skips a member with no `version` -- it
-    // has nothing to bump -- and skips that member's IMPORTS with it. Those are
-    // version-pinned, so after a bump they name the PREVIOUS version, Deno
-    // refuses to satisfy them from the workspace, and resolves them from JSR
-    // instead:
+test('no workspace member pins a @lockness/* range off-version', async () => {
+    // A member left out of a bump keeps ranges naming the PREVIOUS version.
+    // Deno then refuses to satisfy them from the workspace and resolves them
+    // from the registry instead -- a WARNING, not an error:
     //
     //   Workspace member '@lockness/auth@0.3.0' was not used because it did
     //   not match '@lockness/auth@^0.2.0'
     //
-    // That is a WARNING, not an error. `@lockness/testing` is imported by a
-    // real test in another package, so the suite compiled that path against
-    // the last PUBLISHED release rather than the tree under test -- and went
-    // green. A gate that reports 2168 passing while resolving off-tree is
-    // worse than a red one.
-    const rootText = await Deno.readTextFile('deno.jsonc')
-    const root = parseJsonc(rootText) as {
+    // `@lockness/testing` is imported by a real test in another package, so
+    // the suite once compiled that path against the last PUBLISHED release
+    // rather than the tree under test -- and went green. Both the source
+    // ranges (package.json) and the generated pins (deno.json) are read.
+    const root = parseJsonc(await Deno.readTextFile('deno.jsonc')) as {
         version: string
-        workspace: string[]
     }
-    const pattern = /jsr:@lockness\/[^@"]+@[~^]?(\d+\.\d+\.\d+)/g
+    const pattern = /"(?:jsr:)?@lockness\/[^@"]+(?:@|": ")[~^]?(\d+\.\d+\.\d+)/g
 
     const drifted: string[] = []
-    for (const member of root.workspace) {
-        const manifest = `${member.replace(/^\.\//, '')}/deno.json`
-        let text: string
-        try {
-            text = await Deno.readTextFile(manifest)
-        } catch {
-            continue
-        }
-        for (const [spec, version] of text.matchAll(pattern)) {
-            if (version !== root.version) {
-                drifted.push(`${manifest}: ${spec}`)
+    for (const member of await readWorkspaceMembers('.')) {
+        for (const file of ['package.json', 'deno.json']) {
+            const text = await Deno.readTextFile(`${member}/${file}`)
+            for (const [spec, version] of text.matchAll(pattern)) {
+                if (version !== root.version) {
+                    drifted.push(`${member}/${file}: ${spec}`)
+                }
             }
         }
     }
@@ -365,9 +401,9 @@ test('no workspace member pins a @lockness/* specifier off-version', async () =>
     assertEquals(
         drifted,
         [],
-        `these specifiers name a version other than the root's ` +
-            `${root.version}, so Deno resolves them from JSR instead of the ` +
-            'workspace and the tree under test is not the tree being compiled',
+        `these ranges name a version other than the root's ` +
+            `${root.version}, so Deno resolves them from the registry instead ` +
+            'of the workspace and the tree under test is not the tree compiled',
     )
 })
 
@@ -511,8 +547,9 @@ async function deno(
 }
 
 /**
- * Build a two-member workspace at 0.1.0 where `@lockness/b` pins
- * `@lockness/a@^0.1.0`, and let `deno install` write its lockfile.
+ * Build a two-member workspace at 0.1.0 where `@lockness/b` depends on
+ * `@lockness/a@^0.1.0`, generate its deno.json files from package.json, and
+ * let `deno install` write its lockfile.
  *
  * The `@std/semver` import exists only so deno writes a lockfile at all: it
  * writes none for a graph with no remote package.
@@ -523,32 +560,54 @@ async function lockfileFixture(): Promise<string> {
     const dir = await Deno.makeTempDir({ prefix: 'lockness-bump-' })
     await Deno.mkdir(`${dir}/packages/a`, { recursive: true })
     await Deno.mkdir(`${dir}/packages/b`, { recursive: true })
+    const json = (value: unknown) => JSON.stringify(value, null, 4) + '\n'
     await Deno.writeTextFile(
         `${dir}/deno.jsonc`,
-        '{\n    // bump fixture\n    "version": "0.1.0",\n' +
-            '    "workspace": ["./packages/a", "./packages/b"]\n}\n',
+        '{\n    // bump fixture\n    "version": "0.1.0"\n}\n',
     )
-    const member = (name: string, imports: Record<string, string>) =>
-        JSON.stringify(
-            { name, version: '0.1.0', exports: './mod.ts', imports },
-            null,
-            4,
-        ) + '\n'
     await Deno.writeTextFile(
-        `${dir}/packages/a/deno.json`,
-        member('@lockness/a', { '@std/semver': 'jsr:@std/semver@1' }),
+        `${dir}/package.json`,
+        json({ private: true, workspaces: ['packages/a', 'packages/b'] }),
+    )
+    const member = (name: string, extra: Record<string, unknown>) =>
+        json({
+            name,
+            version: '0.1.0',
+            license: 'MIT',
+            type: 'module',
+            exports: {
+                '.': {
+                    'lockness-source': './mod.ts',
+                    default: './dist/mod.js',
+                },
+            },
+            engines: { deno: '>=2.2' },
+            ...extra,
+        })
+    await Deno.writeTextFile(
+        `${dir}/packages/a/package.json`,
+        member('@lockness/a', { lockness: { jsr: { '@std/semver': '1' } } }),
     )
     await Deno.writeTextFile(
         `${dir}/packages/a/mod.ts`,
         "export { parse } from '@std/semver'\n",
     )
     await Deno.writeTextFile(
-        `${dir}/packages/b/deno.json`,
-        member('@lockness/b', { '@lockness/a': 'jsr:@lockness/a@^0.1.0' }),
+        `${dir}/packages/b/package.json`,
+        member('@lockness/b', { dependencies: { '@lockness/a': '^0.1.0' } }),
     )
     await Deno.writeTextFile(
         `${dir}/packages/b/mod.ts`,
         "export { parse } from '@lockness/a'\n",
+    )
+    const generate = await deno(
+        ['run', '-A', '--config', REPO_CONFIG, scriptPath('manifests.ts')],
+        dir,
+    )
+    assertEquals(
+        generate.code,
+        0,
+        `fixture manifests failed:\n${generate.output}`,
     )
     const install = await deno(['install'], dir)
     assertEquals(
@@ -590,46 +649,33 @@ function lockEntries(
     return { specs, stale }
 }
 
-/** One bump path, run the way a maintainer or `tag.sh` runs it. */
-interface BumpPath {
-    /** The `deno task` name. */
-    readonly task: string
-    /** The script under `scripts/` the task runs. */
-    readonly script: string
+/** One bump, run the way a maintainer or `tag.sh` runs it. */
+interface BumpCase {
     /** The bump arguments. */
     readonly args: string[]
     /** The version the fixture should end at. */
     readonly target: string
 }
 
-const BUMP_PATHS: readonly BumpPath[] = [
-    // The legacy path is the one that skipped the refresh (#429). The
-    // arbitrary jump is why it still exists: 0.1.0 -> 0.5.0 is not one semver
-    // step, so `deno task bump` refuses it and points here.
-    {
-        task: 'bump:legacy',
-        script: 'bump.ts',
-        args: ['0.5.0'],
-        target: '0.5.0',
-    },
-    {
-        task: 'bump',
-        script: 'bump-native.ts',
-        args: ['--minor'],
-        target: '0.2.0',
-    },
+const BUMP_CASES: readonly BumpCase[] = [
+    // An arbitrary jump: 0.1.0 -> 0.5.0 is not one semver step. The retired
+    // native bump refused it and the legacy script existed only for it.
+    { args: ['0.5.0'], target: '0.5.0' },
+    { args: ['--minor'], target: '0.2.0' },
 ]
 
-for (const path of BUMP_PATHS) {
-    test(`deno task ${path.task} leaves a deno.lock that admits the new version`, async () => {
-        // Every supported bump path must leave a tree `deno publish` accepts.
-        // The HEAD-based test above sees a stale lockfile only once the
-        // release commit and tag exist; this runs the bump itself.
+for (const bump of BUMP_CASES) {
+    const name = `deno task bump ${bump.args.join(' ')}`
+
+    test(`${name} moves every manifest and leaves a deno.lock that admits the new version`, async () => {
+        // Every bump must leave a tree `deno publish` accepts. The HEAD-based
+        // test above sees a stale lockfile only once the release commit and
+        // tag exist; this runs the bump itself.
         const dir = await lockfileFixture()
         try {
             const before = lockEntries(
                 await Deno.readTextFile(`${dir}/deno.lock`),
-                path.target,
+                bump.target,
             )
             // The fixture can fail: its fresh lockfile names 0.1.
             assert(before.stale.length > 0, 'fixture lockfile is not stale')
@@ -640,8 +686,8 @@ for (const path of BUMP_PATHS) {
                     '-A',
                     '--config',
                     REPO_CONFIG,
-                    scriptPath(path.script),
-                    ...path.args,
+                    scriptPath('bump.ts'),
+                    ...bump.args,
                 ],
                 dir,
             )
@@ -650,18 +696,33 @@ for (const path of BUMP_PATHS) {
             const root = parseJsonc(
                 await Deno.readTextFile(`${dir}/deno.jsonc`),
             ) as { version: string }
-            assertEquals(root.version, path.target)
+            assertEquals(root.version, bump.target)
+
+            const b = JSON.parse(
+                await Deno.readTextFile(`${dir}/packages/b/package.json`),
+            )
+            assertEquals(b.version, bump.target)
+            assertEquals(b.dependencies['@lockness/a'], `^${bump.target}`)
+            // The generated manifest follows its source.
+            const bDeno = JSON.parse(
+                await Deno.readTextFile(`${dir}/packages/b/deno.json`),
+            )
+            assertEquals(bDeno.version, bump.target)
+            assertEquals(
+                bDeno.imports['@lockness/a'],
+                `jsr:@lockness/a@^${bump.target}`,
+            )
 
             const after = lockEntries(
                 await Deno.readTextFile(`${dir}/deno.lock`),
-                path.target,
+                bump.target,
             )
             assert(after.specs.length > 0, 'no @lockness/* range in deno.lock')
             assertEquals(
                 after.stale,
                 [],
-                `deno task ${path.task} left deno.lock naming the previous ` +
-                    'version; the release commit could not be published',
+                `${name} left deno.lock naming the previous version; the ` +
+                    'release commit could not be published',
             )
             assertStringIncludes(run.output, 'deno.lock refreshed')
         } finally {
@@ -669,13 +730,15 @@ for (const path of BUMP_PATHS) {
         }
     })
 
-    test(`deno task ${path.task} --dry-run writes nothing and names the lockfile refresh`, async () => {
+    test(`${name} --dry-run writes nothing and names the lockfile refresh`, async () => {
         const dir = await lockfileFixture()
         try {
             const files = [
                 'deno.jsonc',
                 'deno.lock',
+                'packages/a/package.json',
                 'packages/a/deno.json',
+                'packages/b/package.json',
                 'packages/b/deno.json',
             ]
             const read = () =>
@@ -688,8 +751,8 @@ for (const path of BUMP_PATHS) {
                     '-A',
                     '--config',
                     REPO_CONFIG,
-                    scriptPath(path.script),
-                    ...path.args,
+                    scriptPath('bump.ts'),
+                    ...bump.args,
                     '--dry-run',
                 ],
                 dir,

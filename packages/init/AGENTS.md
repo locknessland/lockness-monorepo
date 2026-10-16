@@ -68,7 +68,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-7 test files for 2 source files:
+7 test files for 3 source files:
 
 - `packages/init/tests/app_key.test.ts`
 - `packages/init/tests/consistency.test.ts`

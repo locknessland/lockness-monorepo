@@ -26,6 +26,12 @@ test('the gate runs the suite last, after every static check', () => {
     // its label while running the wrong command used to pass this test.
     assertEquals(gateSteps(), [
         { label: 'fmt --check', args: ['fmt', '--check'] },
+        // Generated deno.json files are checked before anything reads them
+        // (#591): a stale one changes what lint, check and the suite resolve.
+        {
+            label: 'manifests --check',
+            args: ['task', 'manifests', '--check'],
+        },
         { label: 'lint', args: ['lint'] },
         { label: 'check', args: ['check'] },
         { label: 'deps:analyze', args: ['task', 'deps:analyze'] },

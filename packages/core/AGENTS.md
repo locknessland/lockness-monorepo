@@ -112,7 +112,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-60 test files for 75 source files:
+60 test files for 76 source files:
 
 - `packages/core/cli/tests/kernel_file.test.ts`
 - `packages/core/cli/tests/ssg_command.test.ts`

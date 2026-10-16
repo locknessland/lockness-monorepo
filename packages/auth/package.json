@@ -1,0 +1,43 @@
+{
+    "name": "@lockness/auth",
+    "version": "0.4.0",
+    "description": "Robust authentication system with multiple guards (Session, Token, Basic Auth) and pluggable user providers",
+    "license": "MIT",
+    "type": "module",
+    "exports": {
+        ".": {
+            "lockness-source": "./mod.ts",
+            "default": "./dist/mod.js"
+        }
+    },
+    "files": [
+        "dist"
+    ],
+    "engines": {
+        "deno": ">=2.2"
+    },
+    "dependencies": {
+        "@lockness/contract": "^0.4.0",
+        "@lockness/crypto": "^0.4.0",
+        "@lockness/events": "^0.4.0",
+        "@lockness/hono": "^0.4.0",
+        "@lockness/session": "^0.4.0"
+    },
+    "lockness": {
+        "jsr": {
+            "@std/assert": "1"
+        },
+        "imports": {
+            "hono": "@lockness/hono"
+        },
+        "publish": {
+            "exclude": [
+                "tests/"
+            ]
+        },
+        "tasks": {
+            "test": "deno test -A tests/",
+            "test:watch": "deno test -A --watch tests/"
+        }
+    }
+}

@@ -153,6 +153,37 @@ test('a complete member is clean, and exports is required too', () => {
     assertStringIncludes(noExports, '"exports"')
 })
 
+/**
+ * Write a fixture workspace's root: membership in `package.json`
+ * `workspaces` (#591), a minimal `package.json` per member, and a root
+ * `deno.jsonc` that stops `deno check`'s upward config search here.
+ *
+ * @param dir - The fixture root.
+ * @param shorts - Member directories under `packages/`.
+ * @param config - The root `deno.jsonc` fields.
+ */
+async function writeWorkspace(
+    dir: string,
+    shorts: string[],
+    config: Record<string, unknown> = {},
+): Promise<void> {
+    await Deno.writeTextFile(`${dir}/deno.jsonc`, JSON.stringify(config))
+    await Deno.writeTextFile(
+        `${dir}/package.json`,
+        JSON.stringify({
+            private: true,
+            workspaces: shorts.map((s) => `packages/${s}`),
+        }),
+    )
+    for (const short of shorts) {
+        await Deno.mkdir(`${dir}/packages/${short}`, { recursive: true })
+        await Deno.writeTextFile(
+            `${dir}/packages/${short}/package.json`,
+            JSON.stringify({ private: true, type: 'module' }),
+        )
+    }
+}
+
 test('publish:check EXITS NON-ZERO on an unpublishable member', async () => {
     // The acceptance criterion asks for the exit code, not only the message:
     // every gate step of run 34283254973 passed and the publish still aborted,
@@ -161,13 +192,7 @@ test('publish:check EXITS NON-ZERO on an unpublishable member', async () => {
     const dir = await Deno.makeTempDir({ prefix: 'publish-check-witness-' })
     try {
         await Deno.mkdir(`${dir}/packages/broken`, { recursive: true })
-        await Deno.writeTextFile(
-            `${dir}/deno.jsonc`,
-            JSON.stringify({
-                version: '0.3.0',
-                workspace: ['./packages/broken'],
-            }),
-        )
+        await writeWorkspace(dir, ['broken'], { version: '0.3.0' })
         // A name and exports, no version -- @lockness/testing's exact shape.
         await Deno.writeTextFile(
             `${dir}/packages/broken/deno.json`,
@@ -296,10 +321,7 @@ test('an unrecognised failure turns the whole run red, with no success line', as
     const dir = await Deno.makeTempDir({ prefix: 'publish-check-closed-' })
     try {
         await Deno.mkdir(`${dir}/packages/bad`, { recursive: true })
-        await Deno.writeTextFile(
-            `${dir}/deno.jsonc`,
-            JSON.stringify({ workspace: ['./packages/bad'] }),
-        )
+        await writeWorkspace(dir, ['bad'])
         await Deno.writeTextFile(
             `${dir}/packages/bad/deno.json`,
             JSON.stringify({
@@ -596,12 +618,7 @@ async function runWorkspace(
 ): Promise<{ code: number; out: string }> {
     const dir = await Deno.makeTempDir({ prefix: 'publish-check-links-' })
     try {
-        await Deno.writeTextFile(
-            `${dir}/deno.jsonc`,
-            JSON.stringify({
-                workspace: packages.map((p) => `./packages/${p.short}`),
-            }),
-        )
+        await writeWorkspace(dir, packages.map((p) => p.short))
         if (policy !== undefined) {
             await Deno.writeTextFile(
                 `${dir}/deps.policy.jsonc`,
