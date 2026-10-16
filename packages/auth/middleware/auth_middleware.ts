@@ -7,8 +7,8 @@
  * @module @lockness/auth/middleware/auth
  */
 
-import type { Context } from 'hono'
-import type { MiddlewareHandler } from 'hono'
+import type { Context } from '@lockness/hono'
+import type { MiddlewareHandler } from '@lockness/hono'
 import { getAuth } from './initialize_auth_middleware.ts'
 import type {
     AuthContext,

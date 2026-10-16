@@ -9,7 +9,7 @@
  * @module
  */
 
-import type { Context } from 'hono'
+import type { Context } from '@lockness/hono'
 
 /**
  * A rate-limit window, expressed either as raw milliseconds or as a shorthand

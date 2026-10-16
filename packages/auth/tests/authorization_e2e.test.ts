@@ -16,7 +16,7 @@
 
 import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
-import { Hono } from 'hono'
+import { Hono } from '@lockness/hono'
 import {
     AuthorizationError,
     authorizeMiddleware,

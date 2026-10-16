@@ -4,7 +4,7 @@
  * @module @lockness/session/utils
  */
 
-import type { Context } from 'hono'
+import type { Context } from '@lockness/hono'
 import type { Session } from './types.ts'
 
 /**

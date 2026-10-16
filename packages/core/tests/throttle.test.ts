@@ -9,8 +9,8 @@
 
 import { test } from 'node:test'
 import { assertEquals, assertThrows } from '@std/assert'
-import { Hono } from 'hono'
-import type { Context } from 'hono'
+import { Hono } from '@lockness/hono'
+import type { Context } from '@lockness/hono'
 import { parseTimeWindow } from '@lockness/contract'
 import {
     Controller,

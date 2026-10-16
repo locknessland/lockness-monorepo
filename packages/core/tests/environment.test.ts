@@ -10,7 +10,7 @@
 
 import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
-import { Hono } from 'hono'
+import { Hono } from '@lockness/hono'
 import { isDevelopment, isProduction, resolveEnvName } from '../environment.ts'
 import { App } from '../app.ts'
 import { formatErrorForConsole } from '../exceptions/formatter.ts'

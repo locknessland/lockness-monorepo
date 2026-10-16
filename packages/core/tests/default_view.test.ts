@@ -13,7 +13,7 @@
 
 import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
-import { Hono } from 'hono'
+import { Hono } from '@lockness/hono'
 import { defaultErrorHandler } from '../exceptions/default_view.ts'
 import { ErrorHandlerRegistry } from '../exceptions/handler.ts'
 

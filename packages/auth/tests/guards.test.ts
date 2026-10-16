@@ -1,7 +1,7 @@
 // deno-lint-ignore-file no-explicit-any
 import { test } from 'node:test'
 import { assertEquals, assertExists, assertRejects } from '@std/assert'
-import { Hono } from 'hono'
+import { Hono } from '@lockness/hono'
 import {
     BasicAuthGuard,
     InvalidCredentialsError,

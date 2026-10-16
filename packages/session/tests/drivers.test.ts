@@ -6,7 +6,7 @@
 import { test } from 'node:test'
 import { assertEquals, assertExists, assertThrows } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
-import type { Context } from 'hono'
+import type { Context } from '@lockness/hono'
 import { generateAppKey } from '../secret.ts'
 import { createDriver } from '../drivers/mod.ts'
 import type { SessionConfig } from '../types.ts'

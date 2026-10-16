@@ -83,7 +83,6 @@
             "@std/fs": "1"
         },
         "imports": {
-            "hono": "@lockness/hono",
             "@lockness/cli": "@lockness/cli"
         },
         "publish": {
@@ -94,7 +93,7 @@
         },
         "compilerOptions": {
             "jsx": "precompile",
-            "jsxImportSource": "hono"
+            "jsxImportSource": "@lockness/hono"
         },
         "tasks": {
             "test": "deno test -A tests/",

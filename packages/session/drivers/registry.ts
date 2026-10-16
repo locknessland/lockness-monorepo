@@ -28,7 +28,7 @@
  * @module @lockness/session/drivers/registry
  */
 
-import type { Context } from 'hono'
+import type { Context } from '@lockness/hono'
 import { credentialFingerprint } from '@lockness/redis'
 import {
     deregisterDisposable,

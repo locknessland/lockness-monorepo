@@ -7,7 +7,7 @@
  * @module @lockness/core/server_listener
  */
 
-import type { Hono } from 'hono'
+import type { Hono } from '@lockness/hono'
 import { resolveEnvName } from '../environment.ts'
 
 /**

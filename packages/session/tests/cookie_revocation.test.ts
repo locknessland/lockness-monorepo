@@ -18,8 +18,8 @@ import {
     assertRejects,
     assertThrows,
 } from '@std/assert'
-import { Hono } from 'hono'
-import type { Context } from 'hono'
+import { Hono } from '@lockness/hono'
+import type { Context } from '@lockness/hono'
 import { deleteCookie } from '@lockness/hono'
 import { drainDisposables } from '@lockness/contract/lifecycle/internal'
 import {

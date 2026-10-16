@@ -6,7 +6,7 @@
 
 import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
-import { Hono } from 'hono'
+import { Hono } from '@lockness/hono'
 import { actingAs, fakeUser } from '../acting_as.ts'
 import { testClient } from '../http_client.ts'
 import { FakeTable } from '../db_assertions.ts'

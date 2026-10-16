@@ -42,8 +42,7 @@
             "@std/path": "1"
         },
         "imports": {
-            "@lockness/hono/jsx-runtime": "@lockness/hono/jsx-runtime",
-            "hono": "@lockness/hono"
+            "@lockness/hono/jsx-runtime": "@lockness/hono/jsx-runtime"
         },
         "publish": {
             "exclude": [
@@ -54,7 +53,7 @@
         },
         "compilerOptions": {
             "jsx": "precompile",
-            "jsxImportSource": "hono"
+            "jsxImportSource": "@lockness/hono"
         },
         "tasks": {
             "test": "deno test -A tests/",

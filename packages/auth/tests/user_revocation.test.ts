@@ -14,8 +14,8 @@
 import { test } from 'node:test'
 import { assertEquals, assertRejects } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
-import { Hono } from 'hono'
-import type { Context } from 'hono'
+import { Hono } from '@lockness/hono'
+import type { Context } from '@lockness/hono'
 import {
     CookieSessionDriver,
     generateAppKey,

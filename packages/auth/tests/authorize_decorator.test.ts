@@ -7,7 +7,7 @@
 import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import { AuthorizationError, authorizeMiddleware, gate } from '../mod.ts'
-import type { Context } from 'hono'
+import type { Context } from '@lockness/hono'
 
 interface FakeCtxOptions {
     user?: { id: number; email: string }

@@ -25,7 +25,7 @@
  * @see https://inertiajs.com/the-protocol
  */
 
-import type { Context, MiddlewareHandler, Next } from 'hono'
+import type { Context, MiddlewareHandler, Next } from '@lockness/hono'
 import type { InertiaConfig, RedirectConversionMethod } from './types.ts'
 import { Inertia } from './inertia.ts'
 

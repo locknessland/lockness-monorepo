@@ -15,7 +15,7 @@
 
 import { test } from 'node:test'
 import { assertEquals, assertNotEquals } from '@std/assert'
-import type { Context } from 'hono'
+import type { Context } from '@lockness/hono'
 import type { SessionConfig, SessionData, SessionDriver } from '../types.ts'
 import { SessionStore } from '../store.ts'
 import { generateAppKey } from '../secret.ts'

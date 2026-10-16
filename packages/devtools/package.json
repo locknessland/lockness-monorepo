@@ -27,9 +27,6 @@
             "@std/fs": "1",
             "@std/path": "1"
         },
-        "imports": {
-            "hono": "@lockness/hono"
-        },
         "publish": {
             "exclude": [
                 "tests/",
@@ -39,7 +36,7 @@
         },
         "compilerOptions": {
             "jsx": "precompile",
-            "jsxImportSource": "hono"
+            "jsxImportSource": "@lockness/hono"
         },
         "tasks": {
             "test": "deno test -A tests/",

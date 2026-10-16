@@ -4,7 +4,7 @@
         "rootDir": ".",
         "outDir": "dist",
         "jsx": "react-jsx",
-        "jsxImportSource": "hono"
+        "jsxImportSource": "@lockness/hono"
     },
     "include": [
         "**/*.ts",

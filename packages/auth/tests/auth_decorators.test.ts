@@ -7,7 +7,7 @@ import {
     AuthRequired,
     authRequired,
 } from '../mod.ts'
-import type { MiddlewareHandler } from 'hono'
+import type { MiddlewareHandler } from '@lockness/hono'
 
 // Test that middleware functions work correctly
 test('authOptional - returns middleware that makes auth available', () => {

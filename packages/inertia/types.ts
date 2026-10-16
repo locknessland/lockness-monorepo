@@ -358,7 +358,7 @@ export interface RenderOptions {
  *
  * @example
  * ```typescript
- * import type { Hono } from 'hono'
+ * import type { Hono } from '@lockness/hono'
  * import type { InertiaContextVariables } from '@lockness/inertia'
  *
  * const app = new Hono<{ Variables: InertiaContextVariables }>()

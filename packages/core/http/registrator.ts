@@ -1,5 +1,5 @@
-import type { Hono } from 'hono'
-import type { Env, Schema } from 'hono'
+import type { Hono } from '@lockness/hono'
+import type { Env, Schema } from '@lockness/hono'
 import type { MiddlewareResolver } from './resolver.ts'
 import type {
     AppConfig,

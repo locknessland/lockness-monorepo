@@ -13,8 +13,8 @@
 
 import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
-import { Hono } from 'hono'
-import type { Context } from 'hono'
+import { Hono } from '@lockness/hono'
+import type { Context } from '@lockness/hono'
 import { SessionGuard } from '../guards/session_guard.ts'
 import { type Env, MockSessionProvider } from './mocks.ts'
 import type { RememberMeToken } from '../types.ts'

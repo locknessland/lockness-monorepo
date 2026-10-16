@@ -7,7 +7,7 @@
  * @module @lockness/auth/middleware/initialize
  */
 
-import type { Context } from 'hono'
+import type { Context } from '@lockness/hono'
 import type { AuthConfig, GuardFactory } from '../types.ts'
 import { Authenticator } from '../authenticator.ts'
 
@@ -30,7 +30,7 @@ export function initializeAuthMiddleware<
     Guards extends Record<string, GuardFactory>,
 >(
     config: AuthConfig<Guards>,
-): import('hono').MiddlewareHandler {
+): import('@lockness/hono').MiddlewareHandler {
     return async (c: Context, next: () => Promise<void>) => {
         // Create authenticator instance
         const auth = new Authenticator(c, config) // Attach to context under __auth key to avoid conflicts with fluent API

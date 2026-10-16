@@ -8,7 +8,7 @@
  * @module @lockness/core/route_registry
  */
 
-import type { Hono, MiddlewareHandler } from 'hono'
+import type { Hono, MiddlewareHandler } from '@lockness/hono'
 import { namedRoutes } from './router.ts'
 import type { Context, ControllerClass, Route } from '../types.ts'
 import type { RouteInfo } from '../app.ts'

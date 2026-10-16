@@ -21,7 +21,7 @@
     },
     "compilerOptions": {
         "jsx": "precompile",
-        "jsxImportSource": "hono"
+        "jsxImportSource": "@lockness/hono"
     },
     "imports": {
         "@lockness/hono": "jsr:@lockness/hono@^0.4.0",
@@ -29,7 +29,6 @@
         "@lockness/events": "jsr:@lockness/events@^0.4.0",
         "@lockness/session": "jsr:@lockness/session@^0.4.0",
         "@std/fs": "jsr:@std/fs@1",
-        "@std/path": "jsr:@std/path@1",
-        "hono": "jsr:@lockness/hono@^0.4.0"
+        "@std/path": "jsr:@std/path@1"
     }
 }

@@ -1,11 +1,11 @@
 // deno-lint-ignore-file no-explicit-any
 import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
-import { Hono } from 'hono'
+import { Hono } from '@lockness/hono'
 import { withAuth } from '../middleware/auth_middleware.ts'
 import { initializeAuthMiddleware } from '../middleware/initialize_auth_middleware.ts'
 import { createMockContext, type Env, MockSessionProvider } from './mocks.ts'
-import type { Context } from 'hono'
+import type { Context } from '@lockness/hono'
 import { SessionGuard } from '../guards/session_guard.ts'
 
 test('AuthContext - c.auth.user is available', async () => {

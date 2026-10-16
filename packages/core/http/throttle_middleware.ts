@@ -8,7 +8,7 @@
  * @module
  */
 
-import type { Context, MiddlewareHandler } from 'hono'
+import type { Context, MiddlewareHandler } from '@lockness/hono'
 import {
     parseTimeWindow,
     type ThrottleConfig,

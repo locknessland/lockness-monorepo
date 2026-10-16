@@ -10,7 +10,7 @@
 
 import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
-import { Hono } from 'hono'
+import { Hono } from '@lockness/hono'
 import { configureSession, getSession, sessionMiddleware } from '../mod.ts'
 import { generateAppKey } from '../secret.ts'
 

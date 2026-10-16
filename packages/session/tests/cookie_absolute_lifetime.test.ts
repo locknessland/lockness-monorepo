@@ -15,7 +15,7 @@
 import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
-import { Hono } from 'hono'
+import { Hono } from '@lockness/hono'
 import { drainDisposables } from '@lockness/contract/lifecycle/internal'
 import {
     configureSession,

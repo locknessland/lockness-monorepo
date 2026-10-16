@@ -47,7 +47,7 @@ import {
     RequestCompleted,
     RequestStarted,
 } from '@lockness/events'
-import { Hono } from 'hono'
+import { Hono } from '@lockness/hono'
 
 /** Run `fn` with the given variables set (or deleted), then restore them. */
 async function withEnv<T>(

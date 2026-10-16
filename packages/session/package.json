@@ -28,9 +28,6 @@
             "@std/crypto": "^1",
             "@std/path": "1"
         },
-        "imports": {
-            "hono": "@lockness/hono"
-        },
         "publish": {
             "exclude": [
                 "tests/"

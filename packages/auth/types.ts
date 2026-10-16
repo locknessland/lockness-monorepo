@@ -8,7 +8,7 @@
  * @module @lockness/auth/types
  */
 
-import type { Context } from 'hono'
+import type { Context } from '@lockness/hono'
 
 // =============================================================================
 // Core Authentication Types

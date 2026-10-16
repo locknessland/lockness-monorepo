@@ -6,14 +6,14 @@
  * @module @lockness/auth/decorators
  */
 
-import type { Context } from 'hono'
+import type { Context } from '@lockness/hono'
 import { getAuth } from './middleware/initialize_auth_middleware.ts'
 import {
     authGuard,
     authOptional,
     authRequired,
 } from './middleware/auth_middleware.ts'
-import type { MiddlewareHandler } from 'hono'
+import type { MiddlewareHandler } from '@lockness/hono'
 import { UseMiddleware } from '@lockness/contract'
 import { gate } from './gate.ts'
 import type { Authenticatable } from './types.ts'

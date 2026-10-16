@@ -7,7 +7,7 @@
  * @module @lockness/auth/authenticator
  */
 
-import type { Context } from 'hono'
+import type { Context } from '@lockness/hono'
 import type {
     AuthClientResponse,
     AuthConfig,

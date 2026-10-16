@@ -7,7 +7,7 @@
  * @module @lockness/auth/guards/token
  */
 
-import type { Context } from 'hono'
+import type { Context } from '@lockness/hono'
 import type { EventEmitter } from '@lockness/events'
 import type {
     AccessToken,

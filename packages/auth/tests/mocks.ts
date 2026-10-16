@@ -1,6 +1,6 @@
 // deno-lint-ignore-file no-explicit-any
-import { Hono } from 'hono'
-import type { Context } from 'hono'
+import { Hono } from '@lockness/hono'
+import type { Context } from '@lockness/hono'
 import type {
     AccessToken,
     Authenticatable,

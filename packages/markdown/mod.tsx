@@ -34,7 +34,7 @@
  * ```
  */
 
-import type { FC } from 'hono/jsx'
+import type { FC } from '@lockness/hono/jsx'
 import { Renderer } from '@libs/markdown'
 import gfm from '@libs/markdown/plugins/gfm'
 import highlighting from '@libs/markdown/plugins/highlighting'

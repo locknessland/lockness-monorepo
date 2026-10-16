@@ -4,7 +4,7 @@
  * @module @lockness/session/middleware
  */
 
-import type { Context } from 'hono'
+import type { Context } from '@lockness/hono'
 import { getCookie, setCookie } from '@lockness/hono'
 import type { SessionConfig } from './types.ts'
 import { getSessionConfig } from './config.ts'

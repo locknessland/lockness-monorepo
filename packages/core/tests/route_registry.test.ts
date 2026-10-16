@@ -4,7 +4,7 @@
 
 import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
-import { Hono } from 'hono'
+import { Hono } from '@lockness/hono'
 import { Controller, Get, Post } from '../routing/decorators.ts'
 import { RouteRegistry } from '../routing/registry.ts'
 import { namedRoutes } from '../routing/router.ts'

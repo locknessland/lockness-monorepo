@@ -28,7 +28,7 @@
  * ```
  */
 
-import type { Context } from 'hono'
+import type { Context } from '@lockness/hono'
 import { isExplicitlyDevelopment } from '@lockness/contract'
 import { crypto as stdCrypto } from '@std/crypto'
 import { encodeBase64Url } from '@std/encoding/base64url'

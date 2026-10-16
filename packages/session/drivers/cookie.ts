@@ -14,7 +14,7 @@
  * @module @lockness/session/drivers/cookie
  */
 
-import type { Context } from 'hono'
+import type { Context } from '@lockness/hono'
 import { deleteCookie, getCookie, setCookie } from '@lockness/hono'
 import type { SessionConfig, SessionData, SessionDriver } from '../types.ts'
 import { assertUsableSecret } from '../secret.ts'

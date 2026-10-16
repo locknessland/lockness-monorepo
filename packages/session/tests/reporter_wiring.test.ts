@@ -14,8 +14,8 @@
 
 import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
-import { Hono } from 'hono'
-import type { Context } from 'hono'
+import { Hono } from '@lockness/hono'
+import type { Context } from '@lockness/hono'
 import { generateAppKey } from '../secret.ts'
 import { CookieSessionDriver, RejectionReporter } from '../drivers/cookie.ts'
 import { seal } from '../drivers/cookie_seal.ts'

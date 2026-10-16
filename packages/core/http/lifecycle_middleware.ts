@@ -13,7 +13,7 @@
  * @since 0.2.0
  */
 
-import type { Context, MiddlewareHandler, Next } from 'hono'
+import type { Context, MiddlewareHandler, Next } from '@lockness/hono'
 import {
     dispatcher,
     ExceptionOccurred,

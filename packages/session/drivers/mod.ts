@@ -4,7 +4,7 @@
  * @module @lockness/session/drivers
  */
 
-import type { Context } from 'hono'
+import type { Context } from '@lockness/hono'
 import type { SessionConfig, SessionDriver } from '../types.ts'
 import { CookieSessionDriver } from './cookie.ts'
 import { MemorySessionDriver } from './memory.ts'

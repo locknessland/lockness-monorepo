@@ -26,8 +26,8 @@ declare const Deno: {
     }
 }
 
-import { Hono, jsxRenderer } from 'hono'
-import type { Env, ExecutionContext, Schema } from 'hono'
+import { Hono, jsxRenderer } from '@lockness/hono'
+import type { Env, ExecutionContext, Schema } from '@lockness/hono'
 import type {
     AppConfig,
     ControllerClass,

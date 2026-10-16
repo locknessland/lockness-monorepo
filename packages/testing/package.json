@@ -26,9 +26,6 @@
         "jsr": {
             "@std/assert": "1"
         },
-        "imports": {
-            "hono": "@lockness/hono"
-        },
         "publish": {
             "exclude": [
                 "tests/"

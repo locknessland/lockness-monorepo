@@ -18,8 +18,8 @@ import {
 } from '@std/assert'
 import { crypto } from '@std/crypto'
 import { credentialFingerprint } from '@lockness/redis'
-import { Hono } from 'hono'
-import type { Context } from 'hono'
+import { Hono } from '@lockness/hono'
+import type { Context } from '@lockness/hono'
 import { drainDisposables } from '@lockness/contract/lifecycle/internal'
 import {
     configureSession,

@@ -1,8 +1,8 @@
 // deno-lint-ignore-file no-explicit-any
 import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
-import { Hono } from 'hono'
-import type { Context } from 'hono'
+import { Hono } from '@lockness/hono'
+import type { Context } from '@lockness/hono'
 import { InjectGuard } from '../decorators.ts'
 import {
     getAuth,

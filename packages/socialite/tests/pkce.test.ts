@@ -19,7 +19,7 @@ import {
     type ProviderConfig,
     type SocialUser,
 } from '../mod.ts'
-import type { Context } from 'hono'
+import type { Context } from '@lockness/hono'
 
 /** Run `fn` with env vars temporarily set (undefined = deleted), then restore. */
 function withEnv(vars: Record<string, string | undefined>, fn: () => void) {

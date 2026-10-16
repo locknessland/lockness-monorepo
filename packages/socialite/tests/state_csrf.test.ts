@@ -16,7 +16,7 @@ import {
     type ProviderConfig,
     type SocialUser,
 } from '../mod.ts'
-import type { Context } from 'hono'
+import type { Context } from '@lockness/hono'
 
 const config: ProviderConfig = {
     clientId: 'id',

@@ -24,9 +24,6 @@
             "@std/assert": "1",
             "@libs/markdown": "^2.1.0"
         },
-        "imports": {
-            "hono": "@lockness/hono"
-        },
         "publish": {
             "include": [
                 "mod.tsx",
@@ -42,7 +39,7 @@
         },
         "compilerOptions": {
             "jsx": "precompile",
-            "jsxImportSource": "hono"
+            "jsxImportSource": "@lockness/hono"
         },
         "tasks": {
             "test": "deno test -A tests/",

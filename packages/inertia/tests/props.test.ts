@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
-import { Hono } from 'hono'
+import { Hono } from '@lockness/hono'
 import { inertiaMiddleware } from '../middleware.ts'
 import type { InertiaContextVariables } from '../types.ts'
 import { always, defer, merge, once, optional } from '../props.ts'

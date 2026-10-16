@@ -27,9 +27,6 @@
             "@std/assert": "1",
             "@std/expect": "^1.0.0"
         },
-        "imports": {
-            "hono": "@lockness/hono"
-        },
         "publish": {
             "include": [
                 "mod.ts",
