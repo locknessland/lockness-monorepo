@@ -25,10 +25,10 @@
     "dependencies": {
         "typescript": "6.0.3"
     },
+    "devDependencies": {
+        "@std/assert": "jsr:1"
+    },
     "lockness": {
-        "jsr": {
-            "@std/assert": "1"
-        },
         "publish": {
             "exclude": [
                 "tests/"

@@ -33,9 +33,11 @@
         "highlight.js": "11.11.1",
         "tailwind-merge": "2.6.0"
     },
+    "devDependencies": {
+        "@std/assert": "jsr:1"
+    },
     "lockness": {
         "jsr": {
-            "@std/assert": "1",
             "@std/cli": "1",
             "@std/fs": "1",
             "@std/jsonc": "1",

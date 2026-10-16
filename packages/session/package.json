@@ -22,12 +22,12 @@
         "@lockness/redis": "^0.4.0",
         "@lockness/hono": "^0.4.0"
     },
+    "devDependencies": {
+        "@std/assert": "jsr:1",
+        "@std/crypto": "jsr:^1",
+        "@std/path": "jsr:1"
+    },
     "lockness": {
-        "jsr": {
-            "@std/assert": "1",
-            "@std/crypto": "^1",
-            "@std/path": "1"
-        },
         "publish": {
             "exclude": [
                 "tests/"

@@ -20,12 +20,14 @@
         "@lockness/hono": "^0.4.0",
         "@lockness/contract": "^0.4.0"
     },
+    "devDependencies": {
+        "@std/assert": "jsr:1",
+        "@std/expect": "jsr:^1.0.0"
+    },
     "lockness": {
         "jsr": {
             "@std/crypto": "^1",
-            "@std/encoding": "^1",
-            "@std/assert": "1",
-            "@std/expect": "^1.0.0"
+            "@std/encoding": "^1"
         },
         "publish": {
             "include": [

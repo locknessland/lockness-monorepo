@@ -20,10 +20,10 @@
         "@lockness/hono": "^0.4.0",
         "zod": "^3.25.0"
     },
+    "devDependencies": {
+        "@std/assert": "jsr:1"
+    },
     "lockness": {
-        "jsr": {
-            "@std/assert": "1"
-        },
         "imports": {
             "@lockness/hono/zod-validator": "@lockness/hono"
         },

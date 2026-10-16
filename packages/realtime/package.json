@@ -36,13 +36,11 @@
     },
     "devDependencies": {
         "@lockness/notification": "^0.4.0",
-        "@lockness/events": "^0.4.0"
+        "@lockness/events": "^0.4.0",
+        "@std/assert": "jsr:1",
+        "@std/testing": "jsr:^1.0.0"
     },
     "lockness": {
-        "jsr": {
-            "@std/assert": "1",
-            "@std/testing": "^1.0.0"
-        },
         "imports": {
             "@lockness/notification": "@lockness/notification"
         },

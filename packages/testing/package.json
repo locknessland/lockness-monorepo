@@ -20,12 +20,10 @@
     },
     "dependencies": {
         "@lockness/hono": "^0.4.0",
-        "@lockness/auth": "^0.4.0"
+        "@lockness/auth": "^0.4.0",
+        "@std/assert": "jsr:1"
     },
     "lockness": {
-        "jsr": {
-            "@std/assert": "1"
-        },
         "publish": {
             "exclude": [
                 "tests/"

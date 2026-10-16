@@ -27,11 +27,11 @@
         "@lockness/hono": "^0.4.0"
     },
     "devDependencies": {
-        "@lockness/core": "^0.4.0"
+        "@lockness/core": "^0.4.0",
+        "@std/assert": "jsr:1"
     },
     "lockness": {
         "jsr": {
-            "@std/assert": "1",
             "@std/path": "1"
         },
         "publish": {

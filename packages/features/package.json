@@ -21,11 +21,11 @@
         "@lockness/contract": "^0.4.0"
     },
     "devDependencies": {
-        "@lockness/cli": "^0.4.0"
+        "@lockness/cli": "^0.4.0",
+        "@std/assert": "jsr:1"
     },
     "lockness": {
         "jsr": {
-            "@std/assert": "1",
             "@std/path": "1"
         },
         "imports": {

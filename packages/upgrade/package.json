@@ -19,12 +19,14 @@
     "dependencies": {
         "@lockness/cli": "^0.4.0"
     },
+    "devDependencies": {
+        "@std/path": "jsr:^1.0.0",
+        "@std/assert": "jsr:1"
+    },
     "lockness": {
         "jsr": {
             "@std/cli": "^1.0.0",
-            "@std/jsonc": "^1.0.0",
-            "@std/path": "^1.0.0",
-            "@std/assert": "1"
+            "@std/jsonc": "^1.0.0"
         },
         "publish": {
             "include": [

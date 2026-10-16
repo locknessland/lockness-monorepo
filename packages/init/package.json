@@ -22,12 +22,12 @@
     },
     "devDependencies": {
         "@lockness/core": "^0.4.0",
-        "@lockness/session": "^0.4.0"
+        "@lockness/session": "^0.4.0",
+        "@std/expect": "jsr:^1.0.0"
     },
     "lockness": {
         "jsr": {
             "@std/cli": "^1.0.0",
-            "@std/expect": "^1.0.0",
             "@std/fs": "^1.0.0",
             "@std/path": "^1.0.0"
         },

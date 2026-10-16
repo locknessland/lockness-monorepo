@@ -43,12 +43,12 @@
         "@lockness/openapi": "^0.4.0",
         "@lockness/search": "^0.4.0",
         "@lockness/container": "^0.4.0",
-        "@lockness/queue": "^0.4.0"
+        "@lockness/queue": "^0.4.0",
+        "@std/assert": "jsr:1",
+        "@std/fs": "jsr:1"
     },
     "lockness": {
         "jsr": {
-            "@std/assert": "1",
-            "@std/fs": "1",
             "@std/jsonc": "^1.0.0",
             "@std/path": "^1.0.0"
         },

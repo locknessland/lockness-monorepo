@@ -19,11 +19,13 @@
     "dependencies": {
         "@lockness/contract": "^0.4.0"
     },
+    "devDependencies": {
+        "@std/assert": "jsr:1",
+        "@std/testing": "jsr:^1.0.0"
+    },
     "lockness": {
         "jsr": {
-            "@std/assert": "1",
-            "@std/crypto": "^1",
-            "@std/testing": "^1.0.0"
+            "@std/crypto": "^1"
         },
         "publish": {
             "exclude": [
