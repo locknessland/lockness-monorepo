@@ -20,7 +20,9 @@
  * `tsx`/`mts`/`js`/`mjs`/`jsx` forms), skipping `node_modules/`, `dist/`,
  * dot-directories and any nested workspace member. The same explicit list is
  * handed to every runtime, so the three lanes cannot disagree about what a
- * test file is — the set is what `deno test` runs for that package today.
+ * test file is — the set is what `deno test` runs for that package today. The
+ * one difference is a Deno-only `*.deno.test.*` file: it keeps `Deno.test`,
+ * cannot load on Bun or Node, and runs on the Deno lane only.
  *
  * **How.** Bun and Node run TypeScript sources from the `node_modules` that
  * one `deno install --frozen` builds from `deno.lock` alone (plan F7): no
@@ -250,6 +252,36 @@ export function selectPackages(
 
 /** Deno's test-file discovery rule, on a basename. */
 const TEST_FILE = /^(?:.*[._])?test\.(?:ts|tsx|mts|js|mjs|jsx)$/
+
+/**
+ * A Deno-only test file: `*.deno.test.*` (docs/testing.md, "Test API"). It
+ * keeps `Deno.test` because what it tests is a Deno mechanism, so only the
+ * Deno lane runs it.
+ */
+const DENO_ONLY_TEST_FILE = /\.deno\.test\.(?:ts|tsx|mts|js|mjs|jsx)$/
+
+/**
+ * The test files one runtime runs: all of them on Deno; on Bun and Node, all
+ * but the Deno-only `*.deno.test.*` files, which call `Deno.test` and would
+ * fail to load there.
+ *
+ * @param runtime - The lane's runtime.
+ * @param files - The package's test files, as {@link testFilesOf} lists them.
+ * @returns The files that runtime runs, in the same order.
+ *
+ * @example
+ * ```ts
+ * filesForRuntime('node', ['a.test.ts', 'b.deno.test.ts']) // ['a.test.ts']
+ * ```
+ */
+export function filesForRuntime(
+    runtime: Runtime,
+    files: readonly string[],
+): string[] {
+    return runtime === 'deno'
+        ? [...files]
+        : files.filter((file) => !DENO_ONLY_TEST_FILE.test(file))
+}
 
 /** Directory names a package's test walk never enters. */
 const SKIPPED_DIRS = new Set(['node_modules', 'dist'])
@@ -678,7 +710,10 @@ export async function main(
     const memberDirs = members.map((m) => m.dir)
     const packages: LanePackage[] = []
     for (const pkg of selection) {
-        const files = await testFilesOf(root, pkg.dir, memberDirs)
+        const files = filesForRuntime(
+            parsed.runtime,
+            await testFilesOf(root, pkg.dir, memberDirs),
+        )
         packages.push({ ...pkg, files })
     }
     const reportDir = await mkdtemp(join(tmpdir(), 'lockness-test-runtime-'))

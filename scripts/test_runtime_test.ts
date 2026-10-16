@@ -16,6 +16,7 @@ import { assertEquals, assertStringIncludes, assertThrows } from '@std/assert'
 import type { Member } from './manifests.ts'
 import {
     countTestsRun,
+    filesForRuntime,
     INSTALL,
     type Invocation,
     isTestFile,
@@ -156,6 +157,42 @@ test('main on a tree where no package declares node exits 0', async () => {
     }
 })
 
+test('main hands a Deno-only test file to the Deno lane only', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'test-runtime-'))
+    try {
+        await writeFile(
+            join(root, 'package.json'),
+            JSON.stringify({ workspaces: ['packages/a'] }),
+        )
+        await mkdir(join(root, 'packages/a/tests'), { recursive: true })
+        await writeFile(
+            join(root, 'packages/a/package.json'),
+            JSON.stringify({ name: '@lockness/a', engines: { deno: '>=2.2' } }),
+        )
+        await writeFile(join(root, 'packages/a/tests/a.test.ts'), '')
+        await writeFile(join(root, 'packages/a/tests/b.deno.test.ts'), '')
+        const host = recordingHost(() => ({ code: 0, report: ONE_TEST }))
+        assertEquals(
+            await main(['--runtime=node', '--package=a'], root, host),
+            0,
+        )
+        const node = host.runs.find((r) => r.command === 'node')
+        assertEquals(node?.args.at(-1), 'packages/a/tests/a.test.ts')
+        assertEquals(
+            node?.args.some((arg) => arg.endsWith('b.deno.test.ts')),
+            false,
+        )
+        host.runs.length = 0
+        assertEquals(await main(['--runtime=deno'], root, host), 0)
+        assertEquals(host.runs[0].args.slice(-2), [
+            'packages/a/tests/a.test.ts',
+            'packages/a/tests/b.deno.test.ts',
+        ])
+    } finally {
+        await rm(root, { recursive: true, force: true })
+    }
+})
+
 test('a declared package that ran zero tests fails the lane', async () => {
     // The runner exits 0 but reports nothing that ran.
     const host = recordingHost((inv) =>
@@ -279,6 +316,24 @@ test("a test file is what Deno's discovery picks", () => {
     }
     for (const name of ['a-test.ts', 'atest.ts', 'a.test.ts.stub', 'a.ts']) {
         assertEquals(isTestFile(name), false, name)
+    }
+})
+
+test('a *.deno.test.* file runs on the Deno lane only', () => {
+    const files = [
+        'packages/v/tests/a.test.ts',
+        'packages/v/tests/b.deno.test.ts',
+        'packages/v/tests/c.deno.test.tsx',
+        'packages/v/tests/deno.test.ts',
+        'packages/v/tests/d_deno.test.ts',
+    ]
+    assertEquals(filesForRuntime('deno', files), files)
+    for (const runtime of ['bun', 'node'] as const) {
+        assertEquals(filesForRuntime(runtime, files), [
+            'packages/v/tests/a.test.ts',
+            'packages/v/tests/deno.test.ts',
+            'packages/v/tests/d_deno.test.ts',
+        ], runtime)
     }
 })
 
