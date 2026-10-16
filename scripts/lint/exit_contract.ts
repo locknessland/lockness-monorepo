@@ -99,7 +99,8 @@ export function inPackageScope(
  * repository's `packages/`, outside tests and stubs.
  *
  * Command code is any `commands/` or `generators/` directory of a package,
- * any `cli_commands.ts`, `commands.ts` (queue's, #592) or `install.ts`,
+ * any `cli_commands.ts`, `commands.ts` (queue's, #592), `setup.ts` (a
+ * package setup step, #592) or `install.ts`,
  * `cli/core_commands.ts`, `core/cli/`,
  * and the `mod.ts` of ui, upgrade and init (standalone tools).
  *
@@ -118,7 +119,11 @@ export function inCommandScope(
     const [, pkg, rest] = match
     const base = rest.slice(rest.lastIndexOf('/') + 1)
     if (/(^|\/)(commands|generators)\//.test(rest)) return true
-    if (['cli_commands.ts', 'commands.ts', 'install.ts'].includes(base)) {
+    if (
+        ['cli_commands.ts', 'commands.ts', 'setup.ts', 'install.ts'].includes(
+            base,
+        )
+    ) {
         return true
     }
     if (pkg === 'cli' && rest === 'core_commands.ts') return true

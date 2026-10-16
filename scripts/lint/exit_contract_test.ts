@@ -294,6 +294,18 @@ test("exit-contract - a package's commands.ts is command code (#592)", () => {
     assertEquals(inCommandScope(`${root}packages/queue/worker.ts`, root), false)
 })
 
+test("exit-contract - a package's setup.ts is command code (#592)", () => {
+    const root = '/repo/'
+    assertEquals(
+        inCommandScope(`${root}packages/deprecation-contracts/setup.ts`, root),
+        true,
+    )
+    assertEquals(
+        inCommandScope(`${root}packages/x/tests/setup.ts`, root),
+        false,
+    )
+})
+
 test('exit-contract - a checkout under a packages directory reads the right package', () => {
     const root = '/home/me/packages/lockness/'
     assertEquals(
