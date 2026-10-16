@@ -166,3 +166,74 @@ test("test.yml's pinned lane installs Deno from .dvmrc", async () => {
         "${{ matrix.deno == 'pinned' && '.dvmrc' || '' }}",
     )
 })
+
+/** Each runtime lane: its job, setup action, inputs, pin file and floating value. */
+const LANES = [
+    {
+        job: 'bun',
+        action: 'oven-sh/setup-bun@',
+        versionInput: 'bun-version',
+        fileInput: 'bun-version-file',
+        file: '.bun-version',
+        floating: 'latest',
+    },
+    {
+        job: 'node',
+        action: 'actions/setup-node@',
+        versionInput: 'node-version',
+        fileInput: 'node-version-file',
+        file: '.node-version',
+        floating: 'current',
+    },
+] as const
+
+for (const lane of LANES) {
+    test(`test.yml's ${lane.job} lane installs its runtime from ${lane.file} or floats`, async () => {
+        const workflow = await workflowNamed('test.yml')
+        const job = workflow.jobs.find((j) => j.id === lane.job)
+        assert(job !== undefined, `no \`${lane.job}\` job in test.yml`)
+        assertEquals(job.matrix, { [lane.job]: ['pinned', lane.floating] })
+        const setups = job.steps.filter((s) => s.uses?.startsWith(lane.action))
+        assertEquals(setups.length, 1, `one ${lane.action} step in ${lane.job}`)
+        const inputs = setups[0].with
+        // Exactly one input is non-empty per lane, so the action's
+        // precedence between the two never decides the version.
+        assertEquals(
+            inputs[lane.fileInput],
+            `\${{ matrix.${lane.job} == 'pinned' && '${lane.file}' || '' }}`,
+        )
+        assertEquals(
+            inputs[lane.versionInput],
+            `\${{ matrix.${lane.job} == '${lane.floating}' && '${lane.floating}' || '' }}`,
+        )
+        // The tooling runs on the Deno that publishes.
+        const deno = denoSetups(workflow).filter((s) => s.job === lane.job)
+        assertEquals(deno.map((s) => s.inputs), [{
+            'deno-version-file': '.dvmrc',
+        }])
+        // The lane runs the one script, for its own runtime, and nothing
+        // else: what runs is decided by engines and test_runtime.ts.
+        assertEquals(
+            job.steps.flatMap((s) => s.run === undefined ? [] : [s.run]),
+            [`deno task test:runtime --runtime=${lane.job}`],
+        )
+    })
+}
+
+test('no workflow states a Bun or Node version inline', async () => {
+    for (const workflow of await readWorkflows()) {
+        for (const job of workflow.jobs) {
+            for (const step of job.steps) {
+                for (const key of ['bun-version', 'node-version']) {
+                    const value = step.with[key]
+                    if (value === undefined) continue
+                    // Only the floating-lane expression; never a number.
+                    assert(
+                        !/\d/.test(value.replace(/matrix\.\w+/g, '')),
+                        `${workflow.file} job "${job.id}" states ${key}: ${value}`,
+                    )
+                }
+            }
+        }
+    }
+})

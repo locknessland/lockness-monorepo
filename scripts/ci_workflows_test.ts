@@ -78,6 +78,8 @@ test('the real workflows parse, each job in file order', async () => {
         ['gitleaks'],
         [
             'test',
+            'bun',
+            'node',
             'live-redis',
             'live-postgres',
             'live-mysql',

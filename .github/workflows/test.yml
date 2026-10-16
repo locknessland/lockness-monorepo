@@ -72,6 +72,88 @@ jobs:
             - name: Quality gate
               run: deno task gate --leaks
 
+    # The Bun and Node lanes (#594, plan 274). Each runs every package whose
+    # package.json `engines` names the runtime, and only those: `engines` is
+    # the one list, so no package is named here. How the tests run -- the
+    # install from deno.lock alone (`deno install --frozen`), the runner
+    # flags, and the rule that a declared package which ran zero tests fails
+    # -- lives in scripts/test_runtime.ts only. A lane with no declared
+    # package prints "no package declares engines.<runtime>" and passes.
+    #
+    # The Deno lane is the `test` job above. Mutation batteries and coverage
+    # stay on Deno. Ubuntu only for now, like the live suites.
+    #
+    # Deno launches the tooling (FR-016), from .dvmrc; the runtime under test
+    # comes from its own pin file. `pinned` reads that file; the floating
+    # lane catches a new release early, as `v2.x` does for Deno. Exactly one
+    # of the two inputs is non-empty in each lane, so neither action's input
+    # precedence decides anything. No version is written in this file.
+    bun:
+        name: Bun lane (${{ matrix.bun }})
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+        timeout-minutes: 30
+        strategy:
+            fail-fast: false
+            matrix:
+                bun: ['pinned', 'latest']
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+              with:
+                  persist-credentials: false
+
+            - name: Setup Deno
+              uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2
+              with:
+                  deno-version-file: .dvmrc
+
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+              with:
+                  bun-version: ${{ matrix.bun == 'latest' && 'latest' || '' }}
+                  bun-version-file: ${{ matrix.bun == 'pinned' && '.bun-version' || '' }}
+
+            - name: Run every package that declares engines.bun
+              run: deno task test:runtime --runtime=bun
+
+    node:
+        name: Node lane (${{ matrix.node }})
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+        timeout-minutes: 30
+        strategy:
+            fail-fast: false
+            matrix:
+                # `current` is the newest Node release line (26 today), beside
+                # the LTS pinned in .node-version.
+                node: ['pinned', 'current']
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+              with:
+                  persist-credentials: false
+
+            - name: Setup Deno
+              uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2
+              with:
+                  deno-version-file: .dvmrc
+
+            - name: Setup Node
+              uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+              with:
+                  node-version: ${{ matrix.node == 'current' && 'current' || '' }}
+                  node-version-file: ${{ matrix.node == 'pinned' && '.node-version' || '' }}
+                  # No npm cache: nothing here installs through npm.
+                  package-manager-cache: false
+
+            - name: Run every package that declares engines.node
+              run: deno task test:runtime --runtime=node
+
     live-redis:
         name: Live Redis integration
         runs-on: ubuntu-latest
