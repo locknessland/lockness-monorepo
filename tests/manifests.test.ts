@@ -735,7 +735,7 @@ test('npmBuildTask - the project list and the dist list are the scope', () => {
     assertEquals(
         build,
         [
-            'deno run --no-prompt',
+            'deno run --no-prompt --deny-import --cached-only',
             `--allow-env=${TSC_ENV_NAMES.join(',')}`,
             '--deny-net --deny-run --deny-ffi',
             '--allow-read=.',
@@ -745,7 +745,7 @@ test('npmBuildTask - the project list and the dist list are the scope', () => {
     )
     assertEquals(
         stage,
-        'deno run --no-prompt --allow-read=. --allow-write=_npm scripts/npm_stage.ts',
+        'deno run --no-prompt --allow-import=jsr.io:443 --cached-only --allow-read=. --allow-write=_npm scripts/npm_stage.ts',
     )
 })
 
@@ -925,7 +925,7 @@ test('checkManifests - a stale npm:build task is reported, then regenerated', as
         // No package names bun or node here: the task only stages.
         assertStringIncludes(
             await Deno.readTextFile(join(dir, 'deno.jsonc')),
-            '"npm:build": "deno run --no-prompt --allow-read=. --allow-write=_npm scripts/npm_stage.ts"',
+            '"npm:build": "deno run --no-prompt --allow-import=jsr.io:443 --cached-only --allow-read=. --allow-write=_npm scripts/npm_stage.ts"',
         )
     } finally {
         await Deno.remove(dir, { recursive: true })

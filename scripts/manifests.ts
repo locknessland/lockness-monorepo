@@ -738,6 +738,14 @@ export function stagingDirOf(member: Member): string {
  * disagree; `--no-prompt` turns any other access into a denial instead of a
  * question on a terminal.
  *
+ * Remote imports are closed too: `--deny-net` alone leaves Deno's default
+ * remote-import allowlist (jsr.io, deno.land, esm.sh, …) open. tsc needs none,
+ * so its step runs `--deny-import --cached-only`; on Deno 2.9.6 the bare
+ * `--deny-import` only takes effect together with `--cached-only` (measured
+ * for #595). The staging step loads this module's own JSR imports, so it gets
+ * `--allow-import=jsr.io:443 --cached-only`: jsr.io alone, from the cache the
+ * frozen install filled, never a fresh fetch.
+ *
  * @param scope - From {@link npmScope}.
  * @returns The task command. With an empty scope, only the staging step,
  *   which then clears the staging root.
@@ -745,18 +753,18 @@ export function stagingDirOf(member: Member): string {
  * @example
  * ```ts
  * npmBuildTask([{ dir: 'packages/transform', pkg }])
- * // 'deno run --no-prompt --allow-env=NODE_ENV,… --deny-net --deny-run --deny-ffi
+ * // 'deno run --no-prompt --deny-import --cached-only --allow-env=NODE_ENV,… --deny-net --deny-run --deny-ffi
  * //  --allow-read=. --allow-write=packages/transform/dist
  * //  node_modules/typescript/lib/tsc.js -b packages/transform && deno run … scripts/npm_stage.ts'
  * ```
  */
 export function npmBuildTask(scope: readonly Member[]): string {
     const stage =
-        `deno run --no-prompt --allow-read=. --allow-write=${NPM_STAGING_ROOT} scripts/npm_stage.ts`
+        `deno run --no-prompt --allow-import=jsr.io:443 --cached-only --allow-read=. --allow-write=${NPM_STAGING_ROOT} scripts/npm_stage.ts`
     if (scope.length === 0) return stage
     const projects = scope.map((m) => m.dir)
     return [
-        'deno run --no-prompt',
+        'deno run --no-prompt --deny-import --cached-only',
         `--allow-env=${TSC_ENV_NAMES.join(',')}`,
         '--deny-net --deny-run --deny-ffi',
         '--allow-read=.',
