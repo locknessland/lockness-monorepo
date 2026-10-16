@@ -85,9 +85,11 @@
         // `tests/`, which this scan excludes, so none of them is an edge here:
         // cli loads no code of theirs at runtime. Do not add them to `allow` —
         // drizzle and openapi import cli, so those two would close a cycle.
+        // `queue` left with #592: the queue:* commands live in queue, against
+        // the contract's CommandRegistry, and queue has no edge to cli either.
         "cli": {
             "tier": "implementation",
-            "allow": ["contract", "queue", "events"],
+            "allow": ["contract", "events"],
             "runtimeImports": {
                 "core_commands.ts": {
                     "sites": 1,
