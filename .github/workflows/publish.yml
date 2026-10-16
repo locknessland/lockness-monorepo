@@ -49,6 +49,15 @@ jobs:
               with:
                   deno-version-file: .dvmrc
 
+            # The gate builds and checks the npm packages (#595): npm:check
+            # packs, installs and imports them with npm and Node, from the
+            # version in .node-version. No id-token here (see above).
+            - name: Setup Node
+              uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+              with:
+                  node-version-file: .node-version
+                  package-manager-cache: false
+
             # The same versioned gate the pre-push hook and test.yml run
             # (#388, #396): the ordered step list lives in scripts/gate.ts
             # only, so this workflow cannot drift from it the way it did

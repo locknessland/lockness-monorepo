@@ -53,6 +53,16 @@ jobs:
                   deno-version: ${{ matrix.deno }}
                   deno-version-file: ${{ matrix.deno == 'pinned' && '.dvmrc' || '' }}
 
+            # The gate builds and checks the npm packages (#595): npm:check
+            # packs, installs and imports them with npm and Node, from the
+            # version in .node-version.
+            - name: Setup Node
+              uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+              with:
+                  node-version-file: .node-version
+                  # No npm cache: nothing here installs through npm.
+                  package-manager-cache: false
+
             - name: Cache dependencies
               uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
               with:
