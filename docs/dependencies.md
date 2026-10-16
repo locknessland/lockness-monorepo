@@ -7,7 +7,7 @@
 
 ## Overview
 
-The monorepo contains **38 packages**.
+The monorepo contains **39 packages**.
 
 ## ✅ No Circular Dependencies
 
@@ -18,7 +18,8 @@ The dependency graph is acyclic (DAG).
 ### Foundation
 
 `@lockness/container` · `@lockness/contract` · `@lockness/crypto` ·
-`@lockness/hono` · `@lockness/redis` · `@lockness/transform`
+`@lockness/hono` · `@lockness/redis` · `@lockness/runtime` ·
+`@lockness/transform`
 
 ### Implementation
 
@@ -66,6 +67,7 @@ The dependency graph is acyclic (DAG).
 | `queue`                 | contract, redis                                                             | —                                                                 |
 | `realtime`              | contract, deprecation-contracts, hono, redis                                | events                                                            |
 | `redis`                 | contract                                                                    | —                                                                 |
+| `runtime`               | —                                                                           | —                                                                 |
 | `scheduler`             | —                                                                           | —                                                                 |
 | `search`                | contract                                                                    | —                                                                 |
 | `session`               | contract, crypto, hono, redis                                               | —                                                                 |

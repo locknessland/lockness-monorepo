@@ -18,13 +18,22 @@ it.
 
 ## Invariants
 
-- **Every `@lockness/*` import here must be `import type`.** The package takes
-  Hono's types from `@lockness/hono` (no bare `hono` alias since #592), and
-  takes nothing but types from any other `@lockness/*`; because those are
-  type-only they erase at compile time and the package emits no runtime import.
-  A single value import would turn the framework's cycle-breaker into a cycle
-  participant. `deno task deps:analyze` marks the edge _(type-only)_ — if that
-  annotation disappears, the invariant broke.
+- **Every `@lockness/*` import here must be `import type` — with one recorded
+  exception, the runtime detector.** The package takes Hono's types from
+  `@lockness/hono` (no bare `hono` alias since #592), and takes nothing but
+  types from any other `@lockness/*`; because those are type-only they erase at
+  compile time and the package emits no runtime import. A single value import
+  would turn the framework's cycle-breaker into a cycle participant.
+  `deno task deps:analyze` marks the edge _(type-only)_ — if that annotation
+  disappears from the `hono` edge, the invariant broke.
+- **The exception: a value import of `@lockness/runtime/runtime`, and nothing
+  else from `@lockness/runtime`** (plan 274 §7 complexity tracking, audit A2,
+  #598). Contract must know the runtime — the "`deno-kv` needs Deno" refusal
+  now, the safe env read in C13 — and the one detector lives there; the
+  alternative was a second detector. It stays safe because `runtime` never
+  imports `contract` (its `deps.policy.jsonc` entry says so) and the detector
+  subpath imports only `node:process`. Do not import the `runtime` root,
+  `process` or `signals` from here, and never test the runtime here by hand.
 - **Renaming an exported symbol is a breaking change for every importer at
   once**, because the whole workspace ships on one version.
 
@@ -86,13 +95,12 @@ Anything not listed is internal and free to change.
 - **A union of store-driver names belongs in `store/drivers.ts` only.** The
   cache, session, queue and kernel configuration types reference it; the
   "`deno-kv` needs Deno" refusal is `assertDenoKvRuntime`, asked by each driver
-  factory, and its runtime probe is interim until `@lockness/runtime`'s detector
-  exists (plan 274, C12).
+  factory, and it asks `@lockness/runtime`'s detector (#598).
 
-- **Never add a runtime `@lockness/*` import here.** This package is the bottom
-  of the graph; such an import turns a clean tree into a cycle. `@std/*` value
-  imports are fine — `app_file_url.ts` and `routing/generator.ts` use
-  `@std/path`.
+- **Never add another runtime `@lockness/*` import here.** This package is the
+  bottom of the graph; such an import turns a clean tree into a cycle. The
+  detector subpath above is the one exception. `@std/*` value imports are fine —
+  `app_file_url.ts` and `routing/generator.ts` use `@std/path`.
 - **`core` re-exports this root with `export *`, so a runtime helper meant only
   for packages goes on an `/internal` entry point, never in `mod.ts`.** Anything
   in `mod.ts` reaches every app through `@lockness/core`.

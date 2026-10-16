@@ -54,9 +54,22 @@
         // from `@lockness/hono`. Every such import is `import type`, so the
         // edge erases at runtime, but it is a real edge and is declared.
         "hono": { "tier": "foundation", "allow": [] },
+        // `runtime` is the single home of what differs between Deno, Bun and
+        // Node (plan 274 §5): the one runtime detector, process invocations,
+        // signals, and — from T022 — HTTP serving over Hono's per-runtime
+        // adapters, hence `hono`. It must NEVER import `contract`: contract
+        // imports its detector (below), so that edge would close a cycle.
+        "runtime": { "tier": "foundation", "allow": ["hono"] },
+        // `contract → runtime` is a VALUE edge, the one recorded exception to
+        // contract's "every @lockness/* import is type-only" rule (plan 274
+        // §7 complexity tracking, audit A2): a safe env read on Deno must
+        // know the runtime before it queries the permission, and the one
+        // detector lives in `runtime`. Bounded to the detector subpath
+        // `@lockness/runtime/runtime`, which imports nothing but
+        // `node:process`; the alternative was a second detector.
         "contract": {
             "tier": "foundation",
-            "allow": ["hono"],
+            "allow": ["hono", "runtime"],
             "runtimeImports": {
                 "app_file.ts": {
                     "sites": 1,
