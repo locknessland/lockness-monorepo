@@ -3,8 +3,10 @@
  * class and a `.tsx` view run, the cache is written 0700 beside the app's
  * `tsconfig.json`, and `APP_ENV=production` refuses to start (plan 274 §5).
  *
- * Needs a `node` ≥ 22.15 on PATH (`module.registerHooks`). Without one, each
- * test skips and says why — it never passes without running Node.
+ * Under Node (the Node lane) it spawns the Node running the tests, so it
+ * always runs there. Under Deno or Bun it needs a real `node` ≥ 24 on PATH;
+ * without one, each test skips and says why — it never passes without
+ * running Node.
  *
  * @module @lockness/transform/tests/register_e2e
  */
@@ -33,31 +35,61 @@ const REGISTER = join(
     'register.ts',
 )
 
-/** The oldest Node with `module.registerHooks`. */
-const MINIMUM: readonly [number, number] = [22, 15]
+/** The oldest Node major `engines.node` admits, and the lanes run. */
+const MINIMUM_MAJOR = 24
+
+/**
+ * Whether this file itself runs under Node — the Node lane. There the e2e
+ * spawns the very Node running the tests, so it can never skip for want of
+ * one: the lane fails instead of passing without having run it.
+ */
+const UNDER_NODE = typeof (globalThis as { Deno?: unknown }).Deno ===
+        'undefined' &&
+    typeof (globalThis as { Bun?: unknown }).Bun === 'undefined'
+
+/** The Node binary under test. */
+const NODE = UNDER_NODE ? process.execPath : 'node'
 
 /**
  * Why the e2e tests cannot run here, or `false` when they can.
  *
+ * Under Deno or Bun the probe asks the `node` on PATH for its version **and**
+ * whether `Deno` / `Bun` exist in it: Deno's `child_process` answers a `node`
+ * it cannot find with Deno itself (reporting a Node-compatible
+ * `process.versions.node`), and that is not the runtime under test.
+ *
  * @returns A reason naming what is missing, or `false`.
  */
 function nodeUnavailable(): string | false {
-    const probe = spawnSync('node', ['--version'], { encoding: 'utf8' })
+    if (UNDER_NODE) {
+        const major = Number(process.versions.node.split('.')[0])
+        if (major >= MINIMUM_MAJOR) return false
+        return `node ${process.version} predates the ${MINIMUM_MAJOR} floor of engines.node — the Node e2e tests did not run`
+    }
+    const probe = spawnSync(
+        NODE,
+        [
+            '-p',
+            'JSON.stringify([process.versions.node, typeof Deno, typeof Bun])',
+        ],
+        { encoding: 'utf8' },
+    )
     if (probe.error !== undefined || probe.status !== 0) {
         return 'no `node` on PATH — the Node e2e tests did not run'
     }
-    // Deno's child_process answers a `node` it cannot find with Deno itself;
-    // that is not the runtime under test.
-    if (probe.stdout.startsWith('deno ')) {
-        return 'no real `node` on PATH (Deno answered for it) — the Node e2e tests did not run'
+    const answer = /^\["(\d+)\.[^"]*","(\w+)","(\w+)"\]$/.exec(
+        probe.stdout.trim(),
+    )
+    if (answer === null) {
+        return `unrecognised answer from \`node\`: ${probe.stdout}`
     }
-    const match = /^v(\d+)\.(\d+)\./.exec(probe.stdout.trim())
-    if (match === null) {
-        return `unrecognised \`node --version\`: ${probe.stdout}`
+    if (answer[2] !== 'undefined' || answer[3] !== 'undefined') {
+        return 'no real `node` on PATH (Deno or Bun answered for it) — the Node e2e tests did not run'
     }
-    const [major, minor] = [Number(match[1]), Number(match[2])]
-    if (major < MINIMUM[0] || (major === MINIMUM[0] && minor < MINIMUM[1])) {
-        return `node ${probe.stdout.trim()} predates module.registerHooks (22.15) — the Node e2e tests did not run`
+    if (Number(answer[1]) < MINIMUM_MAJOR) {
+        return `node ${
+            answer[1]
+        } predates the ${MINIMUM_MAJOR} floor of engines.node — the Node e2e tests did not run`
     }
     return false
 }
@@ -133,7 +165,8 @@ function writeApp(): string {
         ].join('\n'),
     }
     for (const [name, content] of Object.entries(files)) {
-        mkdirSync(dirname(join(root, name)), { recursive: true })
+        // 0755 whatever the umask: the cache refuses a group-writable parent.
+        mkdirSync(dirname(join(root, name)), { recursive: true, mode: 0o755 })
         writeFileSync(join(root, name), content)
     }
     return root
@@ -146,8 +179,11 @@ function runApp(root: string, appEnv?: string) {
         string
     >
     delete env.APP_ENV
+    // The child runs exactly the flags below: an inherited NODE_OPTIONS
+    // (another --import, a loader) would test something else.
+    delete env.NODE_OPTIONS
     if (appEnv !== undefined) env.APP_ENV = appEnv
-    return spawnSync('node', ['--import', REGISTER, 'main.ts'], {
+    return spawnSync(NODE, ['--import', REGISTER, 'main.ts'], {
         cwd: root,
         env,
         encoding: 'utf8',

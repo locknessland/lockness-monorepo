@@ -9,10 +9,18 @@
  */
 
 import { test } from 'node:test'
-import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import {
+    chmodSync,
+    mkdirSync,
+    mkdtempSync,
+    readdirSync,
+    rmSync,
+    writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { LoadFnOutput } from 'node:module'
+import process from 'node:process'
 import { pathToFileURL } from 'node:url'
 import {
     assertEquals,
@@ -58,6 +66,16 @@ function app(files: Record<string, string>): string {
 }
 
 const CONTEXT = { conditions: [], format: undefined, importAttributes: {} }
+
+/**
+ * Why a read-only cache directory cannot make a write fail here, or `false`
+ * when it can: Windows has no POSIX modes, and root ignores them.
+ */
+const READ_ONLY_UNENFORCED: string | false = process.platform === 'win32'
+    ? 'POSIX mode bits do not exist on Windows'
+    : process.getuid?.() === 0
+    ? 'root ignores a read-only directory, so the write cannot fail'
+    : false
 
 test('the hook takes .ts and .tsx files outside node_modules, and nothing else', () => {
     assertEquals(shouldTransform('file:///app/main.ts'), true)
@@ -138,6 +156,59 @@ test('the hook reads through the cache beside the governing tsconfig.json', () =
         rmSync(dir, { recursive: true, force: true })
     }
 })
+
+test('a file in a subdirectory caches beside the governing tsconfig.json', () => {
+    const dir = app({})
+    try {
+        mkdirSync(join(dir, 'app', 'controller'), { recursive: true })
+        const file = join(dir, 'app', 'controller', 'home.ts')
+        writeFileSync(file, 'export const home: string = "home"\n')
+        const answer = createLoadHook()(
+            pathToFileURL(file).href,
+            CONTEXT,
+            recordingNext().next,
+        )
+        assertMatch(String(answer.source), /^export const home = "home";/m)
+        assertEquals(readdirSync(cacheDirFor(dir)).length, 1)
+        assertEquals(
+            readdirSync(join(dir, 'app', 'controller')),
+            ['home.ts'],
+        )
+    } finally {
+        rmSync(dir, { recursive: true, force: true })
+    }
+})
+
+test(
+    'a cache write that fails warns on stderr, naming the error, and still loads the module',
+    {
+        skip: READ_ONLY_UNENFORCED,
+    },
+    () => {
+        const dir = app({ 'main.ts': 'export const x: number = 1\n' })
+        const warnings: string[] = []
+        const original = console.warn
+        try {
+            // A read-only cache directory: private, so it passes every check,
+            // but no entry can be written into it.
+            mkdirSync(cacheDirFor(dir), { recursive: true, mode: 0o700 })
+            chmodSync(cacheDirFor(dir), 0o500)
+            console.warn = (...args: unknown[]) => {
+                warnings.push(args.map(String).join(' '))
+            }
+            const url = pathToFileURL(join(dir, 'main.ts')).href
+            const answer = createLoadHook()(url, CONTEXT, recordingNext().next)
+            assertMatch(String(answer.source), /^export const x = 1;/m)
+            assertEquals(warnings.length, 1)
+            assertMatch(warnings[0], /EACCES/)
+            assertMatch(warnings[0], /main\.ts/)
+        } finally {
+            console.warn = original
+            chmodSync(cacheDirFor(dir), 0o700)
+            rmSync(dir, { recursive: true, force: true })
+        }
+    },
+)
 
 test('a file with no governing tsconfig.json is refused, naming the file', () => {
     const dir = mkdtempSync(join(tmpdir(), 'lockness-transform-hook-'))
