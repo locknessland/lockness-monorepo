@@ -15,6 +15,8 @@
  * @internal
  */
 
+import type { CommandFailure } from '@lockness/contract/command'
+
 /**
  * Thrown by a core command (`compile`) to report that it did not do its job.
  *
@@ -27,7 +29,7 @@
  * throw new CoreCommandFailure('Failed to generate routes', { cause: error })
  * ```
  */
-export class CoreCommandFailure extends Error {
+export class CoreCommandFailure extends Error implements CommandFailure {
     /** The process exit status `Cli.dispatch()` reports for this failure. */
     readonly exitCode = 1
     override readonly name = 'CoreCommandFailure'

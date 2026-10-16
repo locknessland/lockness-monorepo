@@ -26,22 +26,10 @@ import {
 } from '../ssg/enumerate.ts'
 import { expandTargetsForLocales } from '../ssg/locales.ts'
 import { runSsgBuild, type SsgBuildResult } from '../ssg/build.ts'
-
-/**
- * Command context interface (copied from `@lockness/cli` to avoid a circular
- * dependency, as `compile_command.ts` does).
- */
-export interface CommandContext {
-    readonly args: string[]
-    arg(index: number): string | undefined
-    hasFlag(name: string): boolean
-    getFlag(name: string): string | undefined
-}
-
-/** The command contract the CLI registers against. */
-export interface CommandContract {
-    handle(ctx: CommandContext): Promise<void>
-}
+import type {
+    CommandContext,
+    CommandContract,
+} from '@lockness/contract/command'
 
 /** The app surface the build needs: render (`fetch`) and route introspection. */
 export interface SsgApp {

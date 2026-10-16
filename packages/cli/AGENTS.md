@@ -87,7 +87,7 @@ consuming application installs it, or the feature stays off.
 | :-------- | :----------------------------------------------------------------------------------------------------- |
 | class     | `Cli`, `CommandFailedError`, `Stub`                                                                    |
 | function  | `Command`, `addPackage`, `loadPackageCommands`, `registerAll`, `registerCoreCommands`, `removePackage` |
-| interface | `CommandContext`, `CommandContract`, `CommandFailedErrorOptions`, `CommandMetadata`                    |
+| interface | `CommandContext`, `CommandContract`, `CommandFailedErrorOptions`, `CommandMetadata`, `CommandRegistry` |
 | typeAlias | `CommandClass`, `CommandFailure`, `CommandHandler`                                                     |
 | variable  | `cli`                                                                                                  |
 

@@ -30,7 +30,7 @@ import {
 import { join } from '@std/path'
 import { CompileCommand, type StepRunner } from '../cli/compile_command.ts'
 import { CoreCommandFailure } from '../cli/command_failure.ts'
-import type { CommandContext } from '../cli/compile_command.ts'
+import type { CommandContext } from '@lockness/contract/command'
 
 /** One call the fake runner received. */
 interface RunnerCall {

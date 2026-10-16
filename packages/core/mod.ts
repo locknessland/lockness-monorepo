@@ -32,6 +32,8 @@
  * ```
  */
 
+import type { CommandRegistry } from '@lockness/contract/command'
+
 // Export core types (Context, ErrorHandler, etc.) from contract package
 export * from '@lockness/contract'
 export * from './types.ts'
@@ -245,12 +247,34 @@ export {
 } from '@lockness/hono'
 
 /**
- * Register core framework CLI commands.
- * This is used by the CLI to discover commands provided by the core package.
+ * Register core's CLI commands — `compile` and `ssg:build` — on a command
+ * registry.
  *
- * @param cli - The CLI instance
+ * `@lockness/cli`'s package loader calls it by name convention when it loads
+ * `core`. The parameter is the contract port, {@link CommandRegistry}, which
+ * `@lockness/cli`'s `Cli` implements: core may not import `cli`, and a value
+ * without `register` / `registerCommand` is now a compile error rather than a
+ * runtime one (#576).
+ *
+ * The commands are imported lazily, so an application that only boots never
+ * loads them.
+ *
+ * @param cli - The registry to register on, a `Cli` from `@lockness/cli`.
+ * @returns A promise that resolves once both commands are registered.
+ *
+ * @example
+ * ```ts
+ * import { Cli } from '@lockness/cli'
+ * import { registerCoreCommands } from '@lockness/core'
+ *
+ * const cli = new Cli()
+ * await registerCoreCommands(cli)
+ * await cli.run(['compile'])
+ * ```
  */
-export async function registerCoreCommands(cli: any) {
+export async function registerCoreCommands(
+    cli: CommandRegistry,
+): Promise<void> {
     const { CompileCommand } = await import('./cli/compile_command.ts')
     cli.registerCommand(CompileCommand)
     const { SsgCommand } = await import('./cli/ssg_command.ts')

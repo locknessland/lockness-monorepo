@@ -28,6 +28,13 @@ import { renderError, safeForLog } from '@lockness/contract'
 import { Stub } from './stubs.ts'
 import { renderMessage } from '@lockness/contract/logging/internal'
 import { applyExitStatus, reportThrown } from './report.ts'
+import type {
+    CommandClass,
+    CommandContext,
+    CommandHandler,
+    CommandMetadata,
+    CommandRegistry,
+} from '@lockness/contract/command'
 
 export { CommandFailedError } from './command_failure.ts'
 export type {
@@ -35,6 +42,16 @@ export type {
     CommandFailure,
 } from './command_failure.ts'
 export { registerCoreCommands } from './core_commands.ts'
+// The command types are the contract port's, re-exported so `@lockness/cli`
+// keeps its names; their one definition is `@lockness/contract/command`.
+export type {
+    CommandClass,
+    CommandContext,
+    CommandContract,
+    CommandHandler,
+    CommandMetadata,
+    CommandRegistry,
+} from '@lockness/contract/command'
 export {
     addPackage,
     loadPackageCommands,
@@ -66,86 +83,6 @@ export function registerAll(
         registerFn(cli)
     }
 }
-
-/**
- * Context passed to command handlers.
- *
- * Provides access to command arguments and flags.
- *
- * @example
- * ```ts
- * cli.register('greet', async (args, ctx) => {
- *   const name = ctx.arg(0) || 'World'
- *   const loud = ctx.hasFlag('loud')
- *   console.log(loud ? `HELLO, ${name}!` : `Hello, ${name}`)
- * })
- * ```
- */
-export interface CommandContext {
-    /** Command arguments (excluding flags starting with -) */
-    readonly args: string[]
-
-    /**
-     * Get a specific argument by index.
-     * @param index - Zero-based argument index
-     * @returns The argument value or undefined if not present
-     */
-    arg(index: number): string | undefined
-
-    /**
-     * Check if a flag is present.
-     * Supports `--flag`, `-f` (first char), and `--flag=value` formats.
-     * @param name - The flag name (without dashes)
-     * @returns True if the flag is present
-     */
-    hasFlag(name: string): boolean
-
-    /**
-     * Get a flag value from `--name=value` format.
-     * @param name - The flag name (without dashes)
-     * @returns The flag value or undefined if not present
-     */
-    getFlag(name: string): string | undefined
-}
-
-/**
- * Interface for command class implementations.
- *
- * Classes implementing this interface can be registered using `registerCommand()`.
- *
- * @example
- * ```ts
- * @Command('greet', 'Greet someone')
- * class GreetCommand implements CommandContract {
- *   async handle(ctx: CommandContext): Promise<void> {
- *     console.log(`Hello, ${ctx.arg(0) || 'World'}!`)
- *   }
- * }
- * ```
- */
-export interface CommandContract {
-    /**
-     * Execute the command.
-     * @param ctx - The command context with arguments and flags
-     */
-    handle(ctx: CommandContext): Promise<void>
-}
-
-/**
- * Metadata attached to command classes by the @Command decorator.
- * @internal
- */
-export interface CommandMetadata {
-    /** The command name (e.g., 'make:controller') */
-    readonly _commandName?: string
-    /** The command description shown in help */
-    readonly _commandDescription?: string
-}
-
-/**
- * Type for command class constructors with metadata.
- */
-export type CommandClass = (new () => CommandContract) & CommandMetadata
 
 /**
  * Decorator to mark a class as a CLI command.
@@ -205,17 +142,6 @@ function createContext(args: string[]): CommandContext {
 }
 
 /**
- * Command handler function type.
- *
- * A handler receives the positional arguments passed after the command name
- * and performs the command's work.
- *
- * @param args - The raw arguments passed after the command name
- * @returns A promise that resolves when the command has finished
- */
-export type CommandHandler = (args: string[]) => Promise<void>
-
-/**
  * Registered command with handler and metadata.
  * @internal
  */
@@ -238,7 +164,7 @@ interface RegisteredCommand {
  * await cli.run(['hello', 'World'])
  * ```
  */
-export class Cli {
+export class Cli implements CommandRegistry {
     /** @internal Registered commands */
     private readonly commands: Map<string, RegisteredCommand> = new Map()
 
@@ -286,9 +212,17 @@ export class Cli {
     }
 
     /**
-     * Register a command class decorated with @Command
+     * Register a command class decorated with `@Command`, or carrying the
+     * same static `_commandName` / `_commandDescription` fields.
+     *
+     * @param CommandClass - The command class; instantiated on each run.
+     *
+     * @example
+     * ```ts
+     * cli.registerCommand(GreetCommand)
+     * ```
      */
-    registerCommand(CommandClass: CommandClass) {
+    registerCommand(CommandClass: CommandClass): void {
         const name = CommandClass._commandName
         const description = CommandClass._commandDescription || ''
 

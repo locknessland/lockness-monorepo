@@ -27,21 +27,10 @@ import { importAppFile } from '@lockness/contract/app-file/internal'
 import { generateRoutesFile } from '../routing/generator.ts'
 import { kernelFileNotFoundMessage, resolveKernelFile } from './kernel_file.ts'
 import { CoreCommandFailure } from './command_failure.ts'
-
-/**
- * Interface definition copied from @lockness/cli to avoid circular dependency.
- * The CLI will be able to register this class because it matches the expected interface.
- */
-export interface CommandContext {
-    readonly args: string[]
-    arg(index: number): string | undefined
-    hasFlag(name: string): boolean
-    getFlag(name: string): string | undefined
-}
-
-export interface CommandContract {
-    handle(ctx: CommandContext): Promise<void>
-}
+import type {
+    CommandContext,
+    CommandContract,
+} from '@lockness/contract/command'
 
 /**
  * Run one child process to completion and report its exit code.

@@ -16,8 +16,9 @@
  * contract by throwing an error of the {@link CommandFailure} shape, and
  * needs nothing else from this package.
  *
- * Its only import is the package-internal `exit_status.ts`, which imports
- * nothing, and it is exported on its own as
+ * Its only value import is the package-internal `exit_status.ts`, which
+ * imports nothing (the {@link CommandFailure} shape is a type from the
+ * command port, `@lockness/contract/command`), and it is exported on its own as
  * `@lockness/cli/command-failure`. A package whose runtime code must stay
  * light — `@lockness/drizzle`'s commands are loaded whenever an application
  * boots with a database — imports it from there rather than from the
@@ -33,13 +34,15 @@
  * @module @lockness/cli/command-failure
  */
 
+import type { CommandFailure } from '@lockness/contract/command'
 import { MIN_FAILURE_STATUS, toFailureStatus } from './exit_status.ts'
 
 /**
  * An error that satisfies the exit contract: an `Error` with an integer
- * `exitCode`.
+ * `exitCode`. Defined once, by the command port; re-exported here so
+ * `@lockness/cli` keeps the name.
  */
-export type CommandFailure = Error & { readonly exitCode: number }
+export type { CommandFailure } from '@lockness/contract/command'
 
 /** Options accepted by {@link CommandFailedError}. */
 export interface CommandFailedErrorOptions {
@@ -78,7 +81,7 @@ export interface CommandFailedErrorOptions {
  * })
  * ```
  */
-export class CommandFailedError extends Error {
+export class CommandFailedError extends Error implements CommandFailure {
     /** The process exit status to report, always `1`–`255`. */
     readonly exitCode: number
 
