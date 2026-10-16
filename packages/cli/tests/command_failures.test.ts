@@ -10,7 +10,6 @@
  * | `package:*`       | no package name                 | `❌ Usage: …` with the example, one line    |
  * | `package:install` | the installer import fails      | the dispatcher's catch-all, no exit call    |
  * | `router:list`     | `app/controller` is unreadable  | `❌ Could not read …` + the cause, rendered |
- * | `queue:retry`     | unknown id                      | `❌ No failed job with id …`                |
  * | `nessy:install`   | no `cli.ts`, or the write fails | the reason, or the catch-all               |
  * | `nessy:install`   | `.gitignore` unreadable         | one `⚠️` warning, exit 0 (not a failure)    |
  * | `make:auth`       | one file fails to write         | `❌ 1 of 2 steps failed: …`, others written |
@@ -95,16 +94,6 @@ test('router:list without app/controller exits 1, the cause rendered', async () 
     const line = onlyErrorLine(error)
     assert(line.startsWith('❌ Could not read app/controller directory'), line)
     assertStringIncludes(line, ' caused by: ')
-})
-
-test('queue:retry with an unknown id exits 1', async () => {
-    const { result, error } = await dispatchIn(['queue:retry', 'no-such-id'])
-
-    assertEquals(result, 1)
-    assertStringIncludes(
-        onlyErrorLine(error),
-        'No failed job with id no-such-id',
-    )
 })
 
 test('nessy:install', async (t) => {

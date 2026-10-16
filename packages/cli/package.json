@@ -31,8 +31,7 @@
     },
     "dependencies": {
         "@lockness/events": "^0.4.0",
-        "@lockness/contract": "^0.4.0",
-        "@lockness/queue": "^0.4.0"
+        "@lockness/contract": "^0.4.0"
     },
     "devDependencies": {
         "@lockness/core": "^0.4.0",

@@ -44,7 +44,7 @@ The dependency graph is acyclic (DAG).
 | `auth`                  | contract, crypto, events, hono, session                                     | —                                                                 |
 | `auth-provider`         | auth                                                                        | —                                                                 |
 | `cache`                 | container, contract                                                         | —                                                                 |
-| `cli`                   | contract, events, queue                                                     | —                                                                 |
+| `cli`                   | contract, events                                                            | —                                                                 |
 | `container`             | contract                                                                    | —                                                                 |
 | `contract`              | hono                                                                        | —                                                                 |
 | `core`                  | container, contract, crypto, deprecation-contracts, events, hono, scheduler | cache, devtools, drizzle, i18n, logger, redis, session, telemetry |

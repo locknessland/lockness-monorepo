@@ -9,16 +9,27 @@
  * `Deno.env` variables (saved and restored) and drives them through
  * `configureQueue` to prove the resolved config flows into the queue system.
  *
- * @module @lockness/cli/tests/queue_commands
+ * Also: `registerQueueCommands` contributes the three `queue:*` commands
+ * through the contract's `CommandRegistry` (they moved here from
+ * `@lockness/cli`, #592), and `queue:retry` with an unknown id fails with
+ * exit status 1.
+ *
+ * @module @lockness/queue/tests/commands
  */
 
 import { test } from 'node:test'
-import { assertEquals, assertThrows } from '@std/assert'
-import { configureQueue, getQueueConfig } from '@lockness/queue'
+import { assertEquals, assertRejects, assertThrows } from '@std/assert'
+import type {
+    CommandClass,
+    CommandHandler,
+    CommandRegistry,
+} from '@lockness/contract/command'
+import { configureQueue, getQueueConfig } from '../mod.ts'
 import {
     RedisQueueConfigError,
+    registerQueueCommands,
     resolveQueueConfigFromEnv,
-} from '../commands/queue_commands.ts'
+} from '../commands.ts'
 
 /** Build an env reader over a fixed map, mirroring `Deno.env.get`. */
 function readerFrom(
@@ -172,6 +183,54 @@ test('resolveQueueConfigFromEnv - reads real Deno.env and flows into configureQu
             if (v === undefined) Deno.env.delete(k)
             else Deno.env.set(k, v)
         }
+        configureQueue({ driver: 'memory', redis: undefined })
+    }
+})
+
+/** A registry recording what `registerQueueCommands` contributes. */
+class RecordingRegistry implements CommandRegistry {
+    readonly handlers = new Map<string, CommandHandler>()
+    readonly descriptions = new Map<string, string>()
+
+    register(name: string, handler: CommandHandler, description = ''): void {
+        this.handlers.set(name, handler)
+        this.descriptions.set(name, description)
+    }
+
+    registerCommand(_command: CommandClass): void {}
+}
+
+test('registerQueueCommands - contributes queue:work, queue:clear and queue:retry', () => {
+    const registry = new RecordingRegistry()
+
+    registerQueueCommands(registry)
+
+    assertEquals([...registry.descriptions], [
+        ['queue:work', 'Process jobs from the queue'],
+        ['queue:clear', 'Clear all jobs from a queue'],
+        [
+            'queue:retry',
+            'Retry failed (dead-lettered) jobs: queue:retry [<id> | --all]',
+        ],
+    ])
+})
+
+test('queue:retry - an unknown id is a command failure with exit status 1', async () => {
+    const saved = Deno.env.get('QUEUE_DRIVER')
+    Deno.env.delete('QUEUE_DRIVER')
+    try {
+        const registry = new RecordingRegistry()
+        registerQueueCommands(registry)
+        const retry = registry.handlers.get('queue:retry')!
+
+        const failure = await assertRejects(
+            () => retry(['no-such-id']),
+            Error,
+            'No failed job with id no-such-id',
+        )
+        assertEquals((failure as Error & { exitCode?: number }).exitCode, 1)
+    } finally {
+        if (saved !== undefined) Deno.env.set('QUEUE_DRIVER', saved)
         configureQueue({ driver: 'memory', redis: undefined })
     }
 })

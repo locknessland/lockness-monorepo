@@ -188,6 +188,7 @@
             "mail",
             "notification",
             "openapi",
+            "queue",
             "search"
         ]
     },

@@ -19,9 +19,6 @@
         },
         {
             "path": "../contract"
-        },
-        {
-            "path": "../queue"
         }
     ]
 }

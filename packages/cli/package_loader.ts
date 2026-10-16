@@ -26,11 +26,55 @@ async function readConfig(): Promise<{ content: any; path: string }> {
     return { content: parseJsonc(content), path: configPath }
 }
 
+/** The part of an app's `deno.json(c)` that decides which packages load. */
+export interface PackageLoadConfig {
+    /** The app's import map; only its keys are read. */
+    readonly imports?: unknown
+    /** Lockness settings; `packages` lists the packages to load. */
+    readonly lockness?: { readonly packages?: unknown }
+}
+
+/**
+ * Which packages `loadPackageCommands` imports for an app, in order.
+ *
+ * `core` first (the engine always provides its commands), then the packages
+ * `lockness.packages` lists. Then `queue` when the app maps
+ * `@lockness/queue` and does not list it: the `queue:*` commands lived in
+ * `@lockness/cli` until #592 and were there for every app, so an app that
+ * uses the queue keeps them. **Interim adapter** — plan 274 C19 replaces
+ * name-based discovery with the app's `config/packages.ts`, and this
+ * special case goes with it.
+ *
+ * @param config - The parsed `deno.json(c)`.
+ * @returns The package names to import, as written (with or without scope).
+ * @internal Exported for tests; not on any `exports` entry.
+ *
+ * @example
+ * ```ts
+ * packagesToLoad({ lockness: { packages: ['drizzle'] } }) // ['core', 'drizzle']
+ * ```
+ */
+export function packagesToLoad(config: PackageLoadConfig): string[] {
+    const listed = config.lockness?.packages
+    const packages = Array.isArray(listed)
+        ? listed.filter((name): name is string => typeof name === 'string')
+        : []
+    const has = (name: string) =>
+        packages.includes(name) || packages.includes(`@lockness/${name}`)
+    if (!has('core')) packages.unshift('core')
+    const imports = config.imports
+    const mapsQueue = typeof imports === 'object' && imports !== null &&
+        '@lockness/queue' in imports
+    if (mapsQueue && !has('queue')) packages.push('queue')
+    return packages
+}
+
 /**
  * Load and register commands from packages listed in deno.json or deno.jsonc.
  *
  * Reads the `lockness.packages` section from the configuration file and dynamically
- * imports the register functions from each package.
+ * imports the register functions from each package — the list
+ * {@link packagesToLoad} decides.
  *
  * @param cli - The CLI instance to register commands on
  *
@@ -44,18 +88,7 @@ export async function loadPackageCommands(cli: Cli): Promise<void> {
     try {
         const { content: denoJson } = await readConfig()
 
-        // Get packages list from lockness config
-        const packages: string[] = (denoJson as any).lockness?.packages || []
-
-        // Always try to load core commands if NOT already in the list
-        // core is the engine, it should provide its commands by default
-        if (!packages.includes('core')) {
-            packages.unshift('core')
-        }
-
-        if (packages.length === 0) {
-            return
-        }
+        const packages = packagesToLoad(denoJson)
 
         // Load each package and register its commands
         for (const packageName of packages) {

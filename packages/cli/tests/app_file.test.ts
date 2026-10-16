@@ -19,7 +19,6 @@ import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { join } from '@std/path'
 import { Cli } from '../mod.ts'
 import { loadRouteControllers } from '../commands/router_commands.ts'
-import { discoverJobs } from '../commands/queue_commands.ts'
 import { loadTinkerContext } from '../commands/tinker_command.ts'
 import { collectListeners } from '../commands/debug_commands.ts'
 
@@ -149,54 +148,6 @@ export class NeedyController {
         assertEquals(names, ['NeedyController'])
         assertStringIncludes(output, 'needy_controller.ts')
         assertStringIncludes(output, 'needs an injected service')
-    })
-})
-
-// ============================================================================
-// queue:work
-// ============================================================================
-
-const JOB = `
-export class AwkwardJob {
-    name = 'awkward-job'
-    payload = {}
-    async handle() {}
-}
-`
-
-test("discoverJobs - registers a job under a path with '#' and a space", async () => {
-    await withAwkwardDir({ 'awkward_job.ts': JOB }, async ({ abs }) => {
-        const registered: string[] = []
-        const count = await discoverJobs(
-            (job) => registered.push(job.name),
-            abs,
-        )
-        assertEquals(registered, ['AwkwardJob'])
-        assertEquals(count, 1)
-    })
-})
-
-test('discoverJobs - reports a job file that fails to load, and registers the others', async () => {
-    await withAwkwardDir({
-        'awkward_job.ts': JOB,
-        'broken_job.ts': BROKEN,
-    }, async ({ abs }) => {
-        const registered: string[] = []
-        const output = await captured(async () => {
-            await discoverJobs((job) => registered.push(job.name), abs)
-        })
-        assertEquals(registered, ['AwkwardJob'])
-        assertStringIncludes(output, 'broken_job.ts')
-        assertStringIncludes(output, 'broken at load')
-    })
-})
-
-test('discoverJobs - an absent directory is no jobs, and says nothing', async () => {
-    await withAwkwardDir({}, async ({ abs }) => {
-        const output = await captured(async () => {
-            assertEquals(await discoverJobs(() => {}, join(abs, 'job')), 0)
-        })
-        assertEquals(output, '')
     })
 })
 

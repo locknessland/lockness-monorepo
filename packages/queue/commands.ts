@@ -1,17 +1,39 @@
 /**
- * @fileoverview Queue worker and management commands.
+ * @fileoverview The `queue:*` commands — `queue:work`, `queue:clear` and
+ * `queue:retry` — contributed through the contract's `CommandRegistry`.
  *
- * Provides commands to run queue workers and manage job queues.
+ * They lived in `@lockness/cli`, which gave cli an edge to queue; they live
+ * here now, against the port, so neither package imports the other (plan 274
+ * §5, #592). `@lockness/cli` finds {@link registerQueueCommands} on this
+ * package's root by its `register*Commands` name, as for every package.
  *
- * @module @lockness/cli/commands/queue
+ * @module @lockness/queue/commands
  */
 
-import type { Cli } from '../mod.ts'
-import type { JobClass, QueueConfig } from '@lockness/queue'
-import { join } from '@std/path'
+import { join } from 'node:path'
+import type {
+    CommandFailure,
+    CommandRegistry,
+} from '@lockness/contract/command'
 import { importAppFile } from '@lockness/contract/app-file/internal'
 import { renderError, safeForLog } from '@lockness/contract'
-import { CommandFailedError } from '../command_failure.ts'
+import type { JobClass, QueueConfig } from './types.ts'
+import { configureQueue } from './config.ts'
+import { registerJob } from './registry.ts'
+import { clearQueue, listFailedJobs, retryFailedJob } from './dispatch.ts'
+import { QueueWorker } from './worker.ts'
+
+/**
+ * A failed queue command. `@lockness/cli` recognises a failure by its shape —
+ * an integer `exitCode` — so queue raises one without importing the CLI: the
+ * dispatcher prints the message once and exits with this status. Deliberately
+ * not exported (#436, D1).
+ */
+class QueueCommandError extends Error implements CommandFailure {
+    /** The process exit status the dispatcher maps this failure to. */
+    readonly exitCode = 1
+    override readonly name = 'QueueCommandError'
+}
 
 /**
  * Raised when `QUEUE_DRIVER=redis` is selected but the Redis connection
@@ -172,7 +194,6 @@ export function resolveQueueConfigFromEnv(
  *
  * @example
  * ```ts
- * const { registerJob } = await import('@lockness/queue')
  * await discoverJobs(registerJob)
  * ```
  */
@@ -239,9 +260,9 @@ export async function discoverJobs(
  *   - --once - Process one job and exit
  * - queue:clear - Clear all jobs from a queue
  * - queue:retry - Retry failed (dead-lettered) jobs: queue:retry [<id> | --all]
- *   - an unknown id throws a `CommandFailedError`, so it exits non-zero (#436)
+ *   - an unknown id throws a command failure, so it exits non-zero (#436)
  *
- * @param cli - The CLI instance to register commands on
+ * @param cli - The registry to register on, a `Cli` from `@lockness/cli`
  *
  * @example
  * ```bash
@@ -255,13 +276,8 @@ export async function discoverJobs(
  * deno task cli queue:clear emails
  * ```
  */
-export function registerQueueCommands(cli: Cli): void {
+export function registerQueueCommands(cli: CommandRegistry): void {
     cli.register('queue:work', async (args) => {
-        // Dynamic import to avoid loading queue module at CLI startup
-        const { QueueWorker, configureQueue, registerJob } = await import(
-            '@lockness/queue'
-        )
-
         // Parse flags from args
         const parseFlag = (name: string, def: string): string => {
             const flag = args.find((a) => a.startsWith(`--${name}=`))
@@ -299,8 +315,6 @@ export function registerQueueCommands(cli: Cli): void {
     }, 'Process jobs from the queue')
 
     cli.register('queue:clear', async (args) => {
-        const { clearQueue, configureQueue } = await import('@lockness/queue')
-
         const queue = args[0] || 'default'
         configureQueue(resolveQueueConfigFromEnv())
 
@@ -309,9 +323,6 @@ export function registerQueueCommands(cli: Cli): void {
     }, 'Clear all jobs from a queue')
 
     cli.register('queue:retry', async (args) => {
-        const { configureQueue, listFailedJobs, retryFailedJob } = await import(
-            '@lockness/queue'
-        )
         configureQueue(resolveQueueConfigFromEnv())
 
         // No id and no --all: list the dead-letter queue (projected, no payload).
@@ -343,7 +354,7 @@ export function registerQueueCommands(cli: Cli): void {
 
         const id = args[0]
         if (!(await retryFailedJob(id))) {
-            throw new CommandFailedError(`No failed job with id ${id}`)
+            throw new QueueCommandError(`No failed job with id ${id}`)
         }
         console.log(`✅ Re-enqueued failed job ${id}`)
     }, 'Retry failed (dead-lettered) jobs: queue:retry [<id> | --all]')

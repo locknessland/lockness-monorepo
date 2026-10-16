@@ -5,7 +5,7 @@
 
 import { test } from 'node:test'
 import { assertEquals, assertInstanceOf, assertRejects } from '@std/assert'
-import { addPackage, removePackage } from '../package_loader.ts'
+import { addPackage, packagesToLoad, removePackage } from '../package_loader.ts'
 import { inTempDir } from './helpers.ts'
 
 async function inProject<T>(
@@ -74,4 +74,42 @@ test('addPackage and removePackage keep a caught error as the cause', async (t) 
             })
         })
     }
+})
+
+test('packagesToLoad - core first, then the packages lockness.packages lists', () => {
+    assertEquals(packagesToLoad({ lockness: { packages: ['drizzle'] } }), [
+        'core',
+        'drizzle',
+    ])
+    assertEquals(packagesToLoad({}), ['core'])
+})
+
+test('packagesToLoad - an app that maps @lockness/queue gets the queue:* commands (#592)', () => {
+    // The adapter that keeps queue:work where it was when the commands moved
+    // out of @lockness/cli; config/packages.ts replaces it (plan 274, C19).
+    assertEquals(
+        packagesToLoad({
+            imports: { '@lockness/queue': 'jsr:@lockness/queue@^0.4.0' },
+            lockness: { packages: ['drizzle'] },
+        }),
+        ['core', 'drizzle', 'queue'],
+    )
+})
+
+test('packagesToLoad - queue is never loaded twice, nor without the mapping', () => {
+    const imports = { '@lockness/queue': 'jsr:@lockness/queue@^0.4.0' }
+    assertEquals(
+        packagesToLoad({ imports, lockness: { packages: ['queue'] } }),
+        ['core', 'queue'],
+    )
+    assertEquals(
+        packagesToLoad({
+            imports,
+            lockness: { packages: ['@lockness/queue'] },
+        }),
+        ['core', '@lockness/queue'],
+    )
+    assertEquals(packagesToLoad({ imports: { '@lockness/cache': 'x' } }), [
+        'core',
+    ])
 })

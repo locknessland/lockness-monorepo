@@ -2,7 +2,8 @@
  * @fileoverview Core CLI commands registration.
  *
  * Registers built-in commands for package management and delegates
- * to specialized command modules for make, auth, router, queue, etc.
+ * to specialized command modules for make, auth, router, etc. The `queue:*`
+ * commands live in `@lockness/queue` (#592).
  *
  * @module @lockness/cli/core-commands
  */
@@ -14,7 +15,6 @@ import { registerMakeCommands } from './commands/make_commands.ts'
 import { registerAuthCommands } from './commands/auth_commands.ts'
 import { registerNessyCommands } from './commands/nessy_commands.ts'
 import { registerRouterCommands } from './commands/router_commands.ts'
-import { registerQueueCommands } from './commands/queue_commands.ts'
 import { registerTinkerCommand } from './commands/tinker_command.ts'
 import { registerDebugCommands } from './commands/debug_commands.ts'
 
@@ -25,7 +25,6 @@ import { registerDebugCommands } from './commands/debug_commands.ts'
  * - make:* commands (controllers, services, etc.)
  * - auth commands (make:auth)
  * - router commands (router:list)
- * - queue commands (queue:work, queue:clear)
  * - nessy:install command
  * - tinker REPL command
  *
@@ -133,7 +132,6 @@ export function registerCoreCommands(cli: Cli): void {
     registerAuthCommands(cli)
     registerNessyCommands(cli)
     registerRouterCommands(cli)
-    registerQueueCommands(cli)
     registerDebugCommands(cli)
     registerTinkerCommand(cli)
 }
