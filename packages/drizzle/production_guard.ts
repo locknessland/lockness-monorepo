@@ -8,8 +8,10 @@
  * so a new destructive command inherits the guard by calling one function.
  *
  * Environment resolution is delegated to `@lockness/contract`'s
- * {@link isProduction} (reads `APP_ENV` only; absence is never production), so
- * the guard honours the same rules as the rest of the framework. A `DENO_ENV`
+ * {@link productionRisk} (reads `APP_ENV` only; absence is never production),
+ * so the guard honours the same rules as the rest of the framework — and fails
+ * closed when this process cannot read `APP_ENV` at all (#624), as a
+ * `deno compile` binary or a narrowed `--allow-env` run cannot. A `DENO_ENV`
  * that disagrees with `APP_ENV` is refused outright (#504): these commands run
  * outside the app boot, so they carry the tripwire themselves.
  *
@@ -17,8 +19,11 @@
  * @since 0.2.1
  */
 
-import { isProduction } from '@lockness/contract'
 import { legacyEnvironmentSignal } from '@lockness/contract/environment/internal'
+import {
+    productionRisk,
+    UNREADABLE_APP_ENV,
+} from '@lockness/contract/environment/guard/internal'
 
 /**
  * The CLI flag and programmatic-option name that override the guard. Kept as a
@@ -30,7 +35,8 @@ export const ALLOW_PRODUCTION_FLAG = '--allow-production' as const
  * Refuse a destructive operation when running against a production environment.
  *
  * Throws unless `allowProduction` is `true` or the environment is not production
- * (per `@lockness/contract`'s {@link isProduction}). The thrown message names
+ * (per `@lockness/contract`'s {@link productionRisk}: `APP_ENV` names production,
+ * or this process cannot read it and it may). The thrown message names
  * the blocked operation and both override mechanisms — the CLI flag
  * `--allow-production` and the programmatic `{ allowProduction: true }` option —
  * so the caller learns how to proceed deliberately.
@@ -41,6 +47,8 @@ export const ALLOW_PRODUCTION_FLAG = '--allow-production' as const
  *   in production. Defaults to `false`.
  * @throws {Error} When the environment is production and `allowProduction` is not
  *   set — the operation is refused.
+ * @throws {Error} When `APP_ENV` cannot be read and `allowProduction` is not set
+ *   — the message names `--allow-env=APP_ENV` as well as both overrides.
  * @throws {Error} When `DENO_ENV` disagrees with `APP_ENV` (including `APP_ENV`
  *   unset), whatever `allowProduction` says — the message names `APP_ENV` and
  *   the fix.
@@ -66,7 +74,19 @@ export function assertNotProduction(
         throw new Error(`Refusing to run "${operation}": ${legacy.message}`)
     }
 
-    if (allowProduction || !isProduction()) return
+    const risk = productionRisk()
+    if (allowProduction || risk === undefined) return
+
+    if (risk === 'unreadable') {
+        throw new Error(
+            `Refusing to run "${operation}": ${UNREADABLE_APP_ENV} ` +
+                `This is a destructive dev/test operation. Grant ` +
+                `--allow-env=APP_ENV so the guard can tell, or, if this is ` +
+                `intentional, override it explicitly: pass the ` +
+                `${ALLOW_PRODUCTION_FLAG} CLI flag, or the ` +
+                `{ allowProduction: true } option for the programmatic API.`,
+        )
+    }
 
     throw new Error(
         `Refusing to run "${operation}" against a production environment ` +
