@@ -178,6 +178,10 @@
     },
     "exclude": [
         "_dist/",
+        // npm build output (#595): tsc emit and the staged npm packages.
+        // Gitignored, which deno fmt and lint honour but deno check does not.
+        "packages/*/dist/",
+        "_npm/",
         "_lockness_app/",
         ".claude/skills/*/assets/",
         ".claude/skills/*/references/",
