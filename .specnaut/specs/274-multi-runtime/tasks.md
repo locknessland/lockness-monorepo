@@ -155,8 +155,8 @@ on `main`. Precedent: the realtime epic shipped as specs 240–272, one feature 
 
 ### C13 · Foundation packages on all lanes
 
-- [x] T043 `fix(contract)` #624 per plan §5 rows 'Safe env read', 'Production-guard reading of
-  APP_ENV', 'Boot warning'.
+- [x] T043 `fix(contract)` #624 per plan §5 rows "Safe env read", "An unreadable `APP_ENV` is a production risk" and
+  "One boot warning when `APP_ENV` is unreadable".
 - [ ] T024 `refactor`: contract (`environment_read.ts` (body only; the `EnvRead` shape landed with
   #624), missing-module classifier duck-typed,
   `fs/list_files.ts`, generator without `deno fmt` — closes #582), container, crypto, events,
