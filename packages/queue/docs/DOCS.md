@@ -478,5 +478,6 @@ One item. **Migration step:** apps that use `queue:*` must declare
 (`registerQueueCommands`), and `./nessy` loads them when the app's `deno.json`
 maps `@lockness/queue` in its `imports` — or lists `queue` in
 `lockness.packages`. An app that runs a worker without that mapping gets
-`Command not found`; add it with `deno add jsr:@lockness/queue`. The commands
-themselves, their flags and their environment variables are unchanged.
+`❌ Unknown command: queue:work`, followed by a line naming `@lockness/queue`;
+add it with `deno add jsr:@lockness/queue`. The commands themselves, their flags
+and their environment variables are unchanged.

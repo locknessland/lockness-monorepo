@@ -148,7 +148,8 @@ on `main`. Precedent: the realtime epic shipped as specs 240–272, one feature 
 
 - [ ] T021 [US2] `feat(runtime)`: `packages/runtime/runtime.ts` (single detector),
   `process.ts` (Invocation for runtime R: no shell, JS entry under `process.execPath`, `execArgv`
-  allowlist), `signals.ts`. Homes: plan §5 rows of the same names.
+  allowlist), `signals.ts`. Homes: plan §5 rows of the same names. Replace
+  `packages/contract/store/deno_kv.ts`'s interim `runsOnDeno` probe with the runtime detector.
 - [ ] T022 [US2] `feat(runtime)`: `packages/runtime/http.ts`: serve, static files with the framework
   containment check, conninfo, WebSocket upgrade, `PortInUseError`, equal `maxPayload`/body limits;
   cross-runtime contract test (traversal cases, cross-origin upgrade refused).
@@ -236,6 +237,10 @@ on `main`. Precedent: the realtime epic shipped as specs 240–272, one feature 
   `lockness.packages` → `config/packages.ts`.
 - [ ] T035 [P] `refactor(drizzle)`: drizzle-kit through `runtime/process.ts` npm-bin invocation, pin
   moved into the app manifest via ProjectManifest.
+- [ ] T042 [P] `refactor`: drizzle and openapi move from `./install` to `./setup` with
+  `SetupContext` (as deprecation-contracts did in C06), then the `install` branch of
+  `package:install` is deleted (`InstallEntry` in `packages/cli/package_install.ts` names this
+  task). Home: plan §5 "Command contribution port … and package setup port".
 - [ ] T036 [P] `refactor(vite)`: the Deno resolver plugin is offered only on Deno; plugins spawn
   through `runtime/process.ts`.
 

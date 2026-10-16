@@ -18,8 +18,8 @@ import { addPackage } from './package_loader.ts'
 
 /**
  * The two entries `package:install` looks for, in order. The `install` entry
- * is transitional: plan 274 C21 moves drizzle and openapi to `./setup` and
- * deletes it (tasks.md, next to T035).
+ * is transitional: plan 274 T042 (C21) moves drizzle and openapi to `./setup`
+ * and deletes it.
  */
 export type InstallEntry = 'setup' | 'install'
 
