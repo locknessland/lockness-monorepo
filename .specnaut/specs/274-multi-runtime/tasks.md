@@ -76,15 +76,15 @@ on `main`. Precedent: the realtime epic shipped as specs 240–272, one feature 
 
 ### C05 · Manifests: `package.json` is the source
 
-- [ ] T007 `build`: add `packages/<pkg>/package.json` for every package (deps, optional peers from
+- [X] T007 `build`: add `packages/<pkg>/package.json` for every package (deps, optional peers from
   `deps.policy.jsonc` `soft`, `engines` = deno only for now, exports with the `lockness-source`
   condition, `files` allowlist, `lockness` key for JSR filters and JSX options). Home: plan §5
   "Package facts".
-- [ ] T008 `build`: `scripts/manifests.ts` generates `packages/<pkg>/deno.json`,
+- [X] T008 `build`: `scripts/manifests.ts` generates `packages/<pkg>/deno.json`,
   `packages/<pkg>/tsconfig.json` and the own-version module; `--check` asserts generated files are
   current, engines monotonic over static/soft/test edges, and no `npm:@lockness/*` in `deno.lock`.
   Add `manifests --check` to `scripts/gate.ts`.
-- [ ] T009 `build`: root `package.json` `workspaces` replaces the `deno.jsonc` `workspace` array;
+- [X] T009 `build`: root `package.json` `workspaces` replaces the `deno.jsonc` `workspace` array;
   `scripts/bump.ts` (over `package.json`, then regenerate, then `deno install`) replaces
   `bump-native.ts` and the legacy bump; `core/app.ts:54` and `ui/mod.ts:36` read the own-version
   module.
