@@ -88,7 +88,9 @@
  */
 
 import { parse as parseJsoncCst } from '@david/jsonc-morph'
-import { join, relative } from '@std/path'
+import { readFile, writeFile } from 'node:fs/promises'
+import { join, relative } from 'node:path'
+import process from 'node:process'
 
 /** One `exports` entry: the `.ts` source, and the built file for npm. */
 export interface ExportConditions {
@@ -1117,7 +1119,7 @@ export interface RootManifest extends PackageManifest {
  */
 export async function readRootManifest(root: string): Promise<RootManifest> {
     const path = join(root, 'package.json')
-    const parsed: unknown = JSON.parse(await Deno.readTextFile(path))
+    const parsed: unknown = JSON.parse(await readFile(path, 'utf8'))
     if (
         typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)
     ) {
@@ -1155,7 +1157,7 @@ export async function readMembers(root: string): Promise<Member[]> {
         const path = join(root, dir, 'package.json')
         let pkg: PackageManifest
         try {
-            pkg = JSON.parse(await Deno.readTextFile(path))
+            pkg = JSON.parse(await readFile(path, 'utf8'))
         } catch (error) {
             throw new Error(
                 `${dir}/package.json is unreadable: ${
@@ -1288,7 +1290,7 @@ export async function writeFiles(
     for (const file of files) {
         const path = join(root, file.path)
         if (await readOrNull(path) === file.content) continue
-        await Deno.writeTextFile(path, file.content)
+        await writeFile(path, file.content)
         written.push(file.path)
     }
     return written
@@ -1303,9 +1305,9 @@ export async function writeFiles(
  */
 async function readOrNull(path: string): Promise<string | null> {
     try {
-        return await Deno.readTextFile(path)
+        return await readFile(path, 'utf8')
     } catch (error) {
-        if (error instanceof Deno.errors.NotFound) return null
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
         throw error
     }
 }
@@ -1377,12 +1379,12 @@ export async function checkManifests(root: string): Promise<string[]> {
  *
  * @example
  * ```ts
- * Deno.exit(await main(Deno.args))
+ * process.exitCode = await main(process.argv.slice(2))
  * ```
  */
 export async function main(
     args: readonly string[],
-    root: string = Deno.cwd(),
+    root: string = process.cwd(),
 ): Promise<number> {
     const unknown = args.filter((arg) => arg !== '--check')
     if (unknown.length > 0) {
@@ -1412,5 +1414,5 @@ export async function main(
 }
 
 if (import.meta.main) {
-    Deno.exit(await main(Deno.args))
+    process.exitCode = await main(process.argv.slice(2))
 }
