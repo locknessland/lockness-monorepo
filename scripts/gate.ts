@@ -77,6 +77,9 @@ export function gateSteps(options: GateOptions = {}): GateStep[] {
             label: 'manifests --check',
             args: ['task', 'manifests', '--check'],
         },
+        // Also runs the repository's own rules — env-signal, exit contract,
+        // app-file specifier, runtime-neutral (#596) — registered as plugins
+        // under `lint.plugins` in the root deno.jsonc, not as gate steps.
         { label: 'lint', args: ['lint'] },
         { label: 'check', args: ['check'] },
         { label: 'deps:analyze', args: ['task', 'deps:analyze'] },
