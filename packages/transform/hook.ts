@@ -31,7 +31,7 @@ import { readFileSync } from 'node:fs'
 import type { LoadHookSync } from 'node:module'
 import { dirname, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { cacheDirFor, cacheKey, TransformCache } from './cache.ts'
+import { cacheKey, TransformCache } from './cache.ts'
 import {
     type CompilerOptions,
     findTsconfig as findNearestTsconfig,
@@ -152,7 +152,7 @@ export function createLoadHook(
         if (project === undefined) {
             project = {
                 options: readCompilerOptions(tsconfig),
-                cache: new TransformCache(cacheDirFor(dirname(tsconfig))),
+                cache: new TransformCache(dirname(tsconfig)),
             }
             projects.set(tsconfig, project)
         }
