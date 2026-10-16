@@ -21,17 +21,22 @@
  *   `'development'` for the conveniences, but is never production and never
  *   explicit development, so the security controls fail closed.
  * - **Production and explicit development are mutually exclusive.**
- * - **Resolution never throws on a missing permission.** Without `--allow-env`
- *   `Deno.env.get` raises `NotCapable`; that reads as unset.
+ * - **Resolution never throws on a missing permission, and the read never
+ *   prompts.** A process that cannot read `APP_ENV` (#624) reads it as absent
+ *   for these predicates: they are conveniences and app-facing switches. The
+ *   framework's production guards do not ask them; they ask `productionRisk()`
+ *   (`@lockness/contract/environment/guard/internal`), which treats an
+ *   unreadable `APP_ENV` as possibly production.
  *
  * @module @lockness/contract/environment
  */
 
-import { readEnvName } from './environment_read.ts'
+import { readAppEnv } from './environment_read.ts'
 
 /** The normalised `APP_ENV`, or `undefined` when unset, blank or unreadable. */
 function explicitEnvName(): string | undefined {
-    return readEnvName('APP_ENV')
+    const read = readAppEnv()
+    return read.readable ? read.value : undefined
 }
 
 /**
@@ -56,7 +61,11 @@ export function resolveEnvName(): string {
  * Whether the application is running in production.
  *
  * True only when `APP_ENV` is explicitly `production` (any case, surrounding
- * whitespace ignored). An unset `APP_ENV` is never production.
+ * whitespace ignored). An unset `APP_ENV` is never production, and neither is
+ * one this process cannot read — the boot warns about that case once. A
+ * framework guard that protects production asks `productionRisk()`
+ * (`@lockness/contract/environment/guard/internal`) instead, which fails
+ * closed on it.
  *
  * @returns `true` when `APP_ENV` names production.
  *

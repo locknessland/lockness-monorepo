@@ -15,6 +15,7 @@
         "./environment": "./environment.ts",
         "./environment/internal": "./environment_legacy.ts",
         "./environment/read/internal": "./environment_read.ts",
+        "./environment/guard/internal": "./environment_guard.ts",
         "./pagination": "./pagination/mod.ts",
         "./resource": "./resource/mod.ts",
         "./command": "./command.ts",
