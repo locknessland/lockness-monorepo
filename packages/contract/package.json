@@ -52,6 +52,26 @@
         "./resource": {
             "lockness-source": "./resource/mod.ts",
             "default": "./dist/resource/mod.js"
+        },
+        "./command": {
+            "lockness-source": "./command.ts",
+            "default": "./dist/command.js"
+        },
+        "./setup": {
+            "lockness-source": "./setup.ts",
+            "default": "./dist/setup.js"
+        },
+        "./store": {
+            "lockness-source": "./store/drivers.ts",
+            "default": "./dist/store/drivers.js"
+        },
+        "./store/internal": {
+            "lockness-source": "./store/deno_kv.ts",
+            "default": "./dist/store/deno_kv.js"
+        },
+        "./fs/internal": {
+            "lockness-source": "./fs/contained.ts",
+            "default": "./dist/fs/contained.js"
         }
     },
     "files": [

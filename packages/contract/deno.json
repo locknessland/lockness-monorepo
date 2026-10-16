@@ -15,7 +15,12 @@
         "./environment": "./environment.ts",
         "./environment/internal": "./environment_legacy.ts",
         "./pagination": "./pagination/mod.ts",
-        "./resource": "./resource/mod.ts"
+        "./resource": "./resource/mod.ts",
+        "./command": "./command.ts",
+        "./setup": "./setup.ts",
+        "./store": "./store/drivers.ts",
+        "./store/internal": "./store/deno_kv.ts",
+        "./fs/internal": "./fs/contained.ts"
     },
     "tasks": {
         "test": "deno test -A tests/",
