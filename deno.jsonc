@@ -230,10 +230,14 @@
         // `lockness-exit/process-exit` and `lockness-exit/printed-failure`
         // (#436): a command fails by throwing — no Deno.exit / Deno.exitCode
         // outside the owners named in the rule file, no ❌ print in command code.
+        // `lockness-runtime/no-deno` (#596): no Deno global and no
+        // runtime-specific Hono adapter in a package whose engines names bun or
+        // node, nor in a script on scripts/lint/runtime_neutral_scripts.ts.
         "plugins": [
             "./scripts/lint/app_file_specifier.ts",
             "./scripts/lint/env_signal.ts",
-            "./scripts/lint/exit_contract.ts"
+            "./scripts/lint/exit_contract.ts",
+            "./scripts/lint/runtime_neutral.ts"
         ],
         "exclude": [
             ".shadcn-ui/",

@@ -29,7 +29,7 @@
  * @module scripts/lint/exit_contract
  */
 
-import { isTestPath, REPO_ROOT, repoPath } from './repo_path.ts'
+import { isTestOrStubPath, REPO_ROOT, repoPath } from './repo_path.ts'
 
 /** The files allowed to call `Deno.exit()`: process-level exits, not commands. */
 const EXIT_OWNERS = [
@@ -62,11 +62,6 @@ const PRINT_HINT =
     '`// deno-lint-ignore lockness-exit/printed-failure` with the reason on ' +
     'the line above.'
 
-/** Whether the repository-relative `path` is a test or a stub template. */
-function isTestOrStub(path: string): boolean {
-    return isTestPath(path) || /(^|\/)stubs\//.test(path)
-}
-
 /**
  * The repository-relative path of a package file `process-exit` applies to.
  *
@@ -76,7 +71,7 @@ function isTestOrStub(path: string): boolean {
 function packagePath(filename: string, root: string): string | undefined {
     const path = repoPath(filename, root)
     if (path === undefined || !path.startsWith('packages/')) return undefined
-    return isTestOrStub(path) ? undefined : path
+    return isTestOrStubPath(path) ? undefined : path
 }
 
 /**
