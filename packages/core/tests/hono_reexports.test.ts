@@ -117,12 +117,14 @@ describe('Hono Re-exports from @lockness/core', () => {
     })
 
     it('should export additional utilities', async () => {
-        const {
-            getRuntimeKey,
-            denoServeStatic,
-        } = await import('../mod.ts')
+        const { getRuntimeKey } = await import('../mod.ts')
         expect(getRuntimeKey).toBeDefined()
-        expect(denoServeStatic).toBeDefined()
+    })
+
+    it('should not export a runtime-specific adapter (plan 274 §5)', async () => {
+        const mod = await import('../mod.ts')
+        expect('denoServeStatic' in mod).toBe(false)
+        expect('getConnInfo' in mod).toBe(false)
     })
 
     it('should allow unified imports in a single statement', async () => {

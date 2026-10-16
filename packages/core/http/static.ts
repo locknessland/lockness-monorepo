@@ -8,7 +8,7 @@
  */
 
 import type { Hono } from '@lockness/hono'
-import { denoServeStatic as serveStatic } from '@lockness/hono'
+import { serveStatic } from '@lockness/hono/deno'
 
 /**
  * Manages static file serving configuration for the application.

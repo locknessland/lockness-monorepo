@@ -17,7 +17,7 @@
  */
 
 import { isExplicitlyDevelopment } from '@lockness/contract'
-import { getConnInfo } from '@lockness/hono'
+import { getConnInfo } from '@lockness/hono/deno'
 import type { Context } from '@lockness/hono'
 import { collector } from './collector.ts'
 import type { DevtoolsConfig } from './types.ts'

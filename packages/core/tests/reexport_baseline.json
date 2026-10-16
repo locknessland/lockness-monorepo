@@ -107,7 +107,6 @@
     "decodeBase64": "function",
     "defaultErrorHandler": "function",
     "deleteCookie": "function",
-    "denoServeStatic": "function",
     "deregisterDisposable": "function",
     "deregisterHealthCheck": "function",
     "deriveJsonSchema": "function",

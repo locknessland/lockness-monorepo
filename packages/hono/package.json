@@ -37,6 +37,10 @@
             "lockness-source": "./jsx_runtime.ts",
             "default": "./dist/jsx_runtime.js"
         },
+        "./jsx-dev-runtime": {
+            "lockness-source": "./jsx_dev_runtime.ts",
+            "default": "./dist/jsx_dev_runtime.js"
+        },
         "./jsx-renderer": {
             "lockness-source": "./jsx_renderer.ts",
             "default": "./dist/jsx_renderer.js"
@@ -44,6 +48,14 @@
         "./deno": {
             "lockness-source": "./deno.ts",
             "default": "./dist/deno.js"
+        },
+        "./bun": {
+            "lockness-source": "./bun.ts",
+            "default": "./dist/bun.js"
+        },
+        "./node": {
+            "lockness-source": "./node.ts",
+            "default": "./dist/node.js"
         },
         "./html": {
             "lockness-source": "./html.ts",
@@ -107,14 +119,21 @@
     "dependencies": {
         "hono": "4.11.1",
         "hono-rate-limiter": "0.5.3",
-        "@hono/zod-validator": "0.7.6"
+        "@hono/zod-validator": "0.7.6",
+        "@hono/node-server": "1.19.17",
+        "@hono/node-ws": "1.3.1"
+    },
+    "devDependencies": {
+        "@std/assert": "jsr:1"
     },
     "lockness": {
         "imports": {
             "hono/jsx": "hono/jsx",
-            "hono/jsx-runtime": "hono/jsx/jsx-runtime",
+            "hono/jsx/jsx-runtime": "hono/jsx/jsx-runtime",
+            "hono/jsx/jsx-dev-runtime": "hono/jsx/jsx-dev-runtime",
             "hono/jsx-renderer": "hono/jsx-renderer",
             "hono/deno": "hono/deno",
+            "hono/bun": "hono/bun",
             "hono/html": "hono/html",
             "hono/types": "hono/types",
             "hono/cookie": "hono/cookie",
@@ -156,7 +175,9 @@
             "hono/validator": "hono/validator",
             "hono/client": "hono/client",
             "hono/http-exception": "hono/http-exception",
-            "hono/serve-static": "hono/serve-static"
+            "hono/serve-static": "hono/serve-static",
+            "@hono/node-server/serve-static": "@hono/node-server/serve-static",
+            "@hono/node-server/conninfo": "@hono/node-server/conninfo"
         },
         "publish": {
             "exclude": [

@@ -197,7 +197,6 @@ export {
     css,
     decode as jwtDecode,
     deleteCookie,
-    denoServeStatic,
     type Env,
     etag,
     type FC,
