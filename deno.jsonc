@@ -234,8 +234,8 @@
         // `lockness-runtime/no-deno` and `neutral-imports` (#596): no Deno global
         // and no runtime-specific Hono adapter in a package whose engines names
         // bun or node, nor in a script under scripts/ outside the baseline in
-        // scripts/lint/deno_bound_scripts.ts; an in-scope script imports only
-        // in-scope files. The modules listed here are carved out of that
+        // scripts/lint/deno_bound_scripts.ts; an in-scope script relatively
+        // imports only in-scope files. The modules listed here are carved out of that
         // script scope: the rule reads this list, so it is never copied.
         "plugins": [
             "./scripts/lint/app_file_specifier.ts",
