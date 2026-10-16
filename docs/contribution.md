@@ -93,6 +93,15 @@ deno task test
 
 This will run all tests for all libraries in the workspace.
 
+Before you push, run the full gate (`deno task gate`; the pre-push hook runs it
+too). Besides Deno (`.dvmrc`), the gate needs **Node and npm** on your `PATH`,
+at the version in `.node-version`: its `npm:build` and `npm:check` steps build
+each package whose `engines` names bun or node with `tsc`, then pack, install
+and import it as npm would ship it. Once such a package names Bun, the gate
+needs Bun too (`.bun-version`). A missing runtime fails the step and names its
+pin file; nothing is skipped. See
+[releasing.md](releasing.md#the-npm-build-and-npmcheck).
+
 To run the packages that declare Bun or Node in their `package.json` `engines`
 on that runtime — what the `bun` and `node` CI lanes run — use:
 

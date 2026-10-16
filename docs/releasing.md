@@ -87,13 +87,81 @@ reach it. The generator refuses a `jsr:` range in a published package's
 `devDependencies` and `lockness.jsr`.
 
 `deno task manifests --check` is a gate step. It fails when a generated file is
-stale, when `engines` is not monotonic over static, optional-peer and test
-dependencies, when `deno.lock` resolves any `@lockness/*` package from a
-registry. A package's optional peers are its soft edges: the fact lives in its
-`package.json`, the permission in `deps.policy.jsonc` `soft`, and
+stale (the root `npm:build` task included), when `engines` is not monotonic over
+static, optional-peer and test dependencies, when `deno.lock` resolves any
+`@lockness/*` package from a registry, and when the workspace holds a second
+TypeScript: two `typescript` declarations that differ, or two versions resolved
+in `deno.lock`. A package's optional peers are its soft edges: the fact lives in
+its `package.json`, the permission in `deps.policy.jsonc` `soft`, and
 `deno task deps:analyze` fails on an optional peer the policy does not permit.
 The generated `deno.json` always excludes `package.json` and `tsconfig.json`
 from `publish`, so the JSR package is what it was before the move.
+
+### The npm build and `npm:check`
+
+Every package is meant to reach npm as JavaScript and `.d.ts` built by `tsc`,
+from the same release as JSR (plan 274, FR-010). Publishing to npm comes later
+(P5). What exists now builds and proves the npm artifacts in every gate run, so
+the pipeline is exercised long before the first npm release.
+
+**Scope.** One predicate decides it: a non-private package whose `package.json`
+`engines` names bun or node (`namesBunOrNode` in `scripts/manifests.ts`, the
+same predicate the runtime lanes use). Today that is `@lockness/transform`
+alone. A package joins the npm build when it declares bun or node, and `engines`
+stays monotonic over static edges, so every sibling a scoped package depends on
+is in the scope too.
+
+**`deno task npm:build`** runs two steps:
+
+1. `tsc -b` over the scoped projects, with TypeScript 6.0.3 from the local
+   `node_modules` (root `devDependencies`, pinned exactly; the gate's
+   `install --frozen` step builds `node_modules` from `deno.lock` alone). tsc
+   runs under Deno's sandbox: it can read only the fifteen
+   `TSC_*`/`NODE_*`/`VSCODE_*` environment variables it needs, with no network,
+   no subprocess and no FFI. It may read `.` and write only each scoped
+   package's `dist/`. The task is **generated** by `deno task manifests`: the
+   project list and the `--allow-write` list come from the same scope, and
+   `manifests --check` fails on a hand-edited task.
+2. `scripts/npm_stage.ts` stages each package under the gitignored `_npm/`
+   directory: `_npm/<pkg>/package.json` is `publishedManifest()`'s field
+   allowlist (no `devDependencies`, no `lockness` key, no `scripts`, no
+   `lockness-source` condition), next to the package's `files` entries.
+   `npm pack` reads that directory, never the source one.
+
+The compiler options shared by every package live in the root
+`tsconfig.base.json`, which each generated `packages/<pkg>/tsconfig.json`
+extends: ES2022 target, `nodenext` modules, `rewriteRelativeImportExtensions`,
+composite declarations, `strict`, Node types. Siblings resolve through their
+built `dist/*.d.ts`, never their source. tsc rewrites relative `.ts` specifiers
+to `.js` in JavaScript but not in `.d.ts`, so the staging step applies the same
+rewrite to declarations. Deno 2.9 ignores both files for a member that has a
+`deno.json`: they drive the npm build only. `packages/*/dist/` and `_npm/` are
+gitignored, and the root `deno.jsonc` excludes them too, because `deno check`
+does not honour `.gitignore` while `deno fmt` and `deno lint` do.
+
+**`deno task npm:check`** (`scripts/npm_check.ts`) is the gate step right after
+the build. For each scoped package it:
+
+- requires an empty `lockness.jsr` (hard rule #2);
+- `npm pack`s the staged directory and refuses a listing with tests, fixtures,
+  `.env*`, `*.key`, `.npmrc` or `.tsbuildinfo`, and a packed `package.json`
+  without a `files` allowlist or with `scripts`, `devDependencies`, a `lockness`
+  key or a `jsr:` range anywhere;
+- installs every tarball into one temp `node_modules` and links each package's
+  declared third-party dependencies from the frozen install, and nothing else.
+  No registry and no npm cache are involved;
+- refuses an `@jsr/*` or `@std/*` package anywhere in the installed dependency
+  tree, and a `jsr:`, `@std/` or `@jsr/` import or a relative `.ts` specifier in
+  any packed file;
+- imports every export on each of bun and node that `engines` names (for
+  transform, `@lockness/transform` and `@lockness/transform/register` on Node);
+- type-checks a consumer file importing every export against the packed `.d.ts`
+  (`nodenext`, `strict`, no `skipLibCheck`).
+
+The gate therefore needs **Node and npm** (the version in `.node-version`), and
+Bun once a scoped package names it. A missing runtime fails `npm:check` and
+names its pin file; it is never skipped. Both CI gate jobs install Node from
+`.node-version`.
 
 ### Why lockstep, and not per-package semver
 
@@ -122,8 +190,12 @@ None has one today.
 
 **In source: bare.** `import { addPackage } from '@lockness/cli'`.
 
-**In each package's own `deno.json`: fully qualified and pinned.**
-`"@lockness/cli": "jsr:@lockness/cli@^0.2.0"`.
+**In each package's own `package.json`: declared.** Siblings and npm packages go
+in `dependencies` (`"@lockness/cli": "^0.2.0"`), optional peers in
+`peerDependencies`, a JSR-only test package in `devDependencies` as
+`"jsr:<range>"` (hard rule #2). `deno task manifests` writes each one into the
+generated `deno.json` fully qualified and pinned
+(`"@lockness/cli": "jsr:@lockness/cli@^0.2.0"`).
 
 This is the part that has already broken once. Inside the workspace a bare
 specifier resolves by **workspace member name**, which shadows the import map
