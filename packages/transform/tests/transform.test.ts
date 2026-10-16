@@ -440,10 +440,22 @@ test('findTsconfig stops at the nearest package.json or deno.json', () => {
     }
 })
 
-test('findTsconfig refuses a tsconfig.json group or others can write', {
+test('findTsconfig accepts a group-writable tsconfig.json (umask 002)', {
     skip: POSIX_ONLY,
 }, () => {
-    for (const mode of [0o664, 0o646, 0o666]) {
+    const dir = appWith({ compilerOptions: {} })
+    try {
+        chmodSync(join(dir, 'tsconfig.json'), 0o664)
+        assertEquals(findTsconfig(dir), join(dir, 'tsconfig.json'))
+    } finally {
+        rmSync(dir, { recursive: true, force: true })
+    }
+})
+
+test('findTsconfig refuses a tsconfig.json others can write', {
+    skip: POSIX_ONLY,
+}, () => {
+    for (const mode of [0o646, 0o666]) {
         const dir = appWith({ compilerOptions: {} })
         try {
             chmodSync(join(dir, 'tsconfig.json'), mode)

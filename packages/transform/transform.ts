@@ -162,8 +162,11 @@ const UNRUNNABLE_JSX: ReadonlySet<ts.JsxEmit | undefined> = new Set([
  */
 const BOUNDARY = ['package.json', 'deno.json', 'deno.jsonc'] as const
 
-/** The group and other write bits. */
-const GROUP_OTHER_WRITE = 0o022
+/**
+ * The other-write bit. Group write is allowed: a tree writable by a shared
+ * group is exposed through its sources, which no check here can protect.
+ */
+const OTHER_WRITE = 0o002
 
 /**
  * Find the `tsconfig.json` that governs a directory: the nearest one in it or
@@ -171,15 +174,16 @@ const GROUP_OTHER_WRITE = 0o022
  * app root, the nearest directory holding a `package.json`, `deno.json` or
  * `deno.jsonc`.
  *
- * The file found must belong to the current user and be writable by nobody
- * else (on POSIX): its options decide which code the transform loads.
+ * The file found must belong to the current user and not be writable by
+ * others (on POSIX): its options decide which code the transform loads.
+ * Group write is allowed, as for the source files beside it.
  *
  * @param fromDir - The directory the walk starts in, e.g. the directory of a
  *   source file.
  * @returns The absolute path of the nearest `tsconfig.json`, or `null` when the
  *   walk reaches the app root or the filesystem root without finding one.
  * @throws {Error} When the `tsconfig.json` found belongs to another user or is
- *   writable by group or others.
+ *   writable by others.
  *
  * @example
  * ```ts
@@ -208,22 +212,21 @@ export function findTsconfig(fromDir: string): string | null {
  * which has neither `getuid` nor POSIX mode bits, is not checked.
  *
  * @param path - The `tsconfig.json`.
- * @throws {Error} When it belongs to another user or is writable by group or
- *   others.
+ * @throws {Error} When it belongs to another user or is writable by others.
  */
 function assertOwnTsconfig(path: string): void {
     if (typeof process.getuid !== 'function') return
     const stat = statSync(path)
     let problem: string | undefined
     if (stat.uid !== process.getuid()) problem = 'belongs to another user'
-    else if ((stat.mode & GROUP_OTHER_WRITE) !== 0) {
-        problem = 'is writable by group or others'
+    else if ((stat.mode & OTHER_WRITE) !== 0) {
+        problem = 'is writable by others'
     }
     if (problem === undefined) return
     throw new Error(
         `@lockness/transform: ${path} ${problem}. Its compiler options ` +
             `decide which code the transform loads, so it is not used. Make ` +
-            `it yours and writable by you alone (chmod go-w).`,
+            `it yours and not writable by others (chmod o-w).`,
     )
 }
 

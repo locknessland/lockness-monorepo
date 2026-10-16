@@ -53,6 +53,36 @@ const POSIX_ONLY: string | false = process.platform === 'win32'
     ? 'POSIX ownership and mode bits do not exist on Windows'
     : false
 
+/**
+ * Run `body`, collecting what it passes to `console.warn`.
+ *
+ * @param body - The code to run.
+ * @returns One string per warning.
+ */
+function captureWarnings(body: () => void): string[] {
+    const warnings: string[] = []
+    const original = console.warn
+    console.warn = (...args: unknown[]) => {
+        warnings.push(args.map(String).join(' '))
+    }
+    try {
+        body()
+    } finally {
+        console.warn = original
+    }
+    return warnings
+}
+
+/**
+ * A string as a literal regular-expression source.
+ *
+ * @param text - Any text, e.g. a path.
+ * @returns `text` with regex metacharacters escaped.
+ */
+function escape(text: string): string {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 /** A fresh app root: a private temp directory, as `mkdtemp` makes it. */
 function appRoot(): string {
     return mkdtempSync(join(tmpdir(), 'lockness-transform-cache-'))
@@ -211,7 +241,7 @@ test('a cache directory with group or other bits is refused, not narrowed', {
 })
 
 test(
-    'a directory on the way to the cache that group or others can write is refused',
+    'a parent others can write disables the cache with one warning, never a throw',
     {
         skip: POSIX_ONLY,
     },
@@ -221,16 +251,50 @@ test(
         ) {
             const root = appRoot()
             try {
+                const key = cacheKey(BASE)
                 mkdirSync(cacheDirFor(root), { recursive: true, mode: 0o700 })
                 chmodSync(join(root, below), 0o777)
-                assertThrows(
-                    () => new TransformCache(root).read(cacheKey(BASE)),
-                    Error,
-                    join(root, below),
-                )
+                const cache = new TransformCache(root)
+                const warnings = captureWarnings(() => {
+                    cache.write(key, 'export {}\n')
+                    assertEquals(cache.read(key), undefined)
+                    assertEquals(cache.read(key), undefined)
+                })
+                assertEquals(readdirSync(cacheDirFor(root)), [])
+                assertEquals(warnings.length, 1, below)
+                assertMatch(warnings[0], /writable by others/)
+                assertMatch(warnings[0], new RegExp(escape(join(root, below))))
             } finally {
                 rmSync(root, { recursive: true, force: true })
             }
+        }
+    },
+)
+
+test(
+    'a group-writable tree (umask 002) is trusted',
+    { skip: POSIX_ONLY },
+    () => {
+        const root = appRoot()
+        try {
+            const key = cacheKey(BASE)
+            const cache = new TransformCache(root)
+            cache.write(key, 'export {}\n')
+            for (
+                const dir of [
+                    '',
+                    'node_modules',
+                    join('node_modules', '.cache'),
+                ]
+            ) {
+                chmodSync(join(root, dir), 0o775)
+            }
+            const warnings = captureWarnings(() => {
+                assertEquals(cache.read(key), 'export {}\n')
+            })
+            assertEquals(warnings, [])
+        } finally {
+            rmSync(root, { recursive: true, force: true })
         }
     },
 )
@@ -250,7 +314,7 @@ test('a sticky, world-writable directory on the way to the cache is allowed', {
 })
 
 test(
-    'a directory on the way to the cache that belongs to another user is refused',
+    'a directory on the way to the cache that belongs to another user disables it',
     {
         skip: POSIX_ONLY,
     },
@@ -259,13 +323,13 @@ test(
         try {
             const cache = new TransformCache(root)
             cache.write(cacheKey(BASE), 'export {}\n')
-            withUid(process.getuid!() + 1, () => {
-                assertThrows(
-                    () => cache.read(cacheKey(BASE)),
-                    Error,
-                    'belongs to another user',
-                )
+            const warnings = captureWarnings(() => {
+                withUid(process.getuid!() + 1, () => {
+                    assertEquals(cache.read(cacheKey(BASE)), undefined)
+                })
             })
+            assertEquals(warnings.length, 1)
+            assertMatch(warnings[0], /belongs to another user/)
         } finally {
             rmSync(root, { recursive: true, force: true })
         }

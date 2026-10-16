@@ -8,14 +8,18 @@
  * never a shared temp dir), and nothing in it is trusted on its location
  * alone. On every read and write:
  *
- * - **The path is walked.** Each component from the app root down to the
+ * - **The path is walked.** Each directory from the app root down to the
  *   cache directory is `lstat`-ed: none may be a symlink, each must belong to
- *   the current user, and none may be writable by group or others unless it
- *   carries the sticky bit. The walk runs per access, not once per process, so
- *   a component swapped for a symlink after the first read is caught.
+ *   the current user, and none may be writable by others unless it carries
+ *   the sticky bit. The walk runs per access, not once per process, so a
+ *   component swapped for a symlink after the first read is caught. A parent
+ *   that fails (the app root, `node_modules`, `.cache`) disables the cache
+ *   for the process with one warning — reads miss, writes are skipped — and
+ *   never fails a load.
  * - **The cache directory is private.** It is created 0700. One that has any
- *   group or other bit is refused with a message to remove it, never narrowed
- *   and reused: whatever it holds may have been planted while it was open.
+ *   group or other bit, belongs to another user or is a symlink is refused
+ *   with a message to remove it, never narrowed and reused: whatever it holds
+ *   may have been planted while it was open.
  * - **Each entry is verified through the descriptor it is read from.** It is
  *   opened `O_RDONLY | O_NOFOLLOW` and `fstat`-ed: only a regular file, owned
  *   by the current user, with no group or other bit, is used. Anything else is
@@ -23,6 +27,15 @@
  *   path, closes the race an `lstat` followed by an `open` would leave.
  *
  * Entries are written 0600 beside their final name and renamed into place.
+ *
+ * **The trust boundary.** The app root's ancestors are trusted, and so is
+ * the source tree: the cache can be no safer than the sources it is keyed on.
+ * Group write on the parents is therefore allowed — under a `002` umask the
+ * sources are group-writable too, and anyone in that group can edit them
+ * directly, which no check here could stop. Opening the entry and checking
+ * its descriptor closes the check-then-use race for **reads**; a write lands
+ * in a directory that passed the walk, but a parent changed between the walk
+ * and the rename is not re-checked.
  *
  * On Windows, which has neither `getuid` nor POSIX mode bits, only the
  * symlink and directory checks apply.
@@ -98,8 +111,8 @@ const FILE_MODE = 0o600
 /** Any group or other permission bit. */
 const GROUP_OTHER = 0o077
 
-/** The group and other write bits. */
-const GROUP_OTHER_WRITE = 0o022
+/** The other-write bit. Group write on a parent is allowed (see above). */
+const OTHER_WRITE = 0o002
 
 /** The sticky bit: only an entry's owner may rename or remove it. */
 const STICKY = 0o1000
@@ -209,6 +222,7 @@ export function isTrustedEntry(
 export class TransformCache {
     readonly #root: string
     readonly #dir: string
+    #warned = false
 
     /**
      * @param root - The app root: the directory of the governing
@@ -232,7 +246,7 @@ export class TransformCache {
     read(key: string): string | undefined {
         const name = entryName(key)
         const uid = currentUid()
-        if (!this.#walk(uid, false)) return undefined
+        if (this.#walk(uid, false) !== 'trusted') return undefined
         let fd: number
         try {
             fd = openSync(join(this.#dir, name), ENTRY_FLAGS)
@@ -256,12 +270,17 @@ export class TransformCache {
      *
      * @param key - A key from {@link cacheKey}.
      * @param code - The JavaScript to store.
-     * @throws {Error} When the key is malformed, a directory on the path fails
-     *   its checks, or the file cannot be written.
+     * Skipped (with the walk's one warning) when a parent directory fails
+     * its checks.
+     *
+     * @param key - A key from {@link cacheKey}.
+     * @param code - The JavaScript to store.
+     * @throws {Error} When the key is malformed, the cache directory fails its
+     *   checks, or the file cannot be written.
      */
     write(key: string, code: string): void {
         const path = join(this.#dir, entryName(key))
-        this.#walk(currentUid(), true)
+        if (this.#walk(currentUid(), true) !== 'trusted') return
         const temporary = `${path}.${process.pid}.${
             randomBytes(6).toString('hex')
         }.tmp`
@@ -274,11 +293,15 @@ export class TransformCache {
      *
      * @param uid - The current uid, `undefined` on Windows.
      * @param create - Create the missing directories below the app root.
-     * @returns Whether the cache directory exists.
-     * @throws {Error} When a component is a symlink or not a directory,
-     *   belongs to another user, or is writable by group or others.
+     * @returns `'trusted'` when every directory passes, `'absent'` when the
+     *   cache directory does not exist (and `create` is unset), `'untrusted'`
+     *   when a parent fails — after one warning per instance.
+     * @throws {Error} When the cache directory itself fails its checks.
      */
-    #walk(uid: number | undefined, create: boolean): boolean {
+    #walk(
+        uid: number | undefined,
+        create: boolean,
+    ): 'trusted' | 'absent' | 'untrusted' {
         const components = [
             this.#root,
             join(this.#root, 'node_modules'),
@@ -290,52 +313,66 @@ export class TransformCache {
             let stat = lstatOrUndefined(path)
             if (stat === undefined) {
                 // The app root is never created: it holds the tsconfig.json.
-                if (!create || index === 0) return false
+                if (!create || index === 0) return 'absent'
                 mkdirSync(path, { mode: isCacheDir ? DIR_MODE : PARENT_MODE })
                 stat = lstatSync(path)
             }
-            checkDirectory(path, stat, uid, isCacheDir)
+            const problem = directoryProblem(stat, uid, isCacheDir)
+            if (problem === undefined) continue
+            if (isCacheDir) throw refusal(path, problem)
+            this.#warnUntrusted(path, problem)
+            return 'untrusted'
         }
-        return true
+        return 'trusted'
+    }
+
+    /**
+     * Warn, once per instance (one per app and process), that a parent
+     * directory disables the cache.
+     *
+     * @param path - The parent that failed.
+     * @param problem - What is wrong with it.
+     */
+    #warnUntrusted(path: string, problem: string): void {
+        if (this.#warned) return
+        this.#warned = true
+        console.warn(
+            `@lockness/transform: the cache at ${this.#dir} is disabled: ` +
+                `${path} ${problem}, so another user could swap the cache ` +
+                `under it. Modules load uncached; fix its ownership or ` +
+                `permissions to re-enable the cache.`,
+        )
     }
 }
 
 /**
- * Refuse a directory on the cache path that another user could have written.
+ * What makes a directory on the cache path untrustworthy, if anything.
  *
- * @param path - The directory.
- * @param stat - Its `lstat`.
+ * @param stat - The directory's `lstat`.
  * @param uid - The current uid, `undefined` on Windows.
  * @param isCacheDir - Whether it is the cache directory itself, which must
- *   have no group or other bit at all.
- * @throws {Error} Naming the path and what is wrong with it.
+ *   have no group or other bit at all. A parent may be group-writable, but
+ *   not other-writable unless sticky.
+ * @returns The problem, phrased to follow the path, or `undefined`.
  */
-function checkDirectory(
-    path: string,
+function directoryProblem(
     stat: Stats,
     uid: number | undefined,
     isCacheDir: boolean,
-): void {
-    if (stat.isSymbolicLink()) throw refusal(path, 'is a symlink')
-    if (!stat.isDirectory()) throw refusal(path, 'is not a directory')
-    if (uid === undefined) return
-    if (stat.uid !== uid) throw refusal(path, 'belongs to another user')
+): string | undefined {
+    if (stat.isSymbolicLink()) return 'is a symlink'
+    if (!stat.isDirectory()) return 'is not a directory'
+    if (uid === undefined) return undefined
+    if (stat.uid !== uid) return 'belongs to another user'
     if (isCacheDir) {
-        if ((stat.mode & GROUP_OTHER) !== 0) {
-            throw refusal(
-                path,
-                `has group or other permissions (mode ${octal(stat.mode)}), ` +
-                    'so its entries may have been planted',
-            )
-        }
-        return
+        if ((stat.mode & GROUP_OTHER) === 0) return undefined
+        return `has group or other permissions (mode ${octal(stat.mode)}), ` +
+            'so its entries may have been planted'
     }
-    if ((stat.mode & GROUP_OTHER_WRITE) !== 0 && (stat.mode & STICKY) === 0) {
-        throw refusal(
-            path,
-            `is writable by group or others (mode ${octal(stat.mode)})`,
-        )
+    if ((stat.mode & OTHER_WRITE) !== 0 && (stat.mode & STICKY) === 0) {
+        return `is writable by others (mode ${octal(stat.mode)})`
     }
+    return undefined
 }
 
 /**
@@ -347,7 +384,7 @@ function checkDirectory(
  */
 function refusal(path: string, problem: string): Error {
     return new Error(
-        `@lockness/transform: the cache path ${path} ${problem}; the ` +
+        `@lockness/transform: the cache directory ${path} ${problem}; the ` +
             `transform cache cannot be trusted. Fix its ownership or ` +
             `permissions, or remove it (the cache is rebuilt on the next run).`,
     )

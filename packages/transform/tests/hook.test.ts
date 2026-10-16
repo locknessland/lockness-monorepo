@@ -157,6 +157,30 @@ test('the hook reads through the cache beside the governing tsconfig.json', () =
     }
 })
 
+test(
+    'a umask-002 app (0775 directories, 0664 tsconfig.json) loads and caches',
+    {
+        skip: process.platform === 'win32'
+            ? 'POSIX mode bits do not exist on Windows'
+            : false,
+    },
+    () => {
+        const dir = app({ 'main.ts': 'export const x: number = 1\n' })
+        try {
+            mkdirSync(join(dir, 'node_modules'), { mode: 0o775 })
+            chmodSync(join(dir, 'node_modules'), 0o775)
+            chmodSync(dir, 0o775)
+            chmodSync(join(dir, 'tsconfig.json'), 0o664)
+            const url = pathToFileURL(join(dir, 'main.ts')).href
+            const answer = createLoadHook()(url, CONTEXT, recordingNext().next)
+            assertMatch(String(answer.source), /^export const x = 1;/m)
+            assertEquals(readdirSync(cacheDirFor(dir)).length, 1)
+        } finally {
+            rmSync(dir, { recursive: true, force: true })
+        }
+    },
+)
+
 test('a file in a subdirectory caches beside the governing tsconfig.json', () => {
     const dir = app({})
     try {
