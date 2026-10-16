@@ -54,8 +54,10 @@ feature, which would muddy the diff for the code-reviewer.
   - Service: business logic.
   - Repository/model: persistence.
 - Tailwind v4 syntax: `bg-(--var)` for variables, `bg-[value]` for literals.
-- Tests: `*.test.ts` next to source or in `tests/`. Use `Deno.test`. Mock
-  external deps (DB, network).
+- Tests: `*.test.ts` next to source or in `tests/`. Use `test` from `node:test`
+  (`t.test` for steps; `describe` / `it` for suites) with `@std/assert`. Only a
+  test of a Deno-only mechanism uses `Deno.test`, in a `*.deno.test.ts` file.
+  Mock external deps (DB, network).
 
 ## Pre-completion gate
 

@@ -69,9 +69,9 @@ Anything not listed is internal and free to change.
 - **`setTimeout` overflows above `2^31 - 1` ms.** Deno sets the duration to 1 ms
   and warns; a `yearly` task would fire in a tight loop. `timer_registry.ts`
   caps at 24 days and floors at 1 000 ms. Never call `setTimeout` elsewhere.
-- **A leaked timer does not fail `Deno.test`** — measured on 2.9.6, in sync and
-  async form, with and without `--trace-leaks`. Assert on
-  `getStats().pendingTimers` instead.
+- **A leaked timer does not fail a test** (`Deno.test` or `node:test`) —
+  measured on 2.9.6, in sync and async form, with and without `--trace-leaks`.
+  Assert on `getStats().pendingTimers` instead.
 - **The decorator must return the original method.** Returning a replacement
   with a different type is TS1270 and would force every scheduled method to be
   `async`, which is the constraint `@Cached` had to accept.

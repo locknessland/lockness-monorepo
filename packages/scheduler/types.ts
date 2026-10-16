@@ -213,9 +213,10 @@ export interface SchedulerStats {
     /**
      * How many timers the registry currently holds.
      *
-     * **This is the assertion FR-009 makes**, because `Deno.test`'s sanitizers
-     * do not fail on a leaked `setTimeout` — measured on deno 2.9.6, in both
-     * sync and async form, with and without `--trace-leaks`.
+     * **This is the assertion FR-009 makes**, because the test runner
+     * (`Deno.test` or `node:test`) does not fail on a leaked `setTimeout` —
+     * measured on deno 2.9.6, in both sync and async form, with and without
+     * `--trace-leaks`.
      */
     readonly pendingTimers: number
     /** Whether `stop()` has been called. Terminal. */

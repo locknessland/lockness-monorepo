@@ -6,6 +6,48 @@ Lockness uses deterministic time control and in-memory mocks to keep tests fast,
 reliable, and hermetic. Follow these guidelines when writing tests for the
 framework.
 
+## Test API: `node:test`
+
+Framework tests are written against `node:test`, so a package's suite can run on
+every runtime it declares, and `deno test` runs them as it always did:
+
+```typescript
+import { describe, it, test } from 'node:test'
+import { assertEquals } from '@std/assert'
+
+test('cache - a stored value is read back', async (t) => {
+    await t.test('a nested step', () => {
+        assertEquals(1 + 1, 2)
+    })
+})
+
+test('a POSIX-only case', { skip: Deno.build.os === 'windows' }, () => {})
+
+describe('a suite', () => {
+    it('a case', () => {})
+})
+```
+
+| Was                                       | Now                                |
+| :---------------------------------------- | :--------------------------------- |
+| `Deno.test(name, fn)`                     | `test(name, fn)`                   |
+| `Deno.test({ name, ignore, fn })`         | `test(name, { skip }, fn)`         |
+| `await t.step(name, fn)`                  | `await t.test(name, fn)`           |
+| `@std/testing/bdd` `beforeAll`/`afterAll` | `node:test` `before` / `after`     |
+| `sanitizeOps` / `sanitizeResources`       | none — `node:test` never sanitizes |
+| `permissions:`                            | none — use a `*.deno.test.ts` file |
+
+`@std/assert`, `@std/expect`, `FakeTime` from `@std/testing/time` and
+`@std/testing/mock` stay as they are. Test names and step names are unchanged by
+the runner swap, so a mutation battery's `killedBy` keeps attributing.
+
+**A test of a Deno-only mechanism** keeps `Deno.test` and lives in a
+`*.deno.test.ts` file, beside the portable one. One known case: a row that lets
+a rejection escape on purpose to prove an `unhandledrejection` listener prevents
+it (`packages/realtime/tests/escape_watcher.deno.test.ts`). Under `node:test`
+such an escape fails the running test by name, through a hook no listener can
+intercept.
+
 ## Time Control with FakeTime
 
 ### The Problem
@@ -14,7 +56,8 @@ Traditional time-based tests use real delays with `setTimeout`:
 
 ```typescript
 // ❌ Slow and non-deterministic
-Deno.test('session expiration', async () => {
+import { test } from 'node:test'
+test('session expiration', async () => {
     await driver.write('session', { id: 1 }, 1) // 1 second TTL
     await new Promise((resolve) => setTimeout(resolve, 1100)) // Wait 1.1 seconds
     assertEquals(await driver.read('session'), null)
@@ -30,9 +73,10 @@ time manipulation:
 
 ```typescript
 // ✅ Fast and deterministic
+import { test } from 'node:test'
 import { FakeTime } from '@std/testing/time'
 
-Deno.test('session expiration', async () => {
+test('session expiration', async () => {
     using time = new FakeTime()
 
     await driver.write('session', { id: 1 }, 1) // 1 second TTL
@@ -83,7 +127,8 @@ Traditional storage tests write to the filesystem:
 
 ```typescript
 // ❌ Slow and creates side effects
-Deno.test('storage operations', async () => {
+import { test } from 'node:test'
+test('storage operations', async () => {
     const driver = new LocalStorageDriver({
         driver: 'local',
         root: './tmp/test-storage',
@@ -110,9 +155,10 @@ Use in-memory mock drivers that implement the same interface:
 
 ```typescript
 // ✅ Fast and hermetic
+import { test } from 'node:test'
 import { createMockStorage } from '@lockness/storage/tests/support/mock_driver.ts'
 
-Deno.test('storage operations', async () => {
+test('storage operations', async () => {
     const driver = createMockStorage()
 
     await driver.put('file.txt', 'content')
@@ -621,10 +667,11 @@ Two habits worth copying:
 ### Session Expiration Test
 
 ```typescript
+import { test } from 'node:test'
 import { FakeTime } from '@std/testing/time'
 import { MemorySessionDriver } from '@lockness/session'
 
-Deno.test('MemorySessionDriver - session expiration', async () => {
+test('MemorySessionDriver - session expiration', async () => {
     using time = new FakeTime()
     const driver = new MemorySessionDriver()
 
@@ -639,10 +686,11 @@ Deno.test('MemorySessionDriver - session expiration', async () => {
 ### Cache TTL Test
 
 ```typescript
+import { test } from 'node:test'
 import { FakeTime } from '@std/testing/time'
 import { get, set } from '@lockness/cache'
 
-Deno.test('cache TTL causes expiration', async () => {
+test('cache TTL causes expiration', async () => {
     using time = new FakeTime()
 
     await set('expiring', 'value', 0.1) // 100ms TTL
@@ -656,9 +704,10 @@ Deno.test('cache TTL causes expiration', async () => {
 ### Storage Mock Test
 
 ```typescript
+import { test } from 'node:test'
 import { createMockStorage } from '@lockness/storage/tests/support/mock_driver.ts'
 
-Deno.test('storage copy operation', async () => {
+test('storage copy operation', async () => {
     const driver = createMockStorage()
 
     await driver.put('source.txt', 'Copy me')
@@ -704,14 +753,15 @@ Integration tests validate actual behavior:
 `delete` helpers; a `json` body is serialised and its content-type set for you.
 
 ```typescript
+import { test } from 'node:test'
 import { testClient } from '@lockness/testing'
 
-Deno.test('GET /ping', async () => {
+test('GET /ping', async () => {
     const res = await testClient(app).get('/ping')
     assertEquals(res.status, 200)
 })
 
-Deno.test('POST /echo', async () => {
+test('POST /echo', async () => {
     const res = await testClient(app).post('/echo', { json: { a: 1 } })
     assertEquals(await res.json(), { a: 1 })
 })
@@ -742,7 +792,9 @@ app.use('*', actingAs(fakeUser({ id: 1, isAdmin: true })))
 ## Test file naming
 
 - One convention: **`*.test.ts`** (or `*.test.tsx` for JSX). `deno test`
-  discovers these; `_test.ts` is legacy and no longer used under `packages/`.
+  discovers these; `_test.ts` is legacy and no longer used under `packages/`. A
+  Deno-only test is named **`*.deno.test.ts`** (see
+  [Test API](#test-api-nodetest)); `deno test` discovers it too.
 - Put tests in the package's `tests/` directory. `scripts/deps_analyzer.ts`
   excludes `tests/` from the measured dependency graph, so a `tests/`-only
   import (such as `@lockness/testing`) creates no runtime dependency edge.
@@ -755,10 +807,12 @@ app.use('*', actingAs(fakeUser({ id: 1, isAdmin: true })))
 
 ## Sanitizers and fixtures
 
-- **Keep Deno's sanitizers on.** Never disable the resource / op / exit
-  sanitizers to paper over a leak — close every KV handle, listener and timer
-  the test opens. Use `deno task test:leaks` (`--trace-leaks`) to locate a
-  leak's origin.
+- **Close what the test opens.** `node:test` runs without Deno's resource / op /
+  exit sanitizers, so nothing fails a leak for you: close every KV handle,
+  listener and timer the test opens, and assert on it where it matters (the
+  scheduler's `getStats().pendingTimers`, say). `deno task test:leaks`
+  (`--trace-leaks`) reports nothing for a leak inside a `node:test` test; it
+  only helps for the `Deno.test` rows kept in `*.deno.test.ts` files.
 - **Synthetic credentials only.** Fixtures use placeholder secrets and
   connection strings — never a real password, token or DSN. The CI secret scan
   (`.github/workflows/secret-scan.yml`, gitleaks over the full history) is a

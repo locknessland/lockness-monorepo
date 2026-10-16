@@ -32,7 +32,7 @@ Integration + e2e + manual. No unit tests, no production-code edits.
    - CLI command output → manual run + capture output.
    - UI behavior → manual `deno task dev` + browser exercise.
 4. **Add integration/e2e tests** under the appropriate `tests/` directory. Same
-   `Deno.test` style as unit tests; difference is scope, not syntax.
+   `node:test` style as unit tests; difference is scope, not syntax.
 5. **Run the full suite**: `deno task test`. Run format/lint/check too — they
    should already pass from the developer, but verify.
 6. **Manual runs** (when relevant): take notes, attach output excerpts to your
@@ -64,8 +64,9 @@ Integration + e2e + manual. No unit tests, no production-code edits.
 - Test file naming: `*.test.ts` for unit-style tests; integration tests often
   live in `tests/integration/` or the package's `tests/`. Follow the existing
   convention in the package you're touching.
-- Test names: `Deno.test('<unit> - <behavior under condition>', ...)`.
-- Mark slow tests explicitly with `{ name: '...', ignore: !env.SLOW }`.
+- Test names: `test('<unit> - <behavior under condition>', ...)`, with
+  `import { test } from 'node:test'`.
+- Mark slow tests explicitly with `test('...', { skip: !env.SLOW }, fn)`.
 
 ## Gotchas
 

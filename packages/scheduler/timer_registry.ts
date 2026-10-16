@@ -198,7 +198,8 @@ export class TimerRegistry {
      * Cancel every timer.
      *
      * After this returns, {@link size} is `0` — which is what FR-009 asserts,
-     * because `Deno.test`'s sanitizers do **not** fail on a leaked timer.
+     * because the test runner (`Deno.test` or `node:test`) does **not** fail
+     * on a leaked timer.
      */
     clear(): void {
         for (const entry of this.#entries.values()) clearTimeout(entry.handle)

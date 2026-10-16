@@ -42,7 +42,7 @@ Before validating, read:
 2. For each criterion, choose the right validation: integration test, e2e test,
    or manual golden-path run.
 3. Add integration/e2e tests under `tests/` (root) or the package's `tests/`
-   directory using `Deno.test`.
+   directory using `test` from `node:test`.
 4. Run the full pre-completion gate:
    `deno task gate`, judged by its exit status.
 5. Manually exercise CLI commands, dev server, UI flows when relevant.
@@ -60,7 +60,7 @@ QA SUMMARY
     ✅/❌ AC#2: ...
 
   Tests added
-    - <path>:<Deno.test name>
+    - <path>:<test name>
 
   Suite result
     passed: <N>

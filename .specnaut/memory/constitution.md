@@ -116,8 +116,10 @@ review.
 
 ## Testing
 
-- **Unit tests** — owned by `developer`. `Deno.test` in `packages/*/tests/` or
-  `<root>/tests/`.
+- **Unit tests** — owned by `developer`. `test` / `describe` / `it` from
+  `node:test` (with `@std/assert`) in `packages/*/tests/` or `<root>/tests/`, so
+  a suite can run on every runtime a package declares. `Deno.test` only in a
+  `*.deno.test.ts` file, for a test that exercises a Deno-only mechanism.
 - **Integration / e2e / manual** — owned by `qa-tester`. Validates issue
   acceptance criteria.
 - **FakeTime, in-memory mocks** — see [docs/testing.md](../../docs/testing.md).

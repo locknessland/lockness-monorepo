@@ -62,13 +62,17 @@ on `main`. Precedent: the realtime epic shipped as specs 240–272, one feature 
 
 ### C04 · Test runner codemod: `Deno.test` → `node:test`
 
-- [ ] T004 `test`: write `scripts/codemods/node_test.ts` (AST, TS 6 API): `Deno.test` → `test`,
+- [X] T004 `test`: write `scripts/codemods/node_test.ts` (AST, TS 6 API): `Deno.test` → `test`,
   `t.step` → `t.test`, `@std/testing/bdd` → `node:test`; runtime-specific tests split into
-  `*.deno.test.ts` files (the two `permissions:` users and the KV tests). Home: plan §5 "Test API".
-- [ ] T005 Run it over `packages/*/tests/`, `tests/` and `scripts/`; hand-handle the 10 explicit
+  `*.deno.test.ts` files. Home: plan §5 "Test API". _Done 2026-10-16: 507 files converted;
+  no `permissions:` option was left in the tree; the escape-watcher rows stay on `Deno.test` in
+  `packages/realtime/tests/{escape_watcher,apply_revocation_376}.deno.test.ts` (under `node:test`
+  Deno fails the running test on any escaped rejection). The KV split moved to C18 (T030), when
+  those packages join the Bun and Node lanes._
+- [X] T005 Run it over `packages/*/tests/`, `tests/` and `scripts/`; hand-handle the 10 explicit
   sanitizer options. Acceptance: `deno task test` reports identical pass and step counts, test names
   byte-identical (mutation `killedBy` rows still attribute). Delete the codemod in the same commit.
-- [ ] T006 [P] `docs`: constitution "Testing" section and `docs/testing.md` examples → `node:test`.
+- [X] T006 [P] `docs`: constitution "Testing" section and `docs/testing.md` examples → `node:test`.
 
 ### C05 · Manifests: `package.json` is the source
 
@@ -199,7 +203,10 @@ on `main`. Precedent: the realtime epic shipped as specs 240–272, one feature 
 ### C18 · cache, queue, session, realtime, devtools on all lanes; JSX switch
 
 - [ ] T030 `refactor`: the five packages free of `Deno.*` (realtime and devtools on
-  `runtime/http.ts`); `engines` + bun + node.
+  `runtime/http.ts`); `engines` + bun + node. Split the tests that exercise `deno_kv` drivers or
+  stub `Deno.openKv` into `*.deno.test.ts` (`cache/tests/shutdown`, `core/tests/scheduler_locks`,
+  `queue/tests/{dlq_retention,shutdown}`, `realtime/tests/authorize_result_357` — update its
+  battery's path — and `session/tests/{driver_memo,drivers,regenerate_atomicity,regenerate_fixation,regenerate_ttl}`).
 - [ ] T031 `refactor`: `jsx: react-jsx` in every config and kit stub, provided C02's #472
   reproduction passed; retire the `deps.policy.jsonc` `jsx` key only then. Measure the web kit's
   render cost on Deno before/after and record it in plan §9.

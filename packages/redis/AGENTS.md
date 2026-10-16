@@ -245,7 +245,7 @@ copied. `@lockness/realtime` already imports it across the boundary
 
 | Export                   | What it decides — each of these has exactly ONE home, and it is here                                                                                                                     |
 | :----------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `LIVE_BROKER`            | Whether a gated suite runs. The **only** reader of `LOCKNESS_REDIS_INTEGRATION`; the root `test:redis` task sets it. Use as `Deno.test({ ignore: !LIVE_BROKER })`.                       |
+| `LIVE_BROKER`            | Whether a gated suite runs. The **only** reader of `LOCKNESS_REDIS_INTEGRATION`; the root `test:redis` task sets it. Use as `test(name, { skip: !LIVE_BROKER }, fn)`.                    |
 | `brokerConfig()`         | The connection settings, from `LOCKNESS_REDIS_HOST` / `_PORT` / `_PASSWORD` / `_DB` / `_TLS`. Never read those variables anywhere else.                                                  |
 | `preflight(config)`      | Three refusals: an unreachable broker (a failure, never a skip), a server below `MIN_REDIS_MAJOR`, and a password aimed at a non-loopback host with TLS off. Returns the version string. |
 | `runNamespace()`         | `lockness-it:<random>` over a fixed `[a-z0-9]` alphabet, so it carries no glob metacharacter and is safe as both a `SCAN … MATCH` and a `PSUBSCRIBE` pattern.                            |
