@@ -709,7 +709,8 @@ export function namesBunOrNode(pkg: PackageManifest): boolean {
  *
  * @example
  * ```ts
- * npmScope(await readMembers('.')).map((m) => m.pkg.name)  // ['@lockness/transform']
+ * npmScope(await readMembers('.')).map((m) => m.pkg.name)
+ * // ['@lockness/transform', '@lockness/runtime']
  * ```
  */
 export function npmScope(members: readonly Member[]): Member[] {

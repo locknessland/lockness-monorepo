@@ -763,9 +763,12 @@ test('npmBuildTask - an empty scope builds nothing and only stages', () => {
     assertStringIncludes(task, 'scripts/npm_stage.ts')
 })
 
-test('npmScope - the workspace scope today is @lockness/transform alone', async () => {
+test('npmScope - the workspace scope today is @lockness/transform and @lockness/runtime', async () => {
     const scope = npmScope(await readMembers('.'))
-    assertEquals(scope.map((m) => m.pkg.name), ['@lockness/transform'])
+    assertEquals(scope.map((m) => m.pkg.name), [
+        '@lockness/transform',
+        '@lockness/runtime',
+    ])
 })
 
 test('publishedManifest - an allowlist of fields, each export its built file', () => {
