@@ -273,7 +273,7 @@ Anything not listed is internal and free to change.
 - `packages/contract/tests/static_decorator.test.ts`
 - `packages/contract/tests/store_drivers.test.ts`
 
-6 mutation batteries — **`deno test` does not run these.** Each is an executable
+7 mutation batteries — **`deno test` does not run these.** Each is an executable
 that mutates a source file and re-runs the suites that should notice. Run them
 with `deno task mutate` (all of them, one at a time) or
 `deno task mutate <name>` (one); nightly CI runs the full sweep. See
@@ -282,6 +282,7 @@ with `deno task mutate` (all of them, one at a time) or
 - `packages/contract/tests/mutations/bidi_292.ts`
 - `packages/contract/tests/mutations/dsn_redaction_301_303.ts`
 - `packages/contract/tests/mutations/env_signal_504.ts`
+- `packages/contract/tests/mutations/env_unreadable_624.ts`
 - `packages/contract/tests/mutations/error_code_491.ts`
 - `packages/contract/tests/mutations/error_frames_488.ts`
 - `packages/contract/tests/mutations/query_credentials_478.ts`
