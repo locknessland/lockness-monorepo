@@ -7,12 +7,15 @@
  * public `CommandFailure` shape of `@lockness/cli/command-failure`; only the
  * dispatcher recognises it (#440(h)).
  *
- * It imports nothing, so `command_failure.ts`, which a package's commands load
- * at app boot, stays free of the barrel's command graph.
+ * Its only import is a type (erased), so `command_failure.ts`, which a
+ * package's commands load at app boot, stays free of the barrel's command
+ * graph.
  *
  * @internal
  * @module
  */
+
+import type { CommandFailure } from '@lockness/contract/command'
 
 /** Lowest exit status that signals failure. */
 export const MIN_FAILURE_STATUS = 1
@@ -50,8 +53,8 @@ export function toFailureStatus(code: number): number {
  *
  * Checked by shape rather than `instanceof CommandFailedError`, so a local
  * subclass in a package that cannot import `@lockness/cli` is recognised too.
- * The return type is written structurally, equal to the public
- * `CommandFailure`, so this module stays free of imports.
+ * The return type is the command port's `CommandFailure`, a type import
+ * that erases, so this module still loads no other module.
  *
  * @param error - Anything a handler threw.
  * @returns `true` when `error` is an expected, already-explained failure.
@@ -65,7 +68,7 @@ export function toFailureStatus(code: number): number {
  */
 export function isCommandFailure(
     error: unknown,
-): error is Error & { readonly exitCode: number } {
+): error is CommandFailure {
     return error instanceof Error &&
         Number.isInteger((error as { exitCode?: unknown }).exitCode)
 }

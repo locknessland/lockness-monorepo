@@ -17,6 +17,7 @@ import type {
 } from '@lockness/contract/command'
 import { importAppFile } from '@lockness/contract/app-file/internal'
 import { renderError, safeForLog } from '@lockness/contract'
+import { QUEUE_DRIVER_NAMES } from '@lockness/contract/store'
 import type { JobClass, QueueConfig } from './types.ts'
 import { configureQueue } from './config.ts'
 import { registerJob } from './registry.ts'
@@ -148,9 +149,8 @@ export function resolveQueueConfigFromEnv(
     read: EnvReader = (key) => Deno.env.get(key),
 ): Partial<QueueConfig> {
     const raw = read('QUEUE_DRIVER')
-    const driver: QueueConfig['driver'] = raw === 'deno-kv' || raw === 'redis'
-        ? raw
-        : 'memory'
+    const driver: QueueConfig['driver'] =
+        QUEUE_DRIVER_NAMES.find((name) => name === raw) ?? 'memory'
 
     if (driver !== 'redis') return { driver }
 

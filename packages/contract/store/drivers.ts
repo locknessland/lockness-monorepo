@@ -7,7 +7,8 @@
  * literals. A driver is added (`sqlite`, epic #584) or retired here, and every
  * list follows.
  *
- * Types only: nothing here emits code.
+ * Types, plus the one runtime list a parser needs ({@link QUEUE_DRIVER_NAMES}):
+ * each type is derived from its tuple, so the two cannot drift.
  *
  * @example
  * ```ts
@@ -33,14 +34,28 @@ export type RedisDriverName = 'redis'
 /** The signed-cookie session store: session data lives in the client. */
 export type CookieDriverName = 'cookie'
 
-/** Every key-value backing store a subsystem can be configured with. */
-export type StoreDriverName =
+/**
+ * Every key-value backing store a subsystem can be configured with, as a
+ * runtime list for code that parses a driver name (an environment variable).
+ */
+export const STORE_DRIVER_NAMES = [
+    'memory',
+    'deno-kv',
+    'redis',
+] as const satisfies readonly (
     | MemoryDriverName
     | DenoKvDriverName
     | RedisDriverName
+)[]
+
+/** Every key-value backing store a subsystem can be configured with. */
+export type StoreDriverName = typeof STORE_DRIVER_NAMES[number]
 
 /** The drivers `@lockness/cache` accepts. */
 export type CacheDriverName = StoreDriverName
+
+/** The drivers `@lockness/queue` accepts, as a runtime list (`QUEUE_DRIVER`). */
+export const QUEUE_DRIVER_NAMES: readonly QueueDriverName[] = STORE_DRIVER_NAMES
 
 /** The drivers `@lockness/queue` accepts. */
 export type QueueDriverName = StoreDriverName

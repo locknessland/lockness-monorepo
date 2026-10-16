@@ -9,7 +9,7 @@
  * @module @lockness/contract/fs/internal
  */
 
-import { isAbsolute, relative } from '@std/path'
+import { isAbsolute, relative } from 'node:path'
 
 /**
  * Whether `target` resolves to a path strictly inside `root`.

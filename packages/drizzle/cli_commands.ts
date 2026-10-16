@@ -20,6 +20,7 @@ import { dirname, fromFileUrl, join } from '@std/path'
 // re-exported from `mod.ts`, which core loads at boot whenever a database is
 // configured, and the barrel would pull every built-in command in with it.
 import { CommandFailedError } from '@lockness/cli/command-failure'
+import type { CommandRegistry } from '@lockness/contract/command'
 import { container } from '@lockness/container'
 import { Database } from './mod.ts'
 import { handleMakeFactory } from './generators/factory_generator.ts'
@@ -63,20 +64,13 @@ import { defaultLoadSeeder, type SeederLoader } from './seeder_loader.ts'
 export type { CommandResult, CommandRunner, CommandSpec, SeederLoader }
 
 /**
- * CLI command handler type.
- */
-type CommandHandler = (args: string[]) => void | Promise<void>
-
-/**
- * The one method of `@lockness/cli`'s `Cli` these commands need, kept
- * structural so a test can register them on a recording fake.
+ * The one method of the contract's `CommandRegistry` these commands need, so
+ * a test can register them on a recording fake.
  *
  * A handler reports failure by throwing a {@link CommandFailedError}; the CLI
  * prints it once and exits non-zero (#428).
  */
-interface Cli {
-    register(name: string, handler: CommandHandler, description?: string): void
-}
+type Cli = Pick<CommandRegistry, 'register'>
 
 // =============================================================================
 // Injectable I/O seams (testability)

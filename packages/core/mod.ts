@@ -33,6 +33,8 @@
  */
 
 import type { CommandRegistry } from '@lockness/contract/command'
+// The port `registerCoreCommands` takes, so an app can name it.
+export type { CommandRegistry } from '@lockness/contract/command'
 
 // Export core types (Context, ErrorHandler, etc.) from contract package
 export * from '@lockness/contract'

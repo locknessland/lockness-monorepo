@@ -25,8 +25,7 @@
     },
     "lockness": {
         "jsr": {
-            "@std/assert": "1",
-            "@std/path": "1"
+            "@std/assert": "1"
         },
         "publish": {
             "exclude": [

@@ -25,6 +25,7 @@
  */
 
 import { renderError } from '@lockness/contract'
+import type { CommandFailure } from '@lockness/contract/command'
 import { renderMessage } from '@lockness/contract/logging/internal'
 import {
     isCommandFailure,
@@ -115,7 +116,7 @@ export function applyExitStatus(status: number): void {
  * fallback in {@link reportThrown} before anything is printed — never after,
  * which would print twice.
  */
-function reportFailure(error: Error & { readonly exitCode: number }): number {
+function reportFailure(error: CommandFailure): number {
     const status = toFailureStatus(error.exitCode)
     console.error(`❌ ${readMessage(error)}${readCause(error)}`)
     return status

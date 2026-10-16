@@ -11,7 +11,7 @@
 
 import { test } from 'node:test'
 import { assertEquals, assertRejects, assertStringIncludes } from '@std/assert'
-import { join } from '@std/path'
+import { join } from 'node:path'
 import type { SetupContext } from '@lockness/contract/setup'
 import { setup } from '../setup.ts'
 

@@ -18,7 +18,7 @@
  * @module @lockness/deprecation-contracts/setup
  */
 
-import { join } from '@std/path'
+import { join } from 'node:path'
 import type { PackageSetup } from '@lockness/contract/setup'
 
 /** The variables added to each environment file that lacks them. */
@@ -65,7 +65,14 @@ async function readIfExists(path: string): Promise<string | undefined> {
  * ```ts
  * import { setup } from '@lockness/deprecation-contracts/setup'
  *
- * await setup({ root: Deno.cwd(), registerPackage: (name) => addPackage(name) })
+ * // package:install builds the context; a test can stub it:
+ * await setup({
+ *     root: Deno.cwd(),
+ *     registerPackage: (name) => {
+ *         console.log(`would register ${name}`)
+ *         return Promise.resolve()
+ *     },
+ * })
  * ```
  */
 export const setup: PackageSetup = async (context) => {
