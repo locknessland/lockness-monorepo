@@ -102,9 +102,11 @@
         // (`install.ts`: `runEntry` and `CommandFailedError`, #436, and
         // `addPackage` from the barrel, #580); `mod.ts` imports nothing, so
         // `core` and `realtime` still load no `cli` code.
+        // `contract` is for its setup step: the `SetupContext` port
+        // (type-only) that replaces the cli-importing installer (#592).
         "deprecation-contracts": {
             "tier": "implementation",
-            "allow": ["cli"]
+            "allow": ["cli", "contract"]
         },
         "devtools": {
             "tier": "implementation",
