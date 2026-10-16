@@ -1,6 +1,6 @@
 ---
 name: code-reviewer
-description: Pre-merge review specialist for the Lockness framework. Verdicts on SOLID, type safety, JSDoc completeness, Lockness conventions (no direct hono, JSR imports), and MVC structure. Read-only — produces a verdict + actionable comments, never edits. Spawned by review-coordinator during /specnaut review, or by /orchestrate.
+description: Pre-merge review specialist for the Lockness framework. Verdicts on SOLID, type safety, JSDoc completeness, Lockness conventions (no direct hono, rule #2 dependencies), and MVC structure. Read-only — produces a verdict + actionable comments, never edits. Spawned by review-coordinator during /specnaut review, or by /orchestrate.
 model: opus
 effort: high
 tools: Read, Glob, Grep, Bash
@@ -30,8 +30,13 @@ the main session — do not invent rules.
 
 1. **Lockness hard rules** (AGENTS.md) — violations are CRITICAL:
    - No direct `hono` import (must come from `@lockness/core`).
-   - JSR-only specifiers for `@lockness/*` and `@std/*` (no `npm:` without
-     justified comment).
+   - Rule #2: published runtime code depends only on sibling packages, `node:`
+     built-ins and npm packages, each declared in the importing package's own
+     `package.json`. No new runtime `@std/*` (or other JSR-only) import in any
+     package — only the entries a package's `lockness.jsr` already lists may
+     remain (transition paragraph). JSR-only packages are fine in tests and
+     tooling, declared as `jsr:` devDependencies. An npm dependency is allowed;
+     an undeclared import is not.
    - No `any` in exported APIs (`unknown` + type guards).
    - Tailwind v4 CSS-variable syntax (`bg-(--var)`, not `bg-[--var]`).
    - JSDoc on every public API (description, `@param`, `@returns`, `@throws`,
