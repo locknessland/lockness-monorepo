@@ -122,7 +122,7 @@
         // `make:*` command: the `CommandRegistry` port (type-only) and the
         // shared `isContained` check (#592, #579).
         "features": { "tier": "implementation", "allow": ["contract"] },
-        "search": { "tier": "implementation", "allow": [] },
+        "search": { "tier": "implementation", "allow": ["contract"] },
         // `i18n` is a near-pure sink: core soft-loads it at boot, and it imports
         // only hono (Context/cookie/header helpers; the resolver logs nothing,
         // so it needs no contract safeForLog). Zero message-format dependency —
