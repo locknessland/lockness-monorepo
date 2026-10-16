@@ -65,7 +65,9 @@ map only, and the Bun and Node lanes fail on `ERR_MODULE_NOT_FOUND`.
 a rejection escape on purpose to prove an `unhandledrejection` listener prevents
 it (`packages/realtime/tests/escape_watcher.deno.test.ts`). Under `node:test`
 such an escape fails the running test by name, through a hook no listener can
-intercept.
+intercept. Others stub `Deno.permissions` or launch a `deno run` subprocess
+(`packages/cli/tests/*.deno.test.ts`). `deno task test:runtime` hands a
+`*.deno.test.*` file to the Deno lane only; Bun and Node skip it.
 
 ## Running on Bun and Node: the runtime lanes
 

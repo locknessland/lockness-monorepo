@@ -63,16 +63,17 @@ Anything not listed is internal and free to change.
 
 ## Where to work
 
-| Concern                            | Path                                    |
-| ---------------------------------- | --------------------------------------- |
-| Cross-package interfaces           | `types.ts`                              |
-| HTTP-layer contracts               | `http/*.ts`                             |
-| Routing contracts and decorators   | `routing/*.ts`                          |
-| Command contribution port          | `command.ts` (`./command`)              |
-| Package setup port                 | `setup.ts` (`./setup`)                  |
-| Store-driver names                 | `store/drivers.ts` (`./store`)          |
-| The "`deno-kv` needs Deno" refusal | `store/deno_kv.ts` (`./store/internal`) |
-| Scaffolder path containment        | `fs/contained.ts` (`./fs/internal`)     |
+| Concern                            | Path                                                  |
+| ---------------------------------- | ----------------------------------------------------- |
+| Cross-package interfaces           | `types.ts`                                            |
+| HTTP-layer contracts               | `http/*.ts`                                           |
+| Routing contracts and decorators   | `routing/*.ts`                                        |
+| Command contribution port          | `command.ts` (`./command`)                            |
+| Package setup port                 | `setup.ts` (`./setup`)                                |
+| Store-driver names                 | `store/drivers.ts` (`./store`)                        |
+| The "`deno-kv` needs Deno" refusal | `store/deno_kv.ts` (`./store/internal`)               |
+| Scaffolder path containment        | `fs/contained.ts` (`./fs/internal`)                   |
+| The one safe env read (no prompt)  | `environment_read.ts` (`./environment/read/internal`) |
 
 ## Pitfalls
 
@@ -240,7 +241,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-18 test files for 40 source files:
+19 test files for 40 source files:
 
 - `packages/contract/tests/app_file.test.ts`
 - `packages/contract/tests/command_port.test.ts`
@@ -249,6 +250,7 @@ Anything not listed is internal and free to change.
 - `packages/contract/tests/disposables.test.ts`
 - `packages/contract/tests/environment.test.ts`
 - `packages/contract/tests/environment_legacy.test.ts`
+- `packages/contract/tests/environment_read.deno.test.ts`
 - `packages/contract/tests/error_code_491.test.ts`
 - `packages/contract/tests/error_frames_488.test.ts`
 - `packages/contract/tests/fs_contained.test.ts`
@@ -287,7 +289,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 18 test files directly —
+Then, specific to this package: run its 19 test files directly —
 
 ```bash
 deno test -A packages/contract/
