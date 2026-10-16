@@ -45,7 +45,7 @@ A missing or malformed name writes nothing, prints one `❌` line and exits `1`.
 
 ## Upgrading to v0.5.0
 
-One item. **Migration step:** if your code imports `handleMakeFlag`, run
+Two items. **Migration step:** if your code imports `handleMakeFlag`, run
 `make:flag` through the CLI instead.
 
 ### 1. `handleMakeFlag` is no longer exported, and `make:flag` fails non-zero
@@ -57,3 +57,14 @@ internal: it throws a failure the CLI prints once, and `make:flag` exits `1`.
 `registerFeaturesCommands` is still exported and is the way to add the command
 to a `Cli`; code that called `handleMakeFlag` directly can dispatch the command
 instead (`await cli.dispatch(['make:flag', 'new-ui'])` returns the exit status).
+
+### 2. The `Cli` type and the CLI helpers `isContained` are no longer exported
+
+`@lockness/features` exported its own structural `Cli` interface, the type of
+`registerFeaturesCommands`'s parameter, and `isContained` — internals of its
+`make:*` command — from the package root (#579). Anything an `exports` entry
+reaches is public API, so none of them stays there. `registerFeaturesCommands`
+now takes `CommandRegistry` from `@lockness/contract/command`, which
+`@lockness/cli`'s `Cli` implements: passing a `Cli` works unchanged. Code that
+named the `Cli` type imports `CommandRegistry` instead. `isContained` is
+internal and is not replaced; the command they serve behaves as before.

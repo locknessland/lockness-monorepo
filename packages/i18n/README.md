@@ -52,7 +52,7 @@ See [docs/i18n.md](../../docs/i18n.md) for the full guide.
 
 ## Upgrading to v0.5.0
 
-One item. **Migration step:** if your code imports `handleMakeLang`, run
+Two items. **Migration step:** if your code imports `handleMakeLang`, run
 `make:lang` through the CLI instead.
 
 ### 1. `handleMakeLang` is no longer exported, and `make:lang` fails non-zero
@@ -64,3 +64,15 @@ internal: it throws a failure the CLI prints once, and `make:lang` exits `1`.
 `registerI18nCommands` is still exported and is the way to add the command to a
 `Cli`; code that called `handleMakeLang` directly can dispatch the command
 instead (`await cli.dispatch(['make:lang', 'fr-fr'])` returns the exit status).
+
+### 2. The `Cli` type and the CLI helpers `isContained` and `handleExtract` are no longer exported
+
+`@lockness/i18n` exported its own structural `Cli` interface, the type of
+`registerI18nCommands`'s parameter, and `isContained` and `handleExtract` —
+internals of its `make:*` command — from the package root (#579). Anything an
+`exports` entry reaches is public API, so none of them stays there.
+`registerI18nCommands` now takes `CommandRegistry` from
+`@lockness/contract/command`, which `@lockness/cli`'s `Cli` implements: passing
+a `Cli` works unchanged. Code that named the `Cli` type imports
+`CommandRegistry` instead. `isContained` and `handleExtract` are internal and
+are not replaced; the command they serve behaves as before.

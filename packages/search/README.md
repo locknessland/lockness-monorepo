@@ -41,7 +41,7 @@ is the reference implementation.
 
 ## Upgrading to v0.5.0
 
-One item. **Migration step:** if your code imports `handleMakeSearchable`, run
+Two items. **Migration step:** if your code imports `handleMakeSearchable`, run
 `make:searchable` through the CLI instead.
 
 ### 1. `handleMakeSearchable` is no longer exported, and `make:searchable` fails non-zero
@@ -54,3 +54,14 @@ exits `1`. `registerSearchCommands` is still exported and is the way to add the
 command to a `Cli`; code that called `handleMakeSearchable` directly can
 dispatch the command instead (`await cli.dispatch(['make:searchable', 'Post'])`
 returns the exit status).
+
+### 2. The `Cli` type and the CLI helpers `isContained` are no longer exported
+
+`@lockness/search` exported its own structural `Cli` interface, the type of
+`registerSearchCommands`'s parameter, and `isContained` — internals of its
+`make:*` command — from the package root (#579). Anything an `exports` entry
+reaches is public API, so none of them stays there. `registerSearchCommands` now
+takes `CommandRegistry` from `@lockness/contract/command`, which
+`@lockness/cli`'s `Cli` implements: passing a `Cli` works unchanged. Code that
+named the `Cli` type imports `CommandRegistry` instead. `isContained` is
+internal and is not replaced; the command they serve behaves as before.

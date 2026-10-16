@@ -265,7 +265,7 @@ RESEND_API_KEY=<your-resend-api-key>
 
 ## Upgrading to v0.5.0
 
-One item. **Migration step:** if your code imports `handleMakeMail`, run
+Two items. **Migration step:** if your code imports `handleMakeMail`, run
 `make:mail` through the CLI instead.
 
 ### 1. `handleMakeMail` is no longer exported, and `make:mail` fails non-zero
@@ -283,3 +283,14 @@ internal: it throws a failure the CLI prints once, and `make:mail` exits `1`:
 `Cli`. Code that called `handleMakeMail` directly can dispatch the command
 instead (`await cli.dispatch(['make:mail', 'Welcome'])`, which returns the exit
 status) or write the file itself.
+
+### 2. The `Cli` type and the CLI helpers `isContained` are no longer exported
+
+`@lockness/mail` exported its own structural `Cli` interface, the type of
+`registerMailCommands`'s parameter, and `isContained` — internals of its
+`make:*` command — from the package root (#579). Anything an `exports` entry
+reaches is public API, so none of them stays there. `registerMailCommands` now
+takes `CommandRegistry` from `@lockness/contract/command`, which
+`@lockness/cli`'s `Cli` implements: passing a `Cli` works unchanged. Code that
+named the `Cli` type imports `CommandRegistry` instead. `isContained` is
+internal and is not replaced; the command they serve behaves as before.
