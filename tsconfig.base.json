@@ -1,0 +1,12 @@
+{
+    "compilerOptions": {
+        "target": "ES2022",
+        "module": "nodenext",
+        "moduleResolution": "nodenext",
+        "rewriteRelativeImportExtensions": true,
+        "composite": true,
+        "declaration": true,
+        "strict": true,
+        "types": ["node"]
+    }
+}

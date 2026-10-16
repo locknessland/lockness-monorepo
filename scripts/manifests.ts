@@ -48,7 +48,18 @@
  * dependencies instead of its `deno.json`.
  *
  * `tsconfig.json` is the tsc project graph: a composite project per package,
- * referencing the siblings it depends on.
+ * referencing the siblings it depends on, extending the root
+ * `tsconfig.base.json` that holds the framework build's shared compiler
+ * options. Deno 2.9 applies neither file's options to a member that has a
+ * `deno.json` (measured for #595): they serve the npm build only.
+ *
+ * **The npm build** (plan §5 rows 201, 221, 223, disposition E) scopes on one
+ * predicate, {@link namesBunOrNode}, minus `private` packages
+ * ({@link npmScope}). From that scope the generator writes the root
+ * `deno.jsonc` task `npm:build` — the `tsc -b` project list and the
+ * `--allow-write` dist list together — and {@link publishedManifest} maps a
+ * `package.json` to the allowlisted manifest npm receives, which
+ * `scripts/npm_stage.ts` stages under `_npm/`.
  *
  * **The generated files are committed.** The publish job holding the id-token
  * may not generate anything (#476), so what it publishes is what is in git.
@@ -59,7 +70,9 @@
  * - `engines` is not monotonic: a package names a runtime that one of its
  *   static, optional-peer or test dependencies does not (plan §6 invariant);
  * - `deno.lock` resolves any `@lockness/*` package from a registry — every one
- *   must resolve to a workspace member (plan §5, "One lockfile").
+ *   must resolve to a workspace member (plan §5, "One lockfile");
+ * - the workspace holds a second TypeScript: two `typescript` declarations
+ *   that differ, or two resolved in `deno.lock` (plan §5 row 221).
  *
  * Optional peers are a package's soft edges. Whether each one is allowed is
  * not this script's question: `deps.policy.jsonc` `soft` is the permission,
@@ -74,6 +87,7 @@
  * @module
  */
 
+import { parse as parseJsoncCst } from '@david/jsonc-morph'
 import { join, relative } from '@std/path'
 
 /** One `exports` entry: the `.ts` source, and the built file for npm. */
@@ -135,6 +149,10 @@ export interface PackageManifest {
     peerDependenciesMeta?: Record<string, { optional?: boolean }>
     /** Packages only the tests import. */
     devDependencies?: Record<string, string>
+    /** Executables the package installs. */
+    bin?: string | Record<string, string>
+    /** Where the source lives. */
+    repository?: string | { type: string; url: string; directory?: string }
     /** The Deno- and JSR-only facts. */
     lockness?: LocknessKey
     /** Comment keys, carried into `deno.json`. */
@@ -169,9 +187,10 @@ export interface DenoJson {
 
 /** A generated `tsconfig.json`. */
 export interface TsConfig {
-    /** Options for the composite build. */
+    /** The root `tsconfig.base.json`, relative to this file. */
+    extends: string
+    /** This package's own options; the shared ones come from `extends`. */
     compilerOptions: {
-        composite: true
         rootDir: string
         outDir: string
         jsx?: string
@@ -221,6 +240,71 @@ const JSR_RANGE = 'jsr:'
 
 /** The run that fixes a stale file, for messages. */
 const REGENERATE = '`deno task manifests`'
+
+/**
+ * The root file holding the framework build's shared compiler options, which
+ * every generated `tsconfig.json` extends. Hand-written, not generated.
+ */
+export const TSCONFIG_BASE = 'tsconfig.base.json'
+
+/**
+ * The gitignored directory `npm:build`'s second step stages each published
+ * npm package under, one subdirectory per package: what `npm pack` reads
+ * (plan §5, "Published npm manifest").
+ */
+export const NPM_STAGING_ROOT = '_npm'
+
+/** The root configuration file whose `npm:build` task is generated. */
+export const ROOT_CONFIG = 'deno.jsonc'
+
+/** The root task the generator writes into {@link ROOT_CONFIG}. */
+export const NPM_BUILD_TASK = 'npm:build'
+
+/**
+ * The environment variables `tsc` 6.0.3 reads (plan F1): the watch tuning
+ * `TSC_*` names, `NODE_ENV` and the two inspector probes. Without them `tsc`
+ * fails under Deno's sandbox; nothing else is readable, so no CI token is.
+ */
+export const TSC_ENV_NAMES: readonly string[] = [
+    'NODE_ENV',
+    'NODE_INSPECTOR_IPC',
+    'VSCODE_INSPECTOR_OPTIONS',
+    'TSC_NONPOLLING_WATCHER',
+    'TSC_WATCHDIRECTORY',
+    'TSC_WATCHFILE',
+    'TSC_WATCH_POLLINGINTERVAL_LOW',
+    'TSC_WATCH_POLLINGINTERVAL_MEDIUM',
+    'TSC_WATCH_POLLINGINTERVAL_HIGH',
+    'TSC_WATCH_POLLINGCHUNKSIZE_LOW',
+    'TSC_WATCH_POLLINGCHUNKSIZE_MEDIUM',
+    'TSC_WATCH_POLLINGCHUNKSIZE_HIGH',
+    'TSC_WATCH_UNCHANGEDPOLLTHRESHOLDS_LOW',
+    'TSC_WATCH_UNCHANGEDPOLLTHRESHOLDS_MEDIUM',
+    'TSC_WATCH_UNCHANGEDPOLLTHRESHOLDS_HIGH',
+]
+
+/** The compiler `npm:build` runs, from the local `node_modules` (plan F1). */
+const TSC_ENTRY = 'node_modules/typescript/lib/tsc.js'
+
+/** The package whose version the workspace holds to one. */
+const TYPESCRIPT = 'typescript'
+
+/** The `package.json` fields a published npm manifest keeps (an allowlist). */
+const PUBLISHED_FIELDS = [
+    'name',
+    'version',
+    'description',
+    'license',
+    'type',
+    'exports',
+    'files',
+    'engines',
+    'dependencies',
+    'peerDependencies',
+    'peerDependenciesMeta',
+    'bin',
+    'repository',
+] as const
 
 /**
  * Whether a dependency name is a workspace sibling.
@@ -483,6 +567,13 @@ function isSourceEntry(entry: string): boolean {
  * The `tsconfig.json` a `package.json` produces: a composite project that
  * references each sibling it depends on.
  *
+ * Every option the framework build shares — target, module resolution,
+ * `.js` rewriting, composite declarations, Node types — lives in the root
+ * {@link TSCONFIG_BASE}, which this file extends (plan §5, "Framework build
+ * compiler options"). Only what differs per package is written here: the
+ * directories, which must be relative to this file, and the JSX options from
+ * the `lockness` key.
+ *
  * @param pkg - The member's `package.json`.
  * @param members - Every sibling's name to its directory, relative to the root.
  * @param dir - This member's directory, relative to the root.
@@ -501,7 +592,6 @@ export function tsconfigFor(
 ): TsConfig {
     const lockness = pkg.lockness ?? {}
     const compilerOptions: TsConfig['compilerOptions'] = {
-        composite: true,
         rootDir: '.',
         outDir: 'dist',
     }
@@ -525,6 +615,7 @@ export function tsconfigFor(
                 : [{ path: relative(dir, target).replaceAll('\\', '/') }]
         })
     return {
+        extends: relative(dir, TSCONFIG_BASE).replaceAll('\\', '/'),
         compilerOptions,
         include,
         exclude: ['dist', 'node_modules', ...(lockness.publish?.exclude ?? [])],
@@ -581,6 +672,212 @@ export function versionModuleFor(pkg: PackageManifest): string | null {
  */
 function runtimesOf(pkg: PackageManifest): string[] {
     return Object.keys(pkg.engines ?? {})
+}
+
+/**
+ * Whether a package's `engines` names bun or node — the one predicate of
+ * "proven on runtime R" beyond Deno (plan §5 row 201). The runtime lanes, the
+ * runtime-neutral lint, `npm:build` and `npm:check` all scope on it; the npm
+ * consumers drop `private` packages ({@link npmScope}).
+ *
+ * @param pkg - A manifest.
+ * @returns `true` when `engines.bun` or `engines.node` is present.
+ *
+ * @example
+ * ```ts
+ * namesBunOrNode({ engines: { deno: '>=2.2', node: '>=22.15' } })  // true
+ * namesBunOrNode({ engines: { deno: '>=2.2' } })                   // false
+ * ```
+ */
+export function namesBunOrNode(pkg: PackageManifest): boolean {
+    return runtimesOf(pkg).some((runtime) =>
+        runtime === 'bun' || runtime === 'node'
+    )
+}
+
+/**
+ * The packages `npm:build` builds and `npm:check` checks: every named,
+ * non-`private` member whose `engines` names bun or node (plan §5 row 201,
+ * disposition E). `engines` is monotonic over static edges, so the set is
+ * closed under `tsconfig.json` references; a reference outside it fails
+ * closed on the build's `--allow-write` list.
+ *
+ * @param members - Every workspace member, in workspace order.
+ * @returns The scoped members, in workspace order.
+ *
+ * @example
+ * ```ts
+ * npmScope(await readMembers('.')).map((m) => m.pkg.name)  // ['@lockness/transform']
+ * ```
+ */
+export function npmScope(members: readonly Member[]): Member[] {
+    return members.filter(({ pkg }) =>
+        pkg.name !== undefined && pkg.private !== true && namesBunOrNode(pkg)
+    )
+}
+
+/**
+ * Where `npm:build` stages a scoped member's npm package.
+ *
+ * @param member - A scoped member.
+ * @returns `_npm/<directory name>`, POSIX, relative to the root.
+ *
+ * @example
+ * ```ts
+ * stagingDirOf({ dir: 'packages/transform', pkg })  // '_npm/transform'
+ * ```
+ */
+export function stagingDirOf(member: Member): string {
+    return `${NPM_STAGING_ROOT}/${member.dir.split('/').at(-1)}`
+}
+
+/**
+ * The root `npm:build` task: `tsc -b` over the scoped projects under the
+ * build sandbox (plan §5 row 223), then the staging step. The project list
+ * and the `--allow-write` dist list come from the same scope, so they cannot
+ * disagree; `--no-prompt` turns any other access into a denial instead of a
+ * question on a terminal.
+ *
+ * @param scope - From {@link npmScope}.
+ * @returns The task command. With an empty scope, only the staging step,
+ *   which then clears the staging root.
+ *
+ * @example
+ * ```ts
+ * npmBuildTask([{ dir: 'packages/transform', pkg }])
+ * // 'deno run --no-prompt --allow-env=NODE_ENV,… --deny-net --deny-run --deny-ffi
+ * //  --allow-read=. --allow-write=packages/transform/dist
+ * //  node_modules/typescript/lib/tsc.js -b packages/transform && deno run … scripts/npm_stage.ts'
+ * ```
+ */
+export function npmBuildTask(scope: readonly Member[]): string {
+    const stage =
+        `deno run --no-prompt --allow-read=. --allow-write=${NPM_STAGING_ROOT} scripts/npm_stage.ts`
+    if (scope.length === 0) return stage
+    const projects = scope.map((m) => m.dir)
+    return [
+        'deno run --no-prompt',
+        `--allow-env=${TSC_ENV_NAMES.join(',')}`,
+        '--deny-net --deny-run --deny-ffi',
+        '--allow-read=.',
+        `--allow-write=${projects.map((dir) => `${dir}/dist`).join(',')}`,
+        TSC_ENTRY,
+        '-b',
+        ...projects,
+        '&&',
+        stage,
+    ].join(' ')
+}
+
+/**
+ * The `package.json` npm receives for a package: an allowlist of fields
+ * (plan §5, "Published npm manifest"), each export reduced to its built
+ * file. No `devDependencies`, no `lockness` key, no `scripts`, no
+ * `lockness-source` condition: none of them means anything to an npm
+ * consumer, and a field not listed never leaks by being forgotten.
+ *
+ * @param pkg - A scoped member's `package.json`.
+ * @returns The published manifest, fields in allowlist order.
+ * @throws {Error} When the package is `private`, has no name or version, or
+ *   an export has no `default` condition.
+ *
+ * @example
+ * ```ts
+ * publishedManifest({
+ *     name: '@lockness/a', version: '0.4.0', devDependencies: { x: '1' },
+ *     exports: { '.': { 'lockness-source': './mod.ts', default: './dist/mod.js' } },
+ * })
+ * // { name: '@lockness/a', version: '0.4.0', exports: { '.': { default: './dist/mod.js' } } }
+ * ```
+ */
+export function publishedManifest(
+    pkg: PackageManifest,
+): Record<string, unknown> {
+    const label = pkg.name ?? 'an unnamed member'
+    if (pkg.private === true) {
+        throw new Error(`${label} is private and is never published to npm`)
+    }
+    if (pkg.name === undefined || pkg.version === undefined) {
+        throw new Error(`${label} needs a name and a version to be published`)
+    }
+    const published: Record<string, unknown> = {}
+    for (const field of PUBLISHED_FIELDS) {
+        const value = pkg[field]
+        if (value === undefined) continue
+        if (field !== 'exports') {
+            published[field] = structuredClone(value)
+            continue
+        }
+        const exports: Record<string, { default: string }> = {}
+        for (const [subpath, conditions] of Object.entries(pkg.exports ?? {})) {
+            if (typeof conditions?.default !== 'string') {
+                throw new Error(
+                    `${label}: export "${subpath}" has no "default" condition naming its built file`,
+                )
+            }
+            exports[subpath] = { default: conditions.default }
+        }
+        published.exports = exports
+    }
+    return published
+}
+
+/** The dependency fields a `typescript` declaration can sit in. */
+const DECLARING_FIELDS = [
+    'dependencies',
+    'devDependencies',
+    'peerDependencies',
+] as const
+
+/**
+ * Every reason the workspace holds more than one TypeScript (plan §5 row
+ * 221): two `package.json` declarations of `typescript` that differ, or
+ * `deno.lock` resolving more than one `typescript` version. The build (root
+ * `devDependencies`) and the transform (its `dependencies`) must run the
+ * same compiler.
+ *
+ * @param manifests - Each manifest with a label: the root's and every member's.
+ * @param lock - The parsed `deno.lock`, when there is one.
+ * @returns One message per fault, empty when there is one version.
+ *
+ * @example
+ * ```ts
+ * typescriptFaults([
+ *     { label: 'package.json', pkg: { devDependencies: { typescript: '6.0.3' } } },
+ *     { label: 'packages/a/package.json', pkg: { dependencies: { typescript: '6.0.2' } } },
+ * ])
+ * // ['packages/a/package.json declares typescript 6.0.2, but package.json declares 6.0.3: …']
+ * ```
+ */
+export function typescriptFaults(
+    manifests: readonly { label: string; pkg: PackageManifest }[],
+    lock?: Lockfile,
+): string[] {
+    const faults: string[] = []
+    let first: { label: string; range: string } | undefined
+    for (const { label, pkg } of manifests) {
+        for (const field of DECLARING_FIELDS) {
+            const range = pkg[field]?.[TYPESCRIPT]
+            if (range === undefined) continue
+            if (first === undefined) {
+                first = { label, range }
+            } else if (range !== first.range) {
+                faults.push(
+                    `${label} declares ${TYPESCRIPT} ${range}, but ${first.label} declares ${first.range}: the workspace holds one TypeScript version`,
+                )
+            }
+        }
+    }
+    const resolved = Object.keys(lock?.npm ?? {})
+        .filter((key) => key.startsWith(`${TYPESCRIPT}@`))
+    if (resolved.length > 1) {
+        faults.push(
+            `deno.lock resolves ${resolved.length} TypeScript versions (${
+                resolved.join(', ')
+            }): the workspace holds one`,
+        )
+    }
+    return faults
 }
 
 /**
@@ -729,6 +1026,34 @@ export function dependencyCycle(
 }
 
 /**
+ * The root configuration text with its `npm:build` task set to `command`,
+ * every comment and other token left as it is. The task is added at the end
+ * of `tasks` when it is missing, and `tasks` when that is missing.
+ *
+ * @param text - The root `deno.jsonc` source.
+ * @param command - From {@link npmBuildTask}.
+ * @returns The rewritten source.
+ * @throws {Error} When the source is malformed, or `tasks` is not an object.
+ *
+ * @example
+ * ```ts
+ * rootConfigWithTask('{ "tasks": {} }', 'deno run x.ts')
+ * // a `tasks` object holding "npm:build": "deno run x.ts"
+ * ```
+ */
+export function rootConfigWithTask(text: string, command: string): string {
+    const root = parseJsoncCst(text)
+    const tasks = root.asObjectOrThrow().getIfObjectOrCreate('tasks')
+    if (tasks === undefined) {
+        throw new Error(`${ROOT_CONFIG}: "tasks" is not an object`)
+    }
+    const current = tasks.get(NPM_BUILD_TASK)
+    if (current === undefined) tasks.append(NPM_BUILD_TASK, command)
+    else current.setValue(command)
+    return root.toString()
+}
+
+/**
  * Render JSON the way `deno fmt` leaves it: four spaces, trailing newline.
  *
  * @param value - The value.
@@ -754,10 +1079,7 @@ function renderJson(value: unknown): string {
  */
 export async function readWorkspaceMembers(root: string): Promise<string[]> {
     const path = join(root, 'package.json')
-    const parsed: unknown = JSON.parse(await Deno.readTextFile(path))
-    const workspaces = typeof parsed === 'object' && parsed !== null
-        ? (parsed as { workspaces?: unknown }).workspaces
-        : undefined
+    const workspaces = (await readRootManifest(root)).workspaces
     if (
         !Array.isArray(workspaces) ||
         !workspaces.every((m): m is string => typeof m === 'string')
@@ -765,6 +1087,35 @@ export async function readWorkspaceMembers(root: string): Promise<string[]> {
         throw new Error(`${path} has no "workspaces" array of strings`)
     }
     return workspaces.map((m) => m.replace(/^\.\//, '').replace(/\/+$/, ''))
+}
+
+/** The root `package.json`: workspace membership and the build tools. */
+export interface RootManifest extends PackageManifest {
+    /** Member directories, relative to the root. */
+    workspaces?: unknown
+}
+
+/**
+ * Read the root `package.json`.
+ *
+ * @param root - The workspace root.
+ * @returns The parsed manifest.
+ * @throws {Error} When it is missing, unparsable or not an object.
+ *
+ * @example
+ * ```ts
+ * (await readRootManifest('.')).devDependencies?.typescript  // '6.0.3'
+ * ```
+ */
+export async function readRootManifest(root: string): Promise<RootManifest> {
+    const path = join(root, 'package.json')
+    const parsed: unknown = JSON.parse(await Deno.readTextFile(path))
+    if (
+        typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)
+    ) {
+        throw new Error(`${path} is not a JSON object`)
+    }
+    return parsed as RootManifest
 }
 
 /** A member and its parsed `package.json`. */
@@ -810,10 +1161,13 @@ export async function readMembers(root: string): Promise<Member[]> {
 }
 
 /**
- * Every file the workspace's `package.json` files produce.
+ * Every file the workspace's `package.json` files produce, and the root
+ * `deno.jsonc` with its generated `npm:build` task (skipped when the root has
+ * no `deno.jsonc`).
  *
  * @param root - The workspace root.
- * @returns The files, member by member, in a fixed order.
+ * @returns The files, member by member, in a fixed order, then the root
+ *   configuration.
  * @throws {Error} When a manifest cannot be read or generated from.
  *
  * @example
@@ -823,7 +1177,19 @@ export async function readMembers(root: string): Promise<Member[]> {
  * ```
  */
 export async function planManifests(root: string): Promise<GeneratedFile[]> {
-    return planFiles(await readMembers(root))
+    const members = await readMembers(root)
+    const files = planFiles(members)
+    const config = await readOrNull(join(root, ROOT_CONFIG))
+    if (config !== null) {
+        files.push({
+            path: ROOT_CONFIG,
+            content: rootConfigWithTask(
+                config,
+                npmBuildTask(npmScope(members)),
+            ),
+        })
+    }
+    return files
 }
 
 /**
@@ -938,8 +1304,9 @@ async function readOrNull(path: string): Promise<string | null> {
 
 /**
  * Every reason the workspace's manifests are not current: stale or missing
- * generated files, non-monotonic `engines`, a registry-resolved `@lockness/*`
- * in `deno.lock` (skipped when there is no lockfile).
+ * generated files (the root `npm:build` task included), non-monotonic
+ * `engines`, a registry-resolved `@lockness/*` in `deno.lock` (skipped when
+ * there is no lockfile), and a second TypeScript version.
  *
  * @param root - The workspace root.
  * @returns One message per fault, empty when current.
@@ -956,6 +1323,12 @@ export async function checkManifests(root: string): Promise<string[]> {
     for (const file of await planManifests(root)) {
         const current = await readOrNull(join(root, file.path))
         if (current === file.content) continue
+        if (file.path === ROOT_CONFIG) {
+            faults.push(
+                `${ROOT_CONFIG} task "${NPM_BUILD_TASK}" is stale: it is generated from the packages whose engines name bun or node; run ${REGENERATE}`,
+            )
+            continue
+        }
         const source = file.path.replace(/\/[^/]+$/, '/package.json')
         faults.push(
             current === null
@@ -963,11 +1336,26 @@ export async function checkManifests(root: string): Promise<string[]> {
                 : `${file.path} is stale: edit ${source}, then run ${REGENERATE}`,
         )
     }
-    const packages = (await readMembers(root)).map((m) => m.pkg)
-    faults.push(...enginesFaults(packages))
+    const members = await readMembers(root)
+    faults.push(...enginesFaults(members.map((m) => m.pkg)))
 
-    const lock = await readOrNull(join(root, 'deno.lock'))
-    if (lock !== null) faults.push(...lockfileFaults(JSON.parse(lock)))
+    const lockText = await readOrNull(join(root, 'deno.lock'))
+    const lock: Lockfile | undefined = lockText === null
+        ? undefined
+        : JSON.parse(lockText)
+    if (lock !== undefined) faults.push(...lockfileFaults(lock))
+    faults.push(
+        ...typescriptFaults(
+            [
+                { label: 'package.json', pkg: await readRootManifest(root) },
+                ...members.map(({ dir, pkg }) => ({
+                    label: `${dir}/package.json`,
+                    pkg,
+                })),
+            ],
+            lock,
+        ),
+    )
     return faults
 }
 

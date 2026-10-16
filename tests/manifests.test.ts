@@ -20,10 +20,20 @@ import {
     enginesFaults,
     lockfileFaults,
     main,
+    type Member,
+    namesBunOrNode,
+    npmBuildTask,
+    npmScope,
     type PackageManifest,
     planManifests,
+    publishedManifest,
+    readMembers,
     readWorkspaceMembers,
+    rootConfigWithTask,
+    stagingDirOf,
+    TSC_ENV_NAMES,
     tsconfigFor,
+    typescriptFaults,
     versionModuleFor,
     writeManifests,
 } from '../scripts/manifests.ts'
@@ -303,7 +313,7 @@ test('denoJsonFor - an export without a lockness-source entry is refused', () =>
 // tsconfig.json
 // =============================================================================
 
-test('tsconfigFor - references every sibling dependency, in a composite build', () => {
+test('tsconfigFor - references every sibling dependency, extending the shared base', () => {
     const tsconfig = tsconfigFor(
         pkg({
             dependencies: {
@@ -325,7 +335,10 @@ test('tsconfigFor - references every sibling dependency, in a composite build', 
         { path: '../contract' },
         { path: '../crypto' },
     ])
-    assertEquals(tsconfig.compilerOptions.composite, true)
+    // Composite, module resolution and the rest live in the root base; a
+    // package spells only what is relative to it.
+    assertEquals(tsconfig.extends, '../../tsconfig.base.json')
+    assertEquals(Object.keys(tsconfig.compilerOptions), ['rootDir', 'outDir'])
     assertEquals(tsconfig.compilerOptions.outDir, 'dist')
     assertEquals(tsconfig.compilerOptions.rootDir, '.')
     assertEquals(tsconfig.include, ['**/*.ts', '**/*.tsx'])
@@ -346,6 +359,11 @@ test('tsconfigFor - JSX packages build with the automatic runtime', () => {
     // emits the same import source through `react-jsx`.
     assertEquals(tsconfig.compilerOptions.jsx, 'react-jsx')
     assertEquals(tsconfig.compilerOptions.jsxImportSource, 'hono')
+})
+
+test('tsconfigFor - a nested member reaches the base through its own depth', () => {
+    const tsconfig = tsconfigFor(pkg(), new Map(), 'packages/vite/demo')
+    assertEquals(tsconfig.extends, '../../../tsconfig.base.json')
 })
 
 test('tsconfigFor - a publish allowlist is the build allowlist', () => {
@@ -660,6 +678,275 @@ test('main - 0 when written or current, 1 under --check when stale, 2 on an unkn
         assertEquals(await main([], dir), 0)
         assertEquals(await main(['--check'], dir), 0)
         assertEquals(await main(['--chek'], dir), 2)
+    } finally {
+        await Deno.remove(dir, { recursive: true })
+    }
+})
+
+// =============================================================================
+// npm build scope, task and published manifest (#595, disposition E)
+// =============================================================================
+
+/**
+ * A member at `packages/<dir>`.
+ *
+ * @param dir - The directory name.
+ * @param overrides - Manifest fields.
+ * @returns The member.
+ */
+function member(dir: string, overrides: Partial<PackageManifest> = {}): Member {
+    return {
+        dir: `packages/${dir}`,
+        pkg: pkg({ name: `@lockness/${dir}`, ...overrides }),
+    }
+}
+
+test('namesBunOrNode - bun or node in engines, nothing else', () => {
+    assertEquals(namesBunOrNode(pkg({ engines: { deno: '>=2.2' } })), false)
+    assertEquals(namesBunOrNode(pkg({ engines: undefined })), false)
+    assertEquals(
+        namesBunOrNode(pkg({ engines: { deno: '>=2.2', node: '>=24' } })),
+        true,
+    )
+    assertEquals(namesBunOrNode(pkg({ engines: { bun: '>=1.4' } })), true)
+})
+
+test('npmScope - non-private packages naming bun or node, in workspace order', () => {
+    const scope = npmScope([
+        member('deno-only'),
+        member('b', { engines: { deno: '>=2.2', bun: '>=1.4' } }),
+        member('testing', { private: true, engines: { node: '>=24' } }),
+        { dir: 'packages/vite/demo', pkg: { engines: { node: '>=24' } } },
+        member('a', { engines: { node: '>=24' } }),
+    ])
+    assertEquals(scope.map((m) => m.pkg.name), ['@lockness/b', '@lockness/a'])
+})
+
+test('stagingDirOf - one directory per package under the staging root', () => {
+    assertEquals(stagingDirOf(member('transform')), '_npm/transform')
+})
+
+test('npmBuildTask - the project list and the dist list are the scope', () => {
+    const task = npmBuildTask([
+        member('hono', { engines: { node: '>=24' } }),
+        member('runtime', { engines: { node: '>=24' } }),
+    ])
+    const [build, stage] = task.split(' && ')
+    assertEquals(
+        build,
+        [
+            'deno run --no-prompt',
+            `--allow-env=${TSC_ENV_NAMES.join(',')}`,
+            '--deny-net --deny-run --deny-ffi',
+            '--allow-read=.',
+            '--allow-write=packages/hono/dist,packages/runtime/dist',
+            'node_modules/typescript/lib/tsc.js -b packages/hono packages/runtime',
+        ].join(' '),
+    )
+    assertEquals(
+        stage,
+        'deno run --no-prompt --allow-read=. --allow-write=_npm scripts/npm_stage.ts',
+    )
+})
+
+test('npmBuildTask - the env allowlist is the fifteen names tsc reads, no token', () => {
+    assertEquals(TSC_ENV_NAMES.length, 15)
+    for (const name of TSC_ENV_NAMES) {
+        assert(/^(TSC_|NODE_|VSCODE_)/.test(name), name)
+    }
+    assert(!TSC_ENV_NAMES.some((name) => name.startsWith('ACTIONS_')))
+})
+
+test('npmBuildTask - an empty scope builds nothing and only stages', () => {
+    const task = npmBuildTask([])
+    assert(!task.includes('tsc'))
+    assertStringIncludes(task, 'scripts/npm_stage.ts')
+})
+
+test('npmScope - the workspace scope today is @lockness/transform alone', async () => {
+    const scope = npmScope(await readMembers('.'))
+    assertEquals(scope.map((m) => m.pkg.name), ['@lockness/transform'])
+})
+
+test('publishedManifest - an allowlist of fields, each export its built file', () => {
+    const published = publishedManifest(pkg({
+        name: '@lockness/transform',
+        exports: {
+            '.': { 'lockness-source': './mod.ts', default: './dist/mod.js' },
+            './register': {
+                'lockness-source': './register.ts',
+                default: './dist/register.js',
+            },
+        },
+        engines: { deno: '>=2.2', node: '>=22.15' },
+        dependencies: { typescript: '6.0.3' },
+        devDependencies: { '@std/assert': 'jsr:1' },
+        lockness: { versionModule: true, publish: { exclude: ['tests/'] } },
+        '//': 'a comment key',
+    }))
+    assertEquals(published, {
+        name: '@lockness/transform',
+        version: '0.4.0',
+        description: 'Authentication.',
+        license: 'MIT',
+        type: 'module',
+        exports: {
+            '.': { default: './dist/mod.js' },
+            './register': { default: './dist/register.js' },
+        },
+        files: ['dist'],
+        engines: { deno: '>=2.2', node: '>=22.15' },
+        dependencies: { typescript: '6.0.3' },
+    })
+})
+
+test('publishedManifest - a field outside the allowlist never leaks', () => {
+    const source = {
+        ...pkg(),
+        scripts: { postinstall: 'curl evil' },
+        publishConfig: { registry: 'https://example.invalid' },
+    } as PackageManifest
+    const published = publishedManifest(source)
+    for (
+        const key of ['scripts', 'publishConfig', 'devDependencies', 'lockness']
+    ) {
+        assert(!(key in published), key)
+    }
+})
+
+test('publishedManifest - private, unversioned or unbuilt packages are refused', () => {
+    assertThrows(
+        () => publishedManifest(pkg({ private: true })),
+        Error,
+        'private',
+    )
+    assertThrows(
+        () => publishedManifest(pkg({ version: undefined })),
+        Error,
+        'version',
+    )
+    const unbuilt = pkg()
+    unbuilt.exports = {
+        '.': { 'lockness-source': './mod.ts' },
+    } as unknown as PackageManifest['exports']
+    assertThrows(() => publishedManifest(unbuilt), Error, 'default')
+})
+
+test('typescriptFaults - one version is clean', () => {
+    assertEquals(
+        typescriptFaults([
+            {
+                label: 'package.json',
+                pkg: { devDependencies: { typescript: '6.0.3' } },
+            },
+            {
+                label: 'packages/t/package.json',
+                pkg: { dependencies: { typescript: '6.0.3' } },
+            },
+        ], { npm: { 'typescript@6.0.3': {}, 'zod@3.25.76': {} } }),
+        [],
+    )
+})
+
+test('typescriptFaults - a second declared version is refused', () => {
+    assertEquals(
+        typescriptFaults([
+            {
+                label: 'package.json',
+                pkg: { devDependencies: { typescript: '6.0.3' } },
+            },
+            {
+                label: 'packages/t/package.json',
+                pkg: { dependencies: { typescript: '^6.0.3' } },
+            },
+        ]),
+        [
+            'packages/t/package.json declares typescript ^6.0.3, but package.json declares 6.0.3: the workspace holds one TypeScript version',
+        ],
+    )
+})
+
+test('typescriptFaults - a second resolved version in deno.lock is refused', () => {
+    assertEquals(
+        typescriptFaults([], {
+            npm: { 'typescript@6.0.3': {}, 'typescript@5.9.2': {} },
+        }),
+        [
+            'deno.lock resolves 2 TypeScript versions (typescript@6.0.3, typescript@5.9.2): the workspace holds one',
+        ],
+    )
+})
+
+test('rootConfigWithTask - sets the task and keeps every comment', () => {
+    const text = [
+        '{',
+        '    // the tasks',
+        '    "tasks": {',
+        '        // a comment above the task',
+        '        "npm:build": "old",',
+        '        "test": "deno test -A"',
+        '    }',
+        '}',
+        '',
+    ].join('\n')
+    const out = rootConfigWithTask(text, 'deno run "new".ts')
+    assertStringIncludes(out, '// the tasks')
+    assertStringIncludes(out, '// a comment above the task')
+    assertStringIncludes(out, '"npm:build": "deno run \\"new\\".ts"')
+    assertStringIncludes(out, '"test": "deno test -A"')
+    assert(!out.includes('"old"'))
+})
+
+test('rootConfigWithTask - adds the task when it is missing', () => {
+    const out = rootConfigWithTask('{ "tasks": { "a": "b" } }', 'x')
+    assertStringIncludes(out, '"npm:build": "x"')
+    const bare = rootConfigWithTask('{ "version": "0.4.0" }', 'x')
+    assertEquals(JSON.parse(bare).tasks, { 'npm:build': 'x' })
+    assertThrows(
+        () => rootConfigWithTask('{ "tasks": [] }', 'x'),
+        Error,
+        'not an object',
+    )
+})
+
+/** A root `deno.jsonc` holding a hand-edited `npm:build` task. */
+const STALE_ROOT_CONFIG = '{\n    "tasks": { "npm:build": "stale" }\n}\n'
+
+test('checkManifests - a stale npm:build task is reported, then regenerated', async () => {
+    const dir = await fixture()
+    try {
+        await writeManifests(dir)
+        await Deno.writeTextFile(join(dir, 'deno.jsonc'), STALE_ROOT_CONFIG)
+        assertEquals(await checkManifests(dir), [
+            'deno.jsonc task "npm:build" is stale: it is generated from the packages whose engines name bun or node; run `deno task manifests`',
+        ])
+        await writeManifests(dir)
+        assertEquals(await checkManifests(dir), [])
+        // No package names bun or node here: the task only stages.
+        assertStringIncludes(
+            await Deno.readTextFile(join(dir, 'deno.jsonc')),
+            '"npm:build": "deno run --no-prompt --allow-read=. --allow-write=_npm scripts/npm_stage.ts"',
+        )
+    } finally {
+        await Deno.remove(dir, { recursive: true })
+    }
+})
+
+test('checkManifests - a second TypeScript version is reported', async () => {
+    const dir = await fixture()
+    try {
+        const b = join(dir, 'packages/b/package.json')
+        const manifest = JSON.parse(await Deno.readTextFile(b))
+        manifest.dependencies.typescript = '6.0.2'
+        await Deno.writeTextFile(b, JSON.stringify(manifest, null, 4))
+        const root = join(dir, 'package.json')
+        const rootManifest = JSON.parse(await Deno.readTextFile(root))
+        rootManifest.devDependencies = { typescript: '6.0.3' }
+        await Deno.writeTextFile(root, JSON.stringify(rootManifest, null, 4))
+        await writeManifests(dir)
+        assertEquals(await checkManifests(dir), [
+            'packages/b/package.json declares typescript 6.0.2, but package.json declares 6.0.3: the workspace holds one TypeScript version',
+        ])
     } finally {
         await Deno.remove(dir, { recursive: true })
     }
