@@ -105,7 +105,7 @@ on `main`. Precedent: the realtime epic shipped as specs 240–272, one feature 
 
 ### C07 · `@lockness/transform`
 
-- [ ] T014 [US2] `feat(transform)`: `packages/transform/transform.ts` (TS 6 `transpileModule`,
+- [x] T014 [US2] `feat(transform)`: `packages/transform/transform.ts` (TS 6 `transpileModule`,
   options read from the app's `tsconfig.json`) and `register.ts` (`module.registerHooks` load hook
   for `.ts`/`.tsx` outside `node_modules`; cache `node_modules/.cache/lockness-transform`, 0700, key
   SHA-256(transformer version, options, source); refuses when `APP_ENV=production`). Home: plan §5
