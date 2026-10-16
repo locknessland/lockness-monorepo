@@ -117,9 +117,11 @@
         },
         "events": { "tier": "implementation", "allow": ["contract", "hono"] },
         // `features` and `search` are pure-logic sinks: flag resolution /
-        // tokenised inverted index, no workspace deps (scope + documents are
-        // app-supplied data). Nothing imports them.
-        "features": { "tier": "implementation", "allow": [] },
+        // tokenised inverted index (scope + documents are app-supplied data).
+        // Nothing imports them. Their one edge is `contract`, for their
+        // `make:*` command: the `CommandRegistry` port (type-only) and the
+        // shared `isContained` check (#592, #579).
+        "features": { "tier": "implementation", "allow": ["contract"] },
         "search": { "tier": "implementation", "allow": [] },
         // `i18n` is a near-pure sink: core soft-loads it at boot, and it imports
         // only hono (Context/cookie/header helpers; the resolver logs nothing,
