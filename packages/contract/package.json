@@ -45,6 +45,10 @@
             "lockness-source": "./environment_legacy.ts",
             "default": "./dist/environment_legacy.js"
         },
+        "./environment/read/internal": {
+            "lockness-source": "./environment_read.ts",
+            "default": "./dist/environment_read.js"
+        },
         "./pagination": {
             "lockness-source": "./pagination/mod.ts",
             "default": "./dist/pagination/mod.js"

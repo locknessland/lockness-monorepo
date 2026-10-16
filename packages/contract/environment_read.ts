@@ -1,28 +1,54 @@
 /**
- * @fileoverview The one raw read of the process environment behind the
- * environment-name helpers (#504).
+ * @fileoverview The one raw read of the process environment (#504, #597):
+ * plan 274 §5 "Safe env read".
  *
- * `environment.ts` and `environment_legacy.ts` both read variables; they read
- * them here, so the permission handling and the normalisation rule exist once.
- * Not an export of the package: it is reached by relative import only.
+ * `environment.ts` and `environment_legacy.ts` read their variables here, and
+ * so does `@lockness/cli`'s `LOCKNESS_CLI_RAW_ERRORS` switch, through the
+ * framework-internal entry point `@lockness/contract/environment/read/internal`
+ * — so the permission handling and the normalisation rule exist once.
  *
- * @module
+ * Still Deno-bound: on Deno the read must ask the permission first, which
+ * means knowing the runtime, and the one runtime detector arrives with
+ * `@lockness/runtime` (plan 274 C12). Until then this module is the only
+ * `Deno.env` reader its callers reach, so making it runtime-neutral is one
+ * change here (C13), not one per caller.
+ *
+ * @module @lockness/contract/environment/read/internal
  */
 
 /**
- * Read one environment variable, treating a missing `--allow-env` as unset.
+ * Read one environment variable, treating a missing `--allow-env` as unset —
+ * and asking first, so the read never shows a permission prompt.
  *
- * `Deno.env.get` raises `NotCapable` when the process has no env permission.
- * That is an expected, documented condition with exactly one correct reading —
- * the variable is not visible, so it is unset — and the helpers built on this
- * must never throw before shutdown handlers exist. Any other failure is not
- * that condition, so it propagates.
+ * `Deno.env.get` without the permission does not simply fail: in an
+ * interactive terminal Deno first prompts for it, and a caller may be in the
+ * middle of an error report (`@lockness/cli`) or of boot. `querySync` only
+ * reports the state and never prompts, so anything short of `granted` reads
+ * as unset.
+ *
+ * A granted read can still raise `NotCapable` (a permission revoked in
+ * between, or a stubbed reader). That is an expected, documented condition
+ * with exactly one correct reading — the variable is not visible, so it is
+ * unset — and the helpers built on this must never throw before shutdown
+ * handlers exist. Any other failure is not that condition, so it propagates.
  *
  * @param name - The variable to read.
- * @returns Its raw value, or `undefined` when it is unset or unreadable.
- * @throws Whatever `Deno.env.get` raises other than `NotCapable`.
+ * @returns Its raw value, or `undefined` when it is unset, not granted or not
+ *   visible.
+ * @throws Whatever `Deno.env.get` raises other than `NotCapable` —
+ *   `InvalidData` when the value is not valid Unicode.
+ *
+ * @example
+ * ```ts
+ * readEnvVar('LOCKNESS_CLI_RAW_ERRORS') // '1', or undefined
+ * ```
  */
 export function readEnvVar(name: string): string | undefined {
+    const { state } = Deno.permissions.querySync({
+        name: 'env',
+        variable: name,
+    })
+    if (state !== 'granted') return undefined
     try {
         return Deno.env.get(name)
     } catch (error) {
