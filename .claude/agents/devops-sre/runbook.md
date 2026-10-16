@@ -93,12 +93,10 @@ mechanics each step delegates to, not a second procedure.
 /ship step 2 → .claude/skills/ship/phases/tag.md [--bump major|minor|patch]
    └─ .specnaut/scripts/release/tag.sh
          ├─ refuses dirty working tree
-         ├─ deno task bump --<bump>            ← scripts/bump-native.ts
-         │     ├─ deno bump-version --workspace <inc>
-         │     │     ├─ rewrites every packages/*/deno.json
-         │     │     ├─ rewrites @lockness/* cross-package specifiers
-         │     │     └─ does NOT touch the root's own version (#324)
-         │     ├─ writes deno.jsonc's version itself, after
+         ├─ deno task bump --<bump>            ← scripts/bump.ts (#591)
+         │     ├─ rewrites every packages/*/package.json (version + @lockness/* ranges)
+         │     ├─ writes deno.jsonc's version + @lockness/* imports (#324)
+         │     ├─ regenerates every deno.json       ← scripts/manifests.ts
          │     └─ deno install → deno.lock          ← scripts/lockfile.ts (#429)
          ├─ git add -A && git commit -m "chore(release): vX.Y.Z"
          ├─ git tag -a vX.Y.Z -m "Release vX.Y.Z ..."
@@ -111,23 +109,22 @@ mechanics each step delegates to, not a second procedure.
          └─ publish  needs [gate, kits] → deno publish  ← JSR (id-token: write)
 ```
 
-Default `--bump patch`. `bump-native.ts` reads the current version from
+Default `--bump patch`. `bump.ts` reads the current version from
 `deno.jsonc` and increments — the latest git tag is informative but not
 authoritative; the deno.jsonc field is the source of truth for "what version is
 next."
 
-**`scripts/bump.ts` is NOT the release path any more** (#162). It is
-`deno task bump:legacy`, kept for arbitrary version jumps the native command
-cannot express as one increment; `bump-native.ts` still imports its
-`updateRootJsonc` to write the root. Anything describing `bump.ts` as the
-release mechanism predates the migration.
+**`scripts/bump.ts` is the one release bump** (#591). It replaced
+`bump-native.ts` (a `deno bump-version` wrapper, which rewrote `deno.json` files
+that are now generated from `package.json`) and the legacy bump. Anything
+naming `bump-native.ts` or `bump:legacy` predates that.
 
-Both paths end with the same lockfile refresh, `refreshLockfile()` in
+It ends with the lockfile refresh, `refreshLockfile()` in
 `scripts/lockfile.ts`: one command, one dry-run notice, one failure and
-recovery message. A bump path that skips it leaves a release commit
-`deno publish` refuses (v0.4.0's first publish; #429 for the legacy path). Both
-accept `--dry-run`. `tests/bump.test.ts` runs each path against a throwaway
-workspace and asserts the lockfile admits the new version.
+recovery message. A bump that skips it leaves a release commit `deno publish`
+refuses (v0.4.0's first publish; #429). It accepts `--dry-run`.
+`tests/bump.test.ts` runs it against a throwaway workspace and asserts every
+manifest moved and the lockfile admits the new version.
 
 ## File map
 
@@ -136,9 +133,9 @@ workspace and asserts the lockfile admits the new version.
 | `.specnaut/scripts/release/tag.sh`                  | bump → commit → tag → push orchestration (Lockness-customized SemVer mode)    |
 | `.specnaut/scripts/release/release-github.sh`       | draft Release + generated log; invoked only by `/ship` step 3(a)              |
 | `scripts/release_notes.ts`                          | `deno task release:notes` — upgrade-guide check, Release body composition     |
-| `scripts/bump-native.ts`                            | **the** version rewrite — `deno bump-version --workspace`, plus the root's own `version` (#324) |
-| `scripts/bump.ts`                                   | `deno task bump:legacy` — arbitrary version jumps; exports `updateRootJsonc`   |
-| `scripts/lockfile.ts`                               | `refreshLockfile()` — the `deno.lock` refresh both bump paths end with (#429)  |
+| `scripts/bump.ts`                                   | **the** version rewrite — every `package.json`, the root's own `version` (#324), then regenerate |
+| `scripts/manifests.ts`                              | `deno.json` / `tsconfig.json` / own-version module generated from `package.json` (#591) |
+| `scripts/lockfile.ts`                               | `refreshLockfile()` — the `deno.lock` refresh the bump ends with (#429)        |
 | `.github/workflows/publish.yml`                     | JSR publish triggered by `release: published`                                 |
 | `.dvmrc`                                            | the exact Deno version `publish.yml` installs and `test.yml`'s `pinned` lane tests (#481) |
 | `.github/workflows/test.yml`                        | PR gate: `deno task gate --leaks`, plus coverage / live-broker / kits jobs    |
@@ -224,8 +221,8 @@ Multi-stage Dockerfile, runs as non-root, includes health check.
 
 - `.github/workflows/test.yml`
 - `.github/workflows/publish.yml`
-- `scripts/bump-native.ts`
 - `scripts/bump.ts`
+- `scripts/manifests.ts`
 - `docs/deployment.md`
 - `docs/compilation.md`
 - `Dockerfile`

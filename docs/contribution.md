@@ -31,7 +31,12 @@ Each library in the workspace follows the Deno convention for its entry point:
 
 - **`mod.ts`**: This is the main entry point of the library. It exports the
   public API.
-- **`deno.json`**: Each library has its own configuration and versioning.
+- **`package.json`**: Each library's one hand-edited manifest — name, version,
+  dependencies, `engines`, exports, and a `lockness` key for what only Deno and
+  JSR need. Membership is the root `package.json` `workspaces` list.
+- **`deno.json`** and **`tsconfig.json`**: generated from `package.json` by
+  `deno task manifests` and committed. Never edit them by hand; the gate's
+  `manifests --check` step fails on a stale one.
 
 ### `mod.ts` is a barrel, not a home for implementation
 
@@ -94,22 +99,19 @@ be bumped to the same version. Use the `bump` command with an increment:
 deno task bump --patch    # or --minor / --major, or a bare: minor
 ```
 
-It delegates to Deno's native `deno bump-version` (Deno ≥ 2.8) in workspace
-mode, which automatically:
+It runs `scripts/bump.ts`, which:
 
-- Updates the `version` field in all workspace packages' `deno.json`
-- Updates all inter-package dependencies (e.g., `@lockness/core@^0.1.0` →
-  `@lockness/core@^0.2.0`), preserving version prefixes (`^` / `~`) and subpath
-  exports (`@lockness/hono@^0.2.0/jsx-runtime`)
-- Preserves the comments in the root `deno.jsonc`
+- Updates the `version` field in every member's `package.json`, the source
+  manifest
+- Updates every `@lockness/*` range in their `dependencies`, `peerDependencies`
+  and `devDependencies` (e.g. `^0.1.0` → `^0.2.0`), keeping the `^` / `~` prefix
+- Updates the root `deno.jsonc` `version` and its `@lockness/*` imports,
+  preserving its comments
+- Regenerates every member's `deno.json` with `deno task manifests`
 
-An absolute `deno task bump 0.3.0` is accepted when it is exactly one step from
-the current version. For an arbitrary jump, use `deno task bump:legacy 0.3.0`
-(the pre-adoption script, kept as a fallback — see
-[releasing.md](releasing.md)).
-
-Both commands end by refreshing `deno.lock` with `deno install`; commit it with
-the manifests. `--dry-run` previews either one without writing.
+An absolute `deno task bump 0.3.0` is accepted for any jump. The command ends by
+refreshing `deno.lock` with `deno install`; commit it with the manifests.
+`--dry-run` previews it without writing. See [releasing.md](releasing.md).
 
 **After bumping:**
 

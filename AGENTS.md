@@ -725,7 +725,9 @@ reminders:
 
 - Public APIs go through `mod.ts`
 - Don't manually add `@lockness/*` to root imports — workspaces handle it
-- Register new libraries in the workspace array
+- Register new libraries in the root `package.json` `workspaces` list; write
+  their `package.json`, then run `deno task manifests` (never hand-edit the
+  generated `deno.json`)
 - Use `deno task bump <version>` for releases
 - Repo:
   [locknessland/lockness-monorepo](https://github.com/locknessland/lockness-monorepo)

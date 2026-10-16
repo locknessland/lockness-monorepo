@@ -234,9 +234,9 @@ suite.** The bump *rewrites every manifest and every inter-package specifier*
 between the push and the tag, so the tree at tag time is not the tree that was
 tested. Run the gate again.
 
-**And check the root moved.** `deno bump-version --workspace` does not touch the
-root's own `version`; `bump-native.ts` writes it afterwards, and `tag.sh` reads
-exactly that field to name the tag. If they ever disagree the tag is computed
+**And check the root moved.** `scripts/bump.ts` writes the root's own `version`
+next to every member's `package.json`, and `tag.sh` reads exactly that field to
+name the tag. If they ever disagree the tag is computed
 one version behind, and the only thing standing in the way is `tag.sh`'s refusal
 to clobber an existing one (#324). `tests/bump.test.ts` asserts the invariant.
 

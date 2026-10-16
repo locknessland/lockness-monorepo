@@ -31,34 +31,54 @@ and decide afterwards.
 ## One version for the whole workspace
 
 Every package moves to the same version on every release, including packages
-with no changes. `deno task bump` does it atomically: the root `deno.jsonc`, all
-27 `packages/*/deno.json`, and every `jsr:@lockness/*` inter-package specifier.
+with no changes. `deno task bump` (`scripts/bump.ts`) does it in one run, on the
+source manifests first and the generated ones after:
 
-**The engine is Deno's native `deno bump-version` (Deno ≥ 2.8).** In workspace
-mode with an increment (`--patch` / `--minor` / `--major`), it applies one
-shared increment to every member and rewrites the cross-package `jsr:`
-constraints in place — the lockstep model, natively. `scripts/bump-native.ts` is
-a thin wrapper that maps our interface (`--patch` / `--minor` / `--major`, a
-bare `patch` / `minor` / `major` keyword, or an absolute `X.Y.Z` that is one
-clean step from the current version) onto it, and writes the root's own
-`version` itself, which the native command does not (#324). Adopting it (issue
-#162) retired most of the hand-rolled `scripts/bump.ts`, which had a latent bug
-— it dropped the subpath from a versioned specifier, collapsing
-`@lockness/hono/jsx-runtime` onto the base export.
+1. every member's `packages/<pkg>/package.json` — its `version` and every
+   `@lockness/*` range in `dependencies`, `peerDependencies` and
+   `devDependencies`, keeping the `^` / `~` prefix. A member with no `version`
+   (the vite demo) gets none, but its ranges still move;
+2. the root `deno.jsonc` — its `version`, which `tag.sh` reads to name the tag
+   (#324), and its `@lockness/*` imports, every comment kept;
+3. every generated `deno.json` and own-version module, through
+   `deno task manifests` (see
+   [Manifests](#manifests-packagejson-is-the-source));
+4. `deno.lock`, through `scripts/lockfile.ts` (`deno install`).
 
-`scripts/bump.ts` survives as `deno task bump:legacy`, its subpath bug fixed,
-for the two things native cannot do: set an arbitrary version in one jump, and
-serve as a fallback while `deno bump-version` is still flagged experimental.
-Neither tool touches stub files — no stub carries a version pin today.
+It takes `--patch` / `--minor` / `--major`, a bare `patch` / `minor` / `major`,
+or any absolute `X.Y.Z`. No stub carries a version pin: the scaffolder writes
+`{{ locknessVersion }}` from `@lockness/init`'s own version module.
 
-Both tools end the same way: they run `deno install` so `deno.lock` records the
-new `@lockness/*` ranges, through one shared module, `scripts/lockfile.ts`. The
-lockfile belongs in the release commit. Left stale, the first deno command on
-the tagged tree rewrites it and `deno publish` refuses the dirty checkout, which
-is how v0.4.0's first publish failed. If the refresh fails, the bump is already
-applied: run `deno install` once it can succeed, then commit, and do not run the
-bump again. `--dry-run` works on both tools, writes nothing, and says the
-lockfile would be refreshed.
+It replaced two tools (#591): `scripts/bump-native.ts`, a wrapper over Deno's
+`deno bump-version`, which rewrites `deno.json` files that are now generated
+from `package.json`; and the legacy hand-rolled bump it had wrapped since #162.
+
+The lockfile belongs in the release commit. Left stale, the first deno command
+on the tagged tree rewrites it and `deno publish` refuses the dirty checkout,
+which is how v0.4.0's first publish failed. If the refresh fails, the bump is
+already applied: run `deno install` once it can succeed, then commit, and do not
+run the bump again. `--dry-run` writes nothing and says what would change.
+
+### Manifests: `package.json` is the source
+
+Each member's `package.json` is its one hand-edited manifest; its `deno.json`,
+`tsconfig.json` and, where asked for, `version.generated.ts` are generated from
+it by `deno task manifests` (`scripts/manifests.ts`) and committed — the publish
+job may not generate anything (#476). Workspace membership is the root
+`package.json` `workspaces` list. The `lockness` key carries what npm has no
+field for: JSR-only packages (`lockness.jsr`), extra import-map entries
+(`lockness.imports`), the JSR `publish` filters, the JSX `compilerOptions`,
+`tasks` and `versionModule`. A sibling only the tests import is a
+`devDependency`; runtime `dependencies` must stay acyclic, because they become
+`tsconfig.json` references.
+
+`deno task manifests --check` is a gate step. It fails when a generated file is
+stale, when `engines` is not monotonic over static, optional-peer and test
+dependencies, when `deno.lock` resolves any `@lockness/*` package from a
+registry, or when a package's optional peers differ from its `deps.policy.jsonc`
+`soft` list. The generated `deno.json` always excludes `package.json` and
+`tsconfig.json` from `publish`, so the JSR package is what it was before the
+move.
 
 ### Why lockstep, and not per-package semver
 
