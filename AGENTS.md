@@ -302,10 +302,6 @@ user-facing doc.
   `@Service`, `@Inject`, lifetimes. Injection is lazy, so services may hold each
   other; only a constructor cycle is a fault, and it raises
   `CircularDependencyError`.
-- [`@lockness/transform`](packages/transform/AGENTS.md) — The Node `--import`
-  hook that runs an app's TypeScript (TC39 decorators, `.tsx`) through
-  TypeScript 6 with the app's `tsconfig.json`, behind a private project-local
-  cache. Loads before everything, so it imports nothing; refuses production.
 
 **Framework**
 
@@ -375,6 +371,10 @@ user-facing doc.
 - [`@lockness/vite`](packages/vite/AGENTS.md) — Deno-native Vite integration —
   dev-server bridge (`App.fetch()` by injection), Deno specifier resolver, and a
   manifest-aware asset helper. Standalone and opt-in (epic #64).
+- [`@lockness/transform`](packages/transform/AGENTS.md) — The Node `--import`
+  hook that runs an app's TypeScript (TC39 decorators, `.tsx`) through
+  TypeScript 6 with the app's `tsconfig.json`, behind a private project-local
+  cache. Loads before everything, so it imports nothing; refuses production.
 
 ### Package Documentation (`packages/*/docs/`)
 

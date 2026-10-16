@@ -13,9 +13,10 @@ tests. Production never uses it: it refuses to run when `APP_ENV=production`.
 node --import @lockness/transform/register main.ts
 ```
 
-Requires Node ≥ 22.15 (`module.registerHooks`). Every `.ts` / `.tsx` file of
-your app is emitted as an ES module; files under `node_modules` are left to
-Node.
+Requires Node ≥ 24. Every `.ts` / `.tsx` file of your app is emitted as an ES
+module; files under `node_modules` are left to Node. `.mts` and `.cts` files are
+not supported: Node's own type stripping handles them and rejects decorators, so
+name app files `.ts` / `.tsx`.
 
 Your `tsconfig.json` decides the emit. For a Lockness app:
 
@@ -30,16 +31,22 @@ Your `tsconfig.json` decides the emit. For a Lockness app:
 ```
 
 `target` must be below `esnext` so decorators are lowered, and a `.tsx` file
-needs a `jsx` emit Node can run (`react-jsx`, `react-jsxdev` or `react`). A file
-with no `tsconfig.json` above it is refused.
+needs a `jsx` emit Node can run (`react-jsx`, `react-jsxdev` or `react`). The
+`tsconfig.json` is the nearest one, never above the nearest `package.json` or
+`deno.json`; it must be yours and writable by you alone. A file with none is
+refused, and so is an unknown option or an invalid value (except a `lib` /
+`types` value such as Deno's `"deno.ns"`, which a single-file emit ignores).
 
 ## Cache
 
 Transformed files are cached in `node_modules/.cache/lockness-transform` beside
 your `tsconfig.json`, in a directory only your user can read or write (0700).
-The key is a SHA-256 of the transformer version, the compiler options, the file
-name and the source, so an edit, an option change or an upgrade never serves a
-stale entry. Delete the directory to clear it.
+Every directory from the app root down must be yours and not writable by group
+or others (unless sticky), and each entry is verified before it runs; a cache
+that fails these checks is refused with a message naming the path. A cache that
+cannot be written only warns. The key is a SHA-256 of the transformer version,
+the compiler options, the file name and the source, so an edit, an option change
+or an upgrade never serves a stale entry. Delete the directory to clear it.
 
 ## Programmatic emit
 
@@ -47,16 +54,22 @@ stale entry. Delete the directory to clear it.
 import {
     findTsconfig,
     readCompilerOptions,
-    transpile,
+    transpileForBuild,
 } from '@lockness/transform'
 
 const tsconfig = findTsconfig(appRoot)
 if (tsconfig === null) throw new Error('no tsconfig.json')
-const js = transpile(source, fileName, readCompilerOptions(tsconfig))
+const { code, map } = transpileForBuild(
+    source,
+    fileName,
+    outFile,
+    readCompilerOptions(tsconfig),
+)
 ```
 
-This is the emit `lockness build` is to reuse (it is not released yet), so a
-build will produce the code the hook ran in development.
+`transpileForBuild` is the emit `lockness build` is to use (it is not released
+yet): the same emit as the hook's `transpileForLoad`, with `.ts` specifiers
+rewritten to `.js` and an external source map.
 
 ## Why TypeScript from npm
 

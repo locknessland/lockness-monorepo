@@ -108,8 +108,10 @@ on `main`. Precedent: the realtime epic shipped as specs 240–272, one feature 
 - [x] T014 [US2] `feat(transform)`: `packages/transform/transform.ts` (TS 6 `transpileModule`,
   options read from the app's `tsconfig.json`) and `register.ts` (`module.registerHooks` load hook
   for `.ts`/`.tsx` outside `node_modules`; cache `node_modules/.cache/lockness-transform`, 0700, key
-  SHA-256(transformer version, options, source); refuses when `APP_ENV=production`). Home: plan §5
-  "Node transform".
+  SHA-256(transformer version, options, file name, source); refuses when `APP_ENV=production`). Home:
+  plan §5 "Node transform". Amended by #618 (path walk, per-entry `fstat` verification, bounded and
+  owner-checked `tsconfig.json` search) and #619 (`transpileForLoad` / `transpileForBuild` over one
+  private emit with the placement table, fail-closed option diagnostics, `engines.node >=24`).
 
 ### C08 · CI runtime lanes
 
@@ -251,7 +253,9 @@ on `main`. Precedent: the realtime epic shipped as specs 240–272, one feature 
 
 - [ ] T037 [US4] `feat(core)`: `packages/core/cli/compilers/{deno,bun,node}.ts` (Node refuses,
   naming the Node SEA follow-up), reached only through core's `compile` command.
-- [ ] T038 [US2] `feat(cli)`: `lockness build` for Node reusing `transform.ts`'s emit into `dist/`.
+- [ ] T038 [US2] `feat(cli)`: `lockness build` for Node through `transform.ts`'s `transpileForBuild`
+  into `dist/` (`.ts` specifiers rewritten to `.js`, a `.map` beside each output), resolving options
+  per file as the hook does and never reading the transform cache (plan §5 rows 204, 204b).
 
 ---
 

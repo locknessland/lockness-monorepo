@@ -16,19 +16,35 @@ options for user code"), audits A10 and S9.
   lint to silence. Here it is stricter than a lint: the hook is installed before
   the app's first import, so any `@lockness/*` module it pulled in would load
   untransformed and outside the app's own module graph.
-- **No compiler option is spelled in this package.** `transpile` takes the
-  options `readCompilerOptions` read from the app's `tsconfig.json`. The single
-  override is `module: ESNext` (with `moduleResolution` dropped), because both
-  consumers — the hook and `lockness build` — load the output as an ES module.
-  Adding a default `target` or `jsx` here creates a second home (audit A10).
-- **`lockness build` reuses `transpile`, it does not re-implement it.** That is
-  why the emit is exported from `mod.ts` and the hook is not: dev and production
-  must emit the same code.
-- **The cache is a code-injection surface.** Every entry is JavaScript the
-  process executes. It lives at `<app>/node_modules/.cache/lockness-transform`
-  (never a shared temp dir), the directory is 0700, owned by the current user
-  and not a symlink, entries are 0600 and renamed into place. Loosening any of
-  these lets another local user plant code in the app (audit S9).
+- **No semantic compiler option is spelled in this package.** `target`, class
+  fields, `jsx*`, `verbatimModuleSyntax` come from the app's `tsconfig.json`
+  through `readCompilerOptions`. Adding a default `target` or `jsx` here creates
+  a second home (audit A10).
+- **Placement options have one table, `PLACEMENT` in `transform.ts`** (#619
+  disposition): where the emit and its map go and how specifiers are written.
+  `transpileForLoad` (the hook) keeps `./a.ts` and inlines the map;
+  `transpileForBuild` (`lockness build`) rewrites `.ts`/`.tsx` to `.js` and
+  returns an external map whose `sourceRoot` resolves. Both force
+  `module: ESNext` and drop `moduleResolution` and the layout options. They run
+  over one private emit; `transpile` is private. A `consumer` flag, build-side
+  specifier post-processing or a `.js` → `.ts` resolve hook were rejected.
+- **Option diagnostics fail closed.** An unknown option or an invalid value
+  throws, because TypeScript drops a rejected value and the emit would change
+  silently. The one exception is a value diagnostic on `lib` / `types`
+  (`"deno.ns"`), located through the source-file API. Never use
+  `ts.transpileOptionValueCompilerOptions`.
+- **The cache is a code-injection surface** (audit S9, #618). Every entry is
+  JavaScript the process executes. It lives at
+  `<app>/node_modules/.cache/lockness-transform` (never a shared temp dir).
+  Every access walks the path from the app root: no symlink, owned by the uid,
+  not group/other-writable unless sticky. The cache directory is created 0700
+  and refused, never narrowed, if it has any group/other bit. Each entry is
+  opened `O_RDONLY | O_NOFOLLOW` and `fstat`-ed: a regular file owned by the uid
+  with no group/other bit, or a miss. Entries are 0600 and renamed into place. A
+  failed write warns and keeps the emit. The build never reads it.
+- **The `tsconfig.json` search is bounded** at the nearest `package.json`,
+  `deno.json` or `deno.jsonc`, and a `tsconfig.json` owned by another user or
+  group/other-writable is refused (#618). Its `extends` targets are not checked.
 - **The key covers everything the emit depends on**: SHA-256 over the canonical
   JSON array `[transformer version, compiler options, file name, source]`. The
   transformer version is this package's `VERSION` plus TypeScript's. The file
@@ -37,7 +53,9 @@ options for user code"), audits A10 and S9.
   field makes a stale hit possible.
 - **Only app files are transformed**: `file:` URLs ending `.ts` / `.tsx` (not
   `.d.ts`) with no `node_modules` segment. A published dependency ships
-  JavaScript; transforming it would hide a broken package.
+  JavaScript; transforming it would hide a broken package. `.mts` / `.cts` are
+  unsupported and documented as such: they fall through to Node's type
+  stripping, which rejects decorators.
 - **`APP_ENV=production` refuses at import time**, before the hook is installed.
   Production runs built output.
 
@@ -81,10 +99,10 @@ consuming application installs it, or the feature stays off.
 
 <!-- generated:surface -->
 
-| Kind     | Exports                                            |
-| :------- | :------------------------------------------------- |
-| function | `findTsconfig`, `readCompilerOptions`, `transpile` |
-| variable | `TYPESCRIPT_VERSION`                               |
+| Kind      | Exports                                                                        |
+| :-------- | :----------------------------------------------------------------------------- |
+| function  | `findTsconfig`, `readCompilerOptions`, `transpileForBuild`, `transpileForLoad` |
+| interface | `BuildEmit`                                                                    |
 
 Anything not listed is internal and free to change.
 
@@ -117,8 +135,14 @@ nothing, so the generated surface above does not list it.
   reason; a probe that only checked the exit status would have run the e2e under
   Deno. (2026-10-16)
 - **`module: nodenext` in an app's tsconfig emits CommonJS for a lone `.ts`**
-  under `transpileModule` (it has no `package.json` to read). That is why
-  `transpile` forces `module: ESNext`. (2026-10-16)
+  under `transpileModule` (it has no `package.json` to read). That is why the
+  placement table forces `module: ESNext`. (2026-10-16)
+- **`transpileModule` validates every key it is given**, so a dropped placement
+  option is deleted, not set to `undefined` (which raises TS6046 on
+  `moduleResolution`). (2026-10-16)
+- **A group-writable app tree is refused** by the cache walk: under a `002`
+  umask, `node_modules` is 0775 and the hook throws naming it. That is the #618
+  rule, not a bug; `chmod g-w` fixes it. (2026-10-16)
 - **TypeScript 7 has no JavaScript API** (#612): the pin is exact, `6.0.3`, the
   same pin the npm build uses (plan 274 F1, F6). A range would let the hook and
   the build emit with different compilers.
