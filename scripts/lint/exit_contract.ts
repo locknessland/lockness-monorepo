@@ -25,7 +25,17 @@
  *   `// deno-lint-ignore lockness-exit/printed-failure`, with the reason on
  *   the line above.
  *
- * Tests and stub templates are out of scope for both rules. Scope is decided
+ * - `signal-subscription` — a signal listener added through Node's `process`
+ *   (`process.on('SIGINT', …)`, and `once`, `addListener`,
+ *   `prependListener`, `prependOnceListener`) in package code outside
+ *   `packages/runtime/signals.ts`, the portable primitive (plan 274 §5,
+ *   #598). The event name must be a literal starting with `SIG`; a computed
+ *   name, an alias of `process` or a named import from `node:process` is not
+ *   followed. `Deno.addSignalListener` is not this rule's: core's and queue's
+ *   remaining calls move to `onSignal` when those packages leave Deno, and
+ *   `lockness-runtime/no-deno` reports them from then on.
+ *
+ * Tests and stub templates are out of scope for every rule. Scope is decided
  * on the path relative to the repository root, never on the absolute path: a
  * checkout under a directory named `tests`, `stubs` or `packages` lints the
  * same as any other.
@@ -50,6 +60,22 @@ const EXIT_OWNERS = [
  */
 const EXIT_CODE_OWNERS = ['packages/cli/report.ts']
 
+/**
+ * The file allowed to subscribe to a signal through `process`: the portable
+ * shutdown-signal primitive (plan 274 §5). Everything else asks its
+ * `onSignal`.
+ */
+const SIGNAL_OWNERS = ['packages/runtime/signals.ts']
+
+/** The `process` methods that add a listener. */
+const SUBSCRIBERS = new Set([
+    'on',
+    'once',
+    'addListener',
+    'prependListener',
+    'prependOnceListener',
+])
+
 /** The `mod.ts` files that hold a standalone tool's command code. */
 const COMMAND_MODS = ['ui', 'upgrade', 'init']
 
@@ -64,6 +90,12 @@ const EXIT_MESSAGE =
 const EXIT_HINT = 'Deno.exit() / process.exit() is owned by ' +
     'core/http/server.ts and core/kernel/signals.ts; Deno.exitCode / ' +
     'process.exitCode is written by cli/report.ts only. ' +
+    'The owner list lives in scripts/lint/exit_contract.ts.'
+
+const SIGNAL_MESSAGE =
+    'Signal subscribed through process in package code: ask onSignal from @lockness/runtime/signals (plan 274 §5)'
+const SIGNAL_HINT = "process.on/once/addListener('SIG…') is owned by " +
+    'runtime/signals.ts; which signals mean shutdown stays with the caller. ' +
     'The owner list lives in scripts/lint/exit_contract.ts.'
 
 const PRINT_MESSAGE =
@@ -261,6 +293,43 @@ const plugin: Deno.lint.Plugin = {
                     },
                     UpdateExpression(node) {
                         if (writesExitCode(node.argument)) report(node)
+                    },
+                }
+            },
+        },
+        'signal-subscription': {
+            create(context) {
+                const path = packagePath(context.filename, REPO_ROOT)
+                if (path === undefined || SIGNAL_OWNERS.includes(path)) {
+                    return {}
+                }
+                return {
+                    CallExpression(node) {
+                        const callee = node.callee
+                        if (
+                            callee.type !== 'MemberExpression' ||
+                            callee.object.type !== 'Identifier' ||
+                            callee.object.name !== 'process'
+                        ) {
+                            return
+                        }
+                        const method = staticKey(
+                            callee.property,
+                            callee.computed,
+                        )
+                        if (method === undefined || !SUBSCRIBERS.has(method)) {
+                            return
+                        }
+                        if (
+                            !leadingText(node.arguments[0])?.startsWith('SIG')
+                        ) {
+                            return
+                        }
+                        context.report({
+                            node,
+                            message: SIGNAL_MESSAGE,
+                            hint: SIGNAL_HINT,
+                        })
                     },
                 }
             },

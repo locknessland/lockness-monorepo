@@ -1,6 +1,6 @@
 /**
- * Tests for the `lockness-exit` lint plugin (#436, D5): `process-exit` and
- * `printed-failure` — the shapes each flags, the shapes that stay clean, the
+ * Tests for the `lockness-exit` lint plugin (#436, D5): `process-exit`,
+ * `printed-failure` and `signal-subscription` (#598) — the shapes each flags, the shapes that stay clean, the
  * owner list and the file scoping.
  *
  * Scope is decided on the path relative to the repository root, so every file
@@ -20,7 +20,7 @@ const ROOT = fromFileUrl(new URL('../../', import.meta.url))
 
 /** Lint `source` as `file` and return the hit count of `rule`. */
 function hits(
-    rule: 'process-exit' | 'printed-failure',
+    rule: 'process-exit' | 'printed-failure' | 'signal-subscription',
     source: string,
     file: string,
 ): number {
@@ -362,4 +362,90 @@ test('exit-contract - a file outside the repository is out of scope', () => {
         hits('process-exit', 'Deno.exit(1)', '/elsewhere/packages/x/mod.ts'),
         0,
     )
+})
+
+// ---------------------------------------------------------------------------
+// signal-subscription (plan 274 §5, #598)
+// ---------------------------------------------------------------------------
+
+const SIGNAL_POSITIVES: ReadonlyArray<readonly [string, string]> = [
+    ["process.on('SIGINT')", "process.on('SIGINT', stop)"],
+    ["process.once('SIGTERM')", "process.once('SIGTERM', stop)"],
+    ['process.addListener', "process.addListener('SIGHUP', stop)"],
+    ['process.prependListener', "process.prependListener('SIGINT', stop)"],
+    [
+        'process.prependOnceListener',
+        "process.prependOnceListener('SIGINT', stop)",
+    ],
+    ['a computed method', "process['on']('SIGINT', stop)"],
+    ['a template signal name', 'process.on(`SIGTERM`, stop)'],
+    ['a signal Lockness does not name', "process.on('SIGUSR2', stop)"],
+    ['inside a function', "function f() { process.on('SIGINT', () => {}) }"],
+]
+
+for (const [label, source] of SIGNAL_POSITIVES) {
+    test(`signal-subscription - flags ${label}`, () => {
+        assertEquals(hits('signal-subscription', source, PACKAGE_FILE), 1)
+    })
+}
+
+const SIGNAL_NEGATIVES: ReadonlyArray<readonly [string, string]> = [
+    ['a non-signal process event', "process.on('exit', done)"],
+    ['an unhandled-rejection hook', "process.on('unhandledRejection', log)"],
+    ['a dynamic event name', 'process.on(name, handler)'],
+    ['an emitter that is not process', "server.on('SIGINT', stop)"],
+    ['removing a listener', "process.off('SIGINT', stop)"],
+    ['Deno is not this rule', "Deno.addSignalListener('SIGINT', stop)"],
+    ['a lower-case look-alike', "process.on('sigint', stop)"],
+]
+
+for (const [label, source] of SIGNAL_NEGATIVES) {
+    test(`signal-subscription - leaves ${label} alone`, () => {
+        assertEquals(hits('signal-subscription', source, PACKAGE_FILE), 0)
+    })
+}
+
+test('signal-subscription - runtime/signals.ts is the one owner', () => {
+    const source = "process.on('SIGINT', stop)"
+    assertEquals(
+        hits(
+            'signal-subscription',
+            source,
+            `${ROOT}packages/runtime/signals.ts`,
+        ),
+        0,
+    )
+    for (
+        const file of [
+            'packages/core/kernel/signals.ts',
+            'packages/queue/commands.ts',
+            'packages/runtime/process.ts',
+            'packages/x/vendor/packages/runtime/signals.ts',
+        ]
+    ) {
+        assertEquals(
+            hits('signal-subscription', source, `${ROOT}${file}`),
+            1,
+            file,
+        )
+    }
+})
+
+test('signal-subscription - reports nothing in tests, stubs or outside packages', () => {
+    const source = "process.on('SIGINT', stop)"
+    for (
+        const file of [
+            'packages/runtime/tests/signals.test.ts',
+            'packages/x/a_test.ts',
+            'packages/x/stubs/make/a.ts',
+            'scripts/test_runtime.ts',
+            'app/kernel.ts',
+        ]
+    ) {
+        assertEquals(
+            hits('signal-subscription', source, `${ROOT}${file}`),
+            0,
+            file,
+        )
+    }
 })

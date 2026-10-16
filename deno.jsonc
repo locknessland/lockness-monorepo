@@ -230,7 +230,8 @@
         // `lockness-exit/process-exit` and `lockness-exit/printed-failure`
         // (#436): a command fails by throwing — no Deno.exit / process.exit
         // or exit-status write outside the owners named in the rule file, no ❌
-        // print in command code.
+        // print in command code. `lockness-exit/signal-subscription` (#598):
+        // no process.on('SIG…') outside packages/runtime/signals.ts.
         // `lockness-runtime/no-deno` and `neutral-imports` (#596): no Deno global
         // and no runtime-specific Hono adapter in a package whose engines names
         // bun or node, nor in a script under scripts/ outside the baseline in
