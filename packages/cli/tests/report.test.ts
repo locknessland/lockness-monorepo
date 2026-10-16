@@ -11,7 +11,9 @@
  * @module @lockness/cli/tests/report
  */
 
+import process from 'node:process'
 import { test } from 'node:test'
+import { inspect } from 'node:util'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { Cli, CommandFailedError } from '../mod.ts'
 import { reportThrown } from '../report.ts'
@@ -50,12 +52,12 @@ function onlyLine(error: unknown[][]): string {
     assertEquals(
         error.length,
         1,
-        `expected one console.error: ${Deno.inspect(error)}`,
+        `expected one console.error: ${inspect(error)}`,
     )
     assertEquals(
         error[0].length,
         1,
-        `expected one argument: ${Deno.inspect(error[0])}`,
+        `expected one argument: ${inspect(error[0])}`,
     )
     assertEquals(typeof error[0][0], 'string')
     return error[0][0] as string
@@ -166,8 +168,8 @@ test('report - a throwing exitCode getter prints one fallback line and exits 1',
 })
 
 test('reportThrown - a non-failure prints the catch-all branch under the label and returns 1', async () => {
-    const original = Deno.env.get('LOCKNESS_CLI_RAW_ERRORS')
-    Deno.env.delete('LOCKNESS_CLI_RAW_ERRORS')
+    const original = process.env.LOCKNESS_CLI_RAW_ERRORS
+    delete process.env.LOCKNESS_CLI_RAW_ERRORS
     try {
         const { result, error } = await captureErrors(() =>
             reportThrown('tool', new TypeError('boom'))
@@ -181,7 +183,7 @@ test('reportThrown - a non-failure prints the catch-all branch under the label a
         assertStringIncludes(line, 'LOCKNESS_CLI_RAW_ERRORS=1')
     } finally {
         if (original !== undefined) {
-            Deno.env.set('LOCKNESS_CLI_RAW_ERRORS', original)
+            process.env.LOCKNESS_CLI_RAW_ERRORS = original
         }
     }
 })
@@ -261,14 +263,14 @@ async function withRawErrors<T>(
     value: string | undefined,
     fn: () => Promise<T>,
 ): Promise<T> {
-    const original = Deno.env.get('LOCKNESS_CLI_RAW_ERRORS')
-    if (value === undefined) Deno.env.delete('LOCKNESS_CLI_RAW_ERRORS')
-    else Deno.env.set('LOCKNESS_CLI_RAW_ERRORS', value)
+    const original = process.env.LOCKNESS_CLI_RAW_ERRORS
+    if (value === undefined) delete process.env.LOCKNESS_CLI_RAW_ERRORS
+    else process.env.LOCKNESS_CLI_RAW_ERRORS = value
     try {
         return await fn()
     } finally {
         if (original === undefined) {
-            Deno.env.delete('LOCKNESS_CLI_RAW_ERRORS')
-        } else Deno.env.set('LOCKNESS_CLI_RAW_ERRORS', original)
+            delete process.env.LOCKNESS_CLI_RAW_ERRORS
+        } else process.env.LOCKNESS_CLI_RAW_ERRORS = original
     }
 }

@@ -24,10 +24,16 @@
  * that throws — gets past it: each reads as off, and the dispatcher still
  * prints the command's own error.
  *
+ * **It names no runtime** (#597). The variable is read through
+ * `@lockness/contract`'s one safe env read, which asks the permission without
+ * prompting, and a reader's failure is classified by the error's `name`, so
+ * this module needs no `Deno` global.
+ *
  * @module @lockness/cli/raw_errors
  */
 
 import { safeForLog } from '@lockness/contract'
+import { readEnvVar } from '@lockness/contract/environment/read/internal'
 
 /** The environment variable this module reads. */
 const VARIABLE = 'LOCKNESS_CLI_RAW_ERRORS'
@@ -53,34 +59,21 @@ export type RawErrorsSwitch =
         readonly placeholder: UnreadablePlaceholder
     }
 
-/** Reads one environment variable; {@link readEnvWithoutPrompt} in production. */
+/**
+ * Reads one environment variable; `@lockness/contract`'s prompt-free
+ * `readEnvVar` in production.
+ */
 export type EnvReader = (name: string) => string | undefined
 
 /**
- * Read one environment variable, or `undefined` when the process was not
- * granted it — asked first, so the read never shows a permission prompt.
+ * The `name` of a thrown error, or `undefined` for anything else.
  *
- * `Deno.env.get` without the permission does not simply fail: in an
- * interactive terminal Deno first prompts for it, and this read happens in the
- * middle of an error report. `querySync` only reports the state and never
- * prompts, so anything short of `granted` reads as unset.
- *
- * @param name - The variable to read.
- * @returns Its value, or `undefined` when it is unset or not granted.
- * @throws `Deno.errors.InvalidData` when the value is not valid Unicode.
- *
- * @example
- * ```ts
- * readEnvWithoutPrompt('LOCKNESS_CLI_RAW_ERRORS') // '1', or undefined
- * ```
+ * Deno's `Deno.errors` classes are told apart by name (`NotCapable`,
+ * `InvalidData`) rather than by `instanceof`, so the classification below
+ * needs no `Deno` global and loads on every runtime.
  */
-export function readEnvWithoutPrompt(name: string): string | undefined {
-    const { state } = Deno.permissions.querySync({
-        name: 'env',
-        variable: name,
-    })
-    if (state !== 'granted') return undefined
-    return Deno.env.get(name)
+function errorName(error: unknown): string | undefined {
+    return error instanceof Error ? error.name : undefined
 }
 
 /**
@@ -88,8 +81,8 @@ export function readEnvWithoutPrompt(name: string): string | undefined {
  *
  * **A denied environment reads as off.** The default reader asks for the
  * permission without prompting and reads a variable it was not granted as
- * unset; a custom reader may instead raise `NotCapable`, which reads as off
- * too. A binary compiled with a narrowed permission set is a legitimate way to
+ * unset; a reader may instead raise an error named `NotCapable`, which reads
+ * as off too. A binary compiled with a narrowed permission set is a legitimate way to
  * run the CLI. Off is the safe reading of "cannot tell", and the dispatcher
  * still prints the redacted error and the hint naming the switch, so nothing
  * is hidden.
@@ -100,7 +93,8 @@ export function readEnvWithoutPrompt(name: string): string | undefined {
  * do (`InvalidData`). The notice names the value by a placeholder, never by
  * the runtime's message, which quotes the bytes.
  *
- * @param read - Reads one variable. Defaults to {@link readEnvWithoutPrompt}.
+ * @param read - Reads one variable. Defaults to `@lockness/contract`'s
+ *   prompt-free `readEnvVar`.
  * @returns `on` only for an allowlisted on-value; `off` for unset, empty, an
  *   allowlisted off-value or a denied read; `unrecognised` (also off) for
  *   anything else, carrying the raw value for the notice; `unreadable` (also
@@ -113,16 +107,17 @@ export function readEnvWithoutPrompt(name: string): string | undefined {
  * ```
  */
 export function readRawErrorsSwitch(
-    read: EnvReader = readEnvWithoutPrompt,
+    read: EnvReader = readEnvVar,
 ): RawErrorsSwitch {
     let value: string | undefined
     try {
         value = read(VARIABLE)
     } catch (error) {
-        if (error instanceof Deno.errors.NotCapable) return { state: 'off' }
+        const name = errorName(error)
+        if (name === 'NotCapable') return { state: 'off' }
         return {
             state: 'unreadable',
-            placeholder: error instanceof Deno.errors.InvalidData
+            placeholder: name === 'InvalidData'
                 ? '<not valid Unicode>'
                 : '<unreadable>',
         }

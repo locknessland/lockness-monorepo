@@ -12,7 +12,12 @@
  *   behind a banner when `LOCKNESS_CLI_RAW_ERRORS` is on. Each case is exactly
  *   one `console.error` call.
  * - **Where the process status is written.** `applyExitStatus` is the only
- *   `Deno.exitCode` write in the package.
+ *   `process.exitCode` write in the package (plan 274 §5 "Process exit"; the
+ *   `exit_contract` lint names this file as its one owner).
+ *
+ * Runtime-neutral: the status goes through `node:process`, which Deno, Bun and
+ * Node all provide, and the one environment read goes through
+ * `@lockness/contract`, so nothing on this path names `Deno`.
  *
  * `Cli.dispatch`, `Cli.run` and `runEntry` call it, so a command and a
  * standalone tool cannot drift apart on either.
@@ -24,6 +29,7 @@
  * @module
  */
 
+import process from 'node:process'
 import { renderError } from '@lockness/contract'
 import type { CommandFailure } from '@lockness/contract/command'
 import { renderMessage } from '@lockness/contract/logging/internal'
@@ -90,21 +96,21 @@ function printFallback(label: string): void {
 }
 
 /**
- * Write a non-zero status to `Deno.exitCode`; leave it as it was for `0`.
+ * Write a non-zero status to `process.exitCode`; leave it as it was for `0`.
  *
- * The status is set, never forced with `Deno.exit()`: the process ends
+ * The status is set, never forced with `process.exit()`: the process ends
  * normally, so `finally` blocks still run and buffered output is not cut off.
  *
  * @param status - An exit status, `0` for success.
  *
  * @example
  * ```ts
- * applyExitStatus(await cli.dispatch(Deno.args))
+ * applyExitStatus(await cli.dispatch(process.argv.slice(2)))
  * ```
  */
 export function applyExitStatus(status: number): void {
     if (status !== 0) {
-        Deno.exitCode = status
+        process.exitCode = status
     }
 }
 

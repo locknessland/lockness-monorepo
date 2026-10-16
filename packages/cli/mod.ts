@@ -377,12 +377,12 @@ export class Cli implements CommandRegistry {
 
     /**
      * Run a command as the process entry point: {@link Cli.dispatch}, then a
-     * non-zero status is written to `Deno.exitCode`.
+     * non-zero status is written to `process.exitCode`.
      *
-     * The status is set, never forced with `Deno.exit()`: the process ends
+     * The status is set, never forced with `process.exit()`: the process ends
      * normally, so `finally` blocks (closing a database connection) still run
      * and output still being written is not cut off. A zero status leaves
-     * `Deno.exitCode` as it was.
+     * `process.exitCode` as it was.
      *
      * @param args - The command name followed by its arguments, usually
      *   `Deno.args`.

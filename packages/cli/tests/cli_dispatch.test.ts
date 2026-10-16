@@ -3,7 +3,9 @@
  *
  * A handler reports failure by throwing; {@link Cli.dispatch} prints it once
  * and maps it to an exit status, and {@link Cli.run} hands a non-zero status to
- * `Deno.exitCode`. These tests pin every row of that contract:
+ * `process.exitCode`. These tests pin every row of that contract, on every
+ * runtime; the one row that needs a real subprocess (T6) is in
+ * `cli_dispatch.deno.test.ts`:
  *
  * | Case                              | Exit                       | Printed                    |
  * | :-------------------------------- | :------------------------- | :------------------------- |
@@ -23,7 +25,9 @@
  * @module @lockness/cli/tests/cli_dispatch
  */
 
+import process from 'node:process'
 import { test } from 'node:test'
+import { inspect } from 'node:util'
 import {
     assert,
     assertEquals,
@@ -79,8 +83,11 @@ function cliWith(handler: () => Promise<void>): Cli {
 
 /** An error from a package that cannot import `@lockness/cli`. */
 class LocalFailure extends Error {
-    constructor(message: string, readonly exitCode: number) {
+    readonly exitCode: number
+
+    constructor(message: string, exitCode: number) {
         super(message)
+        this.exitCode = exitCode
         this.name = 'LocalFailure'
     }
 }
@@ -220,7 +227,7 @@ function fakeSecret(tag: string): string {
 
 /** What the console prints for one call: strings as-is, the rest inspected. */
 function printed(args: unknown[]): string {
-    return args.map((x) => typeof x === 'string' ? x : Deno.inspect(x))
+    return args.map((x) => typeof x === 'string' ? x : inspect(x))
         .join(' ')
 }
 
@@ -245,14 +252,14 @@ async function withRawErrors<T>(
     value: string | undefined,
     fn: () => Promise<T>,
 ): Promise<T> {
-    const original = Deno.env.get(RAW)
-    if (value === undefined) Deno.env.delete(RAW)
-    else Deno.env.set(RAW, value)
+    const original = process.env[RAW]
+    if (value === undefined) delete process.env[RAW]
+    else process.env[RAW] = value
     try {
         return await fn()
     } finally {
-        if (original === undefined) Deno.env.delete(RAW)
-        else Deno.env.set(RAW, original)
+        if (original === undefined) delete process.env[RAW]
+        else process.env[RAW] = original
     }
 }
 
@@ -366,48 +373,6 @@ test('dispatch - T5 an unrecognised switch value prints redacted output and a no
     assert(!out.includes(OFF_HINT), out)
 })
 
-test(
-    'dispatch - T6 a switch value that is not valid Unicode still prints the real error once, exit 1',
-    {
-        // A POSIX shell builds the bytes; `Deno.Command` takes only strings.
-        skip: Deno.build.os === 'windows',
-    },
-    async function () {
-        const message = ['fx', 'real', crypto.randomUUID().slice(0, 8)].join(
-            '',
-        )
-        const fixture = new URL(
-            './fixtures/raw-errors/dispatch.ts',
-            import.meta.url,
-        )
-        const { code, stdout, stderr } = await new Deno.Command('sh', {
-            args: [
-                '-c',
-                `${RAW}="$(printf '\\377\\376')" exec "$0" run --allow-env "$1" "$2"`,
-                Deno.execPath(),
-                fixture.pathname,
-                message,
-            ],
-            cwd: new URL('..', import.meta.url).pathname,
-            stdout: 'piped',
-            stderr: 'piped',
-        }).output()
-        const out = new TextDecoder().decode(stdout) +
-            new TextDecoder().decode(stderr)
-        assertEquals(code, 1, out)
-        assertEquals(
-            out.split(`❌ task failed: Error: ${message}`).length - 1,
-            1,
-            out,
-        )
-        assertStringIncludes(
-            out,
-            `${RAW}=<not valid Unicode> could not be read`,
-        )
-        assert(!out.includes('InvalidData'), out)
-    },
-)
-
 test('dispatch - T8 a pg-shaped error shows its SQLSTATE and neither detail nor hint', async () => {
     const detail = fakeSecret('detail')
     const hint = fakeSecret('hint')
@@ -491,29 +456,29 @@ test('dispatch - a class-based handle() that throws exits 1', async () => {
 })
 
 // -----------------------------------------------------------------------------
-// Cli.run — writes a non-zero status to Deno.exitCode, and only that
+// Cli.run — writes a non-zero status to process.exitCode, and only that
 // -----------------------------------------------------------------------------
 
 /**
- * Run `fn` with `Deno.exitCode` preset to `preset`, returning the value it
+ * Run `fn` with `process.exitCode` preset to `preset`, returning the value it
  * held afterwards and always restoring the original — a leaked non-zero value
  * would fail the whole test process.
  */
 async function withExitCode(
     preset: number,
     fn: () => Promise<unknown>,
-): Promise<number> {
-    const original = Deno.exitCode
-    Deno.exitCode = preset
+): Promise<typeof process.exitCode> {
+    const original = process.exitCode
+    process.exitCode = preset
     try {
         await fn()
-        return Deno.exitCode
+        return process.exitCode
     } finally {
-        Deno.exitCode = original
+        process.exitCode = original
     }
 }
 
-test('run - a failure sets Deno.exitCode and returns the status', async () => {
+test('run - a failure sets process.exitCode and returns the status', async () => {
     const cli = cliWith(() =>
         Promise.reject(new CommandFailedError('x', { exitCode: 2 }))
     )
@@ -526,15 +491,15 @@ test('run - a failure sets Deno.exitCode and returns the status', async () => {
     assertEquals(returned, 2)
 })
 
-test('run - an unknown command sets Deno.exitCode to 1', async () => {
+test('run - an unknown command sets process.exitCode to 1', async () => {
     const cli = cliWith(() => Promise.resolve())
     const after = await withExitCode(0, () => capture(() => cli.run(['nope'])))
     assertEquals(after, 1)
 })
 
-test('run - a success leaves Deno.exitCode untouched', async () => {
+test('run - a success leaves process.exitCode untouched', async () => {
     const cli = cliWith(() => Promise.resolve())
-    // Preset to a non-zero value so an unconditional `Deno.exitCode = 0`
+    // Preset to a non-zero value so an unconditional `process.exitCode = 0`
     // (overwriting another part of the process's status) is visible.
     const after = await withExitCode(7, () => capture(() => cli.run(['task'])))
     assertEquals(after, 7)

@@ -3,9 +3,15 @@
  * off unless it is recognisably on, and off when the environment cannot be
  * read.
  *
+ * Portable: a reader's failure is classified by the error's `name`, so these
+ * rows build Deno's error shapes by name. The rows that need Deno itself —
+ * its real error classes and its permission model — are in
+ * `raw_errors.deno.test.ts`.
+ *
  * @module @lockness/cli/tests/raw_errors
  */
 
+import process from 'node:process'
 import { test } from 'node:test'
 import { assertEquals, assertStringIncludes } from '@std/assert'
 import { rawErrorsHint, readRawErrorsSwitch } from '../raw_errors.ts'
@@ -15,6 +21,11 @@ function reader(
     value: string | undefined,
 ): (name: string) => string | undefined {
     return (name) => name === 'LOCKNESS_CLI_RAW_ERRORS' ? value : undefined
+}
+
+/** An error named like one of Deno's `Deno.errors` classes. */
+function named(name: string, message: string): Error {
+    return Object.assign(new Error(message), { name })
 }
 
 for (const value of ['1', 'true', 'on', 'yes', ' TRUE ', 'Yes\r', 'ON\n']) {
@@ -40,20 +51,32 @@ for (const value of ['2', 'maybe', 'enabled', 'true1', 'y']) {
 
 test('raw errors - a reader denied the environment (NotCapable) reads as off', () => {
     const denied = () => {
-        throw new Deno.errors.NotCapable('Requires env access')
+        throw named('NotCapable', 'Requires env access')
     }
     assertEquals(readRawErrorsSwitch(denied), { state: 'off' })
 })
 
 test('raw errors - a value that is not valid Unicode (InvalidData) reads as off, with a notice', () => {
     const invalid = () => {
-        throw new Deno.errors.InvalidData(
+        throw named(
+            'InvalidData',
             'environment variable was not valid unicode',
         )
     }
     assertEquals(readRawErrorsSwitch(invalid), {
         state: 'unreadable',
         placeholder: '<not valid Unicode>',
+    })
+})
+
+test('raw errors - a thrown non-Error is never classified by a name it carries', () => {
+    // Only an Error is matched by name, as `instanceof Deno.errors.*` was.
+    const impostor = () => {
+        throw { name: 'NotCapable', message: 'not an Error' }
+    }
+    assertEquals(readRawErrorsSwitch(impostor), {
+        state: 'unreadable',
+        placeholder: '<unreadable>',
     })
 })
 
@@ -67,53 +90,14 @@ test('raw errors - any other reader failure reads as off, with a notice', () => 
     })
 })
 
-/**
- * Run `fn` with `Deno.permissions.querySync` answering `state` for every
- * descriptor and `Deno.env.get` counting its calls, both restored afterwards.
- * `Deno.env.get` throws, standing in for the prompt a real read would raise in
- * a terminal: a test that reaches it has already lost.
- */
-function withPermission(
-    state: Deno.PermissionState,
-    fn: () => void,
-): { envReads: number } {
-    const permissions = Deno.permissions as { querySync: unknown }
-    const env = Deno.env as { get: unknown }
-    const original = { querySync: permissions.querySync, get: env.get }
-    let envReads = 0
-    permissions.querySync = () => ({ state, partial: false })
-    env.get = () => {
-        envReads++
-        throw new Error('the env read was reached: in a terminal this prompts')
-    }
-    try {
-        fn()
-    } finally {
-        permissions.querySync = original.querySync
-        env.get = original.get
-    }
-    return { envReads }
-}
-
-for (const state of ['prompt', 'denied'] as const) {
-    test(`raw errors - env permission "${state}" reads as off without touching the environment`, () => {
-        let read: ReturnType<typeof readRawErrorsSwitch> | undefined
-        const { envReads } = withPermission(state, () => {
-            read = readRawErrorsSwitch()
-        })
-        assertEquals(read, { state: 'off' })
-        assertEquals(envReads, 0)
-    })
-}
-
 test('raw errors - the default reader is the process environment', () => {
-    const original = Deno.env.get('LOCKNESS_CLI_RAW_ERRORS')
-    Deno.env.set('LOCKNESS_CLI_RAW_ERRORS', 'yes')
+    const original = process.env.LOCKNESS_CLI_RAW_ERRORS
+    process.env.LOCKNESS_CLI_RAW_ERRORS = 'yes'
     try {
         assertEquals(readRawErrorsSwitch(), { state: 'on' })
     } finally {
-        if (original === undefined) Deno.env.delete('LOCKNESS_CLI_RAW_ERRORS')
-        else Deno.env.set('LOCKNESS_CLI_RAW_ERRORS', original)
+        if (original === undefined) delete process.env.LOCKNESS_CLI_RAW_ERRORS
+        else process.env.LOCKNESS_CLI_RAW_ERRORS = original
     }
 })
 
