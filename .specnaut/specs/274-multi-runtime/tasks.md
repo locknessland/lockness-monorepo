@@ -123,12 +123,12 @@ on `main`. Precedent: the realtime epic shipped as specs 240–272, one feature 
 
 ### C10 · Runtime-neutral lint
 
-- [ ] T018 `build`: `scripts/lint/runtime_neutral.ts` rule `lockness-runtime/no-deno` (`Deno`
+- [X] T018 `build`: `scripts/lint/runtime_neutral.ts` rule `lockness-runtime/no-deno` (`Deno`
   identifier; `hono/deno`; `@lockness/hono/{deno,bun,node}` outside `packages/runtime/`), scoped to
   packages whose `engines` names bun or node, with named exempt files; `scripts/lint/runtime_neutral_scripts.ts`
-  ratchet for scripts, scoped through the same `namesBunOrNode` predicate as `npm:build` and `npm:check` (plan §5 row 201).
-- [ ] T019 `build`: extend `exit_contract` to `process.exit`/`process.exitCode` and `env_signal` to
-  `process.env.APP_ENV`, in the same commit that first migrates an owner.
+  ratchet for scripts, scoped through the same `namesBunOrNode` predicate as `npm:build` and `npm:check` (plan §5 row 201). _Done 2026-10-16: a Deno lint plugin registered in the root `deno.jsonc` beside its siblings, so it runs in the gate's existing `lint` step (a separate step would lint twice); `runtime_neutral_test.ts` pins the registration. Beyond the bare identifier it reports `globalThis`/`self.Deno`, the `'Deno' in` probe, and `hono/deno` under `npm:`/`jsr:` spellings; imports are matched in `import`, `export … from` and a static `import()`, type-only included. `EXEMPT_FILES` names files by exact path and is empty: `@lockness/transform`, the only package in scope, passes with no exemption. The scripts ratchet is a sorted list of names that only grows, not a per-file count (the target is zero, and a count would make a partial migration look like progress); an entry leaves only with its file, which a test catches, and taking one off is a reviewed diff, as lowering `coverage-floors.json` is. It starts with `npm_check.ts`, `npm_stage.ts` and the list module. The rule is proven on a fixture repository built per test run; 16 mutations of the rule, each killed._
+- [X] T019 `build`: extend `exit_contract` to `process.exit`/`process.exitCode` and `env_signal` to
+  `process.env.APP_ENV`, in the same commit that first migrates an owner. _Done 2026-10-16, with `packages/transform/hook.ts` as the first owner (it repeats the resolver's trim/lower-case rule because it may import nothing). `env-signal` reports a member read of `APP_ENV`/`DENO_ENV` on **any** object and either name destructured: `hook.ts` itself reads `env.APP_ENV` off a parameter, which a `process.env`-only match would miss. `process-exit` also reports `exit` imported from `node:process`; the owner lists cover both spellings. Transform calls neither `process.exit` nor `process.exitCode`. 11 mutations, each killed._
 
 ---
 
