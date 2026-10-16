@@ -9,9 +9,9 @@
             "lockness-source": "./mod.ts",
             "default": "./dist/mod.js"
         },
-        "./install": {
-            "lockness-source": "./install.ts",
-            "default": "./dist/install.js"
+        "./setup": {
+            "lockness-source": "./setup.ts",
+            "default": "./dist/setup.js"
         }
     },
     "files": [
@@ -21,11 +21,12 @@
         "deno": ">=2.2"
     },
     "dependencies": {
-        "@lockness/cli": "^0.4.0"
+        "@lockness/contract": "^0.4.0"
     },
     "lockness": {
         "jsr": {
-            "@std/assert": "1"
+            "@std/assert": "1",
+            "@std/path": "1"
         },
         "publish": {
             "exclude": [

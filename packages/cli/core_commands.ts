@@ -11,12 +11,127 @@
 import type { Cli } from './mod.ts'
 import { addPackage, removePackage } from './package_loader.ts'
 import { CommandFailedError } from './command_failure.ts'
+import type { PackageSetup, SetupContext } from '@lockness/contract/setup'
 import { registerMakeCommands } from './commands/make_commands.ts'
 import { registerAuthCommands } from './commands/auth_commands.ts'
 import { registerNessyCommands } from './commands/nessy_commands.ts'
 import { registerRouterCommands } from './commands/router_commands.ts'
 import { registerTinkerCommand } from './commands/tinker_command.ts'
 import { registerDebugCommands } from './commands/debug_commands.ts'
+
+/** The two entries `package:install` looks for, in order. */
+type InstallEntry = 'setup' | 'install'
+
+/**
+ * Import one entry of a package, or `undefined` when the package has no such
+ * export.
+ *
+ * The one computed `import()` of `package:install`; `deno task
+ * publish:check` inventories it (deps.policy.jsonc `runtimeImports`). Deno
+ * words a missing subpath export two ways — `Unknown export './setup' for
+ * '<pkg>'` for a package's `exports` map, `does not provide an export` for a
+ * module — and both mean "this package has no such step". Anything else, a
+ * package that does not resolve included, propagates to the dispatcher.
+ *
+ * @param packageName - The full package name, `@lockness/<name>`.
+ * @param entry - The subpath to import.
+ * @returns The module, or `undefined` when the export does not exist.
+ * @throws {Error} Any other import failure, unchanged.
+ */
+async function importEntry(
+    packageName: string,
+    entry: InstallEntry,
+): Promise<Record<string, unknown> | undefined> {
+    try {
+        // A package specifier the app's import map resolves, not an app file,
+        // so importAppFile does not apply; publish:check inventories it.
+        // deno-lint-ignore lockness/app-file-specifier
+        return await import(`${packageName}/${entry}`)
+    } catch (error) {
+        if (
+            error instanceof Error &&
+            (error.message.includes('Unknown export') ||
+                error.message.includes('does not provide an export'))
+        ) {
+            return undefined
+        }
+        throw error
+    }
+}
+
+/**
+ * The context `package:install` hands a package setup: the working
+ * directory, and registration through {@link addPackage}.
+ *
+ * Registration refuses a directory with neither `deno.json` nor
+ * `deno.jsonc`, and names the step when the manifest cannot be updated —
+ * the checks `@lockness/deprecation-contracts`' installer made itself
+ * before the setup port (#592).
+ *
+ * @returns The context.
+ */
+function setupContext(): SetupContext {
+    return {
+        root: Deno.cwd(),
+        async registerPackage(name: string): Promise<void> {
+            const found = await Promise.all(
+                ['deno.json', 'deno.jsonc'].map((path) =>
+                    Deno.stat(path).then(() => true, (error) => {
+                        if (error instanceof Deno.errors.NotFound) return false
+                        throw error
+                    })
+                ),
+            )
+            if (!found.includes(true)) {
+                throw new CommandFailedError(
+                    'No deno.json or deno.jsonc found. Are you in a Lockness project?',
+                )
+            }
+            try {
+                await addPackage(name)
+            } catch (error) {
+                throw new CommandFailedError(
+                    `Could not add ${name} to lockness.packages`,
+                    { cause: error },
+                )
+            }
+        },
+    }
+}
+
+/**
+ * Install a package: run its `./setup` step (a named `setup` export, typed
+ * `PackageSetup`) with a {@link SetupContext}; failing that, its
+ * `./install` default export; failing both, register it alone.
+ *
+ * @param packageName - The name the user typed, with or without the scope.
+ * @returns A promise that resolves once the package is installed.
+ * @throws {CommandFailedError} When the setup refuses the directory or
+ *   cannot register the package.
+ * @throws {Error} When the package does not resolve, or its step fails.
+ */
+async function installPackage(packageName: string): Promise<void> {
+    const fullPackageName = packageName.startsWith('@lockness/')
+        ? packageName
+        : `@lockness/${packageName}`
+
+    for (const entry of ['setup', 'install'] as const) {
+        const module = await importEntry(fullPackageName, entry)
+        if (module === undefined) continue
+        const step = entry === 'setup' ? module.setup : module.default
+        if (typeof step !== 'function') continue
+        if (entry === 'setup') {
+            await (step as PackageSetup)(setupContext())
+        } else {
+            await (step as () => Promise<void>)()
+        }
+        return
+    }
+
+    await addPackage(packageName)
+    console.log('\n✅ Package added to configuration')
+    console.log('ℹ️  This package does not have an automated installer')
+}
 
 /**
  * Register all core CLI commands.
@@ -66,49 +181,7 @@ export function registerCoreCommands(cli: Cli): void {
                     'Usage: cli package:install <package-name> (e.g., cli package:install openapi)',
                 )
             }
-
-            // Normalize package name
-            const fullPackageName = packageName.startsWith('@lockness/')
-                ? packageName
-                : `@lockness/${packageName}`
-
-            let module: { default?: unknown }
-            try {
-                // A package specifier the app's import map resolves, not an
-                // app file, so importAppFile does not apply; publish:check
-                // inventories it.
-                // deno-lint-ignore lockness/app-file-specifier
-                module = await import(`${fullPackageName}/install`)
-            } catch (error) {
-                // Only a package without an install script is expected;
-                // anything else reaches the dispatcher's catch-all.
-                if (
-                    !(error instanceof Error &&
-                        error.message.includes('does not provide an export'))
-                ) {
-                    throw error
-                }
-                await addPackage(packageName)
-                console.log('\n✅ Package added to configuration')
-                console.log(
-                    'ℹ️  This package does not have an automated installer',
-                )
-                return
-            }
-
-            if (typeof module.default === 'function') {
-                await module.default()
-            } else {
-                // Fallback: just add to config
-                await addPackage(packageName)
-                console.log('\n✅ Package added to configuration')
-                console.log(
-                    '⚠️  This package does not have an automated installer',
-                )
-                console.log(
-                    '   Please refer to the package documentation for setup instructions',
-                )
-            }
+            await installPackage(packageName)
         },
         'Install and configure a Lockness package (runs setup automatically)',
     )

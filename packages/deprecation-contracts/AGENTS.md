@@ -23,7 +23,7 @@ names does not belong here._
 
 | Direction                                 | Packages                                                                                |
 | :---------------------------------------- | :-------------------------------------------------------------------------------------- |
-| Imports (static)                          | `cli`                                                                                   |
+| Imports (static)                          | `contract` _(type-only)_                                                                |
 | Imports (soft, loaded at runtime by name) | —                                                                                       |
 | Imported by                               | `core`, `realtime`                                                                      |
 | **Must never import**                     | `core`, `realtime` — each already reaches this package, so importing one closes a cycle |
@@ -72,7 +72,7 @@ Anything not listed is internal and free to change.
 2 test files for 9 source files:
 
 - `packages/deprecation-contracts/tests/deprecation.test.ts`
-- `packages/deprecation-contracts/tests/install.test.ts`
+- `packages/deprecation-contracts/tests/setup.test.ts`
 
 <!-- /generated:tests -->
 

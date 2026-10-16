@@ -4703,12 +4703,13 @@
       },
       "packages/deprecation-contracts": {
         "dependencies": [
-          "jsr:@lockness/cli@0.4",
-          "jsr:@std/assert@1"
+          "jsr:@lockness/contract@0.4",
+          "jsr:@std/assert@1",
+          "jsr:@std/path@1"
         ],
         "packageJson": {
           "dependencies": [
-            "npm:@lockness/cli@0.4"
+            "npm:@lockness/contract@0.4"
           ]
         }
       },
