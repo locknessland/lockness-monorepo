@@ -1,0 +1,43 @@
+{
+    "//": "hard-rule-2 exception: TypeScript has no JSR build, so `typescript` is the ONE npm: specifier this package declares (the compiler whose transpileModule it runs). Pinned EXACTLY to 6.0.3: 7.x has no JS API (#612). Rationale is also recorded in deps.policy.jsonc under \"transform\".",
+    "name": "@lockness/transform",
+    "version": "0.4.0",
+    "description": "Node load hook for Lockness apps — runs user TypeScript (TC39 decorators, .tsx) through TypeScript 6 transpileModule with the app's tsconfig.json, behind a project-local cache",
+    "license": "MIT",
+    "type": "module",
+    "exports": {
+        ".": {
+            "lockness-source": "./mod.ts",
+            "default": "./dist/mod.js"
+        },
+        "./register": {
+            "lockness-source": "./register.ts",
+            "default": "./dist/register.js"
+        }
+    },
+    "files": [
+        "dist"
+    ],
+    "engines": {
+        "deno": ">=2.2",
+        "node": ">=22.15"
+    },
+    "dependencies": {
+        "typescript": "6.0.3"
+    },
+    "lockness": {
+        "jsr": {
+            "@std/assert": "1"
+        },
+        "publish": {
+            "exclude": [
+                "tests/"
+            ]
+        },
+        "tasks": {
+            "test": "deno test -A tests/",
+            "test:watch": "deno test -A --watch tests/"
+        },
+        "versionModule": true
+    }
+}

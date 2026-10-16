@@ -38,6 +38,7 @@
         "packages/markdown",
         "packages/vite",
         "packages/vite/demo",
-        "packages/testing"
+        "packages/testing",
+        "packages/transform"
     ]
 }

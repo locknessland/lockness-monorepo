@@ -70,6 +70,7 @@
     "npm:remark-wiki-link@^2.0.1": "2.0.1",
     "npm:tailwind-merge@2.6.0": "2.6.0",
     "npm:tailwindcss@^4.1.18": "4.1.18",
+    "npm:typescript@6.0.3": "6.0.3",
     "npm:unified@^11.0.5": "11.0.5",
     "npm:unist-util-visit@5": "5.1.0",
     "npm:vite@*": "8.1.4_@types+node@26.4.1",
@@ -4348,6 +4349,10 @@
       ],
       "bin": true
     },
+    "typescript@6.0.3": {
+      "integrity": "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==",
+      "bin": true
+    },
     "ufo@1.6.3": {
       "integrity": "sha512-yDJTmhydvl5lJzBmy/hyOAA0d+aqCBuwl818haVdYCRrWV84o7YyeVm4QlVHStqNrrJSTb6jKuFAVqAFsr+K3Q=="
     },
@@ -5071,6 +5076,17 @@
           "dependencies": [
             "npm:@lockness/auth@0.4",
             "npm:@lockness/hono@0.4"
+          ]
+        }
+      },
+      "packages/transform": {
+        "dependencies": [
+          "jsr:@std/assert@1",
+          "npm:typescript@6.0.3"
+        ],
+        "packageJson": {
+          "dependencies": [
+            "npm:typescript@6.0.3"
           ]
         }
       },
