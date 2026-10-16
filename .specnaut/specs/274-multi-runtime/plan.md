@@ -111,7 +111,7 @@ and on Bun
   dial, TLS validation always on, bounded line/bulk/reply sizes, per-reply deadline) on all three
   runtimes.
 - **FR-007**: JSX uses one mode, automatic `react-jsx`, on every runtime and in every config and kit
-  stub, provided the P0 reproduction of #472 under `react-jsx` passes.
+  stub (the #472 reproduction passes under `react-jsx`, F9).
 - **FR-008**: **Every** framework test runs through `node:test`; each package's tests pass on every
   runtime its `engines` declares, in CI.
 - **FR-009**: Each package's `package.json` is its one hand-edited manifest; `deno.json` and
@@ -155,7 +155,7 @@ first. "Asks" names a caller that consults the decision without making it.
 
 | The decision | Its single home | What would duplicate it |
 | :--- | :--- | :--- |
-| Which runtime is running (Deno → Bun → Node, else `UnsupportedRuntimeError`; lazy, memoised) | `packages/runtime/runtime.ts` | Hono's `getRuntimeKey()` in framework code; `'Deno' in globalThis` / `globalThis.Bun` anywhere else; runtime-keyed conditional exports |
+| Which runtime is running (Deno → Bun → Node, else `UnsupportedRuntimeError`; lazy, memoised; refuses Bun below the supported floor, since Bun < 1.3.10 silently ignores TC39 decorators — C02) | `packages/runtime/runtime.ts` | Hono's `getRuntimeKey()` in framework code; `'Deno' in globalThis` / `globalThis.Bun` anywhere else; runtime-keyed conditional exports |
 | Per-runtime HTTP serve, static files, conninfo, WebSocket upgrade, `PortInUseError` | `packages/runtime/http.ts` | `realtime/websocket.ts` or `devtools/gate.ts` importing an adapter; `core/http/static.ts` choosing one |
 | Static-file containment (decode once; reject `..`, backslash, NUL, encoded separators; `realpath` inside root) wrapping every adapter | `packages/runtime/http.ts` | a containment check in `core/http/static.ts` or per adapter |
 | WebSocket `maxPayload` and request-body limits, equal on all runtimes | `packages/runtime/http.ts` (asked by `realtime/websocket.ts`, whose CSWSH origin guard stays the single origin decision) | runtime defaults left implicit; a second origin check |
@@ -176,7 +176,7 @@ first. "Asks" names a caller that consults the decision without making it.
 
 | The decision | Its single home | What would duplicate it |
 | :--- | :--- | :--- |
-| SQLite binding (`node:sqlite` on Deno/Node; `bun:sqlite` on Bun through a lazy dynamic import with a `runtimeImports` entry) and connection policy (WAL, short `busy_timeout`, one handle per path; file and `-wal`/`-shm` created 0600; default path under the project's storage directory) | `packages/sqlite/binding.ts`, `packages/sqlite/connection.ts` | `node:sqlite` / `bun:sqlite` imported in any driver; a static `bun:` import; a temp-directory default |
+| SQLite binding (`node:sqlite` on all three runtimes — Bun ≥ 1.4 implements it fully, C02; a `bun:sqlite` branch only if the first Bun lane disproves it) and connection policy (WAL, short `busy_timeout`, one handle per path; file and `-wal`/`-shm` created 0600; default path under the project's storage directory) | `packages/sqlite/binding.ts`, `packages/sqlite/connection.ts` | `node:sqlite` / `bun:sqlite` imported in any driver; a temp-directory default |
 | TTL'd key-value semantics: expiry checked on every read; `get`, `set(ttl)`, `delete`, `setIfAbsent(ttl)`, `deleteIfOwner`, `deletePrefix` | `packages/sqlite/kv_store.ts` | expiry or compare-and-set SQL inside the cache, session, revocation or lock drivers |
 | Tuple-key encoding: injective, order-preserving, length-prefixed binary; every key bound as a parameter; prefix scans as range queries (`key >= p AND key < p_next`), never `LIKE` | `packages/sqlite/kv_store.ts` | string-joined keys (`tag:user:1`); `LIKE ?||'%'`; key text interpolated into SQL |
 | Queue job claim (`UPDATE … RETURNING`) | `packages/queue/drivers/sqlite.ts` | job tables or claim SQL in `packages/sqlite` |
@@ -216,14 +216,14 @@ first. "Asks" names a caller that consults the decision without making it.
 
 | The decision | Its single home | What would duplicate it |
 | :--- | :--- | :--- |
-| npm artifact build | `tsc -b`, TypeScript 6.0.x pinned in `deno.lock` | dnt, a bundler config, re-published JSR tarballs |
+| npm artifact build | `tsc -b`, TypeScript 6.0.3 pinned exactly in `deno.lock` (npm `latest` is 7.0.2, which has no JS API) | dnt, a bundler config, re-published JSR tarballs |
 | npm bytes built **inside** the npm holder from `github.sha`; nothing handed in | `publish.yml` → `publish-npm` steps (checkout `github.sha` without credentials; setup-deno `.dvmrc`; setup-node `.node-version` only, bundled npm ≥ 11.5.1; `deno install --frozen` with `allowScripts` empty; `deno task npm:build`; `scripts/npm_publish.ts`) | upload/download-artifact, a cache or a job output reaching a holder |
-| Build command and its sandbox: `tsc -b` under `--deny-env --deny-net --deny-run --deny-ffi --allow-read=. --allow-write=<dist list>` | root `deno.jsonc` task `npm:build` (dist list generated by `scripts/manifests.ts`) | tsc flags in workflow YAML; a second build command in `npm-kits`; tsc run unsandboxed |
+| Build command and its sandbox: `tsc -b` (TypeScript pinned **exactly** to 6.0.3, from the local `node_modules` after `deno install`) under `--allow-env=<the 15 TSC_*/NODE_*/VSCODE_* names tsc reads> --deny-net --deny-run --deny-ffi --allow-read=. --allow-write=<dist list>`; no `ACTIONS_ID_TOKEN_*` readable | root `deno.jsonc` task `npm:build` (env and dist lists generated by `scripts/manifests.ts`) | tsc flags in workflow YAML; a second build command in `npm-kits`; tsc run unsandboxed |
 | What to publish, skip-if-present, registry URL (`npm publish --ignore-scripts --access public --provenance`) | `scripts/npm_publish.ts` (imports only `node:` built-ins) | a shell loop in YAML; `npm publish --workspaces` |
 | Both holders' step lists; the `npm` environment; no tracked `.npmrc`, no `publishConfig`, no `scripts` in published manifests | `scripts/ci_id_token_test.ts` | a second id-token test |
 | Pre-publish npm proof (double build with equal pack integrity, `npm:check`, kits from tarballs on Node and Bun); both holders `needs: [gate, kits, npm-kits]` | `publish.yml` → `npm-kits` (no id-token) | checks inside a holder |
 | npm accepts only the npm holder | npm trusted publisher bound to this repo + `publish.yml` + environment `npm` (`v*` tags, no secrets, no reviewers); the JSR holder keeps no environment | a long-lived npm token; a reviewer on the environment (a second consent) |
-| First npm publish | P0 result; else the maintainer's bootstrap: `0.0.0` placeholders (`package.json` only) from an empty temp dir outside the repo, granular `@lockness` token with shortest expiry, trusted publishers configured, "require 2FA and disallow tokens", token revoked | a token in CI or in any repo file |
+| First npm publish | the maintainer's bootstrap (F2: a package must exist before a trusted publisher can be set), completed within 48 h of configuring it: `0.0.0` placeholders (`package.json` only) from an empty temp dir outside the repo, granular `@lockness` token with shortest expiry, trusted publishers configured, "require 2FA and disallow tokens", token revoked | a token in CI or in any repo file |
 | Tarball content: `files` allowlist present; `npm pack --dry-run` lists no `tests/`, fixtures, `.env*`, `*.key`, `.npmrc`; no published `preinstall`/`install`/`postinstall`/`prepare` | `scripts/npm_check.ts` | per-package checks |
 | Same version on JSR and npm for every package after a release | `scripts/registry_parity.ts`, run by `/ship` step 5 (overlaps #565) | a manual check |
 | Gate step list | `scripts/gate.ts` | steps in workflow YAML |
@@ -238,7 +238,7 @@ first. "Asks" names a caller that consults the decision without making it.
 | Package | Change | Why |
 | :--- | :--- | :--- |
 | `runtime` (new) | `allow: [hono]`; must never import `contract` | divergences; acyclicity with contract's edge |
-| `sqlite` (new) | `allow: [runtime]` | binding selection |
+| `sqlite` (new) | `allow: [runtime]` | connection policy; binding fallback if needed |
 | `transform` (new) | `allow: []` | loads before anything else |
 | `create` (renamed from `init`) | `allow: [cli, runtime]` | — |
 | `contract` | `+ runtime` (**value** edge, detector subpath only) — recorded exception to "type-only imports"; contract's brief amended in the same change | safe env read |
@@ -248,7 +248,7 @@ first. "Asks" names a caller that consults the decision without making it.
 | `realtime`, `devtools` | `+ runtime` (replaces `hono/deno`) | WebSocket upgrade, conninfo |
 | `cli`, `drizzle` | `+ runtime`; `cli − queue` | invocations; edge cut |
 | `deprecation-contracts` | `− cli` | setup port replaces `install.ts` |
-| `runtimeImports` | `bun:sqlite`; `@lockness/<pkg>/setup` for `package:install` | dynamic imports |
+| `runtimeImports` | `@lockness/<pkg>/setup` for `package:install` | dynamic import |
 
 **Reconciled between A and B, corrected by audit A1/A6.** argv lives in `runtime/process.ts`
 because `runtime` is the one package core, drizzle and cli may all import (core and cli share no
@@ -259,10 +259,12 @@ edge either way). Compilers live in `core/cli/compilers/`, reached only through 
 
 **Language/Version**: TypeScript, TC39 stage-3 decorators (no `Symbol.metadata`), ES2022 output.
 **Runtimes**: Deno ≥ 2.2 (`node:sqlite`), Bun ≥ 1.4.0 (TC39 decorators since 1.3.10; `node:test`
-subtests and mock timers since 1.4.0 — confirmed by P0), Node 24 and 26.
+subtests and mock timers since 1.4.0, PR oven-sh/bun#32631; `node:sqlite` fully implemented), Node 24
+and 26 (npm ≥ 11.5.1 for trusted publishing).
 **Primary dependencies**: Hono (pinned, through `@lockness/hono`), `@hono/node-server` and
-`@hono/node-ws` (npm-only, rule-#2 justification), TypeScript 6.0.x (build and Node transform).
-**Storage**: SQLite through `node:sqlite` / `bun:sqlite`; redis; PostgreSQL/MySQL through drizzle
+`@hono/node-ws` (npm-only, rule-#2 justification), TypeScript 6.0.3 pinned exactly (build and Node
+transform; TS 7 has no JS API — #612).
+**Storage**: SQLite through `node:sqlite` on all three runtimes; redis; PostgreSQL/MySQL through drizzle
 (unchanged).
 **Testing**: `node:test` + `@std/assert` + `@std/testing` (FakeTime, mock) in tests only;
 per-runtime lanes; mutation batteries and coverage stay on Deno.
@@ -284,6 +286,29 @@ Deno users; the publish trust invariants (#476, #480, #481, #541) hold.
 | P3 | Core boot path; redis transport; `@lockness/sqlite` and the SQLite drivers incl. redis revocation adapter; cache, queue, session, realtime, devtools | **M1**: the slim kit boots from workspace source on Bun and Node |
 | P4 | cli Toolchain + ProjectManifest + launcher; static registration; scaffolder + per-runtime kits and images; upgrade (incl. a `lockness.packages` → `config/packages.ts` codemod); drizzle; vite (Deno resolver only on Deno); compile + `lockness build` | scaffolding works on all three runtimes |
 | P5 | npm publishing (`npm-kits` + `publish-npm` per disposition C, JSR holder `needs:` pin updated, `publish.yml` header rewritten for two holders, trusted publishers, `/ship` step 5 on npm + registry parity); per-runtime docs; release notes (KV data and queue draining, sandbox loss on Bun/Node, multi-instance revocation) | first multi-runtime release |
+
+### P0 facts (C02, measured 2026-10-16 on Deno 2.9.6, Bun 1.3.3, Node 24.22; docs where marked)
+
+| # | Fact | Source |
+| :--- | :--- | :--- |
+| F1 | `tsc` 6.0.3 under Deno fails with `--deny-env` (reads `TSC_WATCH*`, `NODE_ENV`, inspector variables); it builds TC39 decorators + `.tsx` with those 15 names allowed, and needs TS libs in a local `node_modules` (`deno install`) inside `--allow-read=.` | measured |
+| F2 | npm trusted publishing needs the package to **exist first** (npm/cli#8544 open); an unvalidated trusted-publisher config expires after 48 h; npm ≥ 11.5.1, Node ≥ 22.14; an `environment` name can be set, but whether npm enforces it at publish is not documented | docs.npmjs.com/trusted-publishers, `npm trust`, GitHub changelog 2026-10-02 |
+| F3 | JSR's GitHub OIDC trust checks `repository_id` only — not workflow, environment or ref | jsr-io/jsr `api/src/external/github.rs`, `iam.rs` @ dfd7fe8b |
+| F4 | Bun `node:test`: suites and hooks since 1.2.6; subtests, Node-style hooks and `mock.timers` since **1.4.0**; Bun 1.3.3 throws on `t.test` | measured 1.3.3; bun.com compat docs; PR #32631 |
+| F5 | `bun create @lockness` runs `@lockness/create`; `bun create lockness` runs `create-lockness` | measured; bun `bunx_command.rs` |
+| F6 | TypeScript 7.0.2 is npm `latest`; it has no programmatic API (tsc is a native binary, so it cannot run under `--deny-run`); TC39 decorators are lowered correctly | measured; TS 7.0 announcement |
+| F7 | One `deno install` on a `package.json` workspace yields a `node_modules` that Node and Bun run TS sources from (2-package case; full repo re-measured in C05) | measured |
+| F8 | `deno check` / `deno publish --dry-run` accept a dynamic `import('bun:sqlite')` but type it `any`; `tsc` rejects it without a declaration | measured |
+| F9 | #472 does **not** occur under `jsx: react-jsx`: Deno honours the JSR `.tsx` pragma's runtime (precompile fails with `Unsupported scheme "jsr"`) — T031 unblocked | measured (local JSR-protocol server) |
+| F10 | `node:sqlite`: absent on Bun 1.3.3; "fully implemented" on Bun 1.4 (18/18 Node tests) — to be confirmed on the first Bun lane (C08) | measured 1.3.3; bun 1.4 notes |
+| F11 | Bun `node:tls` with `rejectUnauthorized: true` refuses self-signed and wrong-name certificates, like Node | measured 1.3.3 |
+| F12 | Bun 1.3.3 silently ignores a TC39 method decorator (no error, original method runs) | measured |
+
+Consequences folded above: `npm:build` env allowlist and exact TS pin (F1, F6); first npm publish
+always needs the placeholder bootstrap, published within 48 h of configuring the trusted publisher
+(F2); the JSR direction is closed only by the build sandbox (F3); `node:sqlite` everywhere, no
+`bun:` import (F8, F10); runtime detector refuses Bun below the floor (F12); FR-007 / T031 proceed
+(F9).
 
 Children folded into the epic: #582 (generator `deno fmt` subprocess, resolved by FR-015), #531
 (kit manifest stubs), #576 and #579 (command entry contract). #583 (POSIX wrapper case arms exit 0)

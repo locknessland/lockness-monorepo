@@ -39,7 +39,7 @@ on `main`. Precedent: the realtime epic shipped as specs 240–272, one feature 
 
 ### C02 · Spike: runtime and registry facts
 
-- [ ] T002 [P] Record in plan §6 the measured answers, each with version and date: tsc 6 under
+- [X] T002 [P] Record in plan §6 the measured answers, each with version and date: tsc 6 under
   `--deny-env --deny-net --deny-run --deny-ffi --allow-read=. --allow-write=<dist>`; npm trusted
   publisher before a first version and the `environment` check; JSR's trust binding (repo only?);
   Bun ≥ 1.4 `node:test` (subtests, mock timers); `bun create @scope`; TS 7 decorator emit; `deno
@@ -187,7 +187,7 @@ on `main`. Precedent: the realtime epic shipped as specs 240–272, one feature 
 
 ### C17 · `@lockness/sqlite` and the SQLite drivers
 
-- [ ] T028 [US4] `feat(sqlite)`: `binding.ts` (lazy `bun:sqlite` import + `runtimeImports`),
+- [ ] T028 [US4] `feat(sqlite)`: `binding.ts` (`node:sqlite` on every runtime, per plan F10),
   `connection.ts` (WAL, short busy_timeout, 0600 files, project-local default path), `kv_store.ts`
   (expiry on read, `setIfAbsent`, `deleteIfOwner`, `deletePrefix`, injective length-prefixed key
   encoding, range scans, bound parameters).
