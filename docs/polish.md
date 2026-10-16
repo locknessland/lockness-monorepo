@@ -85,5 +85,11 @@ enableMailPreview() // no effect in production
 app.all('/_mail', (c) => mailPreviewHandler()(c.req.raw)) // mount behind your auth gate
 ```
 
+The preview serves captured mail, password-reset links included, so it is
+blocked under a prod-like `APP_ENV` (`production`, `prod`, `staging`, `preview`)
+**and** when the process cannot read `APP_ENV` at all (no
+`--allow-env=APP_ENV`): `enableMailPreview()` does nothing and the route 404s.
+An unset `APP_ENV` is local development.
+
 `make:mail <Name>` scaffolds a `Mailable`. See
 [@lockness/mail](../packages/mail/README.md).
