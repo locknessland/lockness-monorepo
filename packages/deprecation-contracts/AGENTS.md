@@ -56,7 +56,7 @@ Anything not listed is internal and free to change.
 | Raising a deprecation              | `trigger.ts`    |
 | Decorator form                     | `decorators.ts` |
 | Aggregation for the devtools panel | `collector.ts`  |
-| Project installer                  | `install.ts`    |
+| Project setup step                 | `setup.ts`      |
 
 ## Pitfalls
 

@@ -146,3 +146,19 @@ In the console, deprecations are styled for high visibility:
 ```text
 [DEPRECATION] Since my-pkg 1.2.0: Method old() is deprecated. Use new() instead.
 ```
+
+## Upgrading to v0.5.0
+
+One item. **Migration step:** run
+`./nessy package:install deprecation-contracts` instead of
+`deno run -A jsr:@lockness/deprecation-contracts/install`.
+
+### 1. `@lockness/deprecation-contracts/install` is replaced by `/setup`
+
+The `./install` entry, a standalone script that imported `@lockness/cli`, is
+gone (#592). The package's setup is now the named `setup` export of
+`@lockness/deprecation-contracts/setup`, which
+`./nessy package:install
+deprecation-contracts` runs: it registers the package
+and adds `STRICT_DEPRECATIONS` / `IGNORE_DEPRECATIONS` to `.env` and
+`.env.exemple`, as before. The package no longer depends on `@lockness/cli`.

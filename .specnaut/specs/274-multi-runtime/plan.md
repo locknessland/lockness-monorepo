@@ -247,7 +247,8 @@ first. "Asks" names a caller that consults the decision without making it.
 | `core` | `+ runtime`; `soft + sqlite` (permission only — the `@lockness/sqlite` optional peer lands in `packages/core/package.json` with the loader, after this commit) | serve, signals; scheduler lock |
 | `realtime`, `devtools` | `+ runtime` (replaces `hono/deno`) | WebSocket upgrade, conninfo |
 | `cli`, `drizzle` | `+ runtime`; `cli − queue` | invocations; edge cut |
-| `deprecation-contracts` | `− cli` | setup port replaces `install.ts` |
+| `deprecation-contracts` | `− cli`, `+ contract` | setup port replaces `install.ts`; `SetupContext` is a contract type |
+| `features`, `search`, `i18n` | `+ contract` | the `CommandRegistry` port replaces each local `interface Cli`, and the shared `isContained` (#579) lives on `@lockness/contract/fs/internal` (added in C06) |
 | `runtimeImports` | `@lockness/<pkg>/setup` for `package:install` | dynamic import |
 
 **Reconciled between A and B, corrected by audit A1/A6.** argv lives in `runtime/process.ts`

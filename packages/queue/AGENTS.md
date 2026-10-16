@@ -1,7 +1,7 @@
 # `@lockness/queue` — agent brief
 
 Background job processing with multiple drivers, plus the `queue:*` commands
-registered into `@lockness/cli`. One source file.
+(`commands.ts`), contributed through the contract's `CommandRegistry` (#592).
 
 User-facing documentation: [README.md](README.md) ·
 [docs/DOCS.md](docs/DOCS.md). This brief does not repeat it.
@@ -50,10 +50,10 @@ Anything not listed is internal and free to change.
 
 ## Where to work
 
-| Concern         | Path                               |
-| --------------- | ---------------------------------- |
-| Everything      | `mod.ts`                           |
-| Command surface | registered through `@lockness/cli` |
+| Concern         | Path                                    |
+| --------------- | --------------------------------------- |
+| Everything      | `mod.ts`                                |
+| Command surface | `commands.ts` (`registerQueueCommands`) |
 
 ## Pitfalls
 
