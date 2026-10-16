@@ -91,6 +91,85 @@ test('denoJsonFor - JSR-only packages come from lockness.jsr', () => {
     })
 })
 
+test('denoJsonFor - a jsr: dev dependency is a jsr: import, after lockness.jsr', () => {
+    // A test-only JSR package is declared where npm tooling sees it, so
+    // `deno install` links it into node_modules for the Bun and Node lanes;
+    // the import map keeps Deno on JSR instead of the npm.jsr.io build.
+    const deno = denoJsonFor(pkg({
+        dependencies: { 'zod': '^3.25.0' },
+        devDependencies: {
+            '@std/assert': 'jsr:1',
+            '@std/testing': 'jsr:^1.0.0',
+            '@lockness/testing': '^0.4.0',
+        },
+        lockness: {
+            jsr: { '@libs/markdown': '^2.1.0' },
+            imports: { '@std/testing/mock': '@std/testing/mock' },
+        },
+    }))
+    assertEquals(deno.imports, {
+        'zod': 'npm:zod@^3.25.0',
+        '@libs/markdown': 'jsr:@libs/markdown@^2.1.0',
+        '@std/assert': 'jsr:@std/assert@1',
+        '@std/testing': 'jsr:@std/testing@^1.0.0',
+        '@std/testing/mock': 'jsr:@std/testing@^1.0.0/mock',
+    })
+})
+
+test('denoJsonFor - a private package declares its runtime JSR imports in dependencies', () => {
+    // npm never reads a private package's manifest, so `jsr:` is safe there.
+    const deno = denoJsonFor(pkg({
+        name: '@lockness/testing',
+        private: true,
+        dependencies: { '@lockness/hono': '^0.4.0', '@std/assert': 'jsr:1' },
+    }))
+    assertEquals(deno.imports, {
+        '@lockness/hono': 'jsr:@lockness/hono@^0.4.0',
+        '@std/assert': 'jsr:@std/assert@1',
+    })
+})
+
+test('denoJsonFor - a jsr: range in a published package dependencies is refused', () => {
+    assertThrows(
+        () => denoJsonFor(pkg({ dependencies: { '@std/assert': 'jsr:1' } })),
+        Error,
+        '@lockness/auth: dependencies["@std/assert"] is "jsr:1"',
+    )
+})
+
+test('denoJsonFor - the aliased jsr:@scope/name@range form is refused', () => {
+    assertThrows(
+        () =>
+            denoJsonFor(pkg({
+                devDependencies: { '@std/assert': 'jsr:@std/assert@1' },
+            })),
+        Error,
+        'devDependencies["@std/assert"] is the aliased form "jsr:@std/assert@1"',
+    )
+})
+
+test('denoJsonFor - one name declared in two places is refused', () => {
+    assertThrows(
+        () =>
+            denoJsonFor(pkg({
+                devDependencies: { '@std/assert': 'jsr:1' },
+                lockness: { jsr: { '@std/assert': '1' } },
+            })),
+        Error,
+        '@std/assert is declared in both devDependencies and lockness.jsr',
+    )
+    assertThrows(
+        () =>
+            denoJsonFor(pkg({
+                private: true,
+                dependencies: { '@std/assert': 'jsr:1' },
+                devDependencies: { '@std/assert': 'jsr:1' },
+            })),
+        Error,
+        '@std/assert is declared in both dependencies and devDependencies',
+    )
+})
+
 test('denoJsonFor - an alias or a subpath reuses the declared range', () => {
     const deno = denoJsonFor(pkg({
         dependencies: {

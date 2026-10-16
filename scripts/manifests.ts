@@ -11,7 +11,7 @@
  *
  * | `lockness.<key>`  | Becomes, in `deno.json` |
  * | :---------------- | :---------------------- |
- * | `jsr`             | `imports` entries `jsr:<name>@<range>` — the JSR-only packages (`@std/*`, `@libs/*`), which npm cannot express |
+ * | `jsr`             | `imports` entries `jsr:<name>@<range>` — a published package's **runtime** JSR-only imports (`@std/*`, `@libs/*`), which its npm `dependencies` cannot express. It is a debt list: the plan's "no `@std/*` in published runtime code" row empties it |
  * | `imports`         | extra `imports` entries: an alias or a subpath of a declared package, `"key": "<package>[/subpath]"`, given that package's declared range |
  * | `publish`         | `publish` (JSR include/exclude filters) |
  * | `compilerOptions` | `compilerOptions` (the per-package JSX options) |
@@ -19,9 +19,24 @@
  * | `versionModule`   | `true` writes `version.generated.ts`, exporting `VERSION` |
  *
  * `dependencies` become `imports` too: a `@lockness/*` sibling as
- * `jsr:@lockness/<pkg>@<range>`, anything else as `npm:<name>@<range>`. Optional
- * peers and dev dependencies do not: an optional peer is loaded through the
- * app's import map, and a test dependency resolves by workspace member name.
+ * `jsr:@lockness/<pkg>@<range>`, a `"<name>": "jsr:<range>"` entry as
+ * `jsr:<name>@<range>`, anything else as `npm:<name>@<range>`. Optional peers
+ * and dev dependencies do not: an optional peer is loaded through the app's
+ * import map, and a sibling test dependency resolves by workspace member name.
+ * The exception is a **JSR-only test dependency**, declared as a
+ * `devDependencies` entry `"<name>": "jsr:<range>"`: it becomes a
+ * `jsr:<name>@<range>` import, after the `lockness.jsr` ones, because without
+ * it Deno would resolve the declaration to JSR's npm build. Being in a
+ * `package.json` field is what makes `deno install` link it into
+ * `node_modules` for the Bun and Node lanes (plan §5, disposition D).
+ *
+ * Where a JSR-only package goes depends on who imports it: test-only in
+ * `devDependencies` as `jsr:<range>`; a published package's runtime import in
+ * `lockness.jsr`; a `private` package's runtime import in `dependencies` as
+ * `jsr:<range>` (npm never reads it). Refused: a `jsr:` range in a published
+ * package's `dependencies` (npm reads that field and cannot resolve `jsr:`),
+ * the aliased `jsr:@scope/name@range`, and one name declared in two of
+ * `dependencies`, `devDependencies` and `lockness.jsr`.
  * Each `exports` entry carries a `lockness-source` condition naming the `.ts`
  * source; `deno.json` exports exactly that. Top-level `//…` comment keys are
  * carried over.
@@ -71,7 +86,12 @@ export interface ExportConditions {
 
 /** The Deno- and JSR-only facts of a package, under `package.json` `lockness`. */
 export interface LocknessKey {
-    /** JSR-only packages, name to range: become `jsr:<name>@<range>`. */
+    /**
+     * A published package's runtime JSR-only imports, name to range: become
+     * `jsr:<name>@<range>`. Test-only JSR packages are `devDependencies`
+     * entries `"<name>": "jsr:<range>"` instead, and a `private` package's
+     * runtime ones are `dependencies` entries of that form.
+     */
     jsr?: Record<string, string>
     /** Extra import-map keys, each naming a declared package and a subpath. */
     imports?: Record<string, string>
@@ -196,6 +216,9 @@ const NEVER_PUBLISHED = ['package.json', 'tsconfig.json']
 /** The own-version module's file name. */
 export const VERSION_MODULE = 'version.generated.ts'
 
+/** The range prefix that declares a JSR-only package in `package.json`. */
+const JSR_RANGE = 'jsr:'
+
 /** The run that fixes a stale file, for messages. */
 const REGENERATE = '`deno task manifests`'
 
@@ -226,29 +249,113 @@ function specifier(
 }
 
 /**
+ * Whether a `package.json` range declares a JSR-only package (`"jsr:1"`).
+ *
+ * @param range - A declared range.
+ * @returns `true` when it starts with `jsr:`.
+ */
+function isJsrRange(range: string): boolean {
+    return range.startsWith(JSR_RANGE)
+}
+
+/**
  * Name to fully qualified specifier for a dependency map.
  *
  * @param deps - Name to range.
- * @returns A sibling as `jsr:`, anything else as `npm:`, in declaration order.
+ * @param label - The package, for messages.
+ * @param field - The field the map came from, for messages.
+ * @returns A `jsr:<range>` entry and a sibling as `jsr:`, anything else as
+ *   `npm:`, in declaration order.
+ * @throws {Error} When a range is the aliased form `jsr:@scope/name@range`:
+ *   the entry's key is already the name, so only the range may follow `jsr:`.
  */
-function specifiersOf(deps: Record<string, string> = {}): [string, string][] {
-    return Object.entries(deps).map(([name, range]) => [
-        name,
-        specifier(name, range, isSibling(name) ? 'jsr' : 'npm'),
-    ])
+function specifiersOf(
+    deps: Record<string, string> = {},
+    label: string,
+    field: string,
+): [string, string][] {
+    return Object.entries(deps).map(([name, range]) => {
+        if (!isJsrRange(range)) {
+            return [
+                name,
+                specifier(name, range, isSibling(name) ? 'jsr' : 'npm'),
+            ]
+        }
+        const rest = range.slice(JSR_RANGE.length)
+        if (rest.startsWith('@')) {
+            throw new Error(
+                `${label}: ${field}["${name}"] is the aliased form "${range}"; write "${name}": "jsr:<range>"`,
+            )
+        }
+        return [name, specifier(name, rest, 'jsr')]
+    })
+}
+
+/**
+ * Refuse a JSR-only package declared where it cannot be, or twice.
+ *
+ * @param pkg - The manifest.
+ * @param label - The package, for messages.
+ * @throws {Error} When a published (non-`private`) package has a `jsr:` range
+ *   in `dependencies` — npm reads that field and cannot resolve `jsr:` — or
+ *   when one name sits in two of `dependencies`, `devDependencies` and
+ *   `lockness.jsr`.
+ */
+function assertJsrDeclarations(pkg: PackageManifest, label: string): void {
+    if (pkg.private !== true) {
+        for (const [name, range] of Object.entries(pkg.dependencies ?? {})) {
+            if (!isJsrRange(range)) continue
+            throw new Error(
+                `${label}: dependencies["${name}"] is "${range}", but npm cannot resolve a jsr: range in a published package's dependencies; a runtime JSR import belongs in lockness.jsr, a test-only one in devDependencies`,
+            )
+        }
+    }
+    const places: [string, Record<string, string> | undefined][] = [
+        ['dependencies', pkg.dependencies],
+        ['devDependencies', pkg.devDependencies],
+        ['lockness.jsr', pkg.lockness?.jsr],
+    ]
+    const seen = new Map<string, string>()
+    for (const [place, deps] of places) {
+        for (const name of Object.keys(deps ?? {})) {
+            const first = seen.get(name)
+            if (first !== undefined) {
+                throw new Error(
+                    `${label}: ${name} is declared in both ${first} and ${place}; declare it once`,
+                )
+            }
+            seen.set(name, place)
+        }
+    }
 }
 
 /**
  * Every package a manifest's import map holds by its own name: the runtime
- * dependencies and the JSR-only packages.
+ * dependencies, `lockness.jsr`, then the `jsr:` dev dependencies.
+ *
+ * A `jsr:` dev dependency is mapped although other dev dependencies are not:
+ * without a `jsr:` import-map entry Deno would resolve the `package.json`
+ * declaration to the npm.jsr.io build instead of JSR (plan §5, F13).
  *
  * @param pkg - The manifest.
  * @returns Name to fully qualified specifier, in declaration order.
+ * @throws {Error} See {@link assertJsrDeclarations} and {@link specifiersOf}.
  */
 function declaredSpecifiers(pkg: PackageManifest): Map<string, string> {
-    const declared = new Map(specifiersOf(pkg.dependencies))
+    const label = pkg.name ?? 'an unnamed member'
+    assertJsrDeclarations(pkg, label)
+    const declared = new Map(
+        specifiersOf(pkg.dependencies, label, 'dependencies'),
+    )
     for (const [name, range] of Object.entries(pkg.lockness?.jsr ?? {})) {
         declared.set(name, specifier(name, range, 'jsr'))
+    }
+    const jsrDev = Object.fromEntries(
+        Object.entries(pkg.devDependencies ?? {})
+            .filter(([name, range]) => !isSibling(name) && isJsrRange(range)),
+    )
+    for (const entry of specifiersOf(jsrDev, label, 'devDependencies')) {
+        declared.set(...entry)
     }
     return declared
 }
@@ -283,8 +390,10 @@ function resolveTarget(
  *
  * @param pkg - The member's `package.json`.
  * @returns The manifest, with keys in a fixed order.
- * @throws {Error} When an export has no `lockness-source`, or a
- *   `lockness.imports` entry names a package the manifest does not declare.
+ * @throws {Error} When an export has no `lockness-source`, a
+ *   `lockness.imports` entry names a package the manifest does not declare,
+ *   or a JSR-only package is declared where it cannot be or twice (see
+ *   {@link assertJsrDeclarations}).
  *
  * @example
  * ```ts
@@ -339,17 +448,19 @@ export function denoJsonFor(pkg: PackageManifest): DenoJson {
 
     const declared = declaredSpecifiers(pkg)
     const imports: Record<string, string> = Object.fromEntries(declared)
-    // A test dependency is reachable by an explicit entry only: the import
-    // map is published, and an entry lets the package's own code import it.
+    // A test dependency is reachable by an explicit entry only — except a
+    // `jsr:` one, which `declared` already maps so Deno stays on JSR. The
+    // import map is published, and an entry lets the package's own code
+    // import it.
     const resolvable = new Map([
         ...declared,
-        ...specifiersOf(pkg.devDependencies),
+        ...specifiersOf(pkg.devDependencies, label, 'devDependencies'),
     ])
     for (const [key, target] of Object.entries(lockness.imports ?? {})) {
         const resolved = resolveTarget(target, resolvable)
         if (resolved === null) {
             throw new Error(
-                `${label}: lockness.imports["${key}"] names ${target}, which is not in dependencies, devDependencies or lockness.jsr`,
+                `${label}: lockness.imports["${key}"] names ${target}, which is not declared in dependencies, devDependencies (a JSR-only one as "jsr:<range>") or lockness.jsr`,
             )
         }
         imports[key] = resolved
