@@ -22,9 +22,18 @@
  * - either name destructured (`const { APP_ENV } = process.env`, a
  *   `{ APP_ENV }` parameter).
  *
- * Writes (`Deno.env.set`, an assignment to `process.env.APP_ENV`, `delete`)
+ * Writes (`Deno.env.set`, a plain `=` to `process.env.APP_ENV`, `delete`)
  * are not reads and pass, and so does an object key or a type member named
- * `APP_ENV`. Markdown examples are not linted.
+ * `APP_ENV`. A logical or compound assignment (`process.env.APP_ENV ??= …`)
+ * reads first, and is reported. Markdown examples are not linted.
+ *
+ * **Accepted false positives.** Matching any object means a member that is
+ * not the process environment but happens to carry the name is reported too:
+ * `parsed.APP_ENV` on a map parsed from a `.env` file, or `APP_ENV`
+ * destructured from a DTO. That is the price of catching the injected-env
+ * read; the repository has none today. Such a site carries
+ * `// deno-lint-ignore lockness-env/env-signal` with the reason on the line
+ * above, as `printed-failure` exceptions do.
  *
  * @module scripts/lint/env_signal
  */
@@ -108,11 +117,17 @@ function staticKey(key: Deno.lint.Node, computed: boolean): string | undefined {
     return staticString(key)
 }
 
-/** Whether the member expression `node` is written to, not read. */
+/**
+ * Whether the member expression `node` is only written to, never read: the
+ * target of a plain `=`, or a `delete`. A compound or logical assignment
+ * (`+=`, `??=`, `||=`, `&&=`) and `++`/`--` read the value first, so they
+ * count as reads.
+ */
 function isWriteTarget(node: Deno.lint.MemberExpression): boolean {
     const parent = node.parent
-    if (parent.type === 'AssignmentExpression') return parent.left === node
-    if (parent.type === 'UpdateExpression') return true
+    if (parent.type === 'AssignmentExpression') {
+        return parent.left === node && parent.operator === '='
+    }
     return parent.type === 'UnaryExpression' && parent.operator === 'delete'
 }
 

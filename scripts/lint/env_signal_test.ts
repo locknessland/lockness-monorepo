@@ -33,6 +33,12 @@ const POSITIVES: ReadonlyArray<readonly [string, string]> = [
     ['a read on an injected env', 'const prod = env.APP_ENV === "production"'],
     ['a read on Deno.env.toObject()', 'const e = Deno.env.toObject().APP_ENV'],
     ['a read on the right of an assignment', 'let e; e = process.env.APP_ENV'],
+    // A logical or compound assignment reads before it writes.
+    ['a ??= default', "process.env.APP_ENV ??= 'development'"],
+    ['a ||= default', "process.env.APP_ENV ||= 'development'"],
+    ['an &&= rewrite', "process.env['APP_ENV'] &&= 'test'"],
+    ['a += append', "env.APP_ENV += '-ci'"],
+    ['an increment', 'env.APP_ENV++'],
     ['APP_ENV destructured', 'const { APP_ENV } = process.env'],
     [
         'DENO_ENV destructured and renamed',
