@@ -9,8 +9,9 @@
  * node --import @lockness/transform/register main.ts
  * ```
  *
- * `module.registerHooks` (Node ≥ 22.15) runs the hook in-thread and
- * synchronously, for `import` and `require` alike. The plan gives the flag one
+ * `module.registerHooks` runs the hook in-thread and synchronously, for
+ * `import` and `require` alike. It exists since Node 22.15, but the package
+ * claims Node ≥ 24 only (`engines.node`): that is what the Node lane proves. The plan gives the flag one
  * home — `@lockness/runtime`'s Node invocation — never an app script.
  *
  * @module
