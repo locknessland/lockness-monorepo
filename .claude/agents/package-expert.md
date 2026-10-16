@@ -60,9 +60,10 @@ Adding an entry to make a new cycle pass is not the remedy.
 
 ## Step 3 — do the work
 
-Framework-wide hard rules (no direct `hono` import, JSR-only specifiers, no
-`any` in exported APIs, Tailwind v4 parentheses, JSDoc on public APIs, MVC
-layering) are in the root `AGENTS.md` and apply here without restatement.
+Framework-wide hard rules (no direct `hono` import, published runtime
+dependencies declared per package with no `@std/*`, no `any` in exported
+APIs, Tailwind v4 parentheses, JSDoc on public APIs, MVC layering) are in
+the root `AGENTS.md` and apply here without restatement.
 
 Two that bite hardest in package work:
 

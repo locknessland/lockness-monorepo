@@ -67,11 +67,13 @@ it by `deno task manifests` (`scripts/manifests.ts`) and committed — the publi
 job may not generate anything (#476). Workspace membership is the root
 `package.json` `workspaces` list. The `lockness` key carries what npm has no
 field for: a published package's runtime JSR-only imports (`lockness.jsr`, a
-debt list the plan's "no `@std/*` in published runtime code" row empties), extra
-import-map entries (`lockness.imports`), the JSR `publish` filters, the JSX
-`compilerOptions`, `tasks` and `versionModule`. A sibling only the tests import
-is a `devDependency`; runtime `dependencies` must stay acyclic, because they
-become `tsconfig.json` references.
+debt list the plan's "no `@std/*` in published runtime code" row empties; hard
+rule #2 tolerates only the entries already listed, and a package whose `engines`
+names bun or node must have none), extra import-map entries
+(`lockness.imports`), the JSR `publish` filters, the JSX `compilerOptions`,
+`tasks` and `versionModule`. A sibling only the tests import is a
+`devDependency`; runtime `dependencies` must stay acyclic, because they become
+`tsconfig.json` references.
 
 A JSR-only package only the tests import (`@std/assert`, `@std/testing`, …) is a
 `devDependencies` entry `"<name>": "jsr:<range>"`, and a `private` package

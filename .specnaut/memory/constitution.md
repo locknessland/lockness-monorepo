@@ -11,8 +11,12 @@ These are blockers, not preferences. Violations are FAIL findings in every
 review.
 
 1. **No direct `hono` import.** Always import from `@lockness/core`.
-2. **JSR-only specifiers** for `@lockness/*` and `@std/*`. `npm:` only when
-   JSR-unavailable AND justified inline.
+2. **Published runtime code depends only on siblings, `node:` built-ins and
+   npm packages**, declared per package in `package.json`; JSR-only packages
+   (`@std/*`) only in tests and tooling. `publish:check` and `npm:check` enforce
+   it. Until #584 completes, a package not yet naming bun or node in `engines`
+   keeps only the runtime JSR imports its `lockness.jsr` lists; no new one is
+   added.
 3. **No `any` in exported APIs.** Use `unknown` + type guards.
 4. **Tailwind v4 CSS-variable syntax.** Parentheses for variables
    (`bg-(--var)`), brackets only for literal values (`px-[0.75rem]`).

@@ -33,7 +33,10 @@ Each library in the workspace follows the Deno convention for its entry point:
   public API.
 - **`package.json`**: Each library's one hand-edited manifest — name, version,
   dependencies, `engines`, exports, and a `lockness` key for what only Deno and
-  JSR need. Membership is the root `package.json` `workspaces` list.
+  JSR need. Membership is the root `package.json` `workspaces` list. Published
+  runtime code imports only siblings, `node:` built-ins and npm packages, each
+  declared here; `@std/*` and other JSR-only packages are for tests and tooling
+  (hard rule #2 in [AGENTS.md](../AGENTS.md)).
 - **`deno.json`** and **`tsconfig.json`**: generated from `package.json` by
   `deno task manifests` and committed. Never edit them by hand; the gate's
   `manifests --check` step fails on a stale one.
