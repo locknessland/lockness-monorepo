@@ -41,6 +41,9 @@ test('the gate runs the suite last, after every static check', () => {
         },
         { label: 'docs:coverage', args: ['task', 'docs:coverage'] },
         { label: 'publish:check', args: ['task', 'publish:check'] },
+        { label: 'install --frozen', args: ['install', '--frozen'] },
+        { label: 'npm:build', args: ['task', 'npm:build'] },
+        { label: 'npm:check', args: ['task', 'npm:check'] },
         { label: 'test', args: ['task', 'test'] },
     ])
 })

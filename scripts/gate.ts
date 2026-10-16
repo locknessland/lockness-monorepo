@@ -22,6 +22,10 @@
  * siblings, but third-party dependencies against JSR/npm, so the gate needs
  * network access.
  *
+ * `npm:check` packs, installs and imports the npm packages `npm:build` staged,
+ * so the gate also needs Node and npm (the version in `.node-version`), and
+ * Bun once a package in the npm scope names it. A missing one fails the step.
+ *
  * @example
  * ```bash
  * deno task gate
@@ -82,6 +86,12 @@ export function gateSteps(options: GateOptions = {}): GateStep[] {
         },
         { label: 'docs:coverage', args: ['task', 'docs:coverage'] },
         { label: 'publish:check', args: publishCheckArgs },
+        // The npm artifacts (#595): node_modules from deno.lock alone, then
+        // tsc under the build sandbox and staging, then pack, install and
+        // import each staged package. npm:check needs Node and npm.
+        { label: 'install --frozen', args: ['install', '--frozen'] },
+        { label: 'npm:build', args: ['task', 'npm:build'] },
+        { label: 'npm:check', args: ['task', 'npm:check'] },
         { label: suite, args: ['task', suite] },
     ]
 }

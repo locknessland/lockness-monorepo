@@ -55,6 +55,10 @@
         // write each package's dist/ only. Then scripts/npm_stage.ts stages
         // each published npm package under the gitignored _npm/.
         "npm:build": "deno run --no-prompt --allow-env=NODE_ENV,NODE_INSPECTOR_IPC,VSCODE_INSPECTOR_OPTIONS,TSC_NONPOLLING_WATCHER,TSC_WATCHDIRECTORY,TSC_WATCHFILE,TSC_WATCH_POLLINGINTERVAL_LOW,TSC_WATCH_POLLINGINTERVAL_MEDIUM,TSC_WATCH_POLLINGINTERVAL_HIGH,TSC_WATCH_POLLINGCHUNKSIZE_LOW,TSC_WATCH_POLLINGCHUNKSIZE_MEDIUM,TSC_WATCH_POLLINGCHUNKSIZE_HIGH,TSC_WATCH_UNCHANGEDPOLLTHRESHOLDS_LOW,TSC_WATCH_UNCHANGEDPOLLTHRESHOLDS_MEDIUM,TSC_WATCH_UNCHANGEDPOLLTHRESHOLDS_HIGH --deny-net --deny-run --deny-ffi --allow-read=. --allow-write=packages/transform/dist node_modules/typescript/lib/tsc.js -b packages/transform && deno run --no-prompt --allow-read=. --allow-write=_npm scripts/npm_stage.ts",
+        // Packs, installs registry-free and imports each package npm:build
+        // staged; type-checks a consumer against its .d.ts (#595). A gate
+        // step; needs Node and npm (.node-version). scripts/npm_check.ts.
+        "npm:check": "deno run -A scripts/npm_check.ts",
         "deps:analyze": "deno run -A scripts/deps_analyzer.ts",
         "kits:smoke": "deno run -A scripts/kit_smoke.ts",
         // Regenerates the web/api kits' database/migrations stubs from their
