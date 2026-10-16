@@ -20,6 +20,7 @@ import { test } from 'node:test'
 import {
     assert,
     assertEquals,
+    assertInstanceOf,
     assertRejects,
     assertStringIncludes,
 } from '@std/assert'
@@ -30,6 +31,7 @@ import {
     type EntryImporter,
     installPackage,
     isMissingEntry,
+    setupContext,
 } from '../package_install.ts'
 import { captureConsole, inTempDir } from './helpers.ts'
 import { calls } from './fixtures/package_install/calls.ts'
@@ -118,6 +120,69 @@ test('package:install - a package with neither entry is registered, exit 0', asy
         log.map((line) => line.join(' ')).join('\n'),
         'does not have an automated installer',
     )
+})
+
+// ---------------------------------------------------------------------------
+// Manifest handling through the setup path (#580 coverage, moved here when
+// deprecation-contracts' installer became a setup step, #592)
+// ---------------------------------------------------------------------------
+
+/** A config with a comment and a trailing comma: valid JSONC, invalid JSON. */
+const COMMENTED_CONFIG = '{\n    // the app\'s own note\n    "tasks": {},\n}\n'
+
+test('package:install - registers into a commented deno.jsonc when there is no deno.json (#580)', async () => {
+    const outcome = await inTempDir(async () => {
+        await Deno.writeTextFile('deno.jsonc', COMMENTED_CONFIG)
+        const cli = new Cli()
+        registerCoreCommands(cli)
+        const { result, error } = await captureConsole(() =>
+            cli.dispatch(['package:install', 'deprecation-contracts'])
+        )
+        const jsonc = JSON.parse(await Deno.readTextFile('deno.jsonc'))
+        const json = await Deno.stat('deno.json').then(() => true, () => false)
+        return { result, error, jsonc, json }
+    })
+
+    assertEquals(outcome.error, [])
+    assertEquals(outcome.result, 0)
+    assertEquals(outcome.jsonc.tasks, {})
+    assertEquals(outcome.jsonc.lockness.packages, ['deprecation-contracts'])
+    assertEquals(outcome.json, false, 'no deno.json is created')
+})
+
+test('package:install - an unparseable manifest exits 1 naming the step (#580)', async () => {
+    const { result, error } = await install(
+        'deprecation-contracts',
+        () => Deno.writeTextFile('deno.json', '{ "tasks": }\n'),
+    )
+
+    assertEquals(result, 1)
+    assertEquals(error.length, 1)
+    const line = String(error[0][0])
+    assert(
+        line.startsWith(
+            '❌ Could not add deprecation-contracts to lockness.packages',
+        ),
+        line,
+    )
+    assertStringIncludes(line, ' caused by: ')
+})
+
+test('setupContext - the manifest failure keeps the original error as cause', async () => {
+    await inTempDir(async () => {
+        await Deno.writeTextFile('deno.json', '{ "tasks": }\n')
+
+        const failure = await assertRejects(
+            () => setupContext().registerPackage('deprecation-contracts'),
+            CommandFailedError,
+            'Could not add deprecation-contracts to lockness.packages',
+        )
+        assertEquals(
+            failure.message,
+            'Could not add deprecation-contracts to lockness.packages',
+        )
+        assertInstanceOf(failure.cause, Error)
+    })
 })
 
 // ---------------------------------------------------------------------------
