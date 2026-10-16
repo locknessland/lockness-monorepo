@@ -99,7 +99,8 @@ export function inPackageScope(
  * repository's `packages/`, outside tests and stubs.
  *
  * Command code is any `commands/` or `generators/` directory of a package,
- * any `cli_commands.ts` or `install.ts`, `cli/core_commands.ts`, `core/cli/`,
+ * any `cli_commands.ts`, `commands.ts` (queue's, #592) or `install.ts`,
+ * `cli/core_commands.ts`, `core/cli/`,
  * and the `mod.ts` of ui, upgrade and init (standalone tools).
  *
  * @param filename - The file being linted, as Deno hands it over.
@@ -117,7 +118,9 @@ export function inCommandScope(
     const [, pkg, rest] = match
     const base = rest.slice(rest.lastIndexOf('/') + 1)
     if (/(^|\/)(commands|generators)\//.test(rest)) return true
-    if (base === 'cli_commands.ts' || base === 'install.ts') return true
+    if (['cli_commands.ts', 'commands.ts', 'install.ts'].includes(base)) {
+        return true
+    }
     if (pkg === 'cli' && rest === 'core_commands.ts') return true
     if (pkg === 'core' && rest.startsWith('cli/')) return true
     return COMMAND_MODS.includes(pkg) && rest === 'mod.ts'

@@ -209,7 +209,7 @@ test('printed-failure - reports in every command-code path', () => {
     for (
         const file of [
             'packages/cli/commands/make/action.ts',
-            'packages/cli/commands/queue_commands.ts',
+            'packages/queue/commands.ts',
             'packages/mail/cli_commands.ts',
             'packages/openapi/install.ts',
             'packages/drizzle/generators/model_generator.ts',
@@ -279,6 +279,19 @@ test('exit-contract - a checkout under a tests or stubs directory keeps the rule
             false,
         )
     }
+})
+
+test("exit-contract - a package's commands.ts is command code (#592)", () => {
+    const root = '/repo/'
+    assertEquals(
+        inCommandScope(`${root}packages/queue/commands.ts`, root),
+        true,
+    )
+    assertEquals(
+        inCommandScope(`${root}packages/queue/tests/commands.ts`, root),
+        false,
+    )
+    assertEquals(inCommandScope(`${root}packages/queue/worker.ts`, root), false)
 })
 
 test('exit-contract - a checkout under a packages directory reads the right package', () => {
