@@ -248,6 +248,20 @@ export {
 } from '@lockness/hono'
 
 /**
+ * Deno's static-file middleware, kept on core's public API while the root
+ * `@lockness/hono` barrel no longer carries runtime adapters (plan 274 §5).
+ * T022 replaces it with the runtime-selected `serveStatic`; its removal, with
+ * an upgrade-guide entry, lands then.
+ *
+ * @example
+ * ```typescript
+ * import { denoServeStatic } from '@lockness/core'
+ * app.use('/static/*', denoServeStatic({ root: './public' }))
+ * ```
+ */
+export { serveStatic as denoServeStatic } from '@lockness/hono/deno'
+
+/**
  * Register core's CLI commands — `compile` and `ssg:build` — on a command
  * registry.
  *

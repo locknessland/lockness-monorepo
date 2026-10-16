@@ -117,14 +117,16 @@ describe('Hono Re-exports from @lockness/core', () => {
     })
 
     it('should export additional utilities', async () => {
-        const { getRuntimeKey } = await import('../mod.ts')
+        const { getRuntimeKey, denoServeStatic } = await import('../mod.ts')
         expect(getRuntimeKey).toBeDefined()
+        // Kept on core until T022's runtime-selected serveStatic replaces it.
+        expect(typeof denoServeStatic).toBe('function')
     })
 
-    it('should not export a runtime-specific adapter (plan 274 §5)', async () => {
-        const mod = await import('../mod.ts')
-        expect('denoServeStatic' in mod).toBe(false)
-        expect('getConnInfo' in mod).toBe(false)
+    it('hono root barrel no longer exports the Deno adapters (plan 274 §5)', async () => {
+        const hono = await import('@lockness/hono')
+        expect('denoServeStatic' in hono).toBe(false)
+        expect('getConnInfo' in hono).toBe(false)
     })
 
     it('should allow unified imports in a single statement', async () => {
