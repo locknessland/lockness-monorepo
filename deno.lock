@@ -4626,8 +4626,7 @@
           "jsr:@std/assert@1",
           "jsr:@std/expect@1",
           "jsr:@std/fs@1",
-          "jsr:@std/path@1",
-          "jsr:@std/testing@1"
+          "jsr:@std/path@1"
         ]
       },
       "packages/crypto": {
@@ -4707,8 +4706,7 @@
           "jsr:@std/cli@1",
           "jsr:@std/expect@1",
           "jsr:@std/fs@1",
-          "jsr:@std/path@1",
-          "jsr:@std/testing@1"
+          "jsr:@std/path@1"
         ]
       },
       "packages/logger": {
@@ -4809,8 +4807,7 @@
           "jsr:@std/assert@1",
           "jsr:@std/crypto@1",
           "jsr:@std/encoding@1",
-          "jsr:@std/expect@1",
-          "jsr:@std/testing@1"
+          "jsr:@std/expect@1"
         ]
       },
       "packages/sse": {

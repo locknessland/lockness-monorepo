@@ -19,8 +19,7 @@
         "@std/cli": "jsr:@std/cli@^1.0.0",
         "@std/expect": "jsr:@std/expect@^1.0.0",
         "@std/fs": "jsr:@std/fs@^1.0.0",
-        "@std/path": "jsr:@std/path@^1.0.0",
-        "@std/testing/bdd": "jsr:@std/testing@^1.0.0/bdd"
+        "@std/path": "jsr:@std/path@^1.0.0"
     },
     "description": "Project scaffolding and initialization for creating new Lockness applications with complete structure"
 }
