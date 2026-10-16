@@ -13,11 +13,14 @@ import { join } from '@std/path'
 import { fileURLToPath } from 'node:url'
 import {
     checkNpm,
+    childEnv,
     consumerSource,
     exportSpecifiers,
     importProbe,
     listingFaults,
     packedManifestFaults,
+    pinnedMajorFault,
+    requiredFilesFaults,
     type Runner,
     runtimesToProve,
     scopeFaults,
@@ -206,6 +209,61 @@ test('sourceFaults - JSR-only imports anywhere, .ts specifiers in JavaScript onl
     }
 })
 
+test('requiredFilesFaults - a README and a LICENSE at the package root', () => {
+    assertEquals(
+        requiredFilesFaults('@lockness/a', [
+            'package.json',
+            'README.md',
+            'LICENSE',
+        ]),
+        [],
+    )
+    assertEquals(
+        requiredFilesFaults('@lockness/a', [
+            'package.json',
+            'LICENCE.txt',
+            'readme',
+        ]),
+        [],
+    )
+    assertEquals(
+        requiredFilesFaults('@lockness/a', ['package.json', 'dist/README.md']),
+        [
+            '@lockness/a: the tarball has no README',
+            '@lockness/a: the tarball has no LICENSE',
+        ],
+    )
+})
+
+test('childEnv - only the allowlisted names reach a probe', () => {
+    assertEquals(
+        childEnv({
+            PATH: '/usr/bin',
+            HOME: '/home/x',
+            TMPDIR: '/tmp',
+            APP_ENV: 'production',
+            NODE_OPTIONS: '--require ./evil.cjs',
+            NODE_PATH: '/elsewhere',
+            NPM_TOKEN: '<token>',
+            UNSET: undefined,
+        }),
+        { PATH: '/usr/bin', HOME: '/home/x', TMPDIR: '/tmp' },
+    )
+})
+
+test('pinnedMajorFault - the installed major must be the pinned one', () => {
+    assertEquals(pinnedMajorFault('node', 'v24.9.1\n', '24.22.0\n'), null)
+    assertEquals(pinnedMajorFault('bun', '1.3.3\n', '1.4.3\n'), null)
+    assertEquals(
+        pinnedMajorFault('node', 'v22.1.0\n', '24.22.0\n'),
+        'node v22.1.0 does not match the major pinned in .node-version (24): install the version pinned in .node-version',
+    )
+    assertEquals(
+        pinnedMajorFault('bun', '2.0.0', null),
+        '.bun-version states no version, so npm:check cannot verify bun',
+    )
+})
+
 test('importProbe and consumerSource - every export, in order', () => {
     assertEquals(
         importProbe(['@lockness/a', '@lockness/a/b']),
@@ -286,6 +344,8 @@ async function fixture(options: FixtureOptions = {}): Promise<string> {
             'export default 1\n',
         )
     }
+    await Deno.writeTextFile(join(root, 'packages/p/README.md'), '# p\n')
+    await Deno.writeTextFile(join(root, 'LICENSE'), 'MIT\n')
     await stageAll(root)
     return root
 }
@@ -322,6 +382,57 @@ test('checkNpm - a clean package packs, installs, imports and type-checks', asyn
         }),
     )
     assertEquals(faults, [])
+})
+
+test('checkNpm - a tarball without a README fails the step', async () => {
+    const root = await fixture()
+    await Deno.remove(join(root, '_npm/p/README.md'))
+    assertEquals(await checked(root), [
+        '@lockness/p: the tarball has no README',
+    ])
+})
+
+test('checkNpm - no child gets APP_ENV, NODE_OPTIONS or a secret', async () => {
+    const leaked = ['APP_ENV', 'NODE_OPTIONS', 'LOCKNESS_NPM_CHECK_SECRET']
+    const js = [
+        "import process from 'node:process'",
+        `for (const name of ${JSON.stringify(leaked)}) {`,
+        '    if (process.env[name] !== undefined) throw new Error(`leaked ${name}`)',
+        '}',
+        'export const answer = 42',
+        '',
+    ].join('\n')
+    const root = await fixture({ js })
+    // A leaked NODE_OPTIONS would make every node child — npm, the probe and
+    // the consumer tsc — load this file and die.
+    const hostile = join(root, 'hostile.cjs')
+    await Deno.writeTextFile(
+        hostile,
+        "throw new Error('leaked NODE_OPTIONS')\n",
+    )
+    Deno.env.set('APP_ENV', 'production')
+    Deno.env.set('NODE_OPTIONS', `--require=${hostile}`)
+    Deno.env.set('LOCKNESS_NPM_CHECK_SECRET', '<secret>')
+    try {
+        assertEquals(await checked(root), [])
+    } finally {
+        for (const name of leaked) Deno.env.delete(name)
+    }
+})
+
+test('checkNpm - a runtime whose major differs from its pin fails the step', async () => {
+    const oldNode: Runner = (command, args, options) =>
+        command === 'node' && args[0] === '--version'
+            ? Promise.resolve({
+                code: 0,
+                stdout: 'v22.1.0\n',
+                stderr: '',
+                missing: false,
+            })
+            : spawnCapture(command, args, options)
+    assertEquals(await checked(await fixture(), oldNode), [
+        'node v22.1.0 does not match the major pinned in .node-version (24): install the version pinned in .node-version',
+    ])
 })
 
 test('checkNpm - a forbidden file in the tarball fails the step', async () => {

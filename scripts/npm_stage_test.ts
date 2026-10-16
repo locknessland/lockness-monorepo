@@ -59,6 +59,8 @@ async function fixture(): Promise<string> {
         '{}',
     )
     await Deno.writeTextFile(join(root, 'packages/t/secret.ts'), 'x')
+    await Deno.writeTextFile(join(root, 'packages/t/README.md'), '# t\n')
+    await Deno.writeTextFile(join(root, 'LICENSE'), 'MIT (root)\n')
     return root
 }
 
@@ -68,7 +70,17 @@ test('stageAll - the published manifest and the files entries, nothing else', as
         // A stale package from an earlier scope is cleared.
         await Deno.mkdir(join(root, '_npm/gone'), { recursive: true })
         const lines = await stageAll(root)
-        assertEquals(lines, ['@lockness/t → _npm/t (3 files)'])
+        assertEquals(lines, ['@lockness/t → _npm/t (5 files)'])
+        // npm pack always includes README and LICENSE: staged too, the root
+        // licence standing in for a package that has none.
+        assertEquals(
+            await Deno.readTextFile(join(root, '_npm/t/README.md')),
+            '# t\n',
+        )
+        assertEquals(
+            await Deno.readTextFile(join(root, '_npm/t/LICENSE')),
+            'MIT (root)\n',
+        )
         const staged: string[] = []
         for await (const entry of Deno.readDir(join(root, '_npm'))) {
             staged.push(entry.name)
@@ -90,6 +102,21 @@ test('stageAll - the published manifest and the files entries, nothing else', as
             dist.push(entry.name)
         }
         assertEquals(dist.sort(), ['mod.d.ts', 'mod.js'])
+    } finally {
+        await Deno.remove(root, { recursive: true })
+    }
+})
+
+test('stageAll - a package licence wins over the root one', async () => {
+    const root = await fixture()
+    try {
+        await Deno.writeTextFile(join(root, 'packages/t/LICENSE.md'), 'own\n')
+        await stageAll(root)
+        assertEquals(
+            await Deno.readTextFile(join(root, '_npm/t/LICENSE.md')),
+            'own\n',
+        )
+        await assertRejects(() => Deno.stat(join(root, '_npm/t/LICENSE')))
     } finally {
         await Deno.remove(root, { recursive: true })
     }

@@ -6,7 +6,9 @@
  * For every package in the npm scope ({@link npmScope}: non-private, `engines`
  * names bun or node) it writes `_npm/<dir>/package.json` — the field allowlist
  * {@link publishedManifest} maps — and copies the package's `files` entries
- * beside it. That directory is what `npm pack` reads, in `scripts/npm_check.ts`
+ * beside it, plus its `README*` and `LICENSE*`, which `npm pack` of a source
+ * directory always includes. A package with no licence file of its own gets
+ * the root `LICENSE`. That directory is what `npm pack` reads, in `scripts/npm_check.ts`
  * now and in `scripts/npm_publish.ts` in P5. Nothing packs the source
  * directory, and no prepack script exists.
  *
@@ -40,6 +42,38 @@ import {
     stagingDirOf,
 } from './manifests.ts'
 
+/** A file npm packs from a package root whatever `files` says: a README. */
+export const README_FILE = /^readme(\.[^/]*)?$/i
+
+/** A file npm packs from a package root whatever `files` says: a licence. */
+export const LICENSE_FILE = /^licen[cs]e(\.[^/]*)?$/i
+
+/**
+ * The README and licence files to stage for a package: its own, and the root
+ * licence when it has none.
+ *
+ * @param root - The workspace root.
+ * @param dir - The package directory, relative to the root.
+ * @returns Absolute sources and the name each is staged under, sorted.
+ */
+async function alwaysPacked(
+    root: string,
+    dir: string,
+): Promise<{ from: string; name: string }[]> {
+    const own = (await readdir(join(root, dir))).sort()
+    const picked = own
+        .filter((name) => README_FILE.test(name) || LICENSE_FILE.test(name))
+        .map((name) => ({ from: join(root, dir, name), name }))
+    if (!own.some((name) => LICENSE_FILE.test(name))) {
+        for (const name of (await readdir(root)).sort()) {
+            if (LICENSE_FILE.test(name)) {
+                picked.push({ from: join(root, name), name })
+            }
+        }
+    }
+    return picked
+}
+
 /**
  * Copy a file or a directory tree into the staging directory, as it is,
  * leaving out tsc's `*.tsbuildinfo`.
@@ -66,7 +100,8 @@ async function copyEntry(from: string, to: string): Promise<number> {
 }
 
 /**
- * Stage one package: its published manifest and its `files` entries.
+ * Stage one package: its published manifest, its `files` entries, its README
+ * and its licence (the root one when it has none).
  *
  * @param root - The workspace root.
  * @param member - A member in the npm scope.
@@ -104,6 +139,9 @@ export async function stagePackage(
             )
         }
         written += await copyEntry(from, join(target, entry))
+    }
+    for (const { from, name } of await alwaysPacked(root, member.dir)) {
+        written += await copyEntry(from, join(target, name))
     }
     return written
 }

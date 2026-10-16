@@ -16,8 +16,9 @@
  *    `publishedManifest()` maps today, or the staging is stale.
  * 3. **Content.** The packed `package.json` has a `files` allowlist, no
  *    `scripts` (so no lifecycle script), no `devDependencies`, no `lockness`
- *    key and no `jsr:` range in any field. The listing has no tests,
- *    fixtures, `.env*`, `*.key`, `.npmrc` or `.tsbuildinfo`.
+ *    key and no `jsr:` range in any field. The listing has a README and a
+ *    LICENSE, and no tests, fixtures, `.env*`, `*.key`, `.npmrc` or
+ *    `.tsbuildinfo`.
  * 4. **Install, registry-free.** Every tarball is unpacked into one temp
  *    `node_modules`; each package's declared third-party dependencies are
  *    linked from the frozen install (`deno install --frozen`), and nothing
@@ -73,6 +74,7 @@ import {
     readMembers,
     stagingDirOf,
 } from './manifests.ts'
+import { LICENSE_FILE, README_FILE } from './npm_stage.ts'
 
 /** A runtime `npm:check` imports the packed exports on. */
 export type NpmRuntime = 'bun' | 'node'
@@ -83,6 +85,87 @@ export const PIN_FILES: Readonly<Record<NpmRuntime | 'npm', string>> = {
     bun: '.bun-version',
     // npm ships with Node: the Node pin decides it.
     npm: '.node-version',
+}
+
+/**
+ * The environment variables every child of `npm:check` inherits — the
+ * version probes, `npm pack`, `tar`, the import probe and the consumer `tsc` —
+ * and no other: a runtime needs its `PATH`, a home and a temp directory
+ * (`SystemRoot` and `USERPROFILE` on Windows). Everything else stays out —
+ * `NODE_OPTIONS`, `NODE_PATH` and any secret of the calling shell.
+ */
+export const CHILD_ENV_NAMES: readonly string[] = [
+    'PATH',
+    'HOME',
+    'TMPDIR',
+    'TEMP',
+    'TMP',
+    'SystemRoot',
+    'USERPROFILE',
+]
+
+/**
+ * The allowlisted environment a packed package is imported and type-checked
+ * under. `APP_ENV` in particular must be absent: `@lockness/transform`'s
+ * register refuses to run when it says production.
+ *
+ * @param source - The calling process's environment.
+ * @returns Only the {@link CHILD_ENV_NAMES} that are set.
+ *
+ * @example
+ * ```ts
+ * childEnv({ PATH: '/usr/bin', APP_ENV: 'production', NODE_OPTIONS: '--x' })
+ * // { PATH: '/usr/bin' }
+ * ```
+ */
+export function childEnv(
+    source: Readonly<Record<string, string | undefined>>,
+): Record<string, string> {
+    const env: Record<string, string> = {}
+    for (const name of CHILD_ENV_NAMES) {
+        const value = source[name]
+        if (value !== undefined) env[name] = value
+    }
+    return env
+}
+
+/**
+ * The major version a version string or pin file states.
+ *
+ * @param text - e.g. `v24.22.0`, `1.4.3\n`.
+ * @returns The major, or `null` when the text starts with no number.
+ */
+function majorOf(text: string): number | null {
+    const match = /^\s*v?(\d+)/.exec(text)
+    return match === null ? null : Number(match[1])
+}
+
+/**
+ * Whether an installed runtime matches the major its pin file names.
+ *
+ * @param tool - The runtime.
+ * @param version - What `<tool> --version` printed.
+ * @param pin - The pin file's content, or `null` when it is missing.
+ * @returns A fault naming the pin file, or `null` when the majors agree.
+ *
+ * @example
+ * ```ts
+ * pinnedMajorFault('node', 'v22.1.0\n', '24.22.0\n')
+ * // 'node v22.1.0 does not match the major pinned in .node-version (24): …'
+ * ```
+ */
+export function pinnedMajorFault(
+    tool: NpmRuntime,
+    version: string,
+    pin: string | null,
+): string | null {
+    const file = PIN_FILES[tool]
+    const wanted = pin === null ? null : majorOf(pin)
+    if (wanted === null) {
+        return `${file} states no version, so npm:check cannot verify ${tool}`
+    }
+    if (majorOf(version) === wanted) return null
+    return `${tool} ${version.trim()} does not match the major pinned in ${file} (${wanted}): install the version pinned in ${file}`
 }
 
 /** Lifecycle scripts npm runs on install or publish. */
@@ -305,6 +388,34 @@ export function listingFaults(
             faults.push(`${label}: the tarball carries ${path} (${what})`)
             break
         }
+    }
+    return faults
+}
+
+/**
+ * The files npm consumers expect in every tarball: a README and a licence at
+ * the package root.
+ *
+ * @param label - The package, for messages.
+ * @param paths - Each packed path, relative to the package root.
+ * @returns One message per missing file.
+ *
+ * @example
+ * ```ts
+ * requiredFilesFaults('@lockness/a', ['package.json', 'README.md'])
+ * // ['@lockness/a: the tarball has no LICENSE']
+ * ```
+ */
+export function requiredFilesFaults(
+    label: string,
+    paths: readonly string[],
+): string[] {
+    const faults: string[] = []
+    if (!paths.some((path) => README_FILE.test(path))) {
+        faults.push(`${label}: the tarball has no README`)
+    }
+    if (!paths.some((path) => LICENSE_FILE.test(path))) {
+        faults.push(`${label}: the tarball has no LICENSE`)
     }
     return faults
 }
@@ -613,6 +724,9 @@ export async function checkNpm(
         return []
     }
     const faults: string[] = []
+    // Every child — the probes, npm, tar, the imports, tsc — runs under one
+    // allowlisted environment. No APP_ENV: transform refuses production.
+    const env = childEnv(process.env)
 
     // Prerequisites: npm, Node (npm and tsc run on it), every named runtime.
     const tools = new Set<NpmRuntime | 'npm'>(['npm', 'node'])
@@ -620,14 +734,24 @@ export async function checkNpm(
         for (const runtime of runtimesToProve(pkg)) tools.add(runtime)
     }
     for (const tool of tools) {
-        const result = await run(tool, ['--version'], { cwd: root })
+        const result = await run(tool, ['--version'], { cwd: root, env })
         if (result.missing || result.code !== 0) {
             faults.push(
                 `${tool} is required by npm:check but is not installed: install the version pinned in ${
                     PIN_FILES[tool]
                 }`,
             )
+            continue
         }
+        // npm ships with Node; only the runtimes carry a pin of their own.
+        if (tool === 'npm') continue
+        const pin = await readFile(join(toolsRoot, PIN_FILES[tool]), 'utf8')
+            .catch((error: NodeJS.ErrnoException) => {
+                if (error.code === 'ENOENT') return null
+                throw error
+            })
+        const mismatch = pinnedMajorFault(tool, result.stdout, pin)
+        if (mismatch !== null) faults.push(mismatch)
     }
     if (faults.length > 0) return faults
 
@@ -662,7 +786,7 @@ export async function checkNpm(
                 '--ignore-scripts',
                 '--pack-destination',
                 tarballs,
-            ], { cwd: temp })
+            ], { cwd: temp, env })
             if (pack.code !== 0) {
                 faults.push(`${label}: npm pack failed:\n      ${tail(pack)}`)
                 continue
@@ -673,6 +797,7 @@ export async function checkNpm(
             }[]
             const paths = packed.files.map((f) => f.path)
             faults.push(...listingFaults(label, paths))
+            faults.push(...requiredFilesFaults(label, paths))
 
             const target = join(modules, label)
             await mkdir(target, { recursive: true })
@@ -682,7 +807,7 @@ export async function checkNpm(
                 '-C',
                 target,
                 '--strip-components=1',
-            ], { cwd: temp })
+            ], { cwd: temp, env })
             if (untar.code !== 0) {
                 faults.push(
                     `${label}: tar could not unpack ${packed.filename}:\n      ${
@@ -759,10 +884,6 @@ export async function checkNpm(
         if (faults.length > 0) return faults
 
         // Import every export on each runtime its engines names.
-        const env: Record<string, string> = {}
-        for (const [key, value] of Object.entries(process.env)) {
-            if (value !== undefined && key !== 'APP_ENV') env[key] = value
-        }
         for (const runtime of ['node', 'bun'] as const) {
             const specifiers = installed
                 .filter((m) => runtimesToProve(m.pkg).includes(runtime))
@@ -810,6 +931,7 @@ export async function checkNpm(
         log(`── type-check a consumer of ${specifiers.join(', ')}`)
         const check = await run('node', [tsc, '-p', 'tsconfig.json'], {
             cwd: consumer,
+            env,
         })
         if (check.code !== 0) {
             faults.push(
