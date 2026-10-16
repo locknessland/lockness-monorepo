@@ -302,6 +302,10 @@ user-facing doc.
   `@Service`, `@Inject`, lifetimes. Injection is lazy, so services may hold each
   other; only a constructor cycle is a fault, and it raises
   `CircularDependencyError`.
+- [`@lockness/transform`](packages/transform/AGENTS.md) — The Node `--import`
+  hook that runs an app's TypeScript (TC39 decorators, `.tsx`) through
+  TypeScript 6 with the app's `tsconfig.json`, behind a private project-local
+  cache. Loads before everything, so it imports nothing; refuses production.
 
 **Framework**
 
