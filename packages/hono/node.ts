@@ -1,5 +1,5 @@
 /**
- * Hono's Node adapter: the HTTP server, static files, the peer address and
+ * @fileoverview Hono's Node adapter: the HTTP server, static files, the peer address and
  * the WebSocket upgrade, assembled from Hono's two Node packages.
  *
  * Hono ships no Node adapter in its core package; `@hono/node-server` and

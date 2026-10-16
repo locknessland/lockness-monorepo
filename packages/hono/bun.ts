@@ -1,5 +1,5 @@
 /**
- * Hono's Bun adapter: static files read through `Bun.file`, the peer address
+ * @fileoverview Hono's Bun adapter: static files read through `Bun.file`, the peer address
  * from `server.requestIP`, and the WebSocket upgrade over `Bun.serve`.
  *
  * Runtime-specific by design, so it is a subpath and never part of the root

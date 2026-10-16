@@ -1,5 +1,5 @@
 /**
- * Hono's Deno adapter: static files, the peer address `Deno.serve` passes as
+ * @fileoverview Hono's Deno adapter: static files, the peer address `Deno.serve` passes as
  * `remoteAddr`, and the WebSocket upgrade.
  *
  * Runtime-specific by design, so it is a subpath and never part of the root

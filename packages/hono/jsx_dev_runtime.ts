@@ -1,5 +1,5 @@
 /**
- * Hono's automatic JSX dev runtime, the module `jsx: react-jsxdev` imports
+ * @fileoverview Hono's automatic JSX dev runtime, the module `jsx: react-jsxdev` imports
  * from `@lockness/hono/jsx-dev-runtime`.
  *
  * Homed here so the JSX runtime stays behind the pinned Hono boundary on every

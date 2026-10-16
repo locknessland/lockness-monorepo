@@ -1,6 +1,6 @@
 /// <reference types="hono/jsx" />
 /**
- * Hono's JSX runtime, the module the compiler imports from
+ * @fileoverview Hono's JSX runtime, the module the compiler imports from
  * `@lockness/hono/jsx-runtime`.
  *
  * The target is the automatic runtime alone (`jsx`, `jsxs`, `Fragment`), one
