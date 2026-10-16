@@ -1,8 +1,8 @@
 # @lockness/testing
 
 Internal, **test-only** helpers shared across the Lockness monorepo's own test
-suites. This package is **never published** and must never be imported by
-runtime code — only from a `tests/` directory.
+suites. It is published on JSR in lockstep with every package (never on npm),
+and must never be imported by runtime code — only from a `tests/` directory.
 
 ## What's inside
 
@@ -25,9 +25,10 @@ Deno.test('POST /orders as an admin', async () => {
 })
 ```
 
-`actingAs` never mints a real session or token and never writes to a real store;
-combined with the package being unpublished, it can never become an auth-bypass
-primitive in a consumer runtime. Fixtures must use synthetic/placeholder
-credentials only — never a real secret.
+`actingAs` never mints a real session or token and never writes to a real store,
+so it sets identity on a test request only. The package is on JSR, so that
+guarantee — not the package being unpublished — is what keeps it from being an
+auth-bypass primitive in a consumer runtime. Fixtures must use
+synthetic/placeholder credentials only — never a real secret.
 
 See [docs/testing.md](../../docs/testing.md) for the full testing guide.

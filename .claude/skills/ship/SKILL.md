@@ -31,8 +31,9 @@ standing decision on consent so it is not re-litigated every release.
 ## ⛔ Before anything: publishing is irreversible and public
 
 A published GitHub Release triggers `publish.yml`, which runs `deno publish` for **every
-publishable workspace member** — 36 of the 37 at v0.3.0; `@lockness/testing` is
-deliberately unpublished and carries no `version`. JSR versions cannot be
+publishable workspace member** — all 37 packages since v0.4.0, `@lockness/testing`
+included: it carries the lockstep version and is on JSR at 0.4.0. Its
+`package.json` `"private": true` keeps it off npm only. JSR versions cannot be
 unpublished.
 
 **Require the user's explicit consent in this session, every time.** Not implied
@@ -84,10 +85,10 @@ introduces one.
 never heard of aborts every one of them. `@lockness/scheduler` was new and
 stopped the first attempt dead; ten more were missing at v0.3.0.
 
-**Read the list before relaying it.** `publish:check --registry` names
-`@lockness/testing`, which has no `version` field and is never published —
-creating it on JSR is harmless but pointless. Check each name against its
-`deno.json` rather than forwarding the output wholesale.
+**Read the list before relaying it.** Every package `publish:check
+--registry` names is one `deno publish` will upload — `@lockness/testing`
+included, since it is published in lockstep on JSR. Check each name against its
+`package.json` rather than forwarding the output wholesale.
 
 ```bash
 deno task publish:check --registry

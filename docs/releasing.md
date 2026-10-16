@@ -75,10 +75,11 @@ field for: JSR-only packages (`lockness.jsr`), extra import-map entries
 `deno task manifests --check` is a gate step. It fails when a generated file is
 stale, when `engines` is not monotonic over static, optional-peer and test
 dependencies, when `deno.lock` resolves any `@lockness/*` package from a
-registry, or when a package's optional peers differ from its `deps.policy.jsonc`
-`soft` list. The generated `deno.json` always excludes `package.json` and
-`tsconfig.json` from `publish`, so the JSR package is what it was before the
-move.
+registry. A package's optional peers are its soft edges: the fact lives in its
+`package.json`, the permission in `deps.policy.jsonc` `soft`, and
+`deno task deps:analyze` fails on an optional peer the policy does not permit.
+The generated `deno.json` always excludes `package.json` and `tsconfig.json`
+from `publish`, so the JSR package is what it was before the move.
 
 ### Why lockstep, and not per-package semver
 
