@@ -109,20 +109,30 @@ registered in the root `deno.jsonc` under `lint.plugins`. Each lives in
 `scripts/lint/`, and its rule file names its scope and its owners — the only
 files allowed the form it forbids:
 
-| Rule                                              | Forbids                                                                                                                                                                                                        |
-| :------------------------------------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lockness/app-file-specifier`                     | a hand-built specifier for a file of the user's app in package source                                                                                                                                          |
-| `lockness-env/env-signal`                         | a raw read of `APP_ENV` or `DENO_ENV` (`Deno.env.get`, `process.env.APP_ENV`, any `.APP_ENV` read or destructuring) outside the contract resolver and `@lockness/transform`'s `hook.ts`                        |
-| `lockness-exit/process-exit`                      | `Deno.exit` / `process.exit` and `Deno.exitCode` / `process.exitCode` writes in package code outside their owners                                                                                              |
-| `lockness-exit/printed-failure`                   | a `❌` print in command code: a command fails by throwing                                                                                                                                                      |
-| `lockness-runtime/no-deno` (`runtime_neutral.ts`) | in a package whose `engines` names bun or node, and in a script on `scripts/lint/runtime_neutral_scripts.ts`: the `Deno` global, `hono/deno`, and `@lockness/hono/{deno,bun,node}` outside `packages/runtime/` |
+| Rule                                              | Forbids                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| :------------------------------------------------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lockness/app-file-specifier`                     | a hand-built specifier for a file of the user's app in package source                                                                                                                                                                                                                                                                                                                                                                                              |
+| `lockness-env/env-signal`                         | a raw read of `APP_ENV` or `DENO_ENV` (`Deno.env.get`, `process.env.APP_ENV`, any `.APP_ENV` read, a read-first assignment such as `??=`, or destructuring) outside the contract resolver and `@lockness/transform`'s `hook.ts`. Matching any object also reports a name that is not the process environment (`parsed.APP_ENV` on a parsed `.env` map, a DTO): such a site carries `// deno-lint-ignore lockness-env/env-signal` with the reason on the line above |
+| `lockness-exit/process-exit`                      | `Deno.exit` / `process.exit`, `exit` destructured from `Deno` or `process` or imported from `node:process`, and `Deno.exitCode` / `process.exitCode` writes, in package code outside their owners                                                                                                                                                                                                                                                                  |
+| `lockness-exit/printed-failure`                   | a `❌` print in command code: a command fails by throwing                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `lockness-runtime/no-deno` (`runtime_neutral.ts`) | in runtime-neutral code: the `Deno` global, `hono/deno`, and `@lockness/hono/{deno,bun,node}` outside `packages/runtime/`                                                                                                                                                                                                                                                                                                                                          |
+| `lockness-runtime/neutral-imports`                | in a runtime-neutral script: a relative static import (type-only, re-exports and `import()` included) of a file outside the runtime-neutral scope. Bare specifiers are not checked                                                                                                                                                                                                                                                                                 |
 
-Adding `bun` or `node` to a package's `engines` therefore puts its source (tests
-and stubs excluded) under `lockness-runtime/no-deno`; use a `node:` built-in or
-a web standard instead of `Deno.*`. A file that must stay Deno-only is exempted
-by its exact path in `EXEMPT_FILES`, with the reason beside it. A script written
-or rewritten for the multi-runtime work joins `runtime_neutral_scripts.ts`; that
-list only grows, and an entry leaves only with its file.
+Runtime-neutral code is, tests and stubs excluded:
+
+- the source of every package whose `engines` names bun or node. Adding `bun` or
+  `node` to a package's `engines` therefore puts its source under the rule; use
+  a `node:` built-in or a web standard instead of `Deno.*`. A file that must
+  stay Deno-only is exempted by its exact path in `EXEMPT_FILES`, with the
+  reason beside it;
+- every script under `scripts/`, by default, except the modules listed in
+  `lint.plugins` (typed on `Deno.lint`, rewritten when the lint leaves Deno) and
+  the baseline in `scripts/lint/deno_bound_scripts.ts`. A new script is in scope
+  without opting in. The baseline holds the older scripts that still use Deno
+  and **only shrinks**: a test fails on an entry that complies or no longer
+  exists, so a script you migrate leaves the list in the same change. Adding an
+  entry is refused in review unless the script needs a Deno-only runtime API,
+  named in the commit.
 
 To run the packages that declare Bun or Node in their `package.json` `engines`
 on that runtime — what the `bun` and `node` CI lanes run — use:
