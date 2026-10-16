@@ -47,8 +47,10 @@ const MESSAGE =
 /** The hint shown under the message. */
 const HINT =
     'APP_ENV is read in one place so the framework and the app never disagree. ' +
-    'DENO_ENV is no longer an environment signal. The owner list lives in ' +
-    'scripts/lint/env_signal.ts.'
+    'DENO_ENV is no longer an environment signal. A framework guard that ' +
+    'protects production asks productionRisk() ' +
+    '(@lockness/contract/environment/guard/internal). The owner list lives ' +
+    'in scripts/lint/env_signal.ts.'
 
 /** The variables only the resolver may read. */
 const SIGNALS = new Set(['APP_ENV', 'DENO_ENV'])
