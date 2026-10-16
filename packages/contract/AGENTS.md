@@ -8,10 +8,10 @@ way the framework imports a file of the user's app (#477). It exists to break
 dependency cycles: if something is needed by two packages that must not know
 about each other, it belongs here.
 
-It is not dependency-free — it takes Hono's types through the `hono` alias in
-its own `deno.json`. Every one of those is an `import type`, so the edge erases
-at compile time and the package still emits no runtime import. That distinction
-is the invariant, not "imports nothing".
+It is not dependency-free — it takes Hono's types from `@lockness/hono`. Every
+one of those is an `import type`, so the edge erases at compile time and the
+package still emits no runtime import. That distinction is the invariant, not
+"imports nothing".
 
 User-facing documentation: [README.md](README.md). This brief does not repeat
 it.
@@ -19,11 +19,12 @@ it.
 ## Invariants
 
 - **Every `@lockness/*` import here must be `import type`.** The package takes
-  Hono's types through the `hono` alias in its own `deno.json`; because those
-  are type-only they erase at compile time and the package emits no runtime
-  import. A single value import would turn the framework's cycle-breaker into a
-  cycle participant. `deno task deps:analyze` marks the edge _(type-only)_ — if
-  that annotation disappears, the invariant broke.
+  Hono's types from `@lockness/hono` (no bare `hono` alias since #592), and
+  takes nothing but types from any other `@lockness/*`; because those are
+  type-only they erase at compile time and the package emits no runtime import.
+  A single value import would turn the framework's cycle-breaker into a cycle
+  participant. `deno task deps:analyze` marks the edge _(type-only)_ — if that
+  annotation disappears, the invariant broke.
 - **Renaming an exported symbol is a breaking change for every importer at
   once**, because the whole workspace ships on one version.
 
@@ -62,13 +63,30 @@ Anything not listed is internal and free to change.
 
 ## Where to work
 
-| Concern                          | Path           |
-| -------------------------------- | -------------- |
-| Cross-package interfaces         | `types.ts`     |
-| HTTP-layer contracts             | `http/*.ts`    |
-| Routing contracts and decorators | `routing/*.ts` |
+| Concern                            | Path                                    |
+| ---------------------------------- | --------------------------------------- |
+| Cross-package interfaces           | `types.ts`                              |
+| HTTP-layer contracts               | `http/*.ts`                             |
+| Routing contracts and decorators   | `routing/*.ts`                          |
+| Command contribution port          | `command.ts` (`./command`)              |
+| Package setup port                 | `setup.ts` (`./setup`)                  |
+| Store-driver names                 | `store/drivers.ts` (`./store`)          |
+| The "`deno-kv` needs Deno" refusal | `store/deno_kv.ts` (`./store/internal`) |
+| Scaffolder path containment        | `fs/contained.ts` (`./fs/internal`)     |
 
 ## Pitfalls
+
+- **A package contributes `./nessy` commands through `CommandRegistry`, never a
+  local `Cli` interface** (#576, #579). `@lockness/cli`'s `Cli` implements the
+  port and re-exports its types under the old names; the exit contract's shape,
+  `CommandFailure`, is defined here once. A package setup is the **named**
+  `setup` export of its `./setup` entry, typed `PackageSetup` — never a
+  `default` export (#575).
+- **A union of store-driver names belongs in `store/drivers.ts` only.** The
+  cache, session, queue and kernel configuration types reference it; the
+  "`deno-kv` needs Deno" refusal is `assertDenoKvRuntime`, asked by each driver
+  factory, and its runtime probe is interim until `@lockness/runtime`'s detector
+  exists (plan 274, C12).
 
 - **Never add a runtime `@lockness/*` import here.** This package is the bottom
   of the graph; such an import turns a clean tree into a cycle. `@std/*` value

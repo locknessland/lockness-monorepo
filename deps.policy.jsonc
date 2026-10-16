@@ -6,7 +6,8 @@
 //
 // `allow` — the exhaustive set of STATIC edges a package may have. Measured
 //   from `deno info`, so it covers value imports, type imports, aliased
-//   specifiers (`"hono": "jsr:@lockness/hono"`) and literal dynamic imports.
+//   specifiers (an import-map key naming another package) and literal
+//   dynamic imports.
 //
 // `soft`  — the PERMISSION for a package's OPTIONAL edges: packages loaded at
 //   runtime through `tryImportOptionalPackage('<name>', …)`. The specifier is
@@ -50,7 +51,7 @@
     "packages": {
         // ---- Foundation: imported by everything, importing (almost) nothing.
         // NOTE: `contract` is not dependency-free — it takes Hono's types
-        // through the `hono` alias. Every such import is `import type`, so the
+        // from `@lockness/hono`. Every such import is `import type`, so the
         // edge erases at runtime, but it is a real edge and is declared.
         "hono": { "tier": "foundation", "allow": [] },
         "contract": {
