@@ -37,14 +37,23 @@ options for user code"), audits A10 and S9.
   JavaScript the process executes. It lives at
   `<app>/node_modules/.cache/lockness-transform` (never a shared temp dir).
   Every access walks the path from the app root: no symlink, owned by the uid,
-  not group/other-writable unless sticky. The cache directory is created 0700
-  and refused, never narrowed, if it has any group/other bit. Each entry is
-  opened `O_RDONLY | O_NOFOLLOW` and `fstat`-ed: a regular file owned by the uid
-  with no group/other bit, or a miss. Entries are 0600 and renamed into place. A
-  failed write warns and keeps the emit. The build never reads it.
+  not other-writable unless sticky (group write is allowed). A parent that fails
+  disables the cache with one warning per app and process: reads miss, writes
+  are skipped, nothing throws. The cache directory is created 0700 and refused,
+  never narrowed, if it has any group/other bit. Each entry is opened
+  `O_RDONLY | O_NOFOLLOW` and `fstat`-ed: a regular file owned by the uid with
+  no group/other bit, or a miss. Entries are 0600 and renamed into place. A
+  failed write warns once per app and keeps the emit. The key hashes the options
+  the load emit runs with (placement included). The build never reads it. The
+  cache's trust rests on the source tree: the app root's ancestors are trusted,
+  and a tree writable by a shared group is exposed through its sources, which no
+  transform check can protect. The descriptor check closes the race for entry
+  reads, not for writes.
 - **The `tsconfig.json` search is bounded** at the nearest `package.json`,
-  `deno.json` or `deno.jsonc`, and a `tsconfig.json` owned by another user or
-  group/other-writable is refused (#618). Its `extends` targets are not checked.
+  `deno.json` or `deno.jsonc`. Every file of the `extends` chain — which may
+  resolve above that boundary, through an ancestor's `node_modules` — is read
+  through a descriptor whose `fstat` must show the uid as owner and no other
+  write; otherwise it is refused (#618). Group write is allowed.
 - **The key covers everything the emit depends on**: SHA-256 over the canonical
   JSON array `[transformer version, compiler options, file name, source]`. The
   transformer version is this package's `VERSION` plus TypeScript's. The file
@@ -140,9 +149,14 @@ nothing, so the generated surface above does not list it.
 - **`transpileModule` validates every key it is given**, so a dropped placement
   option is deleted, not set to `undefined` (which raises TS6046 on
   `moduleResolution`). (2026-10-16)
-- **A group-writable app tree is refused** by the cache walk: under a `002`
-  umask, `node_modules` is 0775 and the hook throws naming it. That is the #618
-  rule, not a bug; `chmod g-w` fixes it. (2026-10-16)
+- **A group-writable tree is allowed on purpose.** Under a `002` umask
+  (Ubuntu/Debian default) `node_modules` is 0775 and the sources 0664; refusing
+  that made the hook unusable and protected nothing, since a member of that
+  group can edit the sources directly. The cache's trust rests on the source
+  tree: the app root's ancestors are trusted, and a tree writable by a shared
+  group is exposed through its sources, which no transform check can protect. Do
+  not add a `gid === getgid()` exemption either: macOS's `staff` group is
+  shared. (2026-10-16)
 - **TypeScript 7 has no JavaScript API** (#612): the pin is exact, `6.0.3`, the
   same pin the npm build uses (plan 274 F1, F6). A range would let the hook and
   the build emit with different compilers.

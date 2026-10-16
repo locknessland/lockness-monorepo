@@ -41,12 +41,20 @@ refused, and so is an unknown option or an invalid value (except a `lib` /
 
 Transformed files are cached in `node_modules/.cache/lockness-transform` beside
 your `tsconfig.json`, in a directory only your user can read or write (0700).
-Every directory from the app root down must be yours and not writable by group
-or others (unless sticky), and each entry is verified before it runs; a cache
-that fails these checks is refused with a message naming the path. A cache that
-cannot be written only warns. The key is a SHA-256 of the transformer version,
-the compiler options, the file name and the source, so an edit, an option change
-or an upgrade never serves a stale entry. Delete the directory to clear it.
+Every directory from the app root down must be yours and not writable by others
+(unless sticky); if one is not, the cache is disabled with one warning and
+modules load uncached. The cache directory itself must have no group or other
+permission at all, or it is refused with a message naming it. Each entry is
+verified on the descriptor it is read from before it runs. A cache that cannot
+be written only warns.
+
+The cache's trust rests on your source tree. The directories above your app root
+are trusted, and a tree that a shared group can write (a `002` umask) is exposed
+through its sources, which no transform check can protect; group write is
+therefore not refused. The descriptor check closes the check-then-use race for
+reads, not for writes. The key is a SHA-256 of the transformer version, the
+compiler options, the file name and the source, so an edit, an option change or
+an upgrade never serves a stale entry. Delete the directory to clear it.
 
 ## Programmatic emit
 
