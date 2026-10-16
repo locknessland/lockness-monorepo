@@ -67,6 +67,13 @@
         "container": { "tier": "foundation", "allow": ["contract"] },
         "redis": { "tier": "foundation", "allow": ["contract"] },
         "crypto": { "tier": "foundation", "allow": ["contract"] },
+        // `transform` is the Node `--import` hook that runs an app's
+        // TypeScript (plan 274 §5, audits A10 and S9). It loads BEFORE every
+        // other module of the process, so it imports no `@lockness/*` package
+        // at all — not even contract. Its one dependency is `typescript`
+        // from npm, pinned exactly to 6.0.3: TypeScript has no JSR build
+        // (hard-rule-2 exception), and 7.x has no JavaScript API (#612).
+        "transform": { "tier": "foundation", "allow": [] },
 
         // ---- Implementation
         "auth": {
