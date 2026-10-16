@@ -90,6 +90,18 @@ deno task test
 
 This will run all tests for all libraries in the workspace.
 
+To run the packages that declare Bun or Node in their `package.json` `engines`
+on that runtime — what the `bun` and `node` CI lanes run — use:
+
+```bash
+deno task test:runtime --runtime=bun
+deno task test:runtime --runtime=node --package=<pkg>
+```
+
+It needs the runtime on your `PATH` (the CI versions are in `.bun-version` and
+`.node-version`). See
+[testing.md](testing.md#running-on-bun-and-node-the-runtime-lanes).
+
 ### Version Management
 
 When releasing a new version of Lockness, all packages in the monorepo need to

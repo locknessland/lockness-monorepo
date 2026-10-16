@@ -48,6 +48,58 @@ it (`packages/realtime/tests/escape_watcher.deno.test.ts`). Under `node:test`
 such an escape fails the running test by name, through a hook no listener can
 intercept.
 
+## Running on Bun and Node: the runtime lanes
+
+A package's `package.json` `engines` lists the runtimes it is proven on, and CI
+holds it to that list: every package that declares a runtime runs its whole
+suite on that runtime's lane. `engines` is the only list — no CI file names a
+package.
+
+```bash
+deno task test:runtime --runtime=bun                       # every package declaring engines.bun
+deno task test:runtime --runtime=node --package=transform  # one package
+deno task test:runtime --runtime=deno --package=@lockness/sse
+```
+
+`--package` (repeatable; `@lockness/x`, `x` or `packages/x`) narrows the run,
+and runs a named package even if it does not declare the runtime yet: that is
+how a package's suite is brought to green on a runtime **before** it adds the
+runtime to `engines`.
+
+What a run does, all in `scripts/test_runtime.ts`:
+
+- It collects the package's test files by Deno's own discovery rule (`test.ts`,
+  `*_test.ts`, `*.test.ts`, …), skipping `node_modules/`, `dist/`, dot-dirs and
+  nested workspace members, and hands that same list to every runtime.
+- For Bun and Node it first runs `deno install --frozen`: the `node_modules`
+  both run from comes from `deno.lock` alone, with every `@lockness/*` resolved
+  to its workspace source (the `lockness-source` export condition), never from a
+  registry. The install is skipped when there is nothing to run.
+- It reads each runner's JUnit report and counts the tests that ran.
+
+A lane **fails** when a runner exits non-zero, or when a package that declares
+the runtime ran **zero** tests there: skipped tests and a file that registers no
+test do not count. A lane with no declared package runs nothing, prints
+`no package declares engines.<runtime>; nothing to run`, and passes.
+
+Runner differences the script evens out: Bun gets `--timeout=0`, since it alone
+has a 5 s per-test default; Node gets `--test-concurrency=1`, so files run one
+after another as they do under `deno test`. Bun runs every file of a package in
+one process.
+
+| Lane | CI job (`test.yml`)                    | Version                                                          |
+| :--- | :------------------------------------- | :--------------------------------------------------------------- |
+| Deno | `test` — `deno task gate --leaks`      | `.dvmrc` (`pinned`) and `v2.x`                                   |
+| Bun  | `bun` — `test:runtime --runtime=bun`   | `.bun-version` (`pinned`, at least 1.4.0) and `latest`           |
+| Node | `node` — `test:runtime --runtime=node` | `.node-version` (`pinned`, an LTS, at least 22.18) and `current` |
+
+The Deno lane is still the whole suite through the gate; `--runtime=deno` is the
+same per-package run as the other two, for comparing locally. Coverage and the
+mutation batteries stay on Deno. To move a Bun or Node pin, write the new exact
+`x.y.z` into its file and land it as a `build` commit;
+`scripts/ci_deno_pin_test.ts` refuses a range, a version below the floor, or a
+version written into a workflow.
+
 ## Time Control with FakeTime
 
 ### The Problem

@@ -24,8 +24,18 @@ Runs on pushes and PRs targeting `main` or `develop`. The `test` job (OS ×
 Deno matrix) checks out, sets up Deno, restores the cache, and runs
 `deno task gate --leaks` — the same versioned gate as the pre-push hook, whose
 step list lives in `scripts/gate.ts` only. Never re-list the steps in the
-workflow. Separate jobs: live Redis, coverage, starter kits, and the nightly
-mutation batteries.
+workflow. Separate jobs: the Bun and Node runtime lanes, live Redis, live
+Postgres, live MySQL, coverage, starter kits, and the nightly mutation
+batteries.
+
+**Runtime lanes (#594).** `bun` (matrix `pinned`/`latest`) and `node` (matrix
+`pinned`/`current`) each run one step, `deno task test:runtime --runtime=<r>`.
+The packages come from `packages/<pkg>/package.json` `engines` — never list a
+package in the workflow — and everything about how they run (the
+`deno install --frozen` from `deno.lock`, runner flags, the zero-tests failure)
+lives in `scripts/test_runtime.ts`. With no package declaring the runtime, a
+lane prints `no package declares engines.<runtime>` and passes. Tooling Deno
+comes from `.dvmrc`; the runtime from `.bun-version` / `.node-version`.
 
 The workflow defaults to `permissions: contents: read` at the top level
 (#480): `test`, `mutations` and `coverage` inherit it, the other jobs declare
@@ -141,7 +151,9 @@ manifest moved and the lockfile admits the new version.
 | `.github/workflows/test.yml`                        | PR gate: `deno task gate --leaks`, plus coverage / live-broker / kits jobs    |
 | `scripts/ci_workflows.ts`                           | the one `@std/yaml` reader of `.github/workflows/`; parses, holds no policy (#480) |
 | `scripts/ci_id_token_test.ts`                       | only `publish.yml → publish` can request an id-token, and its shape is pinned (#480) |
-| `scripts/ci_deno_pin_test.ts`                       | `.dvmrc` is one exact version, and publish.yml / the `pinned` lane read it (#481) |
+| `scripts/ci_deno_pin_test.ts`                       | `.dvmrc` is one exact version, and publish.yml / the `pinned` lane read it (#481); `.bun-version` / `.node-version` exact and above their floors, read by the `bun` / `node` lanes, no inline version in any workflow (#594) |
+| `.bun-version`, `.node-version`                     | the Bun and Node versions the runtime lanes' `pinned` legs install (#594)      |
+| `scripts/test_runtime.ts`                           | `deno task test:runtime` — how tests run on runtime R, packages from `engines` (#594) |
 | `.claude/skills/ship/phases/tag.md`                 | tag phase contract, `/ship` step 2 (Specnaut 4.4.0 moved it out of `/specnaut`) |
 | `.claude/skills/ship/phases/release.md`             | release phase contract (vendored; never run on its own here)                   |
 
