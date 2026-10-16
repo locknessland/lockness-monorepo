@@ -54,11 +54,7 @@ on `main`. Precedent: the realtime epic shipped as specs 240–272, one feature 
 
 ### C03 · Hard rule #2 reworded
 
-- [ ] T003 `docs`: replace hard rule #2 in `AGENTS.md` with the text accepted on 2026-10-16
-  (plan §7, Q2) and mirror it in `.specnaut/memory/constitution.md` "Hard rules". `CLAUDE.md` is a
-  symlink to `AGENTS.md`: edit once. **Lands in the same change as C09's closure check**, never
-  before: the new text forbids `@std/*` in published runtime code, which 53 runtime files still
-  import, so an earlier rewording would be a rule the tree already breaks.
+- [ ] T003 `docs`: replace hard rule #2 in `AGENTS.md` with the text of plan §7 complexity tracking (the Q2 sentence verbatim plus disposition E's transition paragraph) and mirror it in `.specnaut/memory/constitution.md` "Hard rules". `CLAUDE.md` is a symlink: edit once. **Lands in the same change as C09's closure check**: only then is the text true of the tree — `npm:check` passes on its `engines` scope, and every remaining runtime JSR import is one of the 31 `lockness.jsr` entries the transition paragraph names. In its own commit, the live "hard-rule-2 exception" comments (22 files under `packages/`, `scripts/`, root config; generated `deno.json` copies follow `manifests`) keep their technical reason and lose the exception label.
 
 ### C04 · Test runner codemod: `Deno.test` → `node:test`
 
@@ -122,18 +118,15 @@ on `main`. Precedent: the realtime epic shipped as specs 240–272, one feature 
 
 ### C09 · npm build and `npm:check`
 
-- [ ] T016 [US3] `build`: `tsc -b` with TypeScript 6.0.x pinned in `deno.lock`; root task
-  `npm:build` with the sandbox flags (plan §5 "Build command and its sandbox").
-- [ ] T017 [US3] `build`: `scripts/npm_check.ts` (gate step): pack, install offline, import every
-  export on Node and Bun; closure has no `@jsr/*` and no `@std/*` in runtime code; `files` allowlist;
-  no `tests/`, fixtures, `.env*`, `*.key`, `.npmrc` in the listing; no published lifecycle scripts; the packed `package.json` carries no `jsr:` range in any field (published manifests have no `devDependencies` and no `lockness` key).
+- [ ] T016 [US3] `build`: `npm:build` = `tsc -b` (TypeScript 6.0.3 exact plus `@types/node`, both in root `devDependencies`; `manifests --check` refuses a second `typescript` version) over the project list `scripts/manifests.ts` generates with the dist list from plan §5 row 201's scope, under row 223's sandbox. Then the staging step writes each published manifest (row "Published npm manifest") and its `files` entries under the gitignored staging root. Compiler options live in root `tsconfig.base.json`, extended by every generated tsconfig. `packages/*/dist/` and the staging root are gitignored. Scope at this change: `@lockness/transform`. Tests: the generated lists equal the scope; transform's JS and `.d.ts` carry `.js` specifiers; its published manifest has no `devDependencies`, no `lockness` key and no `lockness-source` condition. Record whether Deno 2.9 reads the generated `tsconfig.json`; if the gate's `check` changes, rename the graph file rather than split the options.
+- [ ] T017 [US3] `build`: `scripts/npm_check.ts`, a gate step after `npm:build`, over row 201's scope minus `private` packages: `npm pack` each staged directory; install all tarballs into a temp root, linking only each package's declared third-party dependencies from the frozen install (no registry, row 236); import every export on each of bun and node its `engines` names; type-check a consumer file importing every export against the packed `.d.ts`; the closure has no `@jsr/*`, no `@std/*` and no `jsr:` specifier; each scoped package's `lockness.jsr` is empty; `files` allowlist present; no `tests/`, fixtures, `.env*`, `*.key` or `.npmrc` in the listing; no published lifecycle scripts; the packed `package.json` has no `jsr:` range in any field, no `devDependencies` and no `lockness` key. A runtime a scoped package names but the machine lacks fails the step, naming its pin file; never a skip. Takes over #619's built-`dist/register.js` criterion (importing `@lockness/transform/register` from the installed tarball on Node); #619 adds no build of its own.
 
 ### C10 · Runtime-neutral lint
 
 - [ ] T018 `build`: `scripts/lint/runtime_neutral.ts` rule `lockness-runtime/no-deno` (`Deno`
   identifier; `hono/deno`; `@lockness/hono/{deno,bun,node}` outside `packages/runtime/`), scoped to
   packages whose `engines` names bun or node, with named exempt files; `scripts/lint/runtime_neutral_scripts.ts`
-  ratchet for scripts.
+  ratchet for scripts, scoped through the same `namesBunOrNode` predicate as `npm:build` and `npm:check` (plan §5 row 201).
 - [ ] T019 `build`: extend `exit_contract` to `process.exit`/`process.exitCode` and `env_signal` to
   `process.env.APP_ENV`, in the same commit that first migrates an owner.
 
@@ -159,8 +152,7 @@ on `main`. Precedent: the realtime epic shipped as specs 240–272, one feature 
   containment check, conninfo, WebSocket upgrade, `PortInUseError`, equal `maxPayload`/body limits;
   cross-runtime contract test (traversal cases, cross-origin upgrade refused).
 - [ ] T023 [P] `feat(hono)`: `packages/hono/{bun,node}.ts`, `jsx_runtime.ts`, `jsx_dev_runtime.ts`;
-  `denoServeStatic`/`getConnInfo` leave the root barrel; npm-only Node adapters with the rule-#2
-  justification.
+  `denoServeStatic`/`getConnInfo` leave the root barrel; npm-only Node adapters (allowed by rule #2 as reworded in C03); the first sibling `references` edge in the npm scope (`runtime` → `hono`): `npm:build` builds through it and `npm:check` installs both tarballs.
 
 ### C13 · Foundation packages on all lanes
 
@@ -212,7 +204,7 @@ on `main`. Precedent: the realtime epic shipped as specs 240–272, one feature 
   `runtime/http.ts`); `engines` + bun + node. Split the tests that exercise `deno_kv` drivers or
   stub `Deno.openKv` into `*.deno.test.ts` (`cache/tests/shutdown`, `core/tests/scheduler_locks`,
   `queue/tests/{dlq_retention,shutdown}`, `realtime/tests/authorize_result_357` — update its
-  battery's path — and `session/tests/{driver_memo,drivers,regenerate_atomicity,regenerate_fixation,regenerate_ttl}`).
+  battery's path — and `session/tests/{driver_memo,drivers,regenerate_atomicity,regenerate_fixation,regenerate_ttl}`); the lint-exempt `deno_kv` driver files type `Deno` structurally, since `npm:build` compiles them without Deno's lib.
 - [ ] T031 `refactor`: `jsx: react-jsx` in every config and kit stub, provided C02's #472
   reproduction passed; retire the `deps.policy.jsonc` `jsx` key only then. Measure the web kit's
   render cost on Deno before/after and record it in plan §9.
@@ -266,7 +258,7 @@ on `main`. Precedent: the realtime epic shipped as specs 240–272, one feature 
 - [ ] T039 [US3] `ci`: `publish.yml` gains `npm-kits` (no id-token: double build, equal pack
   integrity, `npm:check`, kits from tarballs on Node and Bun) and `publish-npm` (environment `npm`,
   steps per plan §5); both holders `needs: [gate, kits, npm-kits]`; header rewritten for two
-  holders; `scripts/npm_publish.ts`; `scripts/ci_id_token_test.ts` pins both holders.
+  holders; `scripts/npm_publish.ts`; `scripts/ci_id_token_test.ts` pins both holders. `npm-kits` fails when a non-private package is outside plan §5 row 201's scope: no npm release publishes a subset, and hard rule #2's transition paragraph is gone before the first one.
 - [ ] T040 [US3] `ci`: `scripts/registry_parity.ts`; `/ship` step 5 boots the api kit from real npm
   on Node and Bun and runs registry parity. Trusted publishers configured by the maintainer (C01,
   C02).
