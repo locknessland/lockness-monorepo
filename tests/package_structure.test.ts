@@ -75,6 +75,7 @@ const PACKAGES: string[] = [
     'sse',
     'storage',
     'testing',
+    'transform',
     'ui',
     'upgrade',
     'validator',
