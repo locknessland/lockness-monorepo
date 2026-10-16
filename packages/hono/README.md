@@ -160,8 +160,11 @@ and the devtools gate import the Deno one directly.
 | `@lockness/hono/bun`  | `hono/bun`                                 | Bun only      |
 | `@lockness/hono/node` | `@hono/node-server`, `@hono/node-ws` (npm) | every runtime |
 
-`denoServeStatic` and the root `getConnInfo` were removed: import `serveStatic`
-and `getConnInfo` from `@lockness/hono/deno` instead.
+For framework maintainers: `denoServeStatic` and `getConnInfo` left this
+package's root barrel. Framework code that needs them imports `serveStatic` and
+`getConnInfo` from `@lockness/hono/deno`. Applications are unaffected: they
+import from `@lockness/core` (hard rule #1), which keeps `denoServeStatic` until
+the runtime-selected replacement lands.
 
 ### JSX runtimes
 
