@@ -91,15 +91,16 @@ on `main`. Precedent: the realtime epic shipped as specs 240–272, one feature 
 
 ### C06 · Contract ports, policy deltas and edge cuts
 
-- [ ] T010 `chore(deps)`: the policy deltas of plan §5 that P1 needs (each its own commit), incl.
-  the recorded `contract → runtime` exception and contract's brief.
-- [ ] T011 `feat(contract)`: `CommandRegistry` and `SetupContext` (named typed exports) and the
+- [x] T010 `chore(deps)`: the policy deltas of plan §5 that P1 needs (each its own commit) and
+  contract's brief. The `contract → runtime` exception moved to T021: `@lockness/runtime` does not
+  exist before C12.
+- [x] T011 `feat(contract)`: `CommandRegistry` and `SetupContext` (named typed exports) and the
   store-driver-name types plus the "`deno-kv` needs Deno" refusal in `packages/contract/`. Replace
   the five local `interface Cli` copies and `registerCoreCommands(cli: any)`. Closes #576, #579.
-- [ ] T012 `refactor`: queue commands move to `packages/queue/commands.ts` against the port (cli −
+- [x] T012 `refactor`: queue commands move to `packages/queue/commands.ts` against the port (cli −
   queue); `deprecation-contracts/install.ts` → `@lockness/deprecation-contracts/setup`
   (deprecation-contracts − cli); the six driver-name lists reference the contract type.
-- [ ] T013 `refactor`: remove the bare `hono` alias (48 import lines in 41 files, 11 manifests) in
+- [x] T013 `refactor`: remove the bare `hono` alias (48 import lines in 41 files, 11 manifests) in
   favour of `@lockness/hono`.
 
 ### C07 · `@lockness/transform`
@@ -150,6 +151,8 @@ on `main`. Precedent: the realtime epic shipped as specs 240–272, one feature 
   `process.ts` (Invocation for runtime R: no shell, JS entry under `process.execPath`, `execArgv`
   allowlist), `signals.ts`. Homes: plan §5 rows of the same names. Replace
   `packages/contract/store/deno_kv.ts`'s interim `runsOnDeno` probe with the runtime detector.
+  Record the `contract → runtime` exception in `deps.policy.jsonc` (plan §5, audit A2; moved from
+  T010).
 - [ ] T022 [US2] `feat(runtime)`: `packages/runtime/http.ts`: serve, static files with the framework
   containment check, conninfo, WebSocket upgrade, `PortInUseError`, equal `maxPayload`/body limits;
   cross-runtime contract test (traversal cases, cross-origin upgrade refused).
