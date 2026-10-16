@@ -43,6 +43,7 @@ import { cacheKey, TransformCache } from './cache.ts'
 import {
     type CompilerOptions,
     findTsconfig as findNearestTsconfig,
+    optionsForLoad,
     readCompilerOptions,
     transpileForLoad,
     TYPESCRIPT_VERSION,
@@ -210,7 +211,9 @@ export function createLoadHook(
         const { options, cache } = projectFor(fileName)
         const key = cacheKey({
             transformerVersion: TRANSFORMER_VERSION,
-            compilerOptions: options,
+            // The options the emit runs with, placement included: a change to
+            // the placement table alone must miss, not serve a stale entry.
+            compilerOptions: optionsForLoad(options),
             fileName,
             source,
         })

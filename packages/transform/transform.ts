@@ -363,7 +363,26 @@ export function transpileForLoad(
     fileName: string,
     options: CompilerOptions,
 ): string {
-    return emit(source, fileName, placed(options, 'load')).outputText
+    return emit(source, fileName, optionsForLoad(options)).outputText
+}
+
+/**
+ * The options {@link transpileForLoad} emits with: the app's semantic
+ * options with the load placement applied. The load hook keys its cache on
+ * these, not on the app's raw options, so a change to the placement table
+ * alone can never serve an entry emitted under the old one. Internal: not
+ * exported from the package.
+ *
+ * @param options - The app's compiler options.
+ * @returns The options of the load emit.
+ *
+ * @example
+ * ```ts
+ * cacheKey({ transformerVersion, compilerOptions: optionsForLoad(options), fileName, source })
+ * ```
+ */
+export function optionsForLoad(options: CompilerOptions): CompilerOptions {
+    return placed(options, 'load')
 }
 
 /**

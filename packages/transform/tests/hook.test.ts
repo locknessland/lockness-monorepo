@@ -28,7 +28,7 @@ import {
     assertStrictEquals,
     assertThrows,
 } from '@std/assert'
-import { cacheDirFor } from '../cache.ts'
+import { cacheDirFor, cacheKey } from '../cache.ts'
 import {
     assertNotProduction,
     createLoadHook,
@@ -36,7 +36,11 @@ import {
     TRANSFORMER_VERSION,
 } from '../hook.ts'
 import { VERSION } from '../version.generated.ts'
-import { TYPESCRIPT_VERSION } from '../transform.ts'
+import {
+    optionsForLoad,
+    readCompilerOptions,
+    TYPESCRIPT_VERSION,
+} from '../transform.ts'
 
 /** A `nextLoad` that records its calls and answers a fixed result. */
 function recordingNext() {
@@ -233,6 +237,29 @@ test(
         }
     },
 )
+
+test('the cache key covers the options the emit runs with, placement included', () => {
+    const source = 'export const x: number = 1\n'
+    const dir = app({ 'main.ts': source })
+    try {
+        const fileName = join(dir, 'main.ts')
+        createLoadHook()(
+            pathToFileURL(fileName).href,
+            CONTEXT,
+            recordingNext().next,
+        )
+        const options = readCompilerOptions(join(dir, 'tsconfig.json'))
+        const key = cacheKey({
+            transformerVersion: TRANSFORMER_VERSION,
+            compilerOptions: optionsForLoad(options),
+            fileName,
+            source,
+        })
+        assertEquals(readdirSync(cacheDirFor(dir)), [`${key}.js`])
+    } finally {
+        rmSync(dir, { recursive: true, force: true })
+    }
+})
 
 test('a file with no governing tsconfig.json is refused, naming the file', () => {
     const dir = mkdtempSync(join(tmpdir(), 'lockness-transform-hook-'))
