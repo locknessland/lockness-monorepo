@@ -17,10 +17,22 @@
  */
 
 import { test } from 'node:test'
-import { assert, assertEquals, assertStringIncludes } from '@std/assert'
+import {
+    assert,
+    assertEquals,
+    assertRejects,
+    assertStringIncludes,
+} from '@std/assert'
 import { Cli } from '../mod.ts'
+import { CommandFailedError } from '../command_failure.ts'
 import { registerCoreCommands } from '../core_commands.ts'
+import {
+    type EntryImporter,
+    installPackage,
+    isMissingEntry,
+} from '../package_install.ts'
 import { captureConsole, inTempDir } from './helpers.ts'
+import { calls } from './fixtures/package_install/calls.ts'
 
 /** Dispatch `package:install <name>` in a fresh directory prepared by `prepare`. */
 function install(
@@ -105,5 +117,113 @@ test('package:install - a package with neither entry is registered, exit 0', asy
     assertStringIncludes(
         log.map((line) => line.join(' ')).join('\n'),
         'does not have an automated installer',
+    )
+})
+
+// ---------------------------------------------------------------------------
+// Which entry runs, and what counts as a missing one (fixtures)
+// ---------------------------------------------------------------------------
+
+const FIXTURES = new URL('./fixtures/package_install/', import.meta.url)
+
+/**
+ * Run `fn` in a fresh project (an empty `deno.json`), console captured, so a
+ * fall-through to registration writes there and never into this repository.
+ */
+function inProject<T>(fn: () => Promise<T>): Promise<T> {
+    return inTempDir(async () => {
+        await Deno.writeTextFile('deno.json', '{}\n')
+        return (await captureConsole(fn)).result
+    })
+}
+
+/**
+ * An importer serving `@lockness/<name>/<entry>` from fixture files, and
+ * rejecting any other specifier the way Deno does for an absent subpath.
+ */
+function fixtureImporter(files: Record<string, string>): EntryImporter {
+    return (specifier) => {
+        const file = files[specifier]
+        if (file === undefined) {
+            const cut = specifier.lastIndexOf('/')
+            return Promise.reject(
+                new TypeError(
+                    `Unknown export './${specifier.slice(cut + 1)}' for ` +
+                        `'${specifier.slice(0, cut)}'.`,
+                ),
+            )
+        }
+        return import(new URL(file, FIXTURES).href)
+    }
+}
+
+test('installPackage - a setup module with a broken import of its own propagates', async () => {
+    const importer = fixtureImporter({
+        '@lockness/fixture/setup': 'broken_setup.ts',
+    })
+
+    const error = await assertRejects(() =>
+        inProject(() => installPackage('fixture', importer))
+    )
+    assert(!(error instanceof CommandFailedError), String(error))
+    assertStringIncludes(String(error), 'missing')
+})
+
+test('installPackage - a setup entry without a named setup function is a failure', async () => {
+    const importer = fixtureImporter({
+        '@lockness/fixture/setup': 'default_only_setup.ts',
+    })
+
+    const failure = await assertRejects(
+        () => inProject(() => installPackage('fixture', importer)),
+        CommandFailedError,
+    )
+    assertStringIncludes(failure.message, '@lockness/fixture/setup')
+    assertStringIncludes(failure.message, 'named `setup` export')
+    assertStringIncludes(failure.message, 'PackageSetup')
+})
+
+test('installPackage - an install entry without a callable default is a failure', async () => {
+    const importer = fixtureImporter({
+        '@lockness/fixture/install': 'no_default_install.ts',
+    })
+
+    const failure = await assertRejects(
+        () => inProject(() => installPackage('fixture', importer)),
+        CommandFailedError,
+    )
+    assertStringIncludes(failure.message, '@lockness/fixture/install')
+    assertStringIncludes(
+        failure.message,
+        'refer to the package documentation',
+    )
+})
+
+test('installPackage - with both entries, only the setup runs', async () => {
+    calls.length = 0
+    const importer = fixtureImporter({
+        '@lockness/fixture/setup': 'both_setup.ts',
+        '@lockness/fixture/install': 'both_install.ts',
+    })
+
+    await inProject(() => installPackage('fixture', importer))
+
+    assertEquals(calls, ['setup'])
+})
+
+test('isMissingEntry - only a message naming this package and this subpath', () => {
+    const unknown = new TypeError(
+        "Unknown export './setup' for '@lockness/cache'.",
+    )
+    assertEquals(isMissingEntry(unknown, '@lockness/cache', 'setup'), true)
+    assertEquals(isMissingEntry(unknown, '@lockness/cache', 'install'), false)
+    assertEquals(isMissingEntry(unknown, '@lockness/queue', 'setup'), false)
+    const linked = new SyntaxError(
+        "The requested module './empty.ts' does not provide an export named 'missing'",
+    )
+    assertEquals(isMissingEntry(linked, '@lockness/cache', 'setup'), false)
+    assertEquals(
+        isMissingEntry('Unknown export', '@lockness/cache', 'setup'),
+        false,
     )
 })
