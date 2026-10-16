@@ -100,6 +100,35 @@ test('discoverJobs - reports a job file that fails to load, and registers the ot
     })
 })
 
+test(
+    'discoverJobs - an unreadable directory is reported, and registers nothing',
+    {
+        // POSIX permissions: a 0o000 directory cannot be listed by its owner.
+        skip: Deno.build.os === 'windows',
+    },
+    async () => {
+        await withAwkwardDir({ 'job/awkward_job.ts': JOB }, async ({ abs }) => {
+            const dir = join(abs, 'job')
+            await Deno.chmod(dir, 0o000)
+            try {
+                const registered: string[] = []
+                let count = -1
+                const output = await captured(async () => {
+                    count = await discoverJobs(
+                        (job) => registered.push(job.name),
+                        dir,
+                    )
+                })
+                assertEquals(count, 0)
+                assertEquals(registered, [])
+                assertStringIncludes(output, 'could not be read')
+            } finally {
+                await Deno.chmod(dir, 0o755)
+            }
+        })
+    },
+)
+
 test('discoverJobs - an absent directory is no jobs, and says nothing', async () => {
     await withAwkwardDir({}, async ({ abs }) => {
         const output = await captured(async () => {

@@ -42,6 +42,7 @@ function contextAt(root: string, registered: string[]): SetupContext {
 test('setup - registers the package and adds the env configuration', async () => {
     await inDir(async (dir) => {
         await Deno.writeTextFile(join(dir, '.env'), 'APP_NAME=demo\n')
+        await Deno.writeTextFile(join(dir, '.env.exemple'), 'APP_NAME=\n')
         const registered: string[] = []
 
         await setup(contextAt(dir, registered))
@@ -51,6 +52,9 @@ test('setup - registers the package and adds the env configuration', async () =>
         assertStringIncludes(env, 'APP_NAME=demo\n')
         assertStringIncludes(env, 'STRICT_DEPRECATIONS=false')
         assertStringIncludes(env, 'IGNORE_DEPRECATIONS=false')
+        const example = await Deno.readTextFile(join(dir, '.env.exemple'))
+        assertStringIncludes(example, 'APP_NAME=\n')
+        assertStringIncludes(example, 'STRICT_DEPRECATIONS=false')
     })
 })
 

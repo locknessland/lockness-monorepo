@@ -88,6 +88,16 @@ test('CommandRegistry - a value without the registry methods does not type-check
     assertEquals(rejected, true)
 })
 
+test('CommandRegistry - a value with register but no registerCommand does not type-check', () => {
+    const accept = (_registry: CommandRegistry): boolean => true
+    const registerOnly = {
+        register: (_name: string, _handler: CommandHandler) => {},
+    }
+    // @ts-expect-error -- lacks `registerCommand`: half a registry (#576)
+    const rejected = accept(registerOnly)
+    assertEquals(rejected, true)
+})
+
 test('CommandFailure - any Error with an integer exitCode meets the shape', () => {
     class LocalFailure extends Error implements CommandFailure {
         readonly exitCode = 3
