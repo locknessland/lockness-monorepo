@@ -93,7 +93,7 @@
             "runtimeImports": {
                 "core_commands.ts": {
                     "sites": 1,
-                    "reason": "package:install loads <package>/install for a package name the user types"
+                    "reason": "package:install loads <package>/setup, else <package>/install, for a package name the user types"
                 },
                 "package_loader.ts": {
                     "sites": 1,
@@ -101,15 +101,14 @@
                 }
             }
         },
-        // `deprecation-contracts` reaches `cli` from its installer only
-        // (`install.ts`: `runEntry` and `CommandFailedError`, #436, and
-        // `addPackage` from the barrel, #580); `mod.ts` imports nothing, so
-        // `core` and `realtime` still load no `cli` code.
-        // `contract` is for its setup step: the `SetupContext` port
-        // (type-only) that replaces the cli-importing installer (#592).
+        // `deprecation-contracts` reaches `contract` from its setup step
+        // only: the `SetupContext` port (type-only, `setup.ts`). The `cli`
+        // edge its installer had (`runEntry`, `CommandFailedError`,
+        // `addPackage`) left with #592; `mod.ts` imports nothing, so `core`
+        // and `realtime` load none of it.
         "deprecation-contracts": {
             "tier": "implementation",
-            "allow": ["cli", "contract"]
+            "allow": ["contract"]
         },
         "devtools": {
             "tier": "implementation",
