@@ -115,7 +115,11 @@ function writeApp(): string {
             'export { calls }',
             '',
         ].join('\n'),
+        // A relative `.ts` import beside main.ts: the load emit keeps the
+        // specifier, and Node resolves it to the next file the hook takes.
+        'b.ts': 'export const b: string = "from b.ts"\n',
         'main.ts': [
+            'import { b } from "./b.ts"',
             'import { calls, Greeter } from "./app/greeter.ts"',
             'import { View } from "./app/view.tsx"',
             'const view = View({ name: "node" })',
@@ -123,6 +127,7 @@ function writeApp(): string {
             '    greet: new Greeter().greet(),',
             '    decorated: calls,',
             '    view,',
+            '    b,',
             '}))',
             '',
         ].join('\n'),
@@ -164,12 +169,13 @@ test('node --import register runs a TC39-decorated class and a .tsx view', {
                 type: 'p',
                 props: { id: 'greeting', children: ['hello ', 'node'] },
             },
+            b: 'from b.ts',
         })
 
-        // One entry per transformed file (main, greeter, view); the JSX
+        // One entry per transformed file (main, b, greeter, view); the JSX
         // runtime under node_modules is not one of them.
         const cache = cacheDirFor(root)
-        assertEquals(readdirSync(cache).length, 3)
+        assertEquals(readdirSync(cache).length, 4)
         if (process.platform !== 'win32') {
             assertEquals(statSync(cache).mode & 0o777, 0o700)
         }
@@ -178,7 +184,7 @@ test('node --import register runs a TC39-decorated class and a .tsx view', {
         const again = runApp(root)
         assertEquals(again.status, 0, again.stderr)
         assertEquals(again.stdout, result.stdout)
-        assertEquals(readdirSync(cache).length, 3)
+        assertEquals(readdirSync(cache).length, 4)
     } finally {
         rmSync(root, { recursive: true, force: true })
     }
