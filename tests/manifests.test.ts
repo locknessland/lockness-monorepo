@@ -22,7 +22,6 @@ import {
     type PackageManifest,
     planManifests,
     readWorkspaceMembers,
-    softPeerFaults,
     tsconfigFor,
     versionModuleFor,
     writeManifests,
@@ -415,35 +414,6 @@ test('lockfileFaults - a package.json declaration of a sibling is not a resoluti
 })
 
 // =============================================================================
-// Optional peers agree with deps.policy.jsonc
-// =============================================================================
-
-test('softPeerFaults - optional @lockness peers equal the policy soft list', () => {
-    const packages = [
-        pkg({
-            name: '@lockness/mail',
-            peerDependencies: { '@lockness/queue': '^0.4.0' },
-            peerDependenciesMeta: { '@lockness/queue': { optional: true } },
-        }),
-        pkg({ name: '@lockness/auth' }),
-    ]
-    assertEquals(
-        softPeerFaults(packages, {
-            packages: { mail: { soft: ['queue'] }, auth: {} },
-        }),
-        [],
-    )
-    assertEquals(
-        softPeerFaults(packages, {
-            packages: { mail: { soft: ['queue', 'markdown'] }, auth: {} },
-        }),
-        [
-            '@lockness/mail: optional peers [queue] differ from deps.policy.jsonc soft [markdown, queue]',
-        ],
-    )
-})
-
-// =============================================================================
 // Workspace: plan, write, check
 // =============================================================================
 
@@ -460,10 +430,6 @@ async function fixture(): Promise<string> {
     await Deno.writeTextFile(
         join(dir, 'package.json'),
         json({ private: true, workspaces: ['packages/a', 'packages/b'] }),
-    )
-    await Deno.writeTextFile(
-        join(dir, 'deps.policy.jsonc'),
-        json({ packages: { a: {}, b: {} } }),
     )
     await Deno.writeTextFile(
         join(dir, 'packages/a/package.json'),

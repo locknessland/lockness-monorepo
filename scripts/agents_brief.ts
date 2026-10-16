@@ -254,9 +254,9 @@ async function renderBlocks(name: string, graph: Graph): Promise<Blocks> {
         } |`,
         '',
         'Enforced by `deno task deps:analyze` against `deps.policy.jsonc`.',
-        "A soft edge is deliberately **not** declared in this package's",
-        '`deno.json`: the consuming application installs it, or the feature',
-        'stays off.',
+        "A soft edge is an optional peer in this package's `package.json`,",
+        'never a dependency: the consuming application installs it, or the',
+        'feature stays off.',
     ].join('\n')
 
     const surface = await publicSurface(name)

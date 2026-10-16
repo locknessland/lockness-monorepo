@@ -29,8 +29,8 @@ User-facing documentation: [README.md](README.md) ·
 | **Must never import**                     | `auth`, `auth-provider`, `cache`, `cli`, `container`, `contract`, `core`, `crypto`, `deprecation-contracts`, `devtools`, `drizzle`, `events`, `i18n`, `inertia`, `init`, `logger`, `mail`, `markdown`, `notification`, `openapi`, `queue`, `realtime`, `redis`, `session`, `socialite`, `sse`, `telemetry`, `testing`, `ui`, `upgrade`, `validator` — each already reaches this package, so importing one closes a cycle |
 
 Enforced by `deno task deps:analyze` against `deps.policy.jsonc`. A soft edge is
-deliberately **not** declared in this package's `deno.json`: the consuming
-application installs it, or the feature stays off.
+an optional peer in this package's `package.json`, never a dependency: the
+consuming application installs it, or the feature stays off.
 
 <!-- /generated:deps -->
 

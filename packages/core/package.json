@@ -35,7 +35,6 @@
     },
     "peerDependencies": {
         "@lockness/cache": "^0.4.0",
-        "@lockness/container": "^0.4.0",
         "@lockness/devtools": "^0.4.0",
         "@lockness/drizzle": "^0.4.0",
         "@lockness/i18n": "^0.4.0",
@@ -46,9 +45,6 @@
     },
     "peerDependenciesMeta": {
         "@lockness/cache": {
-            "optional": true
-        },
-        "@lockness/container": {
             "optional": true
         },
         "@lockness/devtools": {

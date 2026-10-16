@@ -44,9 +44,11 @@
  * - `engines` is not monotonic: a package names a runtime that one of its
  *   static, optional-peer or test dependencies does not (plan §6 invariant);
  * - `deno.lock` resolves any `@lockness/*` package from a registry — every one
- *   must resolve to a workspace member (plan §5, "One lockfile");
- * - a package's optional `@lockness/*` peers differ from its
- *   `deps.policy.jsonc` `soft` list, the edges the dependency policy allows.
+ *   must resolve to a workspace member (plan §5, "One lockfile").
+ *
+ * Optional peers are a package's soft edges. Whether each one is allowed is
+ * not this script's question: `deps.policy.jsonc` `soft` is the permission,
+ * and `deps:analyze` checks every optional peer against it.
  *
  * @example
  * ```bash
@@ -57,7 +59,6 @@
  * @module
  */
 
-import { parse as parseJsonc } from '@std/jsonc'
 import { join, relative } from '@std/path'
 
 /** One `exports` entry: the `.ts` source, and the built file for npm. */
@@ -170,12 +171,6 @@ export interface GeneratedFile {
     path: string
     /** Full file content. */
     content: string
-}
-
-/** The `deps.policy.jsonc` fields this generator reads. */
-export interface SoftPolicy {
-    /** Short package name to its policy entry. */
-    packages: Record<string, { soft?: string[] }>
 }
 
 /** The parts of `deno.lock` this generator reads. */
@@ -571,44 +566,6 @@ export function lockfileFaults(lock: Lockfile): string[] {
 }
 
 /**
- * Every package whose optional `@lockness/*` peers differ from its
- * `deps.policy.jsonc` `soft` list. The policy owns which soft edges are
- * allowed; `package.json` declares them; the two must name the same set.
- *
- * @param packages - Every named workspace member.
- * @param policy - The parsed `deps.policy.jsonc`.
- * @returns One message per mismatch, empty when every package agrees.
- *
- * @example
- * ```ts
- * softPeerFaults([{ name: '@lockness/mail' }], { packages: { mail: { soft: ['queue'] } } })
- * // ['@lockness/mail: optional peers [] differ from deps.policy.jsonc soft [queue]']
- * ```
- */
-export function softPeerFaults(
-    packages: readonly PackageManifest[],
-    policy: SoftPolicy,
-): string[] {
-    const faults: string[] = []
-    for (const pkg of packages) {
-        if (pkg.name === undefined || !isSibling(pkg.name)) continue
-        const short = pkg.name.slice(SCOPE.length)
-        const peers = Object.entries(pkg.peerDependenciesMeta ?? {})
-            .filter(([name, meta]) => meta.optional === true && isSibling(name))
-            .map(([name]) => name.slice(SCOPE.length))
-            .sort()
-        const soft = [...(policy.packages[short]?.soft ?? [])].sort()
-        if (peers.join() === soft.join()) continue
-        faults.push(
-            `${pkg.name}: optional peers [${
-                peers.join(', ')
-            }] differ from deps.policy.jsonc soft [${soft.join(', ')}]`,
-        )
-    }
-    return faults
-}
-
-/**
  * The first cycle among the workspace's runtime sibling dependencies.
  *
  * Runtime dependencies become `tsconfig.json` references, and a reference
@@ -700,7 +657,7 @@ export async function readWorkspaceMembers(root: string): Promise<string[]> {
 }
 
 /** A member and its parsed `package.json`. */
-interface Member {
+export interface Member {
     /** Directory relative to the root. */
     dir: string
     /** The parsed manifest. */
@@ -747,7 +704,26 @@ async function readMembers(root: string): Promise<Member[]> {
  * ```
  */
 export async function planManifests(root: string): Promise<GeneratedFile[]> {
-    const members = await readMembers(root)
+    return planFiles(await readMembers(root))
+}
+
+/**
+ * Every file a set of in-memory `package.json` files produces — no I/O, so a
+ * caller about to rewrite those manifests (the bump) can prove generation
+ * succeeds before it writes anything.
+ *
+ * @param members - Each member's directory and manifest, in workspace order.
+ * @returns The files, member by member, in a fixed order.
+ * @throws {Error} When the runtime dependencies form a cycle, or a manifest
+ *   cannot be generated from.
+ *
+ * @example
+ * ```ts
+ * planFiles([{ dir: 'packages/a', pkg: { name: '@lockness/a', version: '0.4.0' } }])
+ *     .map((f) => f.path) // ['packages/a/deno.json', 'packages/a/tsconfig.json']
+ * ```
+ */
+export function planFiles(members: readonly Member[]): GeneratedFile[] {
     const cycle = dependencyCycle(members.map((m) => m.pkg))
     if (cycle !== null) {
         throw new Error(
@@ -795,8 +771,28 @@ export async function planManifests(root: string): Promise<GeneratedFile[]> {
  * ```
  */
 export async function writeManifests(root: string): Promise<string[]> {
+    return writeFiles(root, await planManifests(root))
+}
+
+/**
+ * Write each planned file whose content differs from what is on disk.
+ *
+ * @param root - The workspace root.
+ * @param files - From {@link planFiles} or {@link planManifests}.
+ * @returns The paths written.
+ * @throws {Error} When a file cannot be read or written.
+ *
+ * @example
+ * ```ts
+ * await writeFiles('.', planFiles(members))
+ * ```
+ */
+export async function writeFiles(
+    root: string,
+    files: readonly GeneratedFile[],
+): Promise<string[]> {
     const written: string[] = []
-    for (const file of await planManifests(root)) {
+    for (const file of files) {
         const path = join(root, file.path)
         if (await readOrNull(path) === file.content) continue
         await Deno.writeTextFile(path, file.content)
@@ -824,12 +820,11 @@ async function readOrNull(path: string): Promise<string | null> {
 /**
  * Every reason the workspace's manifests are not current: stale or missing
  * generated files, non-monotonic `engines`, a registry-resolved `@lockness/*`
- * in `deno.lock` (skipped when there is no lockfile), and optional peers that
- * disagree with `deps.policy.jsonc` (skipped when there is no policy).
+ * in `deno.lock` (skipped when there is no lockfile).
  *
  * @param root - The workspace root.
  * @returns One message per fault, empty when current.
- * @throws {Error} When a manifest, the lockfile or the policy cannot be parsed.
+ * @throws {Error} When a manifest or the lockfile cannot be parsed.
  *
  * @example
  * ```ts
@@ -854,16 +849,6 @@ export async function checkManifests(root: string): Promise<string[]> {
 
     const lock = await readOrNull(join(root, 'deno.lock'))
     if (lock !== null) faults.push(...lockfileFaults(JSON.parse(lock)))
-
-    const policy = await readOrNull(join(root, 'deps.policy.jsonc'))
-    if (policy !== null) {
-        faults.push(
-            ...softPeerFaults(
-                packages,
-                parseJsonc(policy) as unknown as SoftPolicy,
-            ),
-        )
-    }
     return faults
 }
 

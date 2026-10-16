@@ -24,6 +24,9 @@
  *    each member's ranges, and a release commit without the refresh cannot be
  *    published (#429).
  *
+ * Steps 1 to 3 are computed in memory first: a manifest the generator refuses
+ * stops the bump before any file is written, never half-way through.
+ *
  * It replaced two tools (#591): `bump-native.ts`, a wrapper over Deno's
  * `deno bump-version`, which rewrites `deno.json` files that are now
  * generated; and the legacy hand-rolled bump. No stub carries a version pin —
@@ -49,9 +52,12 @@ import { parseArgs } from '@std/cli/parse-args'
 import * as semver from '@std/semver'
 import { refreshLockfile } from './lockfile.ts'
 import {
+    type GeneratedFile,
+    type Member,
     type PackageManifest,
+    planFiles,
     readWorkspaceMembers,
-    writeManifests,
+    writeFiles,
 } from './manifests.ts'
 
 /** Path to the root configuration file, which carries the release version. */
@@ -266,33 +272,58 @@ async function readCurrentVersion(): Promise<string> {
     return version
 }
 
+/** One file the bump rewrites, with its content before and after. */
+interface Rewrite {
+    /** Path relative to the root. */
+    path: string
+    /** Current content. */
+    before: string
+    /** Content at the new version. */
+    after: string
+}
+
+/** Everything a bump writes, computed before anything is written. */
+interface BumpPlan {
+    /** Every member's `package.json` whose content changes. */
+    sources: Rewrite[]
+    /** The root `deno.jsonc`. */
+    root: Rewrite
+    /** Every generated file, from the bumped manifests. */
+    generated: GeneratedFile[]
+}
+
 /**
- * Bump every member's `package.json`.
+ * Compute the whole bump in memory: every bumped `package.json`, the root
+ * `deno.jsonc`, and every file generated from the bumped manifests. A
+ * manifest the generator refuses throws here, before any file is written, so
+ * a failed bump never leaves a half-bumped tree.
  *
  * @param version - The new version.
- * @param dryRun - When true, compute but write nothing.
- * @returns The manifests that changed (or would).
- * @throws {Error} When the workspace or a member manifest cannot be read.
+ * @returns The plan.
+ * @throws {Error} When a manifest cannot be read, or cannot be generated from.
  */
-async function bumpMembers(
-    version: string,
-    dryRun: boolean,
-): Promise<string[]> {
-    const changed: string[] = []
-    for (const member of await readWorkspaceMembers('.')) {
-        const path = `${member}/package.json`
+async function planBump(version: string): Promise<BumpPlan> {
+    const members: Member[] = []
+    const sources: Rewrite[] = []
+    for (const dir of await readWorkspaceMembers('.')) {
+        const path = `${dir}/package.json`
         const before = await Deno.readTextFile(path)
-        const after = JSON.stringify(
-            bumpPackageManifest(JSON.parse(before), version),
-            null,
-            4,
-        ) +
-            '\n'
-        if (after === before) continue
-        if (!dryRun) await Deno.writeTextFile(path, after)
-        changed.push(path)
+        const pkg = bumpPackageManifest(JSON.parse(before), version)
+        members.push({ dir, pkg })
+        const after = JSON.stringify(pkg, null, 4) + '\n'
+        if (after !== before) sources.push({ path, before, after })
     }
-    return changed
+    const generated = planFiles(members)
+    const rootBefore = await Deno.readTextFile(ROOT_CONFIG_PATH)
+    return {
+        sources,
+        root: {
+            path: ROOT_CONFIG_PATH,
+            before: rootBefore,
+            after: updateRootJsonc(rootBefore, version),
+        },
+        generated,
+    }
 }
 
 /**
@@ -309,6 +340,7 @@ async function main(args: string[]): Promise<number> {
     const dryRun = parsed['dry-run'] === true
     let current: string
     let target: string
+    let plan: BumpPlan
     try {
         current = await readCurrentVersion()
         target = resolveTargetVersion({
@@ -317,27 +349,24 @@ async function main(args: string[]): Promise<number> {
             patch: parsed.patch,
             positional: parsed._[0]?.toString(),
         }, current)
+        plan = await planBump(target)
     } catch (error) {
         console.error(`❌ ${getErrorMessage(error)}`)
+        console.error('   Nothing was written.')
         return 1
     }
 
     console.log(`🚀 ${current} -> ${target}${dryRun ? ' (dry run)' : ''}`)
-    for (const path of await bumpMembers(target, dryRun)) {
-        console.log(`   ${path}`)
+    for (const file of [...plan.sources, plan.root]) {
+        if (!dryRun && file.after !== file.before) {
+            await Deno.writeTextFile(file.path, file.after)
+        }
+        console.log(`   ${file.path}`)
     }
-
-    const rootBefore = await Deno.readTextFile(ROOT_CONFIG_PATH)
-    const rootAfter = updateRootJsonc(rootBefore, target)
-    if (!dryRun && rootAfter !== rootBefore) {
-        await Deno.writeTextFile(ROOT_CONFIG_PATH, rootAfter)
-    }
-    console.log(`   ${ROOT_CONFIG_PATH} version -> ${target}`)
-
     if (dryRun) {
         console.log('   generated manifests would be regenerated')
     } else {
-        for (const path of await writeManifests('.')) {
+        for (const path of await writeFiles('.', plan.generated)) {
             console.log(`   ${path} (generated)`)
         }
     }

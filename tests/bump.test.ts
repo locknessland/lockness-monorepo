@@ -586,7 +586,9 @@ async function lockfileFixture(): Promise<string> {
         })
     await Deno.writeTextFile(
         `${dir}/packages/a/package.json`,
-        member('@lockness/a', { lockness: { jsr: { '@std/semver': '1' } } }),
+        member('@lockness/a', {
+            lockness: { jsr: { '@std/semver': '1' }, versionModule: true },
+        }),
     )
     await Deno.writeTextFile(
         `${dir}/packages/a/mod.ts`,
@@ -712,6 +714,13 @@ for (const bump of BUMP_CASES) {
                 bDeno.imports['@lockness/a'],
                 `jsr:@lockness/a@^${bump.target}`,
             )
+            // So does the own-version module a package reads at run time.
+            assertStringIncludes(
+                await Deno.readTextFile(
+                    `${dir}/packages/a/version.generated.ts`,
+                ),
+                `export const VERSION = '${bump.target}'`,
+            )
 
             const after = lockEntries(
                 await Deno.readTextFile(`${dir}/deno.lock`),
@@ -765,3 +774,48 @@ for (const bump of BUMP_CASES) {
         }
     })
 }
+
+test('deno task bump writes nothing when a bumped manifest cannot be generated from', async () => {
+    // The plan is computed in memory first. Before, every package.json was
+    // written and only then did generation run, so a refused manifest left
+    // the tree half-bumped: sources at the new version, deno.json at the old.
+    const dir = await lockfileFixture()
+    try {
+        // b is planned after a, so a's package.json would already be written.
+        const bPath = `${dir}/packages/b/package.json`
+        const b = JSON.parse(await Deno.readTextFile(bPath))
+        b.lockness = { imports: { 'x': '@nope/x' } }
+        await Deno.writeTextFile(bPath, JSON.stringify(b, null, 4) + '\n')
+
+        const files = [
+            'deno.jsonc',
+            'deno.lock',
+            'packages/a/package.json',
+            'packages/a/deno.json',
+            'packages/a/version.generated.ts',
+            'packages/b/package.json',
+            'packages/b/deno.json',
+        ]
+        const read = () =>
+            Promise.all(files.map((f) => Deno.readTextFile(`${dir}/${f}`)))
+        const before = await read()
+
+        const run = await deno(
+            [
+                'run',
+                '-A',
+                '--config',
+                REPO_CONFIG,
+                scriptPath('bump.ts'),
+                '--minor',
+            ],
+            dir,
+        )
+        assertEquals(run.code, 1, run.output)
+        assertStringIncludes(run.output, '@nope/x')
+        assertStringIncludes(run.output, 'Nothing was written.')
+        assertEquals(await read(), before, 'a refused bump wrote a file')
+    } finally {
+        await Deno.remove(dir, { recursive: true })
+    }
+})

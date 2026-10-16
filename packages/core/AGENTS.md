@@ -21,8 +21,9 @@ This brief does not repeat it.
   printed. Set and unresolvable: `MissingOptionalPackageError`. There is no
   "warn and skip" — that line hid a kit shipping `cache` undeclared and a redis
   lock that never installed. The specifier is a _string argument_, so **no
-  static tool can see the edge**; `deps.policy.jsonc` declares them under
-  `soft`, and `scripts/core_soft_policy_test.ts` fails when that list and
+  static tool can see the edge**; core's `package.json` declares each as an
+  optional peer (the fact), `deps.policy.jsonc` `core.soft` permits it, and
+  `scripts/core_soft_policy_test.ts` fails when core's optional peers and
   `OPTIONAL_FEATURES` (plus `redis`) disagree.
 - **A hard dependency is imported statically, never through the loader.** The
   loader's variable specifier resolves against the _application's_ import map;
@@ -50,16 +51,16 @@ This brief does not repeat it.
 
 <!-- generated:deps -->
 
-| Direction                                 | Packages                                                                                       |
-| :---------------------------------------- | :--------------------------------------------------------------------------------------------- |
-| Imports (static)                          | `container`, `contract`, `crypto`, `deprecation-contracts`, `events`, `hono`, `scheduler`      |
-| Imports (soft, loaded at runtime by name) | `cache`, `container`, `devtools`, `drizzle`, `i18n`, `logger`, `redis`, `session`, `telemetry` |
-| Imported by                               | —                                                                                              |
-| **Must never import**                     | nothing — no package depends on this one                                                       |
+| Direction                                 | Packages                                                                                  |
+| :---------------------------------------- | :---------------------------------------------------------------------------------------- |
+| Imports (static)                          | `container`, `contract`, `crypto`, `deprecation-contracts`, `events`, `hono`, `scheduler` |
+| Imports (soft, loaded at runtime by name) | `cache`, `devtools`, `drizzle`, `i18n`, `logger`, `redis`, `session`, `telemetry`         |
+| Imported by                               | —                                                                                         |
+| **Must never import**                     | nothing — no package depends on this one                                                  |
 
 Enforced by `deno task deps:analyze` against `deps.policy.jsonc`. A soft edge is
-deliberately **not** declared in this package's `deno.json`: the consuming
-application installs it, or the feature stays off.
+an optional peer in this package's `package.json`, never a dependency: the
+consuming application installs it, or the feature stays off.
 
 <!-- /generated:deps -->
 
@@ -99,10 +100,11 @@ Anything not listed is internal and free to change.
 - The `OPTIONAL_FEATURES` packages are loaded by name. Renaming one breaks core
   at runtime with no compile error — grep for the string, not the import.
 - A new optional feature is a key in `KernelConfig` **and** a row in
-  `OPTIONAL_FEATURES` **and** an entry in `core.soft` — and, if a kit sets it, a
-  declared import in that kit's `deno.json.stub` (`scripts/kit_features_test.ts`
-  checks the last). Never probe for a package by presence: a package being in
-  the import map must not change what an app does.
+  `OPTIONAL_FEATURES` **and** an optional peer in `package.json` **and** an
+  entry in `core.soft` — and, if a kit sets it, a declared import in that kit's
+  `deno.json.stub` (`scripts/kit_features_test.ts` checks the last). Never probe
+  for a package by presence: a package being in the import map must not change
+  what an app does.
 - Bootstrap steps run in registry order. Adding a step means placing it in
   `kernel/bootstrap/registry.ts`, not just writing the file.
 - Mount patterns are built with `constrainedParam()`, never written as literals

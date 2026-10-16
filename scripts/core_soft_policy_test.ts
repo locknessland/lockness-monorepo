@@ -1,42 +1,42 @@
 /**
- * @fileoverview `deps.policy.jsonc`'s `core.soft` agrees with what core
- * actually loads at runtime (#505).
+ * @fileoverview `@lockness/core`'s optional peers are exactly the packages
+ * core loads at runtime through a variable specifier (#505, #591).
  *
- * `core.soft` is how the dependency graph learns about edges `deno info`
- * cannot see: the packages core imports through a variable specifier. Since
+ * An optional peer in `packages/core/package.json` (`peerDependencies` +
+ * `peerDependenciesMeta.<name>.optional`) is how the dependency graph learns
+ * about an edge `deno info` cannot see: a package core imports through a
+ * variable. That declaration is the fact; `deps.policy.jsonc` `core.soft` is
+ * only the permission, and `deps:analyze` checks the fact against it. Since
  * #505 there is exactly one such site, `optional_packages.ts`, and the packages
  * it loads are `OPTIONAL_FEATURES` plus `@lockness/redis` (the scheduler lock).
- * The two lists used to be kept in step by hand, and drifted: `events` sat in
- * `soft` while core imported it statically, which is the shape that hid
- * `KernelBooted` never firing in a JSR-installed app.
+ * The declaration and the loader used to be kept in step by hand, and drifted:
+ * `events` sat in the soft list while core imported it statically, which is
+ * the shape that hid `KernelBooted` never firing in a JSR-installed app. This
+ * test holds them equal, with no exemption.
  *
  * @module scripts/core_soft_policy_test
  */
 
 import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
-import { parse } from '@std/jsonc'
 import { OPTIONAL_FEATURES } from '../packages/core/kernel/bootstrap/optional_packages.ts'
-
-/**
- * Entries `core.soft` carries that no loader call site produces, each with the
- * reason it stays. An entry here is a named exemption, not a silent one.
- */
-const EXEMPT: Readonly<Record<string, string>> = {
-    container:
-        'a hard dependency declared soft before #505; stale, left for the core.soft cleanup the #505 disposition names',
-}
+import { optionalPeersOf } from './deps_analyzer.ts'
 
 /** Packages core loads through `importRequiredPackage` without a kernel key. */
 const DRIVER_PACKAGES = ['redis']
 
-async function coreSoft(): Promise<string[]> {
-    const policy = parse(
+/**
+ * Core's optional peers, by short name, sorted.
+ *
+ * @returns The names from `packages/core/package.json`.
+ */
+async function corePeers(): Promise<string[]> {
+    const manifest: unknown = JSON.parse(
         await Deno.readTextFile(
-            new URL('../deps.policy.jsonc', import.meta.url),
+            new URL('../packages/core/package.json', import.meta.url),
         ),
-    ) as { packages: { core: { soft?: string[] } } }
-    return policy.packages.core.soft ?? []
+    )
+    return optionalPeersOf(manifest).sort()
 }
 
 const LOADED = [
@@ -46,20 +46,14 @@ const LOADED = [
     ...DRIVER_PACKAGES,
 ].sort()
 
-test('core.soft - every package the loader can import is declared soft', async () => {
-    const soft = await coreSoft()
-    assertEquals(LOADED.filter((p) => !soft.includes(p)), [])
-})
-
-test('core.soft - every other entry is a named exemption', async () => {
-    const soft = await coreSoft()
+test('core optional peers - exactly the packages the loader can import', async () => {
     assertEquals(
-        soft.filter((p) => !LOADED.includes(p) && !(p in EXEMPT)),
-        [],
-        'a soft edge no loader produces must be removed or exempted with a reason',
+        await corePeers(),
+        LOADED,
+        'an optional peer no loader produces must go; a loaded package must be declared',
     )
 })
 
-test('core.soft - events is not soft: core imports it statically', async () => {
-    assertEquals((await coreSoft()).includes('events'), false)
+test('core optional peers - events is not one: core imports it statically', async () => {
+    assertEquals((await corePeers()).includes('events'), false)
 })

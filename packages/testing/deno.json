@@ -1,4 +1,5 @@
 {
+    "//": "Published on JSR in lockstep with every package. \"private\": true keeps it off npm only: it is a test-support harness, never a runtime dependency.",
     "name": "@lockness/testing",
     "version": "0.4.0",
     "license": "MIT",
