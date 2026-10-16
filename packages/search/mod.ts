@@ -31,9 +31,4 @@ export {
     type SearchConfig,
     type SearchIndex,
 } from './search.ts'
-export {
-    type Cli,
-    isContained,
-    registerSearchCommands,
-    SEARCHABLE_DIR,
-} from './cli_commands.ts'
+export { registerSearchCommands, SEARCHABLE_DIR } from './cli_commands.ts'

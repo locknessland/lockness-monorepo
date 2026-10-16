@@ -53,9 +53,9 @@ The dependency graph is acyclic (DAG).
 | `devtools`              | contract, events, hono, session                                             | —                                                                 |
 | `drizzle`               | cli, container, contract                                                    | —                                                                 |
 | `events`                | contract, hono                                                              | —                                                                 |
-| `features`              | —                                                                           | —                                                                 |
+| `features`              | contract                                                                    | —                                                                 |
 | `hono`                  | —                                                                           | —                                                                 |
-| `i18n`                  | hono                                                                        | —                                                                 |
+| `i18n`                  | contract, hono                                                              | —                                                                 |
 | `inertia`               | hono                                                                        | —                                                                 |
 | `init`                  | cli                                                                         | —                                                                 |
 | `logger`                | contract                                                                    | —                                                                 |
@@ -67,7 +67,7 @@ The dependency graph is acyclic (DAG).
 | `realtime`              | contract, deprecation-contracts, hono, redis                                | events                                                            |
 | `redis`                 | contract                                                                    | —                                                                 |
 | `scheduler`             | —                                                                           | —                                                                 |
-| `search`                | —                                                                           | —                                                                 |
+| `search`                | contract                                                                    | —                                                                 |
 | `session`               | contract, crypto, hono, redis                                               | —                                                                 |
 | `socialite`             | contract, hono                                                              | —                                                                 |
 | `sse`                   | contract                                                                    | —                                                                 |

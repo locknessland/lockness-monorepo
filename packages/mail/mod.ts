@@ -70,9 +70,4 @@ export {
     mailPreviewHandler,
     resetMailPreview,
 } from './preview.ts'
-export {
-    type Cli,
-    isContained,
-    MAIL_DIR,
-    registerMailCommands,
-} from './cli_commands.ts'
+export { MAIL_DIR, registerMailCommands } from './cli_commands.ts'

@@ -1,22 +1,18 @@
 /**
  * @fileoverview `make:mail` — scaffold a `Mailable` subclass.
  *
- * Package-command pattern (structural `Cli`, local stub reader). The name is
+ * Package-command pattern (the `CommandRegistry` port, local stub reader). The name is
  * shape-validated AND its output path verified contained (two layers, S9).
  *
  * @module @lockness/mail/cli_commands
  */
 
-import { dirname, fromFileUrl, isAbsolute, join, relative } from '@std/path'
-
-/** A CLI command handler. */
-type CommandHandler = (args: string[]) => void | Promise<void>
-
-/** Minimal structural CLI surface. */
-export interface Cli {
-    /** Register a named command. */
-    register(name: string, handler: CommandHandler, description?: string): void
-}
+import { dirname, fromFileUrl, join } from '@std/path'
+import type {
+    CommandFailure,
+    CommandRegistry,
+} from '@lockness/contract/command'
+import { isContained } from '@lockness/contract/fs/internal'
 
 /**
  * A failed mail command. `@lockness/cli` recognises a failure by its shape — an
@@ -24,7 +20,7 @@ export interface Cli {
  * dispatcher prints the message once and exits with this status. Deliberately
  * not exported (#436, D1).
  */
-class MailCommandError extends Error {
+class MailCommandError extends Error implements CommandFailure {
     /** The process exit status the dispatcher maps this failure to. */
     readonly exitCode = 1
     override readonly name = 'MailCommandError'
@@ -38,12 +34,6 @@ const NAME_RE = /^[A-Za-z][A-Za-z0-9]*$/
 const STUBS_PATH: string = import.meta.url.startsWith('file://')
     ? join(dirname(fromFileUrl(import.meta.url)), 'stubs')
     : new URL('./stubs', import.meta.url).href
-
-/** Whether `target` resolves inside `root`. */
-export function isContained(root: string, target: string): boolean {
-    const rel = relative(root, target)
-    return rel !== '' && !rel.startsWith('..') && !isAbsolute(rel)
-}
 
 async function processStub(
     stubName: string,
@@ -92,7 +82,7 @@ export async function handleMakeMail(args: string[]): Promise<string> {
  *
  * @param cli - The CLI instance.
  */
-export function registerMailCommands(cli: Cli): void {
+export function registerMailCommands(cli: CommandRegistry): void {
     cli.register(
         'make:mail',
         async (args) => {

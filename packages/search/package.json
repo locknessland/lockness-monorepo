@@ -17,6 +17,9 @@
     "engines": {
         "deno": ">=2.2"
     },
+    "dependencies": {
+        "@lockness/contract": "^0.4.0"
+    },
     "devDependencies": {
         "@lockness/cli": "^0.4.0"
     },

@@ -4,30 +4,20 @@
  *
  * `registerI18nCommands(cli)` follows the package-command pattern
  * (`loadPackageCommands` discovers it via `lockness.packages`) with a local
- * stub reader + a **structural `Cli` interface** — no `@lockness/cli` import.
+ * stub reader + the **`CommandRegistry` port** — no `@lockness/cli` import.
  * The `make:lang` locale argument is validated against a strict shape and its
  * output path verified contained within `resources/lang/` (no traversal, S2).
  *
  * @module @lockness/i18n/cli_commands
  */
 
-import { dirname, fromFileUrl, isAbsolute, join, relative } from '@std/path'
+import { dirname, fromFileUrl, join } from '@std/path'
+import type {
+    CommandFailure,
+    CommandRegistry,
+} from '@lockness/contract/command'
+import { isContained } from '@lockness/contract/fs/internal'
 import { walkKeys } from './extract.ts'
-
-/** A CLI command handler. */
-type CommandHandler = (args: string[]) => void | Promise<void>
-
-/** The minimal CLI surface used here — structural, so no `@lockness/cli` import. */
-export interface Cli {
-    /**
-     * Register a named command.
-     *
-     * @param name - The command name.
-     * @param handler - The handler.
-     * @param description - A one-line description.
-     */
-    register(name: string, handler: CommandHandler, description?: string): void
-}
 
 /**
  * A failed i18n command. `@lockness/cli` recognises a failure by its shape — an
@@ -35,7 +25,7 @@ export interface Cli {
  * dispatcher prints the message once and exits with this status. Deliberately
  * not exported (#436, D1).
  */
-class I18nCommandError extends Error {
+class I18nCommandError extends Error implements CommandFailure {
     /** The process exit status the dispatcher maps this failure to. */
     readonly exitCode = 1
     override readonly name = 'I18nCommandError'
@@ -50,12 +40,6 @@ const LOCALE_RE = /^[a-z]{2,3}(-[a-z0-9]{2,8})*$/
 const STUBS_PATH: string = import.meta.url.startsWith('file://')
     ? join(dirname(fromFileUrl(import.meta.url)), 'stubs')
     : new URL('./stubs', import.meta.url).href
-
-/** Whether `target` resolves inside `root` (no traversal / escape). */
-export function isContained(root: string, target: string): boolean {
-    const rel = relative(root, target)
-    return rel !== '' && !rel.startsWith('..') && !isAbsolute(rel)
-}
 
 /** Read a stub and apply `{{ key }}` replacements. */
 async function processStub(
@@ -124,7 +108,7 @@ export async function handleExtract(args: string[]): Promise<void> {
  *
  * @param cli - The CLI instance to register on.
  */
-export function registerI18nCommands(cli: Cli): void {
+export function registerI18nCommands(cli: CommandRegistry): void {
     cli.register(
         'make:lang',
         // The handler returns the path for tests; the CLI discards it.

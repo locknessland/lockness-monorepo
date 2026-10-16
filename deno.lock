@@ -4773,12 +4773,14 @@
       "packages/features": {
         "dependencies": [
           "jsr:@lockness/cli@0.4",
+          "jsr:@lockness/contract@0.4",
           "jsr:@std/assert@1",
           "jsr:@std/path@1"
         ],
         "packageJson": {
           "dependencies": [
-            "npm:@lockness/cli@0.4"
+            "npm:@lockness/cli@0.4",
+            "npm:@lockness/contract@0.4"
           ]
         }
       },
@@ -4799,6 +4801,7 @@
       "packages/i18n": {
         "dependencies": [
           "jsr:@lockness/cli@0.4",
+          "jsr:@lockness/contract@0.4",
           "jsr:@lockness/hono@0.4",
           "jsr:@std/assert@1",
           "jsr:@std/path@1"
@@ -4806,6 +4809,7 @@
         "packageJson": {
           "dependencies": [
             "npm:@lockness/cli@0.4",
+            "npm:@lockness/contract@0.4",
             "npm:@lockness/hono@0.4"
           ]
         }
@@ -4971,12 +4975,14 @@
       "packages/search": {
         "dependencies": [
           "jsr:@lockness/cli@0.4",
+          "jsr:@lockness/contract@0.4",
           "jsr:@std/assert@1",
           "jsr:@std/path@1"
         ],
         "packageJson": {
           "dependencies": [
-            "npm:@lockness/cli@0.4"
+            "npm:@lockness/cli@0.4",
+            "npm:@lockness/contract@0.4"
           ]
         }
       },

@@ -62,10 +62,4 @@ export {
     type KeyDiff,
     walkKeys,
 } from './extract.ts'
-export {
-    type Cli,
-    handleExtract,
-    isContained,
-    LANG_DIR,
-    registerI18nCommands,
-} from './cli_commands.ts'
+export { LANG_DIR, registerI18nCommands } from './cli_commands.ts'

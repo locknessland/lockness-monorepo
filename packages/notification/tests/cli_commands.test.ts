@@ -15,10 +15,10 @@
  */
 
 import { test } from 'node:test'
+import type { CommandRegistry } from '@lockness/contract/command'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import { Cli as RealCli } from '@lockness/cli'
 import {
-    type Cli,
     handleMakeNotification,
     notificationNaming,
     registerNotificationCommands,
@@ -58,10 +58,11 @@ test('SC-003: make:notification scaffolds the class file', async () => {
 
 test('registerNotificationCommands registers make:notification', () => {
     const registered: string[] = []
-    const cli: Cli = {
+    const cli: CommandRegistry = {
         register: (name) => {
             registered.push(name)
         },
+        registerCommand: () => {},
     }
     registerNotificationCommands(cli)
     assert(registered.includes('make:notification'))

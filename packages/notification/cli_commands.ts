@@ -11,24 +11,10 @@
  */
 
 import { dirname, fromFileUrl, join } from '@std/path'
-
-/** A CLI command handler. */
-type CommandHandler = (args: string[]) => void | Promise<void>
-
-/**
- * The minimal CLI surface used here — structural, so the package needs no
- * `@lockness/cli` import.
- */
-export interface Cli {
-    /**
-     * Register a named command.
-     *
-     * @param name - The command name (e.g. `make:notification`).
-     * @param handler - The command handler.
-     * @param description - A one-line description.
-     */
-    register(name: string, handler: CommandHandler, description?: string): void
-}
+import type {
+    CommandFailure,
+    CommandRegistry,
+} from '@lockness/contract/command'
 
 /**
  * A failed notification command. `@lockness/cli` recognises a failure by its
@@ -36,7 +22,7 @@ export interface Cli {
  * the CLI: the dispatcher prints the message once and exits with this status.
  * Deliberately not exported (#436, D1).
  */
-class NotificationCommandError extends Error {
+class NotificationCommandError extends Error implements CommandFailure {
     /** The process exit status the dispatcher maps this failure to. */
     readonly exitCode = 1
     override readonly name = 'NotificationCommandError'
@@ -145,7 +131,7 @@ export async function handleMakeNotification(
  * registerNotificationCommands(cli)
  * ```
  */
-export function registerNotificationCommands(cli: Cli): void {
+export function registerNotificationCommands(cli: CommandRegistry): void {
     cli.register(
         'make:notification',
         // The handler returns the written path for tests; the CLI discards it.

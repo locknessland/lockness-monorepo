@@ -25,7 +25,7 @@ workspace deps (`allow: []`).
 
 | Direction                                 | Packages                                 |
 | :---------------------------------------- | :--------------------------------------- |
-| Imports (static)                          | —                                        |
+| Imports (static)                          | `contract`                               |
 | Imports (soft, loaded at runtime by name) | —                                        |
 | Imported by                               | —                                        |
 | **Must never import**                     | nothing — no package depends on this one |
@@ -40,12 +40,12 @@ consuming application installs it, or the feature stays off.
 
 <!-- generated:surface -->
 
-| Kind      | Exports                                                                                                            |
-| :-------- | :----------------------------------------------------------------------------------------------------------------- |
-| class     | `MemorySearchDriver`                                                                                               |
-| function  | `configureSearch`, `indexSearchable`, `isContained`, `registerSearchCommands`, `resetSearch`, `search`, `tokenize` |
-| interface | `Cli`, `SearchConfig`, `SearchDriver`, `SearchHit`, `SearchIndex`, `SearchOptions`, `Searchable`                   |
-| variable  | `MAX_QUERY_LENGTH`, `MAX_TOKENS`, `SEARCHABLE_DIR`                                                                 |
+| Kind      | Exports                                                                                             |
+| :-------- | :-------------------------------------------------------------------------------------------------- |
+| class     | `MemorySearchDriver`                                                                                |
+| function  | `configureSearch`, `indexSearchable`, `registerSearchCommands`, `resetSearch`, `search`, `tokenize` |
+| interface | `SearchConfig`, `SearchDriver`, `SearchHit`, `SearchIndex`, `SearchOptions`, `Searchable`           |
+| variable  | `MAX_QUERY_LENGTH`, `MAX_TOKENS`, `SEARCHABLE_DIR`                                                  |
 
 Anything not listed is internal and free to change.
 

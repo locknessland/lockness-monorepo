@@ -25,7 +25,7 @@ pluggable override store (memory default). Pure logic — no workspace deps
 
 | Direction                                 | Packages                                 |
 | :---------------------------------------- | :--------------------------------------- |
-| Imports (static)                          | —                                        |
+| Imports (static)                          | `contract`                               |
 | Imports (soft, loaded at runtime by name) | —                                        |
 | Imported by                               | —                                        |
 | **Must never import**                     | nothing — no package depends on this one |
@@ -40,13 +40,13 @@ consuming application installs it, or the feature stays off.
 
 <!-- generated:surface -->
 
-| Kind      | Exports                                                                                                                            |
-| :-------- | :--------------------------------------------------------------------------------------------------------------------------------- |
-| class     | `MemoryFlagDriver`                                                                                                                 |
-| function  | `configureFeatures`, `features`, `inRollout`, `isContained`, `registerFeaturesCommands`, `resetFeatures`, `scopeKey`, `stableHash` |
-| interface | `Cli`, `Features`, `FeaturesConfig`, `FlagDriver`                                                                                  |
-| typeAlias | `FlagDefinition`                                                                                                                   |
-| variable  | `FLAGS_DIR`                                                                                                                        |
+| Kind      | Exports                                                                                                             |
+| :-------- | :------------------------------------------------------------------------------------------------------------------ |
+| class     | `MemoryFlagDriver`                                                                                                  |
+| function  | `configureFeatures`, `features`, `inRollout`, `registerFeaturesCommands`, `resetFeatures`, `scopeKey`, `stableHash` |
+| interface | `Features`, `FeaturesConfig`, `FlagDriver`                                                                          |
+| typeAlias | `FlagDefinition`                                                                                                    |
+| variable  | `FLAGS_DIR`                                                                                                         |
 
 Anything not listed is internal and free to change.
 

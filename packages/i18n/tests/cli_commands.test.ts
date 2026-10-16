@@ -13,12 +13,9 @@
 import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import { Cli as RealCli } from '@lockness/cli'
-import {
-    type Cli,
-    handleMakeLang,
-    isContained,
-    registerI18nCommands,
-} from '../cli_commands.ts'
+import type { CommandRegistry } from '@lockness/contract/command'
+import { isContained } from '@lockness/contract/fs/internal'
+import { handleMakeLang, registerI18nCommands } from '../cli_commands.ts'
 
 /** Run `fn` with `console.error` recorded instead of printed. */
 async function captureErrors<T>(
@@ -91,7 +88,10 @@ test('isContained rejects escapes and accepts children', () => {
 
 test('registerI18nCommands registers make:lang + i18n:extract', () => {
     const registered: string[] = []
-    const cli: Cli = { register: (name) => void registered.push(name) }
+    const cli: CommandRegistry = {
+        register: (name) => void registered.push(name),
+        registerCommand: () => {},
+    }
     registerI18nCommands(cli)
     assert(registered.includes('make:lang'))
     assert(registered.includes('i18n:extract'))

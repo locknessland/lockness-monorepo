@@ -7,7 +7,8 @@
 import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import { configureFeatures, features, resetFeatures } from '../features.ts'
-import { handleMakeFlag, isContained } from '../cli_commands.ts'
+import { isContained } from '@lockness/contract/fs/internal'
+import { handleMakeFlag } from '../cli_commands.ts'
 
 test('SC-001: override wins → definition → default off', async () => {
     resetFeatures()
