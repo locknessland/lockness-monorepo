@@ -10,7 +10,11 @@
  *
  * - **Which files.** `file:` URLs ending in `.ts` or `.tsx`, outside any
  *   `node_modules` segment. Declaration files are skipped. Dependencies are
- *   never transformed: a published package ships JavaScript.
+ *   never transformed: a published package ships JavaScript. `.mts` and
+ *   `.cts` files are **not supported**: they fall through to Node's own type
+ *   stripping, which rejects decorators. A `.cts` needs a CommonJS emit and a
+ *   `.mts` a different output extension, and no Lockness app layout uses
+ *   either, so the hook keeps one module kind; name app files `.ts` / `.tsx`.
  * - **Which options.** The `tsconfig.json` nearest to the file (TypeScript's own
  *   rule), never above the app root (the nearest `package.json` / `deno.json`)
  *   and only one the current user owns and alone can write; read once per
@@ -20,7 +24,9 @@
  * - **Where the cache lives.** Beside that `tsconfig.json`, which is the app
  *   root: `<root>/node_modules/.cache/lockness-transform`. Tying it to the
  *   options' home rather than to the working directory means a process started
- *   from a subdirectory reuses the same cache.
+ *   from a subdirectory reuses the same cache. A failed cache write warns on
+ *   stderr and keeps the emit; a cache that fails its checks on read is
+ *   refused.
  * - **Production.** `APP_ENV=production` refuses to install the hook at all:
  *   production runs built output, never a load-time transform.
  *
@@ -115,6 +121,40 @@ export function assertNotProduction(
 }
 
 /**
+ * Store an emit in the cache, or warn that it could not be stored.
+ *
+ * The cache is an optimisation: a write that fails (a read-only
+ * `node_modules`, a full disk) must not discard an emit that succeeded, so
+ * the failure is reported on stderr, naming the error, and the module still
+ * loads. Reads stay strict: a cache that fails its checks is refused.
+ *
+ * @param cache - The project's cache.
+ * @param key - The entry's key.
+ * @param code - The emitted JavaScript.
+ * @param fileName - The source file, for the warning.
+ */
+function storeOrWarn(
+    cache: TransformCache,
+    key: string,
+    code: string,
+    fileName: string,
+): void {
+    try {
+        cache.write(key, code)
+    } catch (error) {
+        console.warn(
+            `@lockness/transform: could not cache the emit of ${fileName} ` +
+                `(${
+                    error instanceof Error
+                        ? error.message
+                        : String(error)
+                }); ` +
+                `the module loads uncached.`,
+        )
+    }
+}
+
+/**
  * Build the synchronous load hook for `module.registerHooks`.
  *
  * @param hookOptions - Test seams; production passes none.
@@ -177,7 +217,7 @@ export function createLoadHook(
         let code = cache.read(key)
         if (code === undefined) {
             code = transpileForLoad(source, fileName, options)
-            cache.write(key, code)
+            storeOrWarn(cache, key, code, fileName)
         }
         return { format: 'module', source: code, shortCircuit: true }
     }
