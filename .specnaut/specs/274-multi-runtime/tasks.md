@@ -113,7 +113,7 @@ on `main`. Precedent: the realtime epic shipped as specs 240–272, one feature 
 
 ### C08 · CI runtime lanes
 
-- [ ] T015 `ci`: `scripts/test_runtime.ts --runtime=deno|bun|node [--package=x]`; Bun and Node lanes
+- [x] T015 `ci`: `scripts/test_runtime.ts --runtime=deno|bun|node [--package=x]`; Bun and Node lanes
   in `.github/workflows/test.yml` selecting packages from `engines`; `.bun-version` and
   `.node-version` pins; a lane fails when a declared package ran zero tests;
   `ci_deno_pin_test.ts` covers the new pins.
