@@ -233,6 +233,11 @@ export class TransformCache {
         this.#dir = cacheDirFor(root)
     }
 
+    /** The cache directory, {@link cacheDirFor}'s answer for the app root. */
+    get dir(): string {
+        return this.#dir
+    }
+
     /**
      * Read an entry.
      *

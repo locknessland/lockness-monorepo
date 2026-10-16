@@ -70,6 +70,8 @@ export interface LoadHookOptions {
 interface Project {
     readonly options: CompilerOptions
     readonly cache: TransformCache
+    /** Whether a failed cache write has been reported for this project. */
+    writeWarned: boolean
 }
 
 /**
@@ -122,35 +124,30 @@ export function assertNotProduction(
 }
 
 /**
- * Store an emit in the cache, or warn that it could not be stored.
+ * Store an emit in the project's cache, or warn — once per project — that
+ * it could not be stored.
  *
  * The cache is an optimisation: a write that fails (a read-only
  * `node_modules`, a full disk) must not discard an emit that succeeded, so
- * the failure is reported on stderr, naming the error, and the module still
- * loads. Reads stay strict: a cache that fails its checks is refused.
+ * the failure is reported on stderr, naming the cache directory and the
+ * first error, and the module still loads. Later failures in the same
+ * project are not repeated: they almost always share the first one's cause.
  *
- * @param cache - The project's cache.
+ * @param project - The project, which records whether it has warned.
  * @param key - The entry's key.
  * @param code - The emitted JavaScript.
- * @param fileName - The source file, for the warning.
  */
-function storeOrWarn(
-    cache: TransformCache,
-    key: string,
-    code: string,
-    fileName: string,
-): void {
+function storeOrWarn(project: Project, key: string, code: string): void {
     try {
-        cache.write(key, code)
+        project.cache.write(key, code)
     } catch (error) {
+        if (project.writeWarned) return
+        project.writeWarned = true
+        const reason = error instanceof Error ? error.message : String(error)
         console.warn(
-            `@lockness/transform: could not cache the emit of ${fileName} ` +
-                `(${
-                    error instanceof Error
-                        ? error.message
-                        : String(error)
-                }); ` +
-                `the module loads uncached.`,
+            `@lockness/transform: could not write the cache at ` +
+                `${project.cache.dir} (${reason}); this app's modules load ` +
+                `uncached.`,
         )
     }
 }
@@ -198,6 +195,7 @@ export function createLoadHook(
             project = {
                 options: readCompilerOptions(tsconfig),
                 cache: new TransformCache(dirname(tsconfig)),
+                writeWarned: false,
             }
             projects.set(tsconfig, project)
         }
@@ -208,7 +206,8 @@ export function createLoadHook(
         if (!shouldTransform(url)) return nextLoad(url, context)
         const fileName = fileURLToPath(url)
         const source = readFileSync(fileName, 'utf8')
-        const { options, cache } = projectFor(fileName)
+        const project = projectFor(fileName)
+        const { options, cache } = project
         const key = cacheKey({
             transformerVersion: TRANSFORMER_VERSION,
             // The options the emit runs with, placement included: a change to
@@ -220,7 +219,7 @@ export function createLoadHook(
         let code = cache.read(key)
         if (code === undefined) {
             code = transpileForLoad(source, fileName, options)
-            storeOrWarn(cache, key, code, fileName)
+            storeOrWarn(project, key, code)
         }
         return { format: 'module', source: code, shortCircuit: true }
     }

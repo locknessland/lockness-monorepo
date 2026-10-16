@@ -208,12 +208,15 @@ test('a file in a subdirectory caches beside the governing tsconfig.json', () =>
 })
 
 test(
-    'a cache write that fails warns on stderr, naming the error, and still loads the module',
+    'a cache write that fails warns once per project, naming the cache and the error, and still loads',
     {
         skip: READ_ONLY_UNENFORCED,
     },
     () => {
-        const dir = app({ 'main.ts': 'export const x: number = 1\n' })
+        const dir = app({
+            'main.ts': 'export const x: number = 1\n',
+            'other.ts': 'export const y: number = 2\n',
+        })
         const warnings: string[] = []
         const original = console.warn
         try {
@@ -224,12 +227,25 @@ test(
             console.warn = (...args: unknown[]) => {
                 warnings.push(args.map(String).join(' '))
             }
-            const url = pathToFileURL(join(dir, 'main.ts')).href
-            const answer = createLoadHook()(url, CONTEXT, recordingNext().next)
-            assertMatch(String(answer.source), /^export const x = 1;/m)
+            const hook = createLoadHook()
+            const load = (name: string) =>
+                hook(
+                    pathToFileURL(join(dir, name)).href,
+                    CONTEXT,
+                    recordingNext().next,
+                )
+            assertMatch(String(load('main.ts').source), /^export const x = 1;/m)
+            assertMatch(
+                String(load('other.ts').source),
+                /^export const y = 2;/m,
+            )
+            // One warning for the project, naming its cache and the first error.
             assertEquals(warnings.length, 1)
             assertMatch(warnings[0], /EACCES/)
-            assertMatch(warnings[0], /main\.ts/)
+            assertEquals(
+                warnings[0].includes(`the cache at ${cacheDirFor(dir)} (`),
+                true,
+            )
         } finally {
             console.warn = original
             chmodSync(cacheDirFor(dir), 0o700)
