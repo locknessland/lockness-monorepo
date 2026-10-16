@@ -19,6 +19,7 @@ import {
     denoJsonFor,
     enginesFaults,
     lockfileFaults,
+    main,
     type PackageManifest,
     planManifests,
     readWorkspaceMembers,
@@ -530,6 +531,56 @@ test('checkManifests - reads deno.lock when there is one', async () => {
         assertEquals(await checkManifests(dir), [
             'deno.lock resolves npm:@lockness/a@0.4 from a registry',
         ])
+    } finally {
+        await Deno.remove(dir, { recursive: true })
+    }
+})
+
+test('checkManifests - names the exact file when a version module or tsconfig drifts', async () => {
+    const dir = await fixture()
+    try {
+        await writeManifests(dir)
+        await Deno.writeTextFile(
+            join(dir, 'packages/a/version.generated.ts'),
+            "export const VERSION = '0.0.1'\n",
+        )
+        const tsconfig = join(dir, 'packages/b/tsconfig.json')
+        const edited = JSON.parse(await Deno.readTextFile(tsconfig))
+        edited.references = []
+        await Deno.writeTextFile(tsconfig, JSON.stringify(edited, null, 4))
+        assertEquals(await checkManifests(dir), [
+            'packages/a/version.generated.ts is stale: edit packages/a/package.json, then run `deno task manifests`',
+            'packages/b/tsconfig.json is stale: edit packages/b/package.json, then run `deno task manifests`',
+        ])
+    } finally {
+        await Deno.remove(dir, { recursive: true })
+    }
+})
+
+test('checkManifests - a runtime its dependency is not proven on is reported', async () => {
+    const dir = await fixture()
+    try {
+        const b = join(dir, 'packages/b/package.json')
+        const manifest = JSON.parse(await Deno.readTextFile(b))
+        manifest.engines = { deno: '>=2.2', bun: '>=1.4' }
+        await Deno.writeTextFile(b, JSON.stringify(manifest, null, 4))
+        await writeManifests(dir)
+        assertEquals(await checkManifests(dir), [
+            '@lockness/b declares engines.bun, but its dependency @lockness/a does not',
+        ])
+    } finally {
+        await Deno.remove(dir, { recursive: true })
+    }
+})
+
+test('main - 0 when written or current, 1 under --check when stale, 2 on an unknown argument', async () => {
+    const dir = await fixture()
+    try {
+        // Nothing generated yet: --check is red, and writes nothing.
+        assertEquals(await main(['--check'], dir), 1)
+        assertEquals(await main([], dir), 0)
+        assertEquals(await main(['--check'], dir), 0)
+        assertEquals(await main(['--chek'], dir), 2)
     } finally {
         await Deno.remove(dir, { recursive: true })
     }
