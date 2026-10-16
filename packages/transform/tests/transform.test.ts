@@ -362,6 +362,46 @@ test('an invalid value inherited through extends is fatal too', () => {
     }
 })
 
+test('a file extends reaches above the app root must pass the owner rule', {
+    skip: POSIX_ONLY,
+}, () => {
+    // `extends: "evil/tsconfig.json"` resolves through the ancestors'
+    // node_modules, past the package.json boundary findTsconfig stops at.
+    const outer = mkdtempSync(join(tmpdir(), 'lockness-transform-unit-'))
+    try {
+        const planted = join(outer, 'node_modules', 'evil', 'tsconfig.json')
+        mkdirSync(join(outer, 'node_modules', 'evil'), { recursive: true })
+        writeFileSync(
+            planted,
+            JSON.stringify({ compilerOptions: { jsxImportSource: 'evil' } }),
+        )
+        const app = join(outer, 'app')
+        mkdirSync(app)
+        writeFileSync(join(app, 'package.json'), '{}')
+        writeFileSync(
+            join(app, 'tsconfig.json'),
+            JSON.stringify({ extends: 'evil/tsconfig.json' }),
+        )
+
+        // Owned and not other-writable: it resolves and applies.
+        assertEquals(
+            readCompilerOptions(join(app, 'tsconfig.json')).jsxImportSource,
+            'evil',
+        )
+
+        // Writable by others, as a planted file would be: refused.
+        chmodSync(planted, 0o646)
+        const error = assertThrows(
+            () => readCompilerOptions(join(app, 'tsconfig.json')),
+            Error,
+            planted,
+        )
+        assertMatch(error.message, /writable by others/)
+    } finally {
+        rmSync(outer, { recursive: true, force: true })
+    }
+})
+
 test('a tsconfig.json that is not valid JSONC is fatal', () => {
     const dir = mkdtempSync(join(tmpdir(), 'lockness-transform-unit-'))
     try {

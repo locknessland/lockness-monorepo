@@ -34,7 +34,15 @@
  * @module
  */
 
-import { existsSync, statSync } from 'node:fs'
+import {
+    closeSync,
+    existsSync,
+    fstatSync,
+    openSync,
+    readFileSync,
+    type Stats,
+    statSync,
+} from 'node:fs'
 import { basename, dirname, join, relative, sep } from 'node:path'
 import process from 'node:process'
 import ts from 'typescript'
@@ -215,10 +223,52 @@ export function findTsconfig(fromDir: string): string | null {
  * @throws {Error} When it belongs to another user or is writable by others.
  */
 function assertOwnTsconfig(path: string): void {
-    if (typeof process.getuid !== 'function') return
-    const stat = statSync(path)
+    const uid = process.getuid?.()
+    if (uid === undefined) return
+    assertOwnStat(statSync(path), path, uid)
+}
+
+/**
+ * Read a `tsconfig.json`, or a file one extends, through a descriptor whose
+ * `fstat` passes the owner rule — so the bytes parsed are the bytes checked.
+ * `extends` may resolve above the app root (an ancestor's `node_modules`), so
+ * every file of the chain is checked, not only the one {@link findTsconfig}
+ * found.
+ *
+ * @param path - The file.
+ * @returns Its text, or `undefined` when it does not exist (TypeScript then
+ *   reports it as unreadable).
+ * @throws {Error} When it belongs to another user or is writable by others,
+ *   or cannot be read for another reason.
+ */
+function readOwnConfig(path: string): string | undefined {
+    let fd: number
+    try {
+        fd = openSync(path, 'r')
+    } catch (error) {
+        if ((error as { code?: unknown }).code === 'ENOENT') return undefined
+        throw error
+    }
+    try {
+        const uid = process.getuid?.()
+        if (uid !== undefined) assertOwnStat(fstatSync(fd), path, uid)
+        return readFileSync(fd, 'utf8')
+    } finally {
+        closeSync(fd)
+    }
+}
+
+/**
+ * The owner rule for compiler-option files, on POSIX.
+ *
+ * @param stat - The file's stat.
+ * @param path - The file, for the message.
+ * @param uid - The current user's uid.
+ * @throws {Error} When it belongs to another user or is writable by others.
+ */
+function assertOwnStat(stat: Stats, path: string, uid: number): void {
     let problem: string | undefined
-    if (stat.uid !== process.getuid()) problem = 'belongs to another user'
+    if (stat.uid !== uid) problem = 'belongs to another user'
     else if ((stat.mode & OTHER_WRITE) !== 0) {
         problem = 'is writable by others'
     }
@@ -247,8 +297,8 @@ function assertOwnTsconfig(path: string): void {
  * @param tsconfigPath - Absolute path of the `tsconfig.json`.
  * @returns The parsed options, as TypeScript's API represents them (enum
  *   values, absolute paths).
- * @throws {Error} When the file (or one it extends) cannot be read or is not
- *   valid JSONC, or names an unknown option or an invalid value — the message
+ * @throws {Error} When the file (or one it extends) cannot be read, belongs
+ *   to another user or is writable by others, or is not valid JSONC, or names an unknown option or an invalid value — the message
  *   names the file and locates every error TypeScript reported.
  *
  * @example
@@ -258,7 +308,7 @@ function assertOwnTsconfig(path: string): void {
  * ```
  */
 export function readCompilerOptions(tsconfigPath: string): CompilerOptions {
-    const text = ts.sys.readFile(tsconfigPath)
+    const text = readOwnConfig(tsconfigPath)
     if (text === undefined) {
         throw new Error(`${tsconfigPath}: cannot read the file`)
     }
@@ -270,7 +320,7 @@ export function readCompilerOptions(tsconfigPath: string): CompilerOptions {
         useCaseSensitiveFileNames: ts.sys.useCaseSensitiveFileNames,
         readDirectory: () => [],
         fileExists: ts.sys.fileExists,
-        readFile: ts.sys.readFile,
+        readFile: readOwnConfig,
     }
     const parsed = ts.parseJsonSourceFileConfigFileContent(
         ts.readJsonConfigFile(tsconfigPath, () => text),
