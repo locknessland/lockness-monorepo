@@ -134,10 +134,15 @@ nothing, so the generated surface above does not list it.
 ## Pitfalls
 
 - **The `APP_ENV` read is a second copy of the contract resolver's rule**
-  (trimmed, lower-cased), because this package may import nothing. When T019
-  (plan 274) extends the `env_signal` lint to `process.env.APP_ENV`,
-  `packages/transform/hook.ts` must join the rule's owners list, not import
-  contract. (2026-10-16)
+  (trimmed, lower-cased), because this package may import nothing.
+  `packages/transform/hook.ts` is therefore an owner of the `env_signal` lint
+  (`scripts/lint/env_signal.ts`, #596), which reports any other `APP_ENV` read
+  here, `process.env.APP_ENV` and `env.APP_ENV` included. Keep the read in
+  `hook.ts`; do not import contract. (2026-10-16)
+- **This package is under `lockness-runtime/no-deno`** (#596), because its
+  `engines` names node: no `Deno` global and no runtime-specific Hono adapter,
+  outside tests. It passes with no exemption, on `node:` built-ins alone; keep
+  it that way rather than adding a file to `EXEMPT_FILES`. (2026-10-16)
 - **Deno answers for a missing `node`.** `child_process.spawn('node')` under
   Deno runs Deno itself when no `node` is on PATH, printing `deno x.y.z` for
   `--version`. `tests/register_e2e.test.ts` detects that and skips with the

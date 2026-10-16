@@ -102,6 +102,28 @@ needs Bun too (`.bun-version`). A missing runtime, or one at another major
 version than its pin file, fails the step and names that file; nothing is
 skipped. See [releasing.md](releasing.md#the-npm-build-and-npmcheck).
 
+### Repository lint rules
+
+The gate's `lint` step runs Deno's rules and the repository's own plugins,
+registered in the root `deno.jsonc` under `lint.plugins`. Each lives in
+`scripts/lint/`, and its rule file names its scope and its owners — the only
+files allowed the form it forbids:
+
+| Rule                                              | Forbids                                                                                                                                                                                                        |
+| :------------------------------------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lockness/app-file-specifier`                     | a hand-built specifier for a file of the user's app in package source                                                                                                                                          |
+| `lockness-env/env-signal`                         | a raw read of `APP_ENV` or `DENO_ENV` (`Deno.env.get`, `process.env.APP_ENV`, any `.APP_ENV` read or destructuring) outside the contract resolver and `@lockness/transform`'s `hook.ts`                        |
+| `lockness-exit/process-exit`                      | `Deno.exit` / `process.exit` and `Deno.exitCode` / `process.exitCode` writes in package code outside their owners                                                                                              |
+| `lockness-exit/printed-failure`                   | a `❌` print in command code: a command fails by throwing                                                                                                                                                      |
+| `lockness-runtime/no-deno` (`runtime_neutral.ts`) | in a package whose `engines` names bun or node, and in a script on `scripts/lint/runtime_neutral_scripts.ts`: the `Deno` global, `hono/deno`, and `@lockness/hono/{deno,bun,node}` outside `packages/runtime/` |
+
+Adding `bun` or `node` to a package's `engines` therefore puts its source (tests
+and stubs excluded) under `lockness-runtime/no-deno`; use a `node:` built-in or
+a web standard instead of `Deno.*`. A file that must stay Deno-only is exempted
+by its exact path in `EXEMPT_FILES`, with the reason beside it. A script written
+or rewritten for the multi-runtime work joins `runtime_neutral_scripts.ts`; that
+list only grows, and an entry leaves only with its file.
+
 To run the packages that declare Bun or Node in their `package.json` `engines`
 on that runtime — what the `bun` and `node` CI lanes run — use:
 

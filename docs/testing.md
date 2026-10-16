@@ -85,6 +85,11 @@ and runs a named package even if it does not declare the runtime yet: that is
 how a package's suite is brought to green on a runtime **before** it adds the
 runtime to `engines`.
 
+Naming bun or node in `engines` also puts the package's source (tests and stubs
+excluded) under the `lockness-runtime/no-deno` lint: no `Deno` global and no
+runtime-specific Hono adapter. See
+[contribution.md](contribution.md#repository-lint-rules).
+
 What a run does, all in `scripts/test_runtime.ts`:
 
 - It collects the package's test files by Deno's own discovery rule (`test.ts`,

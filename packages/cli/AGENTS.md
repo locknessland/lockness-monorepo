@@ -22,8 +22,9 @@ User-facing documentation: [README.md](README.md) ·
   `renderMessage`, then `caused by: <cause>` through `renderError`. Automation
   branches on that status, not on output text. The `lockness-exit` lint plugin
   (`scripts/lint/exit_contract.ts`) guards it: `process-exit` rejects
-  `Deno.exit` and `Deno.exitCode` writes outside their owners, and
-  `printed-failure` rejects a `❌` print in command code. Breaks when:
+  `Deno.exit` / `process.exit` and `Deno.exitCode` / `process.exitCode` writes
+  outside their owners (the owners keep both spellings), and `printed-failure`
+  rejects a `❌` print in command code. Breaks when:
   - a handler prints `❌` and returns — the process exits 0 and CI reads the
     failure as success;
   - `run()` calls `Deno.exit()` — `finally` blocks (a `db.close()`) are skipped
