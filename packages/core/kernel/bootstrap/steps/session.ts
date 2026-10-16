@@ -11,10 +11,10 @@ import type { BootstrapStep } from '../types.ts'
 import {
     devSessionKey,
     isExplicitlyDevelopment,
-    isProduction,
     type NormalizedSessionConfig,
     normalizeSessionConfig,
 } from '../helpers.ts'
+import { productionRisk } from '@lockness/contract/environment/guard/internal'
 import {
     defaultImportModule,
     loadConfiguredPackage,
@@ -28,7 +28,8 @@ import {
  * Responsibilities:
  * - Import @lockness/session if session is configured
  * - Normalize session configuration
- * - **Refuse to boot** when the cookie driver has no usable key in production
+ * - **Refuse to boot** when the cookie driver has no usable key in production,
+ *   or when `APP_ENV` cannot be read and the process may be production (#624)
  * - Supply a per-process random key outside production
  * - Warn once when the app sets `secure: false` outside explicit development
  * - Configure session manager (the `secure` default is the session package's)
@@ -87,7 +88,10 @@ export const sessionStep: BootstrapStep = {
         // random session id in the cookie and the data in a store, so requiring
         // one there would break working configurations to protect nothing.
         if (sessionConfig.driver === 'cookie' && !sessionConfig.secret) {
-            if (isProduction()) {
+            // An unreadable APP_ENV counts (#624): a binary that cannot see
+            // it may well be production, and a per-process key there is the
+            // failure this refusal exists to prevent.
+            if (productionRisk() !== undefined) {
                 // Throws. `runBootstrapSteps` does not catch, so this ends the
                 // boot — which is the point: the alternative is serving
                 // forgeable cookies behind a warning nobody reads.
