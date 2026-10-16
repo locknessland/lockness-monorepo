@@ -118,50 +118,65 @@ is in the scope too.
    `install --frozen` step builds `node_modules` from `deno.lock` alone). tsc
    runs under Deno's sandbox: it can read only the fifteen
    `TSC_*`/`NODE_*`/`VSCODE_*` environment variables it needs, with no network,
-   no subprocess and no FFI. It may read `.` and write only each scoped
-   package's `dist/`. The task is **generated** by `deno task manifests`: the
-   project list and the `--allow-write` list come from the same scope, and
-   `manifests --check` fails on a hand-edited task.
+   no remote import (`--deny-import --cached-only`: `--deny-net` alone leaves
+   Deno's default remote-import allowlist open, and on Deno 2.9.6 the bare
+   `--deny-import` holds only together with `--cached-only`), no subprocess and
+   no FFI. It may read `.` and write only each scoped package's `dist/`. The
+   task is **generated** by `deno task manifests`: the project list and the
+   `--allow-write` list come from the same scope, and `manifests --check` fails
+   on a hand-edited task.
 2. `scripts/npm_stage.ts` stages each package under the gitignored `_npm/`
    directory: `_npm/<pkg>/package.json` is `publishedManifest()`'s field
    allowlist (no `devDependencies`, no `lockness` key, no `scripts`, no
-   `lockness-source` condition), next to the package's `files` entries.
-   `npm pack` reads that directory, never the source one.
+   `lockness-source` condition), next to the package's `files` entries and its
+   `README*` and `LICENSE*` (npm pack always includes them; the root `LICENSE`
+   when the package has none). It drops `*.tsbuildinfo` and rewrites no file
+   content. It may import only from jsr.io, from the cache
+   (`--allow-import=jsr.io:443 --cached-only`). `npm pack` reads that directory,
+   never the source one.
 
 The compiler options shared by every package live in the root
 `tsconfig.base.json`, which each generated `packages/<pkg>/tsconfig.json`
 extends: ES2022 target, `nodenext` modules, `rewriteRelativeImportExtensions`,
 composite declarations, `strict`, Node types. Siblings resolve through their
 built `dist/*.d.ts`, never their source. tsc rewrites relative `.ts` specifiers
-to `.js` in JavaScript but not in `.d.ts`, so the staging step applies the same
-rewrite to declarations. Deno 2.9 ignores both files for a member that has a
-`deno.json`: they drive the npm build only. `packages/*/dist/` and `_npm/` are
-gitignored, and the root `deno.jsonc` excludes them too, because `deno check`
-does not honour `.gitignore` while `deno fmt` and `deno lint` do.
+to `.js` in JavaScript and, by design, leaves them in `.d.ts`: TypeScript
+resolves a `.ts` specifier in a declaration file to the `.d.ts` beside it.
+Staging copies tsc's output unchanged. The npm gate type-checks a `nodenext`
+consumer with the pinned TypeScript 6.0.3, the version the published
+declarations are proven against. Deno 2.9 ignores both files for a member that
+has a `deno.json`: they drive the npm build only. `packages/*/dist/` and `_npm/`
+are gitignored, and the root `deno.jsonc` excludes them too, because
+`deno check` does not honour `.gitignore` while `deno fmt` and `deno lint` do.
 
 **`deno task npm:check`** (`scripts/npm_check.ts`) is the gate step right after
 the build. For each scoped package it:
 
 - requires an empty `lockness.jsr` (hard rule #2);
-- `npm pack`s the staged directory and refuses a listing with tests, fixtures,
-  `.env*`, `*.key`, `.npmrc` or `.tsbuildinfo`, and a packed `package.json`
-  without a `files` allowlist or with `scripts`, `devDependencies`, a `lockness`
-  key or a `jsr:` range anywhere;
+- `npm pack`s the staged directory and refuses a listing without a README and a
+  LICENSE or with tests, fixtures, `.env*`, `*.key`, `.npmrc` or `.tsbuildinfo`,
+  and a packed `package.json` without a `files` allowlist or with `scripts`,
+  `devDependencies`, a `lockness` key or a `jsr:` range anywhere;
 - installs every tarball into one temp `node_modules` and links each package's
   declared third-party dependencies from the frozen install, and nothing else.
   No registry and no npm cache are involved;
 - refuses an `@jsr/*` or `@std/*` package anywhere in the installed dependency
-  tree, and a `jsr:`, `@std/` or `@jsr/` import or a relative `.ts` specifier in
-  any packed file;
+  tree, and a `jsr:`, `@std/` or `@jsr/` import in any packed file, or a
+  relative `.ts` specifier in packed JavaScript;
 - imports every export on each of bun and node that `engines` names (for
   transform, `@lockness/transform` and `@lockness/transform/register` on Node);
 - type-checks a consumer file importing every export against the packed `.d.ts`
   (`nodenext`, `strict`, no `skipLibCheck`).
 
+Every child process `npm:check` starts gets one allowlisted environment —
+`PATH`, `HOME`, `TMPDIR`/`TEMP`/`TMP`, and `SystemRoot`/`USERPROFILE` on Windows
+— so `APP_ENV` (transform refuses production), `NODE_OPTIONS`, `NODE_PATH` and
+any secret of the calling shell never reach packed code.
+
 The gate therefore needs **Node and npm** (the version in `.node-version`), and
-Bun once a scoped package names it. A missing runtime fails `npm:check` and
-names its pin file; it is never skipped. Both CI gate jobs install Node from
-`.node-version`.
+Bun once a scoped package names it. A missing runtime, or one whose major
+differs from its pin file, fails `npm:check` and names that pin file; it is
+never skipped. Both CI gate jobs install Node from `.node-version`.
 
 ### Why lockstep, and not per-package semver
 
