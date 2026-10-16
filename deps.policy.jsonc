@@ -8,12 +8,16 @@
 //   from `deno info`, so it covers value imports, type imports, aliased
 //   specifiers (`"hono": "jsr:@lockness/hono"`) and literal dynamic imports.
 //
-// `soft`  — the exhaustive set of OPTIONAL packages loaded at runtime through
-//   `tryImportOptionalPackage('<name>', …)`. The specifier is a string
-//   ARGUMENT, so it appears in no module graph and no static tool can see it.
-//   Declaring it here is the only way it is checked at all. A soft edge is
-//   deliberately NOT declared in the package's own `deno.json`: the consuming
-//   application installs it, or the feature stays off.
+// `soft`  — the PERMISSION for a package's OPTIONAL edges: packages loaded at
+//   runtime through `tryImportOptionalPackage('<name>', …)`. The specifier is
+//   a string ARGUMENT, so it appears in no module graph and no static tool can
+//   see it. The FACT lives in the package's own `package.json`, as an optional
+//   peer (`peerDependencies` + `peerDependenciesMeta.<name>.optional`, #591);
+//   `deno task deps:analyze` fails on any optional peer this list does not
+//   permit, exactly as it holds every observed static edge against `allow`. A
+//   soft edge is deliberately NOT in the package's `dependencies` (nor its
+//   generated `deno.json`): the consuming application installs it, or the
+//   feature stays off.
 //
 // `runtimeImports` — the exhaustive inventory of sites `deno publish` names
 //   unanalysable: a non-literal `import(spec)` or `import.meta.resolve(spec)`.
@@ -264,16 +268,16 @@
                 "hono",
                 "scheduler"
             ],
-            // `soft` lists what core loads through `optional_packages.ts` —
-            // the OPTIONAL_FEATURES packages plus `redis` (the scheduler lock)
-            // — and nothing it imports statically: `events` left with #505,
-            // `deprecation-contracts` with #421 (the `database.autoConnect`
-            // notice — a soft load would drop the notice in any app that did
-            // not install the package). `scripts/core_soft_policy_test.ts`
-            // holds the two in agreement.
+            // `soft` permits what core loads through `optional_packages.ts`
+            // — the OPTIONAL_FEATURES packages plus `redis` (the scheduler
+            // lock) — and nothing it imports statically: `events` left with
+            // #505, `deprecation-contracts` with #421 (the
+            // `database.autoConnect` notice — a soft load would drop the notice
+            // in any app that did not install the package), `container` with
+            // #591 (a hard dependency). `scripts/core_soft_policy_test.ts`
+            // holds core's optional peers equal to the loader's sites.
             "soft": [
                 "cache",
-                "container",
                 "devtools",
                 "drizzle",
                 "i18n",
