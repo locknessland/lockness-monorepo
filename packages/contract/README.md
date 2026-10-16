@@ -60,10 +60,12 @@ true.
 
 ### 2. An unreadable `APP_ENV` is a production risk, and boots with a warning
 
-A process that cannot read `APP_ENV` (a `deno compile` binary, or a hardened run
-whose `--allow-env` lists variables but not `APP_ENV`) used to read it as unset,
-so it looked like development to every control (#624). The read never prompts,
-and an unreadable `APP_ENV` is now kept distinct from an unset one.
+A process that cannot read `APP_ENV` (a `deno compile` binary built without the
+env grant: custom `compile.flags` that narrow `--allow-env`, since the default
+build uses `-A`; or a hardened run whose `--allow-env` lists variables but not
+`APP_ENV`) used to read it as unset, so it looked like development to every
+control (#624). The read never prompts, and an unreadable `APP_ENV` is now kept
+distinct from an unset one.
 
 - **Newly refused:** with a cookie session and no `APP_KEY`, such a process
   refuses to boot instead of starting on a per-process key. `db:seed`,

@@ -6,8 +6,8 @@
  * `APP_ENV` as absent: they pick conveniences, and an app asking
  * `isProduction()` keeps its meaning. A framework control whose failure would
  * destroy data, start production with a per-process session key, or expose
- * captured mail cannot afford that reading — a `deno compile` binary or a
- * hardened run with a narrowed `--allow-env` would look like development to
+ * captured mail cannot afford that reading — a `deno compile` binary whose `compile.flags`
+ * narrow `--allow-env`, or a hardened run with a narrowed `--allow-env` would look like development to
  * it. Those controls ask {@link productionRisk} and fail closed on any answer
  * but `undefined`:
  *
