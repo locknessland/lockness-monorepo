@@ -3,6 +3,8 @@
  * @module @lockness/cache/types
  */
 
+import type { CacheDriverName } from '@lockness/contract/store'
+
 /**
  * Configuration options for the cache system.
  *
@@ -22,7 +24,7 @@ export interface CacheConfig {
      * - `'deno-kv'`: Persistent Deno KV storage
      * - `'redis'`: Distributed Redis cache (requires manual driver setup)
      */
-    driver: 'memory' | 'deno-kv' | 'redis'
+    driver: CacheDriverName
 
     /**
      * Default time-to-live in seconds.
