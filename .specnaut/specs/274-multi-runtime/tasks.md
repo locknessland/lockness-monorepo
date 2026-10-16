@@ -116,7 +116,7 @@ on `main`. Precedent: the realtime epic shipped as specs 240–272, one feature 
 - [x] T015 `ci`: `scripts/test_runtime.ts --runtime=deno|bun|node [--package=x]`; Bun and Node lanes
   in `.github/workflows/test.yml` selecting packages from `engines`; `.bun-version` and
   `.node-version` pins; a lane fails when a declared package ran zero tests;
-  `ci_deno_pin_test.ts` covers the new pins.
+  `ci_deno_pin_test.ts` covers the new pins; JSR-only test packages declared as `jsr:` devDependencies and mapped by `scripts/manifests.ts` (plan §5, disposition D), so the lanes resolve them from the frozen install; `@lockness/transform` keeps `engines.node`, proven by the Node lane in the same merge.
 
 ### C09 · npm build and `npm:check`
 
@@ -124,7 +124,7 @@ on `main`. Precedent: the realtime epic shipped as specs 240–272, one feature 
   `npm:build` with the sandbox flags (plan §5 "Build command and its sandbox").
 - [ ] T017 [US3] `build`: `scripts/npm_check.ts` (gate step): pack, install offline, import every
   export on Node and Bun; closure has no `@jsr/*` and no `@std/*` in runtime code; `files` allowlist;
-  no `tests/`, fixtures, `.env*`, `*.key`, `.npmrc` in the listing; no published lifecycle scripts.
+  no `tests/`, fixtures, `.env*`, `*.key`, `.npmrc` in the listing; no published lifecycle scripts; the packed `package.json` carries no `jsr:` range in any field (published manifests have no `devDependencies` and no `lockness` key).
 
 ### C10 · Runtime-neutral lint
 

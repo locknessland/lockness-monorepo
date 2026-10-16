@@ -66,11 +66,23 @@ Each member's `package.json` is its one hand-edited manifest; its `deno.json`,
 it by `deno task manifests` (`scripts/manifests.ts`) and committed — the publish
 job may not generate anything (#476). Workspace membership is the root
 `package.json` `workspaces` list. The `lockness` key carries what npm has no
-field for: JSR-only packages (`lockness.jsr`), extra import-map entries
-(`lockness.imports`), the JSR `publish` filters, the JSX `compilerOptions`,
-`tasks` and `versionModule`. A sibling only the tests import is a
-`devDependency`; runtime `dependencies` must stay acyclic, because they become
-`tsconfig.json` references.
+field for: a published package's runtime JSR-only imports (`lockness.jsr`, a
+debt list the plan's "no `@std/*` in published runtime code" row empties), extra
+import-map entries (`lockness.imports`), the JSR `publish` filters, the JSX
+`compilerOptions`, `tasks` and `versionModule`. A sibling only the tests import
+is a `devDependency`; runtime `dependencies` must stay acyclic, because they
+become `tsconfig.json` references.
+
+A JSR-only package only the tests import (`@std/assert`, `@std/testing`, …) is a
+`devDependencies` entry `"<name>": "jsr:<range>"`, and a `private` package
+declares its runtime ones the same way in `dependencies`. The generator maps
+each to a `jsr:<name>@<range>` import, so Deno stays on JSR; being in a
+`package.json` field is what makes `deno install --frozen` link it into
+`node_modules` from JSR's npm endpoint, which is how the Bun and Node lanes
+reach it. The generator refuses a `jsr:` range in a published package's
+`dependencies` (npm reads that field and cannot resolve `jsr:`), the aliased
+`jsr:@scope/name@range` form, and one name declared in two of `dependencies`,
+`devDependencies` and `lockness.jsr`.
 
 `deno task manifests --check` is a gate step. It fails when a generated file is
 stale, when `engines` is not monotonic over static, optional-peer and test

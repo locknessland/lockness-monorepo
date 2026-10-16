@@ -27,8 +27,13 @@
  * second lockfile, and no `@lockness/*` resolved from a registry
  * (`manifests --check` refuses one in `deno.lock`). The install runs only when
  * a Bun or Node lane has something to run. Workspace siblings resolve to their
- * `.ts` source through the `lockness-source` export condition. Every runner
- * writes a JUnit report, read back to count the tests that ran:
+ * `.ts` source through the `lockness-source` export condition. A JSR-only test
+ * dependency (`@std/assert`, `@std/testing`, …) reaches Bun and Node because
+ * its package declares it as a `devDependencies` entry `"<name>": "jsr:<range>"`:
+ * the same install links it, hoisted, at `node_modules/<name>` from JSR's npm
+ * endpoint (plan F13, disposition D). `lockness.jsr` would not do: it reaches
+ * Deno's import map only. Every runner writes a JUnit report, read back to
+ * count the tests that ran:
  *
  * | Runtime | Invocation (per package) |
  * | :------ | :----------------------- |

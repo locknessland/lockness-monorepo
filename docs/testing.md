@@ -41,6 +41,25 @@ describe('a suite', () => {
 `@std/testing/mock` stay as they are. Test names and step names are unchanged by
 the runner swap, so a mutation battery's `killedBy` keeps attributing.
 
+**Declaring a test dependency.** The package whose tests import a JSR package
+declares it in its own `package.json` `devDependencies`, as `jsr:` plus the
+range:
+
+```json
+{
+    "devDependencies": {
+        "@std/assert": "jsr:1",
+        "@std/testing": "jsr:^1.0.0"
+    }
+}
+```
+
+Then run `deno task manifests` and `deno install`. Deno resolves it from JSR
+through the generated `deno.json`; Bun and Node import it from the
+`node_modules` that `deno install --frozen` links from JSR's npm endpoint. Do
+not put a test-only package in `lockness.jsr`: that field reaches Deno's import
+map only, and the Bun and Node lanes fail on `ERR_MODULE_NOT_FOUND`.
+
 **A test of a Deno-only mechanism** keeps `Deno.test` and lives in a
 `*.deno.test.ts` file, beside the portable one. One known case: a row that lets
 a rejection escape on purpose to prove an `unhandledrejection` listener prevents
@@ -74,7 +93,8 @@ What a run does, all in `scripts/test_runtime.ts`:
 - For Bun and Node it first runs `deno install --frozen`: the `node_modules`
   both run from comes from `deno.lock` alone, with every `@lockness/*` resolved
   to its workspace source (the `lockness-source` export condition), never from a
-  registry. The install is skipped when there is nothing to run.
+  registry, and every `jsr:` test dependency linked from JSR's npm endpoint. The
+  install is skipped when there is nothing to run.
 - It reads each runner's JUnit report and counts the tests that ran.
 
 A lane **fails** when a runner exits non-zero, or when a package that declares
