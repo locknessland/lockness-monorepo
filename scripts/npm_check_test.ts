@@ -154,7 +154,7 @@ test('listingFaults - tests, fixtures, secrets and build state are refused', () 
     assertEquals(faults.length, forbidden.length, JSON.stringify(faults))
 })
 
-test('sourceFaults - JSR-only imports and leftover .ts specifiers are refused', () => {
+test('sourceFaults - JSR-only imports anywhere, .ts specifiers in JavaScript only', () => {
     assertEquals(
         sourceFaults(
             '@lockness/a',
@@ -184,9 +184,26 @@ test('sourceFaults - JSR-only imports and leftover .ts specifiers are refused', 
             '@lockness/a: dist/mod.d.ts imports the JSR-only @std/path',
             '@lockness/a: dist/mod.d.ts imports the JSR-only jsr:@std/fs@1',
             '@lockness/a: dist/mod.d.ts imports the JSR-only @jsr/std__path',
-            '@lockness/a: dist/mod.d.ts carries the .ts specifier ./a.ts; npm consumers need .js',
         ],
     )
+    // tsc keeps .ts specifiers in declarations by design; they resolve to the
+    // .d.ts beside them. The same specifier in emitted JavaScript breaks.
+    assertEquals(
+        sourceFaults(
+            '@lockness/a',
+            'dist/mod.d.ts',
+            "export { a } from './a.ts'",
+        ),
+        [],
+    )
+    for (const path of ['dist/mod.js', 'dist/mod.mjs', 'dist/mod.cjs']) {
+        assertEquals(
+            sourceFaults('@lockness/a', path, "export { a } from './a.ts'"),
+            [
+                `@lockness/a: ${path} carries the .ts specifier ./a.ts; npm consumers need .js`,
+            ],
+        )
+    }
 })
 
 test('importProbe and consumerSource - every export, in order', () => {

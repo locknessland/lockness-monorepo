@@ -10,15 +10,8 @@
  * now and in `scripts/npm_publish.ts` in P5. Nothing packs the source
  * directory, and no prepack script exists.
  *
- * Two things are adjusted while copying, both about tsc's output and nothing
- * else:
- *
- * - `*.tsbuildinfo` is tsc's incremental state, not emit: it is not staged.
- * - tsc rewrites relative `.ts` specifiers to `.js` in JavaScript
- *   (`rewriteRelativeImportExtensions`) but leaves them as written in `.d.ts`
- *   output (measured on TypeScript 6.0.3). A staged `.d.ts` gets the same
- *   rewrite, so declarations carry `.js` specifiers as the plan's compiler
- *   options row requires, and resolve for any TypeScript consumer.
+ * tsc's output is copied unchanged: no file's content is rewritten. Only
+ * `*.tsbuildinfo`, tsc's incremental state rather than emit, is left out.
  *
  * The staging root is cleared first, so a package that left the scope leaves
  * no stale directory behind. Run it through `deno task npm:build`, after the
@@ -34,15 +27,7 @@
  * @module
  */
 
-import {
-    copyFile,
-    mkdir,
-    readdir,
-    readFile,
-    rm,
-    stat,
-    writeFile,
-} from 'node:fs/promises'
+import { copyFile, mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
@@ -55,46 +40,9 @@ import {
     stagingDirOf,
 } from './manifests.ts'
 
-/** A relative specifier ending in a TypeScript source extension, quoted. */
-const RELATIVE_TS_SPECIFIER =
-    /((?:\bfrom|\bimport)\s*\(?\s*)(['"])(\.{1,2}\/[^'"]*?)\.(ts|tsx|mts|cts)\2/g
-
-/** The JavaScript extension each TypeScript source extension emits. */
-const EMITTED: Record<string, string> = {
-    ts: 'js',
-    tsx: 'js',
-    mts: 'mjs',
-    cts: 'cjs',
-}
-
 /**
- * Rewrite a declaration file's relative `.ts` specifiers to the `.js` files
- * tsc emitted beside it. Bare and `node:` specifiers, and `.d.ts` targets,
- * are left alone.
- *
- * @param text - A `.d.ts` file emitted by tsc.
- * @returns The text with every relative `.ts`/`.tsx`/`.mts`/`.cts` specifier
- *   of an `import`, `export … from` or `import()` rewritten.
- *
- * @example
- * ```ts
- * rewriteDeclarationSpecifiers("export { a } from './a.ts';")
- * // "export { a } from './a.js';"
- * ```
- */
-export function rewriteDeclarationSpecifiers(text: string): string {
-    return text.replace(
-        RELATIVE_TS_SPECIFIER,
-        (match, lead: string, quote: string, base: string, ext: string) =>
-            base.endsWith('.d')
-                ? match
-                : `${lead}${quote}${base}.${EMITTED[ext]}${quote}`,
-    )
-}
-
-/**
- * Copy a file or a directory tree into the staging directory, applying the
- * two adjustments named in the module doc.
+ * Copy a file or a directory tree into the staging directory, as it is,
+ * leaving out tsc's `*.tsbuildinfo`.
  *
  * @param from - The source path.
  * @param to - The destination path.
@@ -113,12 +61,7 @@ async function copyEntry(from: string, to: string): Promise<number> {
     }
     if (from.endsWith('.tsbuildinfo')) return 0
     await mkdir(dirname(to), { recursive: true })
-    if (from.endsWith('.d.ts')) {
-        const text = await readFile(from, 'utf8')
-        await writeFile(to, rewriteDeclarationSpecifiers(text))
-    } else {
-        await copyFile(from, to)
-    }
+    await copyFile(from, to)
     return 1
 }
 

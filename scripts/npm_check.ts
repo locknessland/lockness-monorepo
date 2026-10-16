@@ -25,7 +25,7 @@
  *    the scope is a fault.
  * 5. **Closure.** No `@jsr/*` or `@std/*` package and no `jsr:` range anywhere
  *    in the installed dependency tree; no `jsr:`, `@std/` or `@jsr/` import in
- *    a packed file; no relative `.ts` specifier left in packed JS or `.d.ts`.
+ *    a packed file; no relative `.ts` specifier left in packed JavaScript.
  * 6. **Import.** Every export is imported on each of bun and node the package's
  *    `engines` names. For `@lockness/transform` that includes
  *    `@lockness/transform/register` on Node (#619's built-register criterion).
@@ -315,7 +315,9 @@ export function listingFaults(
  * @param label - The package, for messages.
  * @param path - The file, relative to the package root.
  * @param text - Its content.
- * @returns One message per JSR-only import and per relative `.ts` specifier.
+ * @returns One message per JSR-only import, and, in JavaScript only, per
+ *   relative `.ts` specifier. A `.d.ts` keeps tsc's `.ts` specifiers by
+ *   design: TypeScript resolves them to the `.d.ts` beside it.
  *
  * @example
  * ```ts
@@ -332,6 +334,7 @@ export function sourceFaults(
     for (const [, specifier] of text.matchAll(JSR_SPECIFIER)) {
         faults.push(`${label}: ${path} imports the JSR-only ${specifier}`)
     }
+    if (!/\.[cm]?js$/.test(path)) return faults
     for (const [, specifier] of text.matchAll(RELATIVE_TS_SPECIFIER)) {
         if (specifier.endsWith('.d.ts')) continue
         faults.push(

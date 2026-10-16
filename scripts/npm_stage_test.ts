@@ -8,38 +8,7 @@
 import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import { join } from '@std/path'
-import { rewriteDeclarationSpecifiers, stageAll } from './npm_stage.ts'
-
-test('rewriteDeclarationSpecifiers - relative .ts specifiers become .js', () => {
-    const input = [
-        "export { a, type B } from './a.ts';",
-        "import type { C } from '../c.tsx';",
-        'export * from "./d.mts";',
-        "type E = import('./e.ts').E;",
-        "import './side.ts';",
-    ].join('\n')
-    assertEquals(
-        rewriteDeclarationSpecifiers(input),
-        [
-            "export { a, type B } from './a.js';",
-            "import type { C } from '../c.js';",
-            'export * from "./d.mjs";',
-            "type E = import('./e.js').E;",
-            "import './side.js';",
-        ].join('\n'),
-    )
-})
-
-test('rewriteDeclarationSpecifiers - bare, node: and .d.ts specifiers are left alone', () => {
-    const input = [
-        "import type { CompilerOptions } from 'typescript';",
-        "import type { LoadHookSync } from 'node:module';",
-        "export type { X } from './types.d.ts';",
-        "export { y } from './y.js';",
-        "/** e.g. import { z } from '@lockness/transform' */",
-    ].join('\n')
-    assertEquals(rewriteDeclarationSpecifiers(input), input)
-})
+import { stageAll } from './npm_stage.ts'
 
 /**
  * A workspace with one scoped package already "built" into dist/.
@@ -111,9 +80,10 @@ test('stageAll - the published manifest and the files entries, nothing else', as
         assertEquals(manifest.exports, { '.': { default: './dist/mod.js' } })
         assert(!('devDependencies' in manifest))
         assert(!('lockness' in manifest))
+        // tsc's declarations ship as emitted, .ts specifiers included.
         assertEquals(
             await Deno.readTextFile(join(root, '_npm/t/dist/mod.d.ts')),
-            "export { a } from './a.js';\n",
+            "export { a } from './a.ts';\n",
         )
         const dist: string[] = []
         for await (const entry of Deno.readDir(join(root, '_npm/t/dist'))) {
