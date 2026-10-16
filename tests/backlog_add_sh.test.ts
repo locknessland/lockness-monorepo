@@ -12,6 +12,7 @@
  * @module tests/backlog_add_sh
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 
 const SCRIPT = new URL(
@@ -113,7 +114,7 @@ async function runAdd(
     }
 }
 
-Deno.test("#289: a collision with the board's auto-add still places the item", async () => {
+test("#289: a collision with the board's auto-add still places the item", async () => {
     const { code, stdout, log } = await runAdd('collide')
 
     // The collision is SUCCESS. Before the fix `set -e` killed the script on
@@ -142,7 +143,7 @@ Deno.test("#289: a collision with the board's auto-add still places the item", a
     )
 })
 
-Deno.test('#289: the ordinary attach path is unchanged', async () => {
+test('#289: the ordinary attach path is unchanged', async () => {
     const { code, stdout, log } = await runAdd('ok')
     assertEquals(code, 0)
     assertStringIncludes(stdout, '✓ attached to Project #2')
@@ -167,7 +168,7 @@ Deno.test('#289: the ordinary attach path is unchanged', async () => {
     assert(edit && edit.includes('PVTI_fresh_item'), `wrong id edited: ${edit}`)
 })
 
-Deno.test('#289: any OTHER attach failure warns with the URL and never aborts', async () => {
+test('#289: any OTHER attach failure warns with the URL and never aborts', async () => {
     const { code, stderr, log } = await runAdd('other-error')
     // Upstream contract since Specnaut 4.4.0 (#603, re-synced by #311): once
     // the issue exists, NOTHING may abort the script. A non-zero exit would

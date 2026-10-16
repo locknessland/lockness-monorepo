@@ -10,6 +10,7 @@
  * @module
  */
 
+import { test } from 'node:test'
 import {
     assert,
     assertEquals,
@@ -121,7 +122,7 @@ function fixture(): Promise<{ root: string; main: string; worktree: string }> {
     })
 }
 
-Deno.test('withTempDir removes its directory when setup throws', async () => {
+test('withTempDir removes its directory when setup throws', async () => {
     let dir = ''
     await assertRejects(
         () =>
@@ -137,7 +138,7 @@ Deno.test('withTempDir removes its directory when setup throws', async () => {
     assertEquals(stillThere, false, 'a failed setup left its temp dir behind')
 })
 
-Deno.test('withTempDir keeps its directory on success', async () => {
+test('withTempDir keeps its directory on success', async () => {
     let dir = ''
     const result = await withTempDir('install-hooks-ok-', (d) => {
         dir = d
@@ -151,7 +152,7 @@ Deno.test('withTempDir keeps its directory on success', async () => {
     }
 })
 
-Deno.test('the main checkout and a linked worktree share one hooks dir', async () => {
+test('the main checkout and a linked worktree share one hooks dir', async () => {
     const { root, main, worktree } = await fixture()
     try {
         const expected = join(main, '.git', 'hooks')
@@ -170,7 +171,7 @@ Deno.test('the main checkout and a linked worktree share one hooks dir', async (
     }
 })
 
-Deno.test('outside a repository the resolver throws', async () => {
+test('outside a repository the resolver throws', async () => {
     const dir = await Deno.makeTempDir({ prefix: 'install-hooks-norepo-' })
     try {
         let threw = false
@@ -189,7 +190,7 @@ Deno.test('outside a repository the resolver throws', async () => {
     }
 })
 
-Deno.test('installing from the main checkout writes the shared hooks', async () => {
+test('installing from the main checkout writes the shared hooks', async () => {
     // #397: every other install test drives the installer from a linked
     // worktree; none ran it from the main checkout itself.
     const { root, main } = await fixture()
@@ -220,7 +221,7 @@ Deno.test('installing from the main checkout writes the shared hooks', async () 
     }
 })
 
-Deno.test('installing from a worktree writes the shared hooks, and an inherited GIT_DIR cannot redirect it', async () => {
+test('installing from a worktree writes the shared hooks, and an inherited GIT_DIR cannot redirect it', async () => {
     const { root, main, worktree } = await fixture()
     // A decoy repository. If the installer honoured an inherited GIT_DIR, the
     // hooks would land here instead of in the fixture's common dir.
@@ -263,7 +264,7 @@ Deno.test('installing from a worktree writes the shared hooks, and an inherited 
     }
 })
 
-Deno.test('a set core.hooksPath is refused: the hooks would never run', async () => {
+test('a set core.hooksPath is refused: the hooks would never run', async () => {
     const { root, main } = await fixture()
     try {
         await git(main, 'config', 'core.hooksPath', '.githooks')
@@ -279,7 +280,7 @@ Deno.test('a set core.hooksPath is refused: the hooks would never run', async ()
     }
 })
 
-Deno.test('a foreign hook is refused and nothing is written', async () => {
+test('a foreign hook is refused and nothing is written', async () => {
     const { root, main } = await fixture()
     try {
         const dir = join(main, '.git', 'hooks')
@@ -327,7 +328,7 @@ function legacyHook(era: string, name: string): Promise<string> {
 }
 
 for (const { era, name } of LEGACY_FIXTURES) {
-    Deno.test(`the ${era} ${name} this installer wrote is recognised and replaced`, async () => {
+    test(`the ${era} ${name} this installer wrote is recognised and replaced`, async () => {
         const { root, main } = await fixture()
         try {
             const dir = join(main, '.git', 'hooks')
@@ -347,7 +348,7 @@ for (const { era, name } of LEGACY_FIXTURES) {
     })
 }
 
-Deno.test('the current hooks are marked, and a foreign one is not recognised', () => {
+test('the current hooks are marked, and a foreign one is not recognised', () => {
     for (const content of Object.values(hooks)) {
         assert(content.includes(HOOK_MARKER))
         assert(isLocknessHook(content))
@@ -385,21 +386,19 @@ async function assertRefusesUnreadable(
     }
 }
 
-Deno.test({
-    name: 'a writable but unreadable hook is refused, not overwritten',
+test('a writable but unreadable hook is refused, not overwritten', {
     // root reads a mode-000 file anyway, so the case cannot be staged there.
-    ignore: Deno.uid() === 0,
-    fn: async () => {
-        let content = ''
-        await assertRefusesUnreadable(async (hookPath) => {
-            content = '#!/bin/sh\necho "a hook nobody can read"\n'
-            await Deno.writeTextFile(hookPath, content)
-            await Deno.chmod(hookPath, 0o200) // write-only
-        })
-        assert(content !== '')
-    },
+    skip: Deno.uid() === 0,
+}, async () => {
+    let content = ''
+    await assertRefusesUnreadable(async (hookPath) => {
+        content = '#!/bin/sh\necho "a hook nobody can read"\n'
+        await Deno.writeTextFile(hookPath, content)
+        await Deno.chmod(hookPath, 0o200) // write-only
+    })
+    assert(content !== '')
 })
 
-Deno.test('a directory where a hook should be is refused', async () => {
+test('a directory where a hook should be is refused', async () => {
     await assertRefusesUnreadable((hookPath) => Deno.mkdir(hookPath))
 })

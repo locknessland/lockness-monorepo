@@ -10,6 +10,7 @@
  * @module @lockness/cli/tests/stub_scaffold_remote
  */
 
+import { test } from 'node:test'
 import {
     assertEquals,
     assertInstanceOf,
@@ -40,7 +41,7 @@ function serveStubs(
     }
 }
 
-Deno.test('Stub.scaffoldFrom (remote) - writes every file and resolves when all fetch', async () => {
+test('Stub.scaffoldFrom (remote) - writes every file and resolves when all fetch', async () => {
     const server = serveStubs({ 'a.ts.stub': 'name={{ projectName }}' })
     const target = await Deno.makeTempDir()
     try {
@@ -57,7 +58,7 @@ Deno.test('Stub.scaffoldFrom (remote) - writes every file and resolves when all 
     }
 })
 
-Deno.test('Stub.scaffoldFrom (remote) - finishes the other files, then rejects naming the ones it could not fetch', async () => {
+test('Stub.scaffoldFrom (remote) - finishes the other files, then rejects naming the ones it could not fetch', async () => {
     const server = serveStubs({
         'a.ts.stub': 'a',
         'c.ts.stub': 'c',

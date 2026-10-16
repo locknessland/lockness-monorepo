@@ -20,6 +20,7 @@
  * @module @lockness/drizzle/tests/fresh_libsql
  */
 
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { join } from '@std/path'
 import { defaultDriverFactories } from '../drivers.ts'
@@ -88,7 +89,7 @@ async function fingerprint(dir: string): Promise<string> {
     return parts.sort().join('|')
 }
 
-Deno.test('#435 db:fresh on a real libsql :memory: database', async () => {
+test('#435 db:fresh on a real libsql :memory: database', async () => {
     const folder = await Deno.makeTempDir()
     const handle = await defaultDriverFactories.sqlite(':memory:')
     const { log } = console

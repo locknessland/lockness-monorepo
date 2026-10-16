@@ -11,6 +11,7 @@
  * @module @lockness/session/tests/user_revocation
  */
 
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
 import { Hono } from 'hono'
@@ -67,7 +68,7 @@ async function contextWith(cookieHeader?: string): Promise<Context> {
     return captured
 }
 
-Deno.test('user revocation - a session issued before the subject epoch is refused (SC-001)', async () => {
+test('user revocation - a session issued before the subject epoch is refused (SC-001)', async () => {
     using time = new FakeTime(1_000_000_000_000)
     const store = memoryStore()
 
@@ -91,7 +92,7 @@ Deno.test('user revocation - a session issued before the subject epoch is refuse
     )
 })
 
-Deno.test('user revocation - iat == epoch survives (strict <, SC-003 boundary)', async () => {
+test('user revocation - iat == epoch survives (strict <, SC-003 boundary)', async () => {
     using _time = new FakeTime(1_000_000_000_000)
     const store = memoryStore()
 
@@ -113,7 +114,7 @@ Deno.test('user revocation - iat == epoch survives (strict <, SC-003 boundary)',
     )
 })
 
-Deno.test('user revocation - a subject-less cookie is unaffected (SC-005)', async () => {
+test('user revocation - a subject-less cookie is unaffected (SC-005)', async () => {
     using time = new FakeTime(1_000_000_000_000)
     const store = memoryStore()
 
@@ -138,7 +139,7 @@ Deno.test('user revocation - a subject-less cookie is unaffected (SC-005)', asyn
     )
 })
 
-Deno.test('user revocation - a store read error fails CLOSED (SC-004)', async () => {
+test('user revocation - a store read error fails CLOSED (SC-004)', async () => {
     const throwingStore: RevocationStore = {
         isRevoked: () => Promise.resolve(false),
         revoke: () => Promise.resolve(),

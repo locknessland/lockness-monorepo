@@ -6,6 +6,7 @@
  * surfaces as a 500 with no stack trace in the body (FR-006/S6).
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { App, CacheServiceToken, container } from '@lockness/core'
 import { cache } from '@lockness/cache'
@@ -44,7 +45,7 @@ async function bootApp() {
     return app
 }
 
-Deno.test('GET /blog/:slug - published slug returns 200 + rendered body', async () => {
+test('GET /blog/:slug - published slug returns 200 + rendered body', async () => {
     useFakeGet((slug) =>
         Promise.resolve(slug === published.slug ? published : null)
     )
@@ -60,7 +61,7 @@ Deno.test('GET /blog/:slug - published slug returns 200 + rendered body', async 
     assert(html.includes('first'), 'the rendered markdown body must appear')
 })
 
-Deno.test('GET /blog/:slug - unknown slug returns 404', async () => {
+test('GET /blog/:slug - unknown slug returns 404', async () => {
     useFakeGet(() => Promise.resolve(null))
     const app = await bootApp()
 
@@ -68,7 +69,7 @@ Deno.test('GET /blog/:slug - unknown slug returns 404', async () => {
     assertEquals(res.status, 404)
 })
 
-Deno.test('GET /blog/:slug - a draft in prod is 404, identical to missing (Q9)', async () => {
+test('GET /blog/:slug - a draft in prod is 404, identical to missing (Q9)', async () => {
     // The prod service path (findPublishedBySlug) yields null for a draft, so
     // the controller sees exactly what it sees for a missing post.
     useFakeGet(() => Promise.resolve(null))
@@ -83,7 +84,7 @@ Deno.test('GET /blog/:slug - a draft in prod is 404, identical to missing (Q9)',
     assertEquals(draftInProd.status, 404)
 })
 
-Deno.test('GET /blog/:slug - persistence error is a 500 with no stack trace (FR-006/S6)', async () => {
+test('GET /blog/:slug - persistence error is a 500 with no stack trace (FR-006/S6)', async () => {
     const secret = 'connection refused at 10.0.0.5 SECRET_STACK'
     useFakeGet(() => Promise.reject(new Error(secret)))
     const app = await bootApp()

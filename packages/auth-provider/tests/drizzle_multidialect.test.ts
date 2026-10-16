@@ -20,6 +20,7 @@
  * @module @lockness/auth-provider/tests/drizzle_multidialect
  */
 
+import { test } from 'node:test'
 import { assert, assertThrows } from '@std/assert'
 import type { Authenticatable } from '@lockness/auth'
 import * as pg from 'drizzle-orm/pg-core'
@@ -123,7 +124,7 @@ function sessionProviderFor<D extends DrizzleDialect>(
     })
 }
 
-Deno.test('drizzle providers accept a mysql handle (#259)', () => {
+test('drizzle providers accept a mysql handle (#259)', () => {
     const mysqlDb = {} as DrizzleDatabase<'mysql'>
 
     const session = sessionProviderFor<'mysql'>(mysqlDb)
@@ -148,7 +149,7 @@ Deno.test('drizzle providers accept a mysql handle (#259)', () => {
     assert(basic instanceof DrizzleBasicAuthProvider)
 })
 
-Deno.test('drizzle providers accept a sqlite handle (#259)', () => {
+test('drizzle providers accept a sqlite handle (#259)', () => {
     const sqliteDb = {} as DrizzleDatabase<'sqlite'>
 
     const session = sessionProviderFor<'sqlite'>(sqliteDb)
@@ -173,7 +174,7 @@ Deno.test('drizzle providers accept a sqlite handle (#259)', () => {
     assert(basic instanceof DrizzleBasicAuthProvider)
 })
 
-Deno.test('the default (unparameterised) instantiation stays Postgres — no breaking change (#259)', () => {
+test('the default (unparameterised) instantiation stays Postgres — no breaking change (#259)', () => {
     // The historical one-type-argument form must keep compiling and default to
     // the Postgres handle, so existing PG consumers are untouched.
     const pgDb = {} as DrizzleDatabase
@@ -197,7 +198,7 @@ Deno.test('the default (unparameterised) instantiation stays Postgres — no bre
     assert(_assertDefaultIsPg === pgDb)
 })
 
-Deno.test('a remember table built with pgTable, mysqlTable or sqliteTable is accepted (#457)', () => {
+test('a remember table built with pgTable, mysqlTable or sqliteTable is accepted (#457)', () => {
     const lookups = {
         findUserById: () => Promise.resolve(null),
         findUserByCredentials: () => Promise.resolve(null),
@@ -222,7 +223,7 @@ Deno.test('a remember table built with pgTable, mysqlTable or sqliteTable is acc
     assert(sqliteProvider instanceof DrizzleSessionProvider)
 })
 
-Deno.test('a remember table name, an incomplete table or enableRememberTokens is refused (#457)', () => {
+test('a remember table name, an incomplete table or enableRememberTokens is refused (#457)', () => {
     const construct = (extra: Record<string, unknown>) =>
         new DrizzleSessionProvider<DemoUser>({
             db: () => ({}) as DrizzleDatabase,
@@ -262,7 +263,7 @@ Deno.test('a remember table name, an incomplete table or enableRememberTokens is
     }
 })
 
-Deno.test('the drizzle entry exports no table assertion — the provider runs it (#460)', async () => {
+test('the drizzle entry exports no table assertion — the provider runs it (#460)', async () => {
     const entry: Record<string, unknown> = await import('../drizzle/mod.ts')
     assert(!('assertAccessTokensTable' in entry))
     assert(!('assertRememberTokensTable' in entry))

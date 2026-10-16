@@ -14,6 +14,7 @@
  * @module @lockness/notification/tests/cli_commands
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import { Cli as RealCli } from '@lockness/cli'
 import {
@@ -23,7 +24,7 @@ import {
     registerNotificationCommands,
 } from '../cli_commands.ts'
 
-Deno.test('notificationNaming derives PascalCase class + snake file name', () => {
+test('notificationNaming derives PascalCase class + snake file name', () => {
     assertEquals(notificationNaming('invoicePaid'), {
         className: 'InvoicePaid',
         fileName: 'invoice_paid',
@@ -34,7 +35,7 @@ Deno.test('notificationNaming derives PascalCase class + snake file name', () =>
     })
 })
 
-Deno.test('SC-003: make:notification scaffolds the class file', async () => {
+test('SC-003: make:notification scaffolds the class file', async () => {
     const dir = await Deno.makeTempDir()
     const prevCwd = Deno.cwd()
     Deno.chdir(dir)
@@ -55,7 +56,7 @@ Deno.test('SC-003: make:notification scaffolds the class file', async () => {
     }
 })
 
-Deno.test('registerNotificationCommands registers make:notification', () => {
+test('registerNotificationCommands registers make:notification', () => {
     const registered: string[] = []
     const cli: Cli = {
         register: (name) => {
@@ -91,7 +92,7 @@ function assertCommandFailure(error: Error, fragment: string): void {
     )
 }
 
-Deno.test('make:notification with no name throws a failure with exitCode 1 and prints nothing', async () => {
+test('make:notification with no name throws a failure with exitCode 1 and prints nothing', async () => {
     const { result: error, errors } = await captureErrors(() =>
         assertRejects(() => handleMakeNotification([]), Error)
     )
@@ -99,7 +100,7 @@ Deno.test('make:notification with no name throws a failure with exitCode 1 and p
     assertEquals(errors.length, 0, 'the dispatcher is the only printer')
 })
 
-Deno.test('make:notification with a traversal name throws and writes nothing', async () => {
+test('make:notification with a traversal name throws and writes nothing', async () => {
     const dir = await Deno.makeTempDir()
     const prevCwd = Deno.cwd()
     Deno.chdir(dir)
@@ -117,7 +118,7 @@ Deno.test('make:notification with a traversal name throws and writes nothing', a
     }
 })
 
-Deno.test('make:notification through the real Cli.dispatch exits 1 with exactly one ❌ line', async () => {
+test('make:notification through the real Cli.dispatch exits 1 with exactly one ❌ line', async () => {
     const cli = new RealCli()
     registerNotificationCommands(cli)
     const { result: status, errors } = await captureErrors(() =>

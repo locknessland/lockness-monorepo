@@ -13,6 +13,7 @@
  *    writes interpolates the argument.
  */
 
+import { test } from 'node:test'
 import { assertEquals, assertThrows } from '@std/assert'
 import {
     assertUsableSecret,
@@ -24,7 +25,7 @@ import {
 
 const GOOD = generateAppKey()
 
-Deno.test('secret - a generated key passes its own validator', () => {
+test('secret - a generated key passes its own validator', () => {
     // The round-trip that keeps the generator and the validator from drifting.
     // They live in one file precisely so this can be asserted.
     const bytes = assertUsableSecret(generateAppKey(), 'config')
@@ -32,13 +33,13 @@ Deno.test('secret - a generated key passes its own validator', () => {
     assertEquals(bytes.byteLength, 32)
 })
 
-Deno.test('secret - two generated keys differ', () => {
+test('secret - two generated keys differ', () => {
     const seen = new Set(Array.from({ length: 16 }, () => generateAppKey()))
 
     assertEquals(seen.size, 16)
 })
 
-Deno.test('secret - exactly 32 decoded bytes, not 31 and not 33', () => {
+test('secret - exactly 32 decoded bytes, not 31 and not 33', () => {
     // Distinct bytes, not a zero-filled buffer: an all-zero 32-byte value is
     // now refused as degenerate, and this test is about LENGTH. Building it from
     // zeros made it fail for the wrong reason the moment that check landed.
@@ -61,7 +62,7 @@ Deno.test('secret - exactly 32 decoded bytes, not 31 and not 33', () => {
     )
 })
 
-Deno.test('secret - the prefix is required', () => {
+test('secret - the prefix is required', () => {
     // A bare base64 string of the right length is refused. The prefix is what
     // makes the shape declared rather than inferred.
     const bare = GOOD.slice('base64:'.length)
@@ -69,7 +70,7 @@ Deno.test('secret - the prefix is required', () => {
     assertThrows(() => assertUsableSecret(bare, 'config'), SessionSecretError)
 })
 
-Deno.test('secret - an absent secret is refused, not defaulted', () => {
+test('secret - an absent secret is refused, not defaulted', () => {
     assertThrows(
         () => assertUsableSecret(undefined, 'app-key'),
         SessionSecretError,
@@ -77,14 +78,14 @@ Deno.test('secret - an absent secret is refused, not defaulted', () => {
     assertThrows(() => assertUsableSecret('', 'app-key'), SessionSecretError)
 })
 
-Deno.test('secret - non-base64 after the prefix is refused', () => {
+test('secret - non-base64 after the prefix is refused', () => {
     assertThrows(
         () => assertUsableSecret('base64:not valid base64 !!', 'config'),
         SessionSecretError,
     )
 })
 
-Deno.test('secret - every historically shipped placeholder is refused', () => {
+test('secret - every historically shipped placeholder is refused', () => {
     // These are the strings this repository actually shipped. Three of them are
     // longer than 16 characters and would have passed the first draft's floor —
     // one is the session package's own documented example.
@@ -100,7 +101,7 @@ Deno.test('secret - every historically shipped placeholder is refused', () => {
     assertEquals(survivors, [], 'these placeholders were accepted as keys')
 })
 
-Deno.test('secret - the reject list still names the placeholders that shipped', () => {
+test('secret - the reject list still names the placeholders that shipped', () => {
     // REJECTED is a reporting aid once the shape check exists — but it is also
     // what the tree-wide grep test enumerates, so an entry going missing
     // silently un-guards a file.
@@ -121,7 +122,7 @@ Deno.test('secret - the reject list still names the placeholders that shipped', 
     }
 })
 
-Deno.test('secret - no rejection message carries the value', () => {
+test('secret - no rejection message carries the value', () => {
     // FR-018. Asserted per branch rather than against one fixed message: a test
     // pinning the exact string passes forever and says nothing about the next
     // branch somebody adds.
@@ -146,7 +147,7 @@ Deno.test('secret - no rejection message carries the value', () => {
     }
 })
 
-Deno.test('secret - the message does not vary with the secret, only with the reason', () => {
+test('secret - the message does not vary with the secret, only with the reason', () => {
     // The length check that actually holds. A message containing the secret's
     // length would differ between two inputs of the same rejection class and
     // different lengths; the required key size is a constant and legitimately
@@ -184,7 +185,7 @@ Deno.test('secret - the message does not vary with the secret, only with the rea
     }
 })
 
-Deno.test('secret - the error names the reason and the source, so the operator can act', () => {
+test('secret - the error names the reason and the source, so the operator can act', () => {
     const error = assertThrows(
         () => assertUsableSecret(undefined, 'app-key'),
         SessionSecretError,
@@ -195,7 +196,7 @@ Deno.test('secret - the error names the reason and the source, so the operator c
     assertEquals(error.message.includes('APP_KEY'), true)
 })
 
-Deno.test('secret - a degenerate key is refused', () => {
+test('secret - a degenerate key is refused', () => {
     // 32 bytes of one repeated value is shape-valid and worthless. The parse
     // establishes shape, never entropy — this catches only the specific mistake
     // of padding a value out to satisfy the length check.
@@ -215,7 +216,7 @@ Deno.test('secret - a degenerate key is refused', () => {
     }
 })
 
-Deno.test('secret - the parse does NOT claim to establish entropy', () => {
+test('secret - the parse does NOT claim to establish entropy', () => {
     // Stated as a test so nobody later reads the shape check as a strength
     // check. A base64-encoded passphrase is 32 bytes and passes; that is the
     // documented limit of what a parse can do, and generateAppKey is the answer.

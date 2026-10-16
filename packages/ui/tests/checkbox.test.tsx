@@ -1,3 +1,4 @@
+import { test } from 'node:test'
 import { assertStringIncludes } from '@std/assert'
 import { Checkbox } from '../components/Checkbox/mod.tsx'
 
@@ -9,36 +10,36 @@ function renderToString(component: unknown): string {
     return result.toString()
 }
 
-Deno.test('Checkbox component', async (t) => {
-    await t.step('renders with default props', () => {
+test('Checkbox component', async (t) => {
+    await t.test('renders with default props', () => {
         const html = renderToString(<Checkbox />)
         assertStringIncludes(html, 'type="checkbox"')
         assertStringIncludes(html, 'h-(--checkbox-size)')
         assertStringIncludes(html, 'w-(--checkbox-size)')
     })
 
-    await t.step('renders with checked state', () => {
+    await t.test('renders with checked state', () => {
         const html = renderToString(<Checkbox checked />)
         assertStringIncludes(html, 'checked')
     })
 
-    await t.step('handles disabled state', () => {
+    await t.test('handles disabled state', () => {
         const html = renderToString(<Checkbox disabled />)
         assertStringIncludes(html, 'disabled')
     })
 
-    await t.step('forwards custom class names', () => {
+    await t.test('forwards custom class names', () => {
         const html = renderToString(<Checkbox class='custom-class' />)
         assertStringIncludes(html, 'custom-class')
     })
 
-    await t.step('uses CSS variables', () => {
+    await t.test('uses CSS variables', () => {
         const html = renderToString(<Checkbox />)
         assertStringIncludes(html, '(--checkbox-accent-color)')
         assertStringIncludes(html, '(--ring)')
     })
 
-    await t.step('forwards HTML attributes', () => {
+    await t.test('forwards HTML attributes', () => {
         const html = renderToString(
             <Checkbox id='terms' name='terms' value='accepted' />,
         )

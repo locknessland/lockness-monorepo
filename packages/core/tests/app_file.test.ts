@@ -11,6 +11,7 @@
  * `lockness/app-file-specifier` lint rule (`scripts/lint/`).
  */
 
+import { test } from 'node:test'
 import {
     assert,
     assertEquals,
@@ -85,7 +86,7 @@ async function quietly<T>(body: () => Promise<T>): Promise<T> {
 // Every site that imports an app file, from a path with '#' and a space
 // ============================================================================
 
-Deno.test("ErrorHandlerRegistry - loads a custom handler under a path with '#' and a space", async () => {
+test("ErrorHandlerRegistry - loads a custom handler under a path with '#' and a space", async () => {
     await withAwkwardDir({
         'error_handler.tsx':
             'export const errorHandler = () => new Response("custom")\n',
@@ -97,7 +98,7 @@ Deno.test("ErrorHandlerRegistry - loads a custom handler under a path with '#' a
     })
 })
 
-Deno.test('ErrorHandlerRegistry - loads a custom handler given an absolute path', async () => {
+test('ErrorHandlerRegistry - loads a custom handler given an absolute path', async () => {
     await withAwkwardDir({
         'error_handler.tsx':
             'export const errorHandler = () => new Response("custom")\n',
@@ -109,7 +110,7 @@ Deno.test('ErrorHandlerRegistry - loads a custom handler given an absolute path'
     })
 })
 
-Deno.test("discoverMiddlewares - registers a middleware under a path with '#' and a space", async () => {
+test("discoverMiddlewares - registers a middleware under a path with '#' and a space", async () => {
     const name = `awkward-${crypto.randomUUID().slice(0, 8)}`
     const decorators = import.meta.resolve('../routing/decorators.ts')
     await withAwkwardDir({
@@ -129,7 +130,7 @@ export class AwkwardMiddleware {
     })
 })
 
-Deno.test("ControllerDiscovery - imports a controller under a path with '#' and a space", async () => {
+test("ControllerDiscovery - imports a controller under a path with '#' and a space", async () => {
     const key = `__lockness_474_controller_${crypto.randomUUID()}`
     await withAwkwardDir({
         'awkward_controller.ts': `${
@@ -163,7 +164,7 @@ async function captured(body: () => Promise<unknown>): Promise<string> {
     return lines.join('\n')
 }
 
-Deno.test('ControllerDiscovery - names a broken controller file by the path the app gave, never the absolute one', async () => {
+test('ControllerDiscovery - names a broken controller file by the path the app gave, never the absolute one', async () => {
     await withAwkwardDir({
         'broken_controller.ts':
             'throw new Error("broken at load")\nexport {}\n',
@@ -177,7 +178,7 @@ Deno.test('ControllerDiscovery - names a broken controller file by the path the 
     })
 })
 
-Deno.test('ControllerDiscovery - warns about a controller it cannot instantiate, and still returns it', async () => {
+test('ControllerDiscovery - warns about a controller it cannot instantiate, and still returns it', async () => {
     await withAwkwardDir({
         'needy_controller.ts': `
 export class NeedyController {
@@ -197,7 +198,7 @@ export class NeedyController {
     })
 })
 
-Deno.test("discoverListeners - imports a listener under a path with '#' and a space", async () => {
+test("discoverListeners - imports a listener under a path with '#' and a space", async () => {
     const key = `__lockness_474_listener_${crypto.randomUUID()}`
     await withAwkwardDir({ 'awkward_listener.ts': markerSource(key) }, async (
         { rel },
@@ -207,7 +208,7 @@ Deno.test("discoverListeners - imports a listener under a path with '#' and a sp
     })
 })
 
-Deno.test("loadControllers (ssg) - imports a controller under a path with '#' and a space", async () => {
+test("loadControllers (ssg) - imports a controller under a path with '#' and a space", async () => {
     await withAwkwardDir({
         'awkward_controller.ts':
             "export class AwkwardController { static _basePath = '/awkward' }\n",
@@ -217,7 +218,7 @@ Deno.test("loadControllers (ssg) - imports a controller under a path with '#' an
     })
 })
 
-Deno.test("loadKernel (ssg) - imports the kernel under a path with '#' and a space", async () => {
+test("loadKernel (ssg) - imports the kernel under a path with '#' and a space", async () => {
     const decorators = import.meta.resolve('../kernel/kernel_decorators.ts')
     await withAwkwardDir({
         'app/kernel.ts': `
@@ -230,7 +231,7 @@ export class AppKernel { static [KERNEL_CONFIG] = { staticDir: 'public' } }
     })
 })
 
-Deno.test("loadCompileKernel (compile) - imports the kernel under a path with '#' and a space", async () => {
+test("loadCompileKernel (compile) - imports the kernel under a path with '#' and a space", async () => {
     const decorators = import.meta.resolve('../kernel/kernel_decorators.ts')
     await withAwkwardDir({
         'app/kernel.tsx': `
@@ -256,7 +257,7 @@ export class AppKernel {
 `
 }
 
-Deno.test('loadCompileKernel (compile) - loads app/kernel.ts, the file every scaffold ships (#485)', async () => {
+test('loadCompileKernel (compile) - loads app/kernel.ts, the file every scaffold ships (#485)', async () => {
     await withAwkwardDir({
         'app/kernel.ts': compileKernelSource('_dist/from-ts'),
     }, async ({ abs }) => {
@@ -265,7 +266,7 @@ Deno.test('loadCompileKernel (compile) - loads app/kernel.ts, the file every sca
     })
 })
 
-Deno.test('loadCompileKernel (compile) - app/kernel.ts wins over app/kernel.tsx (#485)', async () => {
+test('loadCompileKernel (compile) - app/kernel.ts wins over app/kernel.tsx (#485)', async () => {
     await withAwkwardDir({
         'app/kernel.ts': compileKernelSource('_dist/from-ts'),
         'app/kernel.tsx': compileKernelSource('_dist/from-tsx'),
@@ -275,7 +276,7 @@ Deno.test('loadCompileKernel (compile) - app/kernel.ts wins over app/kernel.tsx 
     })
 })
 
-Deno.test('loadCompileKernel (compile) - an app with no kernel file loads nothing', async () => {
+test('loadCompileKernel (compile) - an app with no kernel file loads nothing', async () => {
     await withAwkwardDir({}, async ({ abs }) => {
         assertEquals(await loadCompileKernel(abs), undefined)
     })

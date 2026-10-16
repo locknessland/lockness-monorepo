@@ -12,6 +12,7 @@
  * would exercise the no-interval path and prove nothing.
  */
 
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import {
     disposableCount,
@@ -27,7 +28,7 @@ function connect(channel: SSEChannel, id: string): void {
     } as never)
 }
 
-Deno.test('sse - a channel with an armed heartbeat announces itself', () => {
+test('sse - a channel with an armed heartbeat announces itself', () => {
     drainDisposables()
     const channel = new SSEChannel('room-1', { heartbeatInterval: 10_000 })
     connect(channel, 'a')
@@ -37,7 +38,7 @@ Deno.test('sse - a channel with an armed heartbeat announces itself', () => {
     channel.close()
 })
 
-Deno.test('sse - it registers at PREDRAIN, before the server stops accepting', () => {
+test('sse - it registers at PREDRAIN, before the server stops accepting', () => {
     drainDisposables()
     const channel = new SSEChannel('room-2', { heartbeatInterval: 10_000 })
     connect(channel, 'a')
@@ -49,7 +50,7 @@ Deno.test('sse - it registers at PREDRAIN, before the server stops accepting', (
     channel.close()
 })
 
-Deno.test('sse - heartbeatInterval 0 arms nothing, so it announces nothing', () => {
+test('sse - heartbeatInterval 0 arms nothing, so it announces nothing', () => {
     // The early return in startHeartbeat. A channel holding no timer has
     // nothing to release, and enrolling it would be noise in the drain.
     drainDisposables()
@@ -61,7 +62,7 @@ Deno.test('sse - heartbeatInterval 0 arms nothing, so it announces nothing', () 
     channel.close()
 })
 
-Deno.test('sse - closing a channel withdraws its registration', () => {
+test('sse - closing a channel withdraws its registration', () => {
     drainDisposables()
     const channel = new SSEChannel('room-3', { heartbeatInterval: 10_000 })
     connect(channel, 'a')
@@ -72,7 +73,7 @@ Deno.test('sse - closing a channel withdraws its registration', () => {
     assertEquals(disposableCount(), 0)
 })
 
-Deno.test('sse - N channels opened and closed leave the registry at zero', () => {
+test('sse - N channels opened and closed leave the registry at zero', () => {
     // R2, asserted rather than hoped. The registry holds a strong reference and
     // this package's docs teach a channel per room, so a long-lived app would
     // grow without bound if a closed channel left its entry behind.
@@ -89,7 +90,7 @@ Deno.test('sse - N channels opened and closed leave the registry at zero', () =>
     assertEquals(disposableCount(), 0)
 })
 
-Deno.test('sse - channels sharing a name are not collapsed into one', () => {
+test('sse - channels sharing a name are not collapsed into one', () => {
     // Names come from request path segments in this package's documented usage,
     // so they collide. Dedup on the name would tear down one and leave the rest
     // armed.
@@ -105,7 +106,7 @@ Deno.test('sse - channels sharing a name are not collapsed into one', () => {
     b.close()
 })
 
-Deno.test('sse - disposing clears the interval, so nothing is left armed', async () => {
+test('sse - disposing clears the interval, so nothing is left armed', async () => {
     drainDisposables()
     const channel = new SSEChannel('room-4', { heartbeatInterval: 10 })
     connect(channel, 'a')

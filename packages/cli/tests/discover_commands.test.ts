@@ -13,6 +13,7 @@
  * @module @lockness/cli/tests/discover_commands
  */
 
+import { test } from 'node:test'
 import { assertEquals, assertStringIncludes } from '@std/assert'
 import { join } from '@std/path'
 import { Cli } from '../mod.ts'
@@ -94,7 +95,7 @@ async function withReadDir(
     }
 }
 
-Deno.test('discoverCommands - a file that fails to load is reported, and its siblings still register', async () => {
+test('discoverCommands - a file that fails to load is reported, and its siblings still register', async () => {
     await withTempDir(async (dir) => {
         await Deno.writeTextFile(join(dir, 'good_command.ts'), GOOD_COMMAND)
         await Deno.writeTextFile(
@@ -115,7 +116,7 @@ Deno.test('discoverCommands - a file that fails to load is reported, and its sib
     })
 })
 
-Deno.test('discoverCommands - a non-Error load failure reads as itself, not undefined', async () => {
+test('discoverCommands - a non-Error load failure reads as itself, not undefined', async () => {
     await withTempDir(async (dir) => {
         await Deno.writeTextFile(
             join(dir, 'odd_command.ts'),
@@ -131,7 +132,7 @@ Deno.test('discoverCommands - a non-Error load failure reads as itself, not unde
     })
 })
 
-Deno.test('discoverCommands - a scan error other than NotFound is reported', async () => {
+test('discoverCommands - a scan error other than NotFound is reported', async () => {
     await withTempDir(async (dir) => {
         // A file where a directory is expected: `readDir` fails, and not with
         // `NotFound`, so the commands it would have held are reported missing.
@@ -150,7 +151,7 @@ Deno.test('discoverCommands - a scan error other than NotFound is reported', asy
     })
 })
 
-Deno.test('discoverCommands - a non-Error scan failure reads as itself, not undefined', async () => {
+test('discoverCommands - a non-Error scan failure reads as itself, not undefined', async () => {
     const fake: typeof Deno.readDir = () => {
         throw 'plain scan failure'
     }
@@ -165,7 +166,7 @@ Deno.test('discoverCommands - a non-Error scan failure reads as itself, not unde
     })
 })
 
-Deno.test('discoverCommands - a missing directory is silent', async () => {
+test('discoverCommands - a missing directory is silent', async () => {
     await withTempDir(async (dir) => {
         const cli = new Cli()
 

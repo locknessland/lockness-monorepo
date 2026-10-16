@@ -3,6 +3,7 @@
  * package in, and drop it from, the project's `lockness.packages` list.
  */
 
+import { test } from 'node:test'
 import { assertEquals, assertInstanceOf, assertRejects } from '@std/assert'
 import { addPackage, removePackage } from '../package_loader.ts'
 import { inTempDir } from './helpers.ts'
@@ -28,14 +29,14 @@ async function packagesIn(dir: string): Promise<unknown> {
     return json.lockness?.packages
 }
 
-Deno.test('addPackage registers the first package in a fresh deno.json', async () => {
+test('addPackage registers the first package in a fresh deno.json', async () => {
     await inProject({}, async (dir) => {
         await addPackage('@lockness/drizzle')
         assertEquals(await packagesIn(dir), ['drizzle'])
     })
 })
 
-Deno.test('addPackage keeps lockness.packages sorted', async () => {
+test('addPackage keeps lockness.packages sorted', async () => {
     await inProject({ lockness: { packages: ['session'] } }, async (dir) => {
         await addPackage('openapi')
         await addPackage('cache')
@@ -43,14 +44,14 @@ Deno.test('addPackage keeps lockness.packages sorted', async () => {
     })
 })
 
-Deno.test('addPackage leaves an already registered package alone', async () => {
+test('addPackage leaves an already registered package alone', async () => {
     await inProject({ lockness: { packages: ['drizzle'] } }, async (dir) => {
         await addPackage('drizzle')
         assertEquals(await packagesIn(dir), ['drizzle'])
     })
 })
 
-Deno.test('addPackage and removePackage keep a caught error as the cause', async (t) => {
+test('addPackage and removePackage keep a caught error as the cause', async (t) => {
     const cases = [
         {
             name: 'addPackage',
@@ -64,7 +65,7 @@ Deno.test('addPackage and removePackage keep a caught error as the cause', async
         },
     ]
     for (const { name, run, message } of cases) {
-        await t.step(name, async () => {
+        await t.test(name, async () => {
             // No deno.json nor deno.jsonc: the read fails.
             await inTempDir(async () => {
                 const error = await assertRejects(() => run('drizzle'), Error)

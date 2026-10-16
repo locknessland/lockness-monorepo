@@ -2,6 +2,7 @@
  * Tests for @lockness/validator - Sanitizers
  */
 
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import {
     defaultValue,
@@ -16,8 +17,8 @@ import {
     validator,
 } from '../mod.ts'
 
-Deno.test('Validator - Sanitizers', async (t) => {
-    await t.step('trim sanitizer', async () => {
+test('Validator - Sanitizers', async (t) => {
+    await t.test('trim sanitizer', async () => {
         const v = validator()
         v.sanitize('name', [trim()])
         v.field('name', [minLength(3)])
@@ -29,7 +30,7 @@ Deno.test('Validator - Sanitizers', async (t) => {
         assertEquals(sanitized.name, 'John')
     })
 
-    await t.step('lowercase and uppercase', () => {
+    await t.test('lowercase and uppercase', () => {
         const v = validator()
         v.sanitize('email', [lowercase()])
         v.sanitize('code', [uppercase()])
@@ -42,7 +43,7 @@ Deno.test('Validator - Sanitizers', async (t) => {
         assertEquals(sanitized.code, 'ABC123')
     })
 
-    await t.step('escapeHtml', () => {
+    await t.test('escapeHtml', () => {
         const v = validator()
         v.sanitize('content', [escapeHtml()])
 
@@ -55,7 +56,7 @@ Deno.test('Validator - Sanitizers', async (t) => {
         )
     })
 
-    await t.step('stripTags', () => {
+    await t.test('stripTags', () => {
         const v = validator()
         v.sanitize('text', [stripTags()])
 
@@ -65,7 +66,7 @@ Deno.test('Validator - Sanitizers', async (t) => {
         assertEquals(sanitized.text, 'Hello World')
     })
 
-    await t.step('toNumber and toBoolean', () => {
+    await t.test('toNumber and toBoolean', () => {
         const v = validator()
         v.sanitize('age', [toNumber()])
         v.sanitize('active', [toBoolean()])
@@ -78,7 +79,7 @@ Deno.test('Validator - Sanitizers', async (t) => {
         assertEquals(sanitized.active, true)
     })
 
-    await t.step('defaultValue', () => {
+    await t.test('defaultValue', () => {
         const v = validator()
         v.sanitize('status', [defaultValue('pending')])
 

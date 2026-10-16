@@ -43,6 +43,7 @@
  * @module
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { join } from '@std/path'
 import { type KitName, KITS } from '@lockness/init'
@@ -194,7 +195,7 @@ for (const kit of Object.keys(KITS) as KitName[]) {
     const refusal = shipsMigrations(kit)
         ? ', and its db commands refuse without DATABASE_URL'
         : ''
-    Deno.test(`#444 #453 QA ${kit}: the app's instructions run${refusal}`, async (t) => {
+    test(`#444 #453 QA ${kit}: the app's instructions run${refusal}`, async (t) => {
         const workdir = await Deno.makeTempDir({ prefix: 'lockness-444-qa-' })
         try {
             const scaffold = await scaffoldKit(kit, workdir)
@@ -209,7 +210,7 @@ for (const kit of Object.keys(KITS) as KitName[]) {
                 ...taskInstructions(tasks),
             ]
 
-            await t.step(
+            await t.test(
                 'every `deno task <x>` it tells the user to run is a task',
                 () => {
                     // Not vacuous: app/kernel.ts is where #453 was found, and
@@ -256,7 +257,7 @@ for (const kit of Object.keys(KITS) as KitName[]) {
             )
             assert(commands.has('compile'), listed.output)
 
-            await t.step(
+            await t.test(
                 'every CLI command it tells the user to run is registered',
                 () => {
                     const missing: string[] = []
@@ -283,7 +284,7 @@ for (const kit of Object.keys(KITS) as KitName[]) {
 
             if (!shipsMigrations(kit)) return
 
-            await t.step(
+            await t.test(
                 'unset DATABASE_URL: no credentials, db:migrate and db:fresh refuse',
                 async () => {
                     const dotenv = await Deno.readTextFile(join(dir, '.env'))

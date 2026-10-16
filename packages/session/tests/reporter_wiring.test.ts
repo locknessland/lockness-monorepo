@@ -12,6 +12,7 @@
  * @module @lockness/session/tests/reporter_wiring
  */
 
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
@@ -66,7 +67,7 @@ async function silencingWarn(fn: () => Promise<void>): Promise<void> {
     }
 }
 
-Deno.test('read() feeds a crypto-refused cookie to the injected reporter (#236 seam)', async () => {
+test('read() feeds a crypto-refused cookie to the injected reporter (#236 seam)', async () => {
     const reporter = new RejectionReporter()
     const ctx = await contextWith('wiring_session=not-a-lockness-cookie')
     const driver = new CookieSessionDriver(ctx, CONFIG, undefined, reporter)
@@ -84,7 +85,7 @@ Deno.test('read() feeds a crypto-refused cookie to the injected reporter (#236 s
     assertEquals(reporter.lastRejection(), 'bad-prefix')
 })
 
-Deno.test('read() feeds a revoked cookie to the injected reporter (#236 seam, revoked path)', async () => {
+test('read() feeds a revoked cookie to the injected reporter (#236 seam, revoked path)', async () => {
     const revokingStore: RevocationStore = {
         isRevoked: () => Promise.resolve(true),
         revoke: () => Promise.resolve(),

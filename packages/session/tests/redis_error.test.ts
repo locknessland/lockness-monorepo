@@ -10,6 +10,7 @@
  * detail (T020).
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import { RedisReadError, RedisSessionDriver } from '../drivers/redis.ts'
 import { startFakeRedis } from './fake_redis.ts'
@@ -43,7 +44,7 @@ function presetConn(driver: RedisSessionDriver, conn: Deno.Conn): void {
     }).client.conn.connection = conn
 }
 
-Deno.test('redis read - a dropped connection mid-read throws (not null) and logs exactly once (SC-003)', async () => {
+test('redis read - a dropped connection mid-read throws (not null) and logs exactly once (SC-003)', async () => {
     const driver = new RedisSessionDriver({ hostname: '127.0.0.1', port: 1 })
     // write() accepts the frame; the read half is dead — EOF immediately.
     presetConn(driver, {
@@ -67,7 +68,7 @@ Deno.test('redis read - a dropped connection mid-read throws (not null) and logs
     assert(lines[0].includes('session#'), 'a redacted fingerprint is logged')
 })
 
-Deno.test('redis read - a wire fault discards the desynced connection so the next command reconnects', async () => {
+test('redis read - a wire fault discards the desynced connection so the next command reconnects', async () => {
     const driver = new RedisSessionDriver({ hostname: '127.0.0.1', port: 1 })
     let closed = false
     // write() accepts the frame; the read half is dead (EOF) — a wire desync,
@@ -95,7 +96,7 @@ Deno.test('redis read - a wire fault discards the desynced connection so the nex
     )
 })
 
-Deno.test('redis read - a framed -ERR KEEPS the in-sync connection for the next command', async () => {
+test('redis read - a framed -ERR KEEPS the in-sync connection for the next command', async () => {
     // A `-ERR` reply is a complete, well-framed server error: the whole reply
     // line was read, so the socket stays in sync and the driver must reuse it.
     // The witness for the RespServerError branch — a mutant that discards on
@@ -132,7 +133,7 @@ Deno.test('redis read - a framed -ERR KEEPS the in-sync connection for the next 
     )
 })
 
-Deno.test('redis read - a structural framing fault DISCARDS the desynced connection', async () => {
+test('redis read - a structural framing fault DISCARDS the desynced connection', async () => {
     // An oversized bulk length: the `$<len>\r\n` line is consumed but the 11 MiB
     // payload is never drained — bytes remain on the wire and the socket is
     // desynced, so the driver must close and drop it. The witness for the
@@ -170,7 +171,7 @@ Deno.test('redis read - a structural framing fault DISCARDS the desynced connect
     )
 })
 
-Deno.test('redis read - a GET on a missing key returns null with no log (the one legit null)', async () => {
+test('redis read - a GET on a missing key returns null with no log (the one legit null)', async () => {
     const redis = await startFakeRedis()
     try {
         const driver = new RedisSessionDriver({
@@ -187,7 +188,7 @@ Deno.test('redis read - a GET on a missing key returns null with no log (the one
     }
 })
 
-Deno.test('redis read - a -ERR reply throws (it is not a cache miss) and logs once', async () => {
+test('redis read - a -ERR reply throws (it is not a cache miss) and logs once', async () => {
     const driver = new RedisSessionDriver({ hostname: '127.0.0.1', port: 1 })
     let served = false
     presetConn(driver, {
@@ -208,7 +209,7 @@ Deno.test('redis read - a -ERR reply throws (it is not a cache miss) and logs on
     assertEquals(lines.length, 1, 'exactly one ERROR line')
 })
 
-Deno.test('redis read - the thrown error is generic, carrying no RESP text or raw id to the client (T020 / FR-005)', async () => {
+test('redis read - the thrown error is generic, carrying no RESP text or raw id to the client (T020 / FR-005)', async () => {
     const driver = new RedisSessionDriver({ hostname: '127.0.0.1', port: 1 })
     let served = false
     presetConn(driver, {

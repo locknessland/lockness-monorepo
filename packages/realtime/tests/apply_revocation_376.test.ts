@@ -28,6 +28,7 @@
  * @module @lockness/realtime/tests/apply_revocation_376
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { ChannelManager, REVOCATION_APPLY_LOG_FAILED } from '../manager.ts'
 import type { BroadcastDriver, ControlMessage } from '../driver.ts'
@@ -127,7 +128,7 @@ async function ownerOf(target: string, { unwatchFails = true } = {}) {
 const marked = (errors: string[]) =>
     errors.filter((line) => line.startsWith(REVOCATION_APPLY_LOG_FAILED))
 
-Deno.test('#376 W1 evict: a throwing WARN sink on a failed teardown never escapes', async () => {
+test('#376 W1 evict: a throwing WARN sink on a failed teardown never escapes', async () => {
     await watchingEscapes(async (escaped) => {
         const { victim, send } = await ownerOf('c1')
         using sink = throwingWarnSink()
@@ -154,7 +155,7 @@ Deno.test('#376 W1 evict: a throwing WARN sink on a failed teardown never escape
     })
 })
 
-Deno.test('#376 W2 revoke-channel: a throwing WARN sink on a failed clear never escapes', async () => {
+test('#376 W2 revoke-channel: a throwing WARN sink on a failed clear never escapes', async () => {
     await watchingEscapes(async (escaped) => {
         // The leave succeeds, so the failure logged is the CLEAR's — a second
         // path to the same sink, distinct from W1's teardown.
@@ -190,7 +191,7 @@ Deno.test('#376 W2 revoke-channel: a throwing WARN sink on a failed clear never 
     })
 })
 
-Deno.test('#376 W3 the sink failure is rendered, not interpolated raw', async () => {
+test('#376 W3 the sink failure is rendered, not interpolated raw', async () => {
     await watchingEscapes(async (escaped) => {
         const { send } = await ownerOf('c1')
         using sink = throwingWarnSink('refused\r\nrealtime: forged line')
@@ -206,7 +207,7 @@ Deno.test('#376 W3 the sink failure is rendered, not interpolated raw', async ()
     })
 })
 
-Deno.test('#376 CONTROL: a working WARN sink writes the WARN and no marked line', async () => {
+test('#376 CONTROL: a working WARN sink writes the WARN and no marked line', async () => {
     // Without this, W1 could pass because the marked line is written on every
     // apply, not only when the WARN itself failed.
     await watchingEscapes(async (escaped) => {
@@ -236,12 +237,5 @@ Deno.test('#376 CONTROL: a working WARN sink writes the WARN and no marked line'
     })
 })
 
-Deno.test('#376 CONTROL: the watcher records a real unhandled rejection', async () => {
-    // Without this, every `escaped` assertion above could pass because the
-    // listener never fires, not because nothing escaped.
-    await watchingEscapes(async (escaped) => {
-        void Promise.reject(new Error('deliberately unhandled'))
-        await settle()
-        assertEquals(escaped.length, 1, 'the watcher saw the escape')
-    })
-})
+// The CONTROL row lives in `apply_revocation_376.deno.test.ts`: it lets a
+// rejection escape on purpose, which only Deno.test lets the watcher prevent.

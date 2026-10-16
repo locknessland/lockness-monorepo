@@ -7,6 +7,7 @@
  * @module
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import {
     checkPackage,
@@ -27,7 +28,7 @@ import {
     type WorkspaceSibling,
 } from './publish_check.ts'
 
-Deno.test('an empty include admits every file, then exclude subtracts', () => {
+test('an empty include admits every file, then exclude subtracts', () => {
     const files = ['mod.ts', 'helpers.ts', 'tests/mod_test.ts', 'deno.json']
     assertEquals(
         selectPublishedFiles(files, [], ['tests/']),
@@ -35,7 +36,7 @@ Deno.test('an empty include admits every file, then exclude subtracts', () => {
     )
 })
 
-Deno.test('an incomplete include drops a file needed at publish time', () => {
+test('an incomplete include drops a file needed at publish time', () => {
     const files = ['mod.ts', 'helpers.ts', 'deno.json', 'README.md']
     // The allowlist forgot helpers.ts, which mod.ts imports.
     const selected = selectPublishedFiles(
@@ -47,7 +48,7 @@ Deno.test('an incomplete include drops a file needed at publish time', () => {
     assertEquals(selected, ['mod.ts', 'deno.json', 'README.md'])
 })
 
-Deno.test('a complete include keeps every needed file', () => {
+test('a complete include keeps every needed file', () => {
     const files = ['mod.ts', 'helpers.ts', 'deno.json', 'README.md']
     const selected = selectPublishedFiles(
         files,
@@ -58,7 +59,7 @@ Deno.test('a complete include keeps every needed file', () => {
     assertEquals(selected, files)
 })
 
-Deno.test('a literal include entry matches a whole directory subtree', () => {
+test('a literal include entry matches a whole directory subtree', () => {
     const files = [
         'mod.ts',
         'drivers/local.ts',
@@ -71,7 +72,7 @@ Deno.test('a literal include entry matches a whole directory subtree', () => {
     )
 })
 
-Deno.test('a glob include matches nested files, not other segments', () => {
+test('a glob include matches nested files, not other segments', () => {
     const files = ['src/a.ts', 'src/nested/b.ts', 'src/c.md', 'deno.json']
     assertEquals(
         selectPublishedFiles(files, ['src/**/*.ts'], []),
@@ -79,7 +80,7 @@ Deno.test('a glob include matches nested files, not other segments', () => {
     )
 })
 
-Deno.test('exclude subtracts even when include matched the file', () => {
+test('exclude subtracts even when include matched the file', () => {
     const files = ['mod.ts', 'internal.ts', 'deno.json']
     assertEquals(
         selectPublishedFiles(
@@ -91,7 +92,7 @@ Deno.test('exclude subtracts even when include matched the file', () => {
     )
 })
 
-Deno.test('the manifest is always kept, even absent from include', () => {
+test('the manifest is always kept, even absent from include', () => {
     const files = ['mod.ts', 'deno.json']
     assertEquals(
         selectPublishedFiles(files, ['mod.ts'], []),
@@ -99,7 +100,7 @@ Deno.test('the manifest is always kept, even absent from include', () => {
     )
 })
 
-Deno.test('a custom manifest filename is honoured as always-kept', () => {
+test('a custom manifest filename is honoured as always-kept', () => {
     const files = ['mod.ts', 'deno.jsonc']
     assertEquals(
         selectPublishedFiles(files, ['mod.ts'], [], 'deno.jsonc'),
@@ -107,7 +108,7 @@ Deno.test('a custom manifest filename is honoured as always-kept', () => {
     )
 })
 
-Deno.test('a named member with no version is a publish-blocking fault', () => {
+test('a named member with no version is a publish-blocking fault', () => {
     const fault = publishabilityFault('packages/testing/deno.json', {
         name: '@lockness/testing',
         exports: './mod.ts',
@@ -121,7 +122,7 @@ Deno.test('a named member with no version is a publish-blocking fault', () => {
     assertStringIncludes(fault, '"private": true')
 })
 
-Deno.test('a member with NO name is not a package, and not a fault', () => {
+test('a member with NO name is not a package, and not a fault', () => {
     // `./packages/vite/demo` is a workspace member with no name, no version and
     // no exports, and v0.3.0 published successfully with it present: `deno
     // publish` does not treat it as a package. A check that demanded a version
@@ -135,7 +136,7 @@ Deno.test('a member with NO name is not a package, and not a fault', () => {
     )
 })
 
-Deno.test('a complete member is clean, and exports is required too', () => {
+test('a complete member is clean, and exports is required too', () => {
     assertEquals(
         publishabilityFault('packages/core/deno.json', {
             name: '@lockness/core',
@@ -152,7 +153,7 @@ Deno.test('a complete member is clean, and exports is required too', () => {
     assertStringIncludes(noExports, '"exports"')
 })
 
-Deno.test('publish:check EXITS NON-ZERO on an unpublishable member', async () => {
+test('publish:check EXITS NON-ZERO on an unpublishable member', async () => {
     // The acceptance criterion asks for the exit code, not only the message:
     // every gate step of run 34283254973 passed and the publish still aborted,
     // so what matters is that `deno task publish:check` refuses BEFORE a
@@ -212,7 +213,7 @@ const PRE_RELEASE_OUTPUT = await Deno.readTextFile(
     ),
 )
 
-Deno.test('fail closed: an unrecognised deno check failure is red', () => {
+test('fail closed: an unrecognised deno check failure is red', () => {
     // A type error is not a pre-release condition. This exact shape used to
     // read "declared; some versions not on JSR yet" and pass.
     const result = classifyCheck(
@@ -225,11 +226,11 @@ Deno.test('fail closed: an unrecognised deno check failure is red', () => {
     assertStringIncludes(result.detail, 'unrecognised failure')
 })
 
-Deno.test('fail closed: a failure with no output at all is red', () => {
+test('fail closed: a failure with no output at all is red', () => {
     assertEquals(classifyCheck('core', false, '').ok, false)
 })
 
-Deno.test('the captured pre-release output is red', () => {
+test('the captured pre-release output is red', () => {
     // It used to pass as "declared; not on JSR yet". But when that message
     // fires, deno check never reaches type checking, so it drops any
     // undeclared-import error in the same file: the tolerance proved nothing
@@ -241,7 +242,7 @@ Deno.test('the captured pre-release output is red', () => {
     assertStringIncludes(result.detail, 'unrecognised failure')
 })
 
-Deno.test('the captured pre-release line does not launder a type error', () => {
+test('the captured pre-release line does not launder a type error', () => {
     const result = classifyCheck(
         'core',
         false,
@@ -250,7 +251,7 @@ Deno.test('the captured pre-release line does not launder a type error', () => {
     assertEquals(result.ok, false)
 })
 
-Deno.test('a missing third-party version is not a pre-release state', () => {
+test('a missing third-party version is not a pre-release state', () => {
     // The captured output with only the package name swapped.
     const thirdParty = PRE_RELEASE_OUTPUT.replace(
         "'@lockness/core'",
@@ -265,7 +266,7 @@ Deno.test('a missing third-party version is not a pre-release state', () => {
     assertEquals(result.ok, false)
 })
 
-Deno.test('an undeclared import is still named as such', () => {
+test('an undeclared import is still named as such', () => {
     const result = classifyCheck(
         'drizzle',
         false,
@@ -275,7 +276,7 @@ Deno.test('an undeclared import is still named as such', () => {
     assertEquals(result.detail, 'undeclared: @lockness/cli')
 })
 
-Deno.test('the success line appears only with exit code 0', () => {
+test('the success line appears only with exit code 0', () => {
     const red = resolutionVerdict([
         { name: 'core', ok: true, detail: 'resolves' },
         { name: 'cli', ok: false, detail: 'unrecognised failure: x' },
@@ -291,68 +292,64 @@ Deno.test('the success line appears only with exit code 0', () => {
     assert(green.lines.some((line) => line.includes('✅')))
 })
 
-Deno.test({
-    name:
-        'an unrecognised failure turns the whole run red, with no success line',
-    fn: async () => {
-        const dir = await Deno.makeTempDir({ prefix: 'publish-check-closed-' })
-        try {
-            await Deno.mkdir(`${dir}/packages/bad`, { recursive: true })
-            await Deno.writeTextFile(
-                `${dir}/deno.jsonc`,
-                JSON.stringify({ workspace: ['./packages/bad'] }),
-            )
-            await Deno.writeTextFile(
-                `${dir}/packages/bad/deno.json`,
-                JSON.stringify({
-                    name: '@scope/bad',
-                    version: '0.0.1',
-                    license: 'MIT',
-                    exports: './mod.ts',
-                }),
-            )
-            // Resolves fine, fails to type-check: a failure publish:check has
-            // no rule for. Offline by construction — no imports at all.
-            await Deno.writeTextFile(
-                `${dir}/packages/bad/mod.ts`,
-                "export const x: number = 'not a number'\n",
-            )
-            const { code, stdout, stderr } = await new Deno.Command(
-                Deno.execPath(),
-                {
-                    args: [
-                        'run',
-                        '-A',
-                        new URL('./publish_check.ts', import.meta.url)
-                            .pathname,
-                    ],
-                    cwd: dir,
-                    // publish_check.ts stages its scratch copy in
-                    // `Deno.makeTempDir()` with no directory override, so it
-                    // lands wherever the host's TMPDIR points (#397). Pin it
-                    // to this fixture root, which carries its own minimal
-                    // `deno.jsonc`: `deno check`'s upward config search then
-                    // stops there instead of climbing past it to whatever the
-                    // host's ambient TMPDIR happens to sit inside -- which
-                    // could be a subdirectory of THIS repository, whose real
-                    // `deno.jsonc` would otherwise be picked up in its place.
-                    env: { TMPDIR: dir },
-                    stdout: 'piped',
-                    stderr: 'piped',
-                },
-            ).output()
-            const out = new TextDecoder().decode(stdout) +
-                new TextDecoder().decode(stderr)
-            assertEquals(code, 1, `expected red, got exit ${code}:\n${out}`)
-            assertStringIncludes(out, 'unrecognised failure')
-            assert(
-                !out.includes('Every package resolves standalone'),
-                `a red run printed the success line:\n${out}`,
-            )
-        } finally {
-            await Deno.remove(dir, { recursive: true }).catch(() => {})
-        }
-    },
+test('an unrecognised failure turns the whole run red, with no success line', async () => {
+    const dir = await Deno.makeTempDir({ prefix: 'publish-check-closed-' })
+    try {
+        await Deno.mkdir(`${dir}/packages/bad`, { recursive: true })
+        await Deno.writeTextFile(
+            `${dir}/deno.jsonc`,
+            JSON.stringify({ workspace: ['./packages/bad'] }),
+        )
+        await Deno.writeTextFile(
+            `${dir}/packages/bad/deno.json`,
+            JSON.stringify({
+                name: '@scope/bad',
+                version: '0.0.1',
+                license: 'MIT',
+                exports: './mod.ts',
+            }),
+        )
+        // Resolves fine, fails to type-check: a failure publish:check has
+        // no rule for. Offline by construction — no imports at all.
+        await Deno.writeTextFile(
+            `${dir}/packages/bad/mod.ts`,
+            "export const x: number = 'not a number'\n",
+        )
+        const { code, stdout, stderr } = await new Deno.Command(
+            Deno.execPath(),
+            {
+                args: [
+                    'run',
+                    '-A',
+                    new URL('./publish_check.ts', import.meta.url)
+                        .pathname,
+                ],
+                cwd: dir,
+                // publish_check.ts stages its scratch copy in
+                // `Deno.makeTempDir()` with no directory override, so it
+                // lands wherever the host's TMPDIR points (#397). Pin it
+                // to this fixture root, which carries its own minimal
+                // `deno.jsonc`: `deno check`'s upward config search then
+                // stops there instead of climbing past it to whatever the
+                // host's ambient TMPDIR happens to sit inside -- which
+                // could be a subdirectory of THIS repository, whose real
+                // `deno.jsonc` would otherwise be picked up in its place.
+                env: { TMPDIR: dir },
+                stdout: 'piped',
+                stderr: 'piped',
+            },
+        ).output()
+        const out = new TextDecoder().decode(stdout) +
+            new TextDecoder().decode(stderr)
+        assertEquals(code, 1, `expected red, got exit ${code}:\n${out}`)
+        assertStringIncludes(out, 'unrecognised failure')
+        assert(
+            !out.includes('Every package resolves standalone'),
+            `a red run printed the success line:\n${out}`,
+        )
+    } finally {
+        await Deno.remove(dir, { recursive: true }).catch(() => {})
+    }
 })
 
 // ---- Workspace links (hermetic @lockness/* resolution) --------------------
@@ -368,7 +365,7 @@ const SIBLINGS: WorkspaceSibling[] = [
     { name: '@lockness/drizzle', short: 'drizzle', version: '0.4.0' },
 ]
 
-Deno.test('withWorkspaceLinks: declared entries are kept unchanged', () => {
+test('withWorkspaceLinks: declared entries are kept unchanged', () => {
     const imports = {
         '@lockness/cli': 'jsr:@lockness/cli@^0.4.0',
         '@std/path': 'jsr:@std/path@^1.0.0',
@@ -387,7 +384,7 @@ Deno.test('withWorkspaceLinks: declared entries are kept unchanged', () => {
     assertEquals(out.version, '0.4.0')
 })
 
-Deno.test('withWorkspaceLinks: one sentinel pair per undeclared sibling', () => {
+test('withWorkspaceLinks: one sentinel pair per undeclared sibling', () => {
     const out = withWorkspaceLinks(
         {
             name: '@lockness/drizzle',
@@ -406,7 +403,7 @@ Deno.test('withWorkspaceLinks: one sentinel pair per undeclared sibling', () => 
     assertEquals(imports['@lockness/cli/'], undefined)
 })
 
-Deno.test('withWorkspaceLinks: a prefix key alone declares the sibling', () => {
+test('withWorkspaceLinks: a prefix key alone declares the sibling', () => {
     // The #388 rule: Deno resolves by key, and `@lockness/core/` is a key for
     // that package -- so it is declared, and no sentinel may shadow it.
     const out = withWorkspaceLinks(
@@ -422,7 +419,7 @@ Deno.test('withWorkspaceLinks: a prefix key alone declares the sibling', () => {
     assertEquals(imports['@lockness/core/'], 'jsr:/@lockness/core@^0.4.0/')
 })
 
-Deno.test('withWorkspaceLinks: links name every sibling but never self', () => {
+test('withWorkspaceLinks: links name every sibling but never self', () => {
     const out = withWorkspaceLinks(
         { name: '@lockness/drizzle', imports: {} },
         '@lockness/drizzle',
@@ -437,7 +434,7 @@ Deno.test('withWorkspaceLinks: links name every sibling but never self', () => {
     assertEquals(imports['@lockness/drizzle'], undefined)
 })
 
-Deno.test('workspaceRangeFaults: a range the workspace satisfies is clean', () => {
+test('workspaceRangeFaults: a range the workspace satisfies is clean', () => {
     assertEquals(
         workspaceRangeFaults(
             { imports: { '@lockness/cli': 'jsr:@lockness/cli@^0.4.0' } },
@@ -447,7 +444,7 @@ Deno.test('workspaceRangeFaults: a range the workspace satisfies is clean', () =
     )
 })
 
-Deno.test('workspaceRangeFaults: a stale range is a fault', () => {
+test('workspaceRangeFaults: a stale range is a fault', () => {
     const faults = workspaceRangeFaults(
         { imports: { '@lockness/cli': 'jsr:@lockness/cli@^0.3.0' } },
         SIBLINGS,
@@ -457,7 +454,7 @@ Deno.test('workspaceRangeFaults: a stale range is a fault', () => {
     ])
 })
 
-Deno.test('workspaceRangeFaults: an unparseable range is named invalid, with its cause', () => {
+test('workspaceRangeFaults: an unparseable range is named invalid, with its cause', () => {
     const faults = workspaceRangeFaults(
         { imports: { '@lockness/cli': 'jsr:@lockness/cli@^not.a.range' } },
         SIBLINGS,
@@ -470,7 +467,7 @@ Deno.test('workspaceRangeFaults: an unparseable range is named invalid, with its
     assert(!faults[0].startsWith('stale range'))
 })
 
-Deno.test('workspaceRangeFaults: a subpath specifier is parsed', () => {
+test('workspaceRangeFaults: a subpath specifier is parsed', () => {
     assertEquals(
         workspaceRangeFaults(
             {
@@ -496,7 +493,7 @@ Deno.test('workspaceRangeFaults: a subpath specifier is parsed', () => {
     assertStringIncludes(stale[0], '@lockness/core/jsx-runtime declares ^0.3.0')
 })
 
-Deno.test('workspaceRangeFaults: non-siblings are ignored', () => {
+test('workspaceRangeFaults: non-siblings are ignored', () => {
     assertEquals(
         workspaceRangeFaults(
             {
@@ -512,7 +509,7 @@ Deno.test('workspaceRangeFaults: non-siblings are ignored', () => {
     )
 })
 
-Deno.test('a sentinel hit reads as undeclared, not as missing from publish.include', () => {
+test('a sentinel hit reads as undeclared, not as missing from publish.include', () => {
     const output =
         "TS2307 [ERROR]: Cannot find module 'file:///tmp/lockness-publish-x/root/drizzle/.lockness-undeclared/@lockness/contract'.\n" +
         '    at file:///tmp/lockness-publish-x/root/drizzle/mod.ts:1:8\n' +
@@ -522,7 +519,7 @@ Deno.test('a sentinel hit reads as undeclared, not as missing from publish.inclu
     assertEquals(result.detail, 'undeclared: @lockness/contract')
 })
 
-Deno.test('a sentinel hit on a subpath names the package', () => {
+test('a sentinel hit on a subpath names the package', () => {
     const output =
         "TS2307 [ERROR]: Cannot find module 'file:///tmp/s/root/drizzle/.lockness-undeclared/@lockness/core/jsx-runtime'.\n" +
         'error: Type checking failed.\n'
@@ -532,7 +529,7 @@ Deno.test('a sentinel hit on a subpath names the package', () => {
     )
 })
 
-Deno.test("today's Unknown export failure is red", () => {
+test("today's Unknown export failure is red", () => {
     const result = classifyCheck(
         'drizzle',
         false,
@@ -542,7 +539,7 @@ Deno.test("today's Unknown export failure is red", () => {
     assertStringIncludes(result.detail, 'Unknown export')
 })
 
-Deno.test('no tolerated failure: every fixture verdict equals the exit status', () => {
+test('no tolerated failure: every fixture verdict equals the exit status', () => {
     const fixtures: Array<[boolean, string]> = [
         [true, ''],
         [true, 'Check file:///tmp/x/mod.ts\n'],
@@ -701,7 +698,7 @@ const DECLARES_A = {
     '@x-lockness-fixture/a': 'jsr:@x-lockness-fixture/a@^0.1.0',
 }
 
-Deno.test('links: a subpath that exists only in the workspace resolves', async () => {
+test('links: a subpath that exists only in the workspace resolves', async () => {
     const { code, out } = await runWorkspace([
         PKG_A,
         pkgB(
@@ -715,7 +712,7 @@ Deno.test('links: a subpath that exists only in the workspace resolves', async (
     assertStringIncludes(out, 'Every package resolves standalone')
 })
 
-Deno.test('links: an undeclared sibling import is red and named', async () => {
+test('links: an undeclared sibling import is red and named', async () => {
     // The tripwire for `links` name semantics: a linked package resolves by
     // name even when undeclared, so only the sentinel can catch this.
     const { code, out } = await runWorkspace([
@@ -732,7 +729,7 @@ Deno.test('links: an undeclared sibling import is red and named', async () => {
     assertStringIncludes(out, 'undeclared: @x-lockness-fixture/c')
 })
 
-Deno.test('links: a range the workspace version misses is red', async () => {
+test('links: a range the workspace version misses is red', async () => {
     const { code, out } = await runWorkspace([
         PKG_A,
         pkgB(
@@ -745,7 +742,7 @@ Deno.test('links: a range the workspace version misses is red', async () => {
     assertStringIncludes(out, 'stale range')
 })
 
-Deno.test('links: a subpath the sibling does not export is red', async () => {
+test('links: a subpath the sibling does not export is red', async () => {
     const { code, out } = await runWorkspace([
         PKG_A,
         pkgB(
@@ -795,7 +792,7 @@ function faultsBySpecifier(info: unknown, root: string) {
     )
 }
 
-Deno.test('dynamicImportFaults: an undeclared third-party edge is a fault', () => {
+test('dynamicImportFaults: an undeclared third-party edge is a fault', () => {
     const fault = faultsBySpecifier(FAULTS_INFO, FAULTS_ROOT).get(
         'x-lockness-undeclared',
     )
@@ -805,7 +802,7 @@ Deno.test('dynamicImportFaults: an undeclared third-party edge is a fault', () =
     assertEquals(fault.reason, 'undeclared dynamic import')
 })
 
-Deno.test('dynamicImportFaults: a sibling routed to the sentinel is named', () => {
+test('dynamicImportFaults: a sibling routed to the sentinel is named', () => {
     const fault = faultsBySpecifier(FAULTS_INFO, FAULTS_ROOT).get(
         '@x-lockness-fixture/c',
     )
@@ -817,7 +814,7 @@ Deno.test('dynamicImportFaults: a sibling routed to the sentinel is named', () =
     )
 })
 
-Deno.test('dynamicImportFaults: an unstaged relative file is missing from publish.include', () => {
+test('dynamicImportFaults: an unstaged relative file is missing from publish.include', () => {
     const fault = faultsBySpecifier(FAULTS_INFO, FAULTS_ROOT).get(
         './unstaged.ts',
     )
@@ -826,7 +823,7 @@ Deno.test('dynamicImportFaults: an unstaged relative file is missing from publis
     assertEquals(fault.reason, 'missing from publish.include: unstaged.ts')
 })
 
-Deno.test('dynamicImportFaults: a non-exported subpath is an Unknown export', () => {
+test('dynamicImportFaults: a non-exported subpath is an Unknown export', () => {
     const fault = faultsBySpecifier(FAULTS_INFO, FAULTS_ROOT).get(
         '@x-lockness-fixture/a/nope',
     )
@@ -835,7 +832,7 @@ Deno.test('dynamicImportFaults: a non-exported subpath is an Unknown export', ()
     assertStringIncludes(fault.reason, "Unknown export './nope'")
 })
 
-Deno.test('dynamicImportFaults: exactly the four faulty dynamic edges, static ones ignored', () => {
+test('dynamicImportFaults: exactly the four faulty dynamic edges, static ones ignored', () => {
     // `./static_missing.ts` is a static import of a missing file: its target
     // carries an error, but static edges are deno check's, not this pass's.
     // `@x-lockness-fixture/a/local-only` resolves through `links`.
@@ -850,7 +847,7 @@ Deno.test('dynamicImportFaults: exactly the four faulty dynamic edges, static on
     )
 })
 
-Deno.test("dynamicImportFaults: a remote module's dynamic edge is ignored", () => {
+test("dynamicImportFaults: a remote module's dynamic edge is ignored", () => {
     // The captured faulty module, moved to a remote URL: its edges are a
     // third party's, not the staged package's.
     const info = structuredClone(FAULTS_INFO) as {
@@ -867,7 +864,7 @@ Deno.test("dynamicImportFaults: a remote module's dynamic edge is ignored", () =
     assertEquals(dynamicImportFaults(info, FAULTS_ROOT), [])
 })
 
-Deno.test('dynamicImportFaults: a graph with no modules is a failure, never clean', () => {
+test('dynamicImportFaults: a graph with no modules is a failure, never clean', () => {
     for (const bad of [null, {}, { modules: 'x' }, 'not json']) {
         let threw = false
         try {
@@ -883,7 +880,7 @@ Deno.test('dynamicImportFaults: a graph with no modules is a failure, never clea
     }
 })
 
-Deno.test('dynamicImportFaults: staged drizzle has no false positive', async () => {
+test('dynamicImportFaults: staged drizzle has no false positive', async () => {
     // Captured from publish:check's own staging of @lockness/drizzle: every
     // dynamic edge Deno reports for it resolves, seven of them only through
     // npm-derived subpaths (`drizzle-orm/postgres-js/migrator`) that no
@@ -906,7 +903,7 @@ Deno.test('dynamicImportFaults: staged drizzle has no false positive', async () 
 const DRY_RUN_OUTPUT = await fixture('dry_run_output.txt')
 const DRY_RUN_ROOT = '/placeholder/lockness'
 
-Deno.test('runtimeImportSites: reads the 19 captured sites per package and file', () => {
+test('runtimeImportSites: reads the 19 captured sites per package and file', () => {
     assertStringIncludes(DRY_RUN_OUTPUT, '\x1b[', 'fixture lost its colour')
     const { sites, other } = runtimeImportSites(DRY_RUN_OUTPUT, DRY_RUN_ROOT)
     assertEquals(other, [])
@@ -927,7 +924,7 @@ Deno.test('runtimeImportSites: reads the 19 captured sites per package and file'
     ])
 })
 
-Deno.test('runtimeImportSites: any other diagnostic code is collected', () => {
+test('runtimeImportSites: any other diagnostic code is collected', () => {
     const output = DRY_RUN_OUTPUT +
         '\x1b[0m\x1b[1m\x1b[31merror[missing-license]\x1b[0m: missing license field\n' +
         '  --> /placeholder/lockness/packages/x/deno.json\n' +
@@ -954,7 +951,7 @@ function inventoryOf(
     return { packages }
 }
 
-Deno.test('runtimeImportFaults: an exact inventory is clean', () => {
+test('runtimeImportFaults: an exact inventory is clean', () => {
     const diagnostics = runtimeImportSites(DRY_RUN_OUTPUT, DRY_RUN_ROOT)
     assertEquals(
         runtimeImportFaults(diagnostics, inventoryOf(diagnostics.sites)),
@@ -962,7 +959,7 @@ Deno.test('runtimeImportFaults: an exact inventory is clean', () => {
     )
 })
 
-Deno.test('runtimeImportFaults: an unlisted file is red', () => {
+test('runtimeImportFaults: an unlisted file is red', () => {
     const faults = runtimeImportFaults(
         { sites: { cli: { 'mod.ts': 1 } }, other: [] },
         undefined,
@@ -972,7 +969,7 @@ Deno.test('runtimeImportFaults: an unlisted file is red', () => {
     assertStringIncludes(faults[0], 'not inventoried')
 })
 
-Deno.test('runtimeImportFaults: a count that went up is red', () => {
+test('runtimeImportFaults: a count that went up is red', () => {
     const faults = runtimeImportFaults(
         { sites: { cli: { 'mod.ts': 2 } }, other: [] },
         inventoryOf({ cli: { 'mod.ts': 1 } }),
@@ -982,7 +979,7 @@ Deno.test('runtimeImportFaults: a count that went up is red', () => {
     ])
 })
 
-Deno.test('runtimeImportFaults: a count that went down, or a stale entry, is red', () => {
+test('runtimeImportFaults: a count that went down, or a stale entry, is red', () => {
     assertEquals(
         runtimeImportFaults(
             { sites: { cli: { 'mod.ts': 1 } }, other: [] },
@@ -999,7 +996,7 @@ Deno.test('runtimeImportFaults: a count that went down, or a stale entry, is red
     assertStringIncludes(stale[0], 'finds none')
 })
 
-Deno.test('runtimeImportFaults: an empty reason is red', () => {
+test('runtimeImportFaults: an empty reason is red', () => {
     const faults = runtimeImportFaults(
         { sites: { cli: { 'mod.ts': 1 } }, other: [] },
         {
@@ -1013,7 +1010,7 @@ Deno.test('runtimeImportFaults: an empty reason is red', () => {
     assertEquals(faults, ['cli/mod.ts: inventory entry has no reason'])
 })
 
-Deno.test('runtimeImportFaults: an unknown warning code is red', () => {
+test('runtimeImportFaults: an unknown warning code is red', () => {
     const faults = runtimeImportFaults(
         {
             sites: {},
@@ -1026,7 +1023,7 @@ Deno.test('runtimeImportFaults: an unknown warning code is red', () => {
     ])
 })
 
-Deno.test('resolutionVerdict: a runtime-import fault alone is red', () => {
+test('resolutionVerdict: a runtime-import fault alone is red', () => {
     const verdict = resolutionVerdict(
         [{ name: 'core', ok: true, detail: 'resolves' }],
         ['cli/mod.ts: 1 unanalysable import site(s), not inventoried'],
@@ -1042,7 +1039,7 @@ function loader(body: string): string {
         `${body}\n}\n`
 }
 
-Deno.test('I1: an undeclared sibling only inside import() is red, named with file and line', async () => {
+test('I1: an undeclared sibling only inside import() is red, named with file and line', async () => {
     const { code, out } = await runWorkspace([
         PKG_A,
         pkgB(loader("    return await import('@x-lockness-fixture/c')"), {}),
@@ -1056,7 +1053,7 @@ Deno.test('I1: an undeclared sibling only inside import() is red, named with fil
     )
 })
 
-Deno.test('I2: an undeclared third-party package only inside import() is red', async () => {
+test('I2: an undeclared third-party package only inside import() is red', async () => {
     const { code, out } = await runWorkspace([
         PKG_A,
         pkgB(loader("    return await import('x-lockness-undeclared')"), {}),
@@ -1069,7 +1066,7 @@ Deno.test('I2: an undeclared third-party package only inside import() is red', a
     )
 })
 
-Deno.test('I3: a declared sibling with a workspace-only subpath in import() is green', async () => {
+test('I3: a declared sibling with a workspace-only subpath in import() is green', async () => {
     // The tripwire for `deno info` honouring `links`: JSR knows nothing of
     // the fake scope, so green can only come from the linked sibling.
     const { code, out } = await runWorkspace([
@@ -1086,7 +1083,7 @@ Deno.test('I3: a declared sibling with a workspace-only subpath in import() is g
     assertStringIncludes(out, 'Every package resolves standalone')
 })
 
-Deno.test('I4: a non-exported subpath of a declared sibling in import() is red', async () => {
+test('I4: a non-exported subpath of a declared sibling in import() is red', async () => {
     const { code, out } = await runWorkspace([
         PKG_A,
         pkgB(
@@ -1103,7 +1100,7 @@ Deno.test('I4: a non-exported subpath of a declared sibling in import() is red',
     )
 })
 
-Deno.test('I5: a relative import() of a file outside publish.include is red', async () => {
+test('I5: a relative import() of a file outside publish.include is red', async () => {
     const b = pkgB(loader("    return await import('./x.ts')"), {})
     const { code, out } = await runWorkspace([
         PKG_A,
@@ -1131,7 +1128,7 @@ const COMPUTED = pkgB(
     {},
 )
 
-Deno.test('I6: import(spec) is red when not inventoried', async () => {
+test('I6: import(spec) is red when not inventoried', async () => {
     const { code, out } = await runWorkspace([PKG_A, COMPUTED, PKG_C])
     assertEquals(code, 1, out)
     assertStringIncludes(
@@ -1141,7 +1138,7 @@ Deno.test('I6: import(spec) is red when not inventoried', async () => {
     assert(!out.includes('Every package resolves standalone'), out)
 })
 
-Deno.test('I6: import(spec) is green when inventoried with a reason', async () => {
+test('I6: import(spec) is green when inventoried with a reason', async () => {
     const { code, out } = await runWorkspace([PKG_A, COMPUTED, PKG_C], {
         packages: {
             b: {
@@ -1158,7 +1155,7 @@ Deno.test('I6: import(spec) is green when inventoried with a reason', async () =
     assertStringIncludes(out, 'Every package resolves standalone')
 })
 
-Deno.test('I7: a substitution-free template literal is checked like a string', async () => {
+test('I7: a substitution-free template literal is checked like a string', async () => {
     const { code, out } = await runWorkspace([
         PKG_A,
         pkgB(loader('    return await import(`x-lockness-undeclared`)'), {}),
@@ -1171,7 +1168,7 @@ Deno.test('I7: a substitution-free template literal is checked like a string', a
     )
 })
 
-Deno.test('I8: a multi-line import( names the line the specifier is on', async () => {
+test('I8: a multi-line import( names the line the specifier is on', async () => {
     const { code, out } = await runWorkspace([
         PKG_A,
         pkgB(
@@ -1198,13 +1195,13 @@ Deno.test('I8: a multi-line import( names the line the specifier is on', async (
 // (coordinated with #396, which owns `gate --registry`); `registryVerdict` is
 // the decision the network result feeds, and is what these cover directly.
 
-Deno.test('registryVerdict: every package present is a clean pass', () => {
+test('registryVerdict: every package present is a clean pass', () => {
     const result = registryVerdict([], 0)
     assertEquals(result.code, 0)
     assert(result.lines.some((line) => line.includes('✅')))
 })
 
-Deno.test('registryVerdict: a missing package fails closed with a create URL', () => {
+test('registryVerdict: a missing package fails closed with a create URL', () => {
     const result = registryVerdict(['scheduler'], 0)
     assertEquals(result.code, 1)
     const joined = result.lines.join('\n')
@@ -1215,13 +1212,13 @@ Deno.test('registryVerdict: a missing package fails closed with a create URL', (
     )
 })
 
-Deno.test('registryVerdict: unreachable-only is inconclusive, not a fault', () => {
+test('registryVerdict: unreachable-only is inconclusive, not a fault', () => {
     const result = registryVerdict([], 2)
     assertEquals(result.code, 0)
     assertEquals(result.lines, [])
 })
 
-Deno.test('registryVerdict: a missing package wins over a merely unreachable one', () => {
+test('registryVerdict: a missing package wins over a merely unreachable one', () => {
     const result = registryVerdict(['queue'], 1)
     assertEquals(result.code, 1)
     assertStringIncludes(result.lines.join('\n'), 'queue')
@@ -1229,7 +1226,7 @@ Deno.test('registryVerdict: a missing package wins over a merely unreachable one
 
 // ---- Rule C: a published JSX file needs a "jsx" policy entry (#470) -------
 
-Deno.test('jsxPolicyFaults: a published .tsx without a "jsx" entry is red', () => {
+test('jsxPolicyFaults: a published .tsx without a "jsx" entry is red', () => {
     const faults = jsxPolicyFaults(
         { core: ['deno.json', 'mod.ts', 'exceptions/default_view.tsx'] },
         { packages: { core: { tier: 'orchestration', allow: [] } } },
@@ -1239,7 +1236,7 @@ Deno.test('jsxPolicyFaults: a published .tsx without a "jsx" entry is red', () =
     ])
 })
 
-Deno.test('jsxPolicyFaults: a published .jsx counts exactly like a .tsx (#475)', () => {
+test('jsxPolicyFaults: a published .jsx counts exactly like a .tsx (#475)', () => {
     assertEquals(
         jsxPolicyFaults(
             { ui: ['mod.ts', 'legacy/button.jsx', 'card.tsx'] },
@@ -1259,7 +1256,7 @@ Deno.test('jsxPolicyFaults: a published .jsx counts exactly like a .tsx (#475)',
     )
 })
 
-Deno.test('jsxPolicyFaults: no policy file at all is an empty allowance', () => {
+test('jsxPolicyFaults: no policy file at all is an empty allowance', () => {
     const faults = jsxPolicyFaults(
         { ui: ['a.tsx', 'b.tsx', 'c.tsx', 'd.tsx'] },
         undefined,
@@ -1269,7 +1266,7 @@ Deno.test('jsxPolicyFaults: no policy file at all is an empty allowance', () => 
     assertStringIncludes(faults[0], 'a.tsx, b.tsx, c.tsx, …')
 })
 
-Deno.test('jsxPolicyFaults: a "jsx" entry with a reason makes a .tsx green', () => {
+test('jsxPolicyFaults: a "jsx" entry with a reason makes a .tsx green', () => {
     assertEquals(
         jsxPolicyFaults(
             { ui: ['mod.ts', 'button.tsx'], core: ['mod.ts'] },
@@ -1279,7 +1276,7 @@ Deno.test('jsxPolicyFaults: a "jsx" entry with a reason makes a .tsx green', () 
     )
 })
 
-Deno.test('jsxPolicyFaults: a "jsx" entry with no .tsx left is stale, and red', () => {
+test('jsxPolicyFaults: a "jsx" entry with no .tsx left is stale, and red', () => {
     assertEquals(
         jsxPolicyFaults(
             { core: ['mod.ts', 'view.ts'] },
@@ -1291,7 +1288,7 @@ Deno.test('jsxPolicyFaults: a "jsx" entry with no .tsx left is stale, and red', 
     )
 })
 
-Deno.test('jsxPolicyFaults: a "jsx" entry for a package that does not exist names no published package (#475)', () => {
+test('jsxPolicyFaults: a "jsx" entry for a package that does not exist names no published package (#475)', () => {
     // Its own message, not the stale-entry one: the fix is the name, not the
     // package's files.
     assertEquals(
@@ -1306,7 +1303,7 @@ Deno.test('jsxPolicyFaults: a "jsx" entry for a package that does not exist name
     )
 })
 
-Deno.test('jsxPolicyFaults: an empty or non-string reason is red', () => {
+test('jsxPolicyFaults: an empty or non-string reason is red', () => {
     assertEquals(
         jsxPolicyFaults(
             { ui: ['a.tsx'], markdown: ['b.tsx'] },
@@ -1319,7 +1316,7 @@ Deno.test('jsxPolicyFaults: an empty or non-string reason is red', () => {
     )
 })
 
-Deno.test('jsxPolicyFaults: a .tsx outside the published set does not count', () => {
+test('jsxPolicyFaults: a .tsx outside the published set does not count', () => {
     // The caller passes the published files only (after publish.exclude), so
     // vite's demo/*.tsx never reaches the rule.
     assertEquals(
@@ -1328,7 +1325,7 @@ Deno.test('jsxPolicyFaults: a .tsx outside the published set does not count', ()
     )
 })
 
-Deno.test('resolutionVerdict: a jsx-policy fault alone is red', () => {
+test('resolutionVerdict: a jsx-policy fault alone is red', () => {
     const verdict = resolutionVerdict(
         [{ name: 'core', ok: true, detail: 'resolves' }],
         [],
@@ -1350,7 +1347,7 @@ const SHIPS_TSX: FixturePackage = {
     },
 }
 
-Deno.test('J1: a published .tsx is red when the package has no "jsx" entry', async () => {
+test('J1: a published .tsx is red when the package has no "jsx" entry', async () => {
     const { code, out } = await runWorkspace([PKG_A, SHIPS_TSX, PKG_C])
     assertEquals(code, 1, out)
     assertStringIncludes(
@@ -1360,7 +1357,7 @@ Deno.test('J1: a published .tsx is red when the package has no "jsx" entry', asy
     assert(!out.includes('Every package resolves standalone'), out)
 })
 
-Deno.test('J2: a published .tsx is green when the package has a "jsx" entry', async () => {
+test('J2: a published .tsx is green when the package has a "jsx" entry', async () => {
     const { code, out } = await runWorkspace([PKG_A, SHIPS_TSX, PKG_C], {
         packages: { b: { jsx: 'its consumers are JSX apps' } },
     })
@@ -1368,7 +1365,7 @@ Deno.test('J2: a published .tsx is green when the package has a "jsx" entry', as
     assertStringIncludes(out, 'Every package resolves standalone')
 })
 
-Deno.test('J3: a stale "jsx" entry is red end to end', async () => {
+test('J3: a stale "jsx" entry is red end to end', async () => {
     const { code, out } = await runWorkspace([PKG_A, PKG_C], {
         packages: { a: { jsx: 'it used to ship JSX' } },
     })
@@ -1376,7 +1373,7 @@ Deno.test('J3: a stale "jsx" entry is red end to end', async () => {
     assertStringIncludes(out, 'a: "jsx" entry in deps.policy.jsonc')
 })
 
-Deno.test('J4: an unparseable policy skips Rule C instead of piling faults on it (#475)', async () => {
+test('J4: an unparseable policy skips Rule C instead of piling faults on it (#475)', async () => {
     const { code, out } = await runWorkspace(
         [PKG_A, SHIPS_TSX, PKG_C],
         '{ "packages": { "b": { "jsx": "a reason" } ',
@@ -1440,7 +1437,7 @@ async function checkStaged(run: DenoRunner) {
     }
 }
 
-Deno.test('dynamic edges: a deno info non-zero exit is red', async () => {
+test('dynamic edges: a deno info non-zero exit is red', async () => {
     const result = await checkStaged(
         infoRunner(childResult(1, '', 'error: Module not found "x".')),
     )
@@ -1452,7 +1449,7 @@ Deno.test('dynamic edges: a deno info non-zero exit is red', async () => {
     assertEquals(resolutionVerdict([result]).code, 1)
 })
 
-Deno.test('dynamic edges: deno info output that is not JSON is red', async () => {
+test('dynamic edges: deno info output that is not JSON is red', async () => {
     const result = await checkStaged(infoRunner(childResult(0, 'not json')))
     assertEquals(result.ok, false)
     assertStringIncludes(
@@ -1462,7 +1459,7 @@ Deno.test('dynamic edges: deno info output that is not JSON is red', async () =>
     assertEquals(resolutionVerdict([result]).code, 1)
 })
 
-Deno.test('runtime imports: a dry-run non-zero exit is red', async () => {
+test('runtime imports: a dry-run non-zero exit is red', async () => {
     // No coded diagnostic and no site: only the exit status can make it red.
     const run: DenoRunner = () =>
         Promise.resolve(

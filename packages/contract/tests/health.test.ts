@@ -5,6 +5,7 @@
  * @module @lockness/contract/tests/health
  */
 
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import {
     collectHealthChecks,
@@ -27,7 +28,7 @@ const up: HealthCheck = {
     check: () => Promise.resolve({ ok: true }),
 }
 
-Deno.test('registry - starts empty and counts registrations', () => {
+test('registry - starts empty and counts registrations', () => {
     drainAll()
     assertEquals(healthCheckCount(), 0)
     registerHealthCheck(up)
@@ -35,7 +36,7 @@ Deno.test('registry - starts empty and counts registrations', () => {
     drainAll()
 })
 
-Deno.test('registry - the same check object registers once (identity)', () => {
+test('registry - the same check object registers once (identity)', () => {
     drainAll()
     registerHealthCheck(up)
     registerHealthCheck(up)
@@ -43,7 +44,7 @@ Deno.test('registry - the same check object registers once (identity)', () => {
     drainAll()
 })
 
-Deno.test('registry - deregister takes the handle, not the name', () => {
+test('registry - deregister takes the handle, not the name', () => {
     drainAll()
     const a: HealthCheck = {
         name: 'dup',
@@ -62,7 +63,7 @@ Deno.test('registry - deregister takes the handle, not the name', () => {
     drainAll()
 })
 
-Deno.test('registry - collect returns a snapshot, does NOT clear (checks re-run)', () => {
+test('registry - collect returns a snapshot, does NOT clear (checks re-run)', () => {
     drainAll()
     registerHealthCheck(up)
     assertEquals(collectHealthChecks().length, 1)

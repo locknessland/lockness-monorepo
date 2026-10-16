@@ -30,6 +30,7 @@
  * FR-004a. They are not this mutation's falsifiers, and not defective.
  */
 
+import { test } from 'node:test'
 import { assertEquals, assertRejects } from '@std/assert'
 import { RedisSessionDriver } from '../drivers/redis.ts'
 import { readReply } from '@lockness/redis'
@@ -58,7 +59,7 @@ function withTimeout<T>(work: Promise<T>, ms = 3000): Promise<T> {
     ) as Promise<T>
 }
 
-Deno.test('redis wire - AUTH with a non-ASCII password declares its UTF-8 byte length', async () => {
+test('redis wire - AUTH with a non-ASCII password declares its UTF-8 byte length', async () => {
     const server = await startRespServer()
     try {
         // 'pÿ' is 2 UTF-16 units, 3 UTF-8 bytes. The broken encoder wrote $2.
@@ -85,7 +86,7 @@ Deno.test('redis wire - AUTH with a non-ASCII password declares its UTF-8 byte l
     }
 })
 
-Deno.test('redis wire - a non-ASCII session value is one command, consumed whole', async () => {
+test('redis wire - a non-ASCII session value is one command, consumed whole', async () => {
     const server = await startRespServer()
     try {
         const driver = new RedisSessionDriver({
@@ -121,7 +122,7 @@ Deno.test('redis wire - a non-ASCII session value is one command, consumed whole
     }
 })
 
-Deno.test('redis wire - a non-ASCII session round-trips: write then read the same value (SC-001)', async () => {
+test('redis wire - a non-ASCII session round-trips: write then read the same value (SC-001)', async () => {
     // The read direction. The fake replies with a bulk string carrying a
     // non-ASCII JSON payload; the driver must GET it and decode it intact. The
     // write is proven byte-exact by the tests above; this proves the cycle.
@@ -162,7 +163,7 @@ Deno.test('redis wire - a non-ASCII session round-trips: write then read the sam
     }
 })
 
-Deno.test('redis wire - the fake can tell the broken frame apart (oracle negative test)', async () => {
+test('redis wire - the fake can tell the broken frame apart (oracle negative test)', async () => {
     // Feed the fake the frame the PRE-FIX encoder built for the same command,
     // raw. If the oracle could not distinguish it from a correct frame, every
     // test above would be worthless. The detection is pinned to the EXACT
@@ -216,7 +217,7 @@ Deno.test('redis wire - the fake can tell the broken frame apart (oracle negativ
     }
 })
 
-Deno.test('redis wire - a write failure closes and discards the connection so the next command reconnects (FR-004a)', async () => {
+test('redis wire - a write failure closes and discards the connection so the next command reconnects (FR-004a)', async () => {
     const driver = new RedisSessionDriver({ hostname: '127.0.0.1', port: 1 })
 
     // Preset a connection whose write always rejects. connect() returns it as
@@ -261,7 +262,7 @@ Deno.test('redis wire - a write failure closes and discards the connection so th
 // US4 — a large session round-trips, and a split bulk body reassembles (SC-004)
 // =============================================================================
 
-Deno.test('redis wire - a >8KB session value round-trips byte-identical (SC-004)', async () => {
+test('redis wire - a >8KB session value round-trips byte-identical (SC-004)', async () => {
     // The reply is far larger than one 4096-byte read; a single-shot reader
     // truncates it and JSON.parse throws. The drained reader reassembles it.
     const redis = await startFakeRedis()
@@ -285,7 +286,7 @@ Deno.test('redis wire - a >8KB session value round-trips byte-identical (SC-004)
     }
 })
 
-Deno.test('redis wire - a bulk body split across two reads reassembles (SC-004 split-read)', async () => {
+test('redis wire - a bulk body split across two reads reassembles (SC-004 split-read)', async () => {
     // The fake conn delivers the header + first half in one read and the rest in
     // a second read, so only a draining reader completes the frame.
     const enc = new TextEncoder()

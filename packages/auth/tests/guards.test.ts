@@ -1,4 +1,5 @@
 // deno-lint-ignore-file no-explicit-any
+import { test } from 'node:test'
 import { assertEquals, assertExists, assertRejects } from '@std/assert'
 import { Hono } from 'hono'
 import {
@@ -15,7 +16,7 @@ import {
     MockTokenProvider,
 } from './mocks.ts'
 
-Deno.test('SessionGuard - login with valid credentials', async () => {
+test('SessionGuard - login with valid credentials', async () => {
     const app = new Hono<Env>()
     const provider = new MockSessionProvider()
 
@@ -41,7 +42,7 @@ Deno.test('SessionGuard - login with valid credentials', async () => {
     assertEquals(data.user, 'Alice')
 })
 
-Deno.test('SessionGuard - login with invalid credentials', async () => {
+test('SessionGuard - login with invalid credentials', async () => {
     const provider = new MockSessionProvider()
     const ctx = await createMockContext()
 
@@ -53,7 +54,7 @@ Deno.test('SessionGuard - login with invalid credentials', async () => {
     )
 })
 
-Deno.test('TokenGuard - generate token for user', async () => {
+test('TokenGuard - generate token for user', async () => {
     const ctx = await createMockContext()
     const provider = new MockTokenProvider()
     const guard = new TokenGuard('api', ctx, provider)
@@ -69,7 +70,7 @@ Deno.test('TokenGuard - generate token for user', async () => {
     assertEquals(token.name, 'test-app')
 })
 
-Deno.test('TokenGuard - authenticate with valid token', async () => {
+test('TokenGuard - authenticate with valid token', async () => {
     const provider = new MockTokenProvider()
     const app = new Hono()
 
@@ -97,7 +98,7 @@ Deno.test('TokenGuard - authenticate with valid token', async () => {
     assertEquals(data.isAuthenticated, true)
 })
 
-Deno.test('BasicAuthGuard - authenticate with valid credentials', async () => {
+test('BasicAuthGuard - authenticate with valid credentials', async () => {
     const provider = new MockBasicAuthProvider()
     const app = new Hono()
 

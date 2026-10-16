@@ -6,6 +6,7 @@
  * there are two ways to compute a schedule and only one of them is tested.
  */
 
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { nextRun, parse } from '../cron_parser.ts'
 import {
@@ -21,7 +22,7 @@ import {
     yearly,
 } from '../presets.ts'
 
-Deno.test('presets - every one is a parseable 5-field expression', () => {
+test('presets - every one is a parseable 5-field expression', () => {
     for (const [name, expression] of Object.entries(PRESETS)) {
         parse(expression) // throws if not
         assertEquals(
@@ -32,12 +33,12 @@ Deno.test('presets - every one is a parseable 5-field expression', () => {
     }
 })
 
-Deno.test('presets - the map is complete and frozen', () => {
+test('presets - the map is complete and frozen', () => {
     assertEquals(Object.keys(PRESETS).length, 12)
     assertEquals(Object.isFrozen(PRESETS), true)
 })
 
-Deno.test('presets - each resolves to the expression a reviewer would write', () => {
+test('presets - each resolves to the expression a reviewer would write', () => {
     assertEquals(everyFiveMinutes, '*/5 * * * *')
     assertEquals(everyFifteenMinutes, '*/15 * * * *')
     assertEquals(hourly, '0 * * * *')
@@ -49,7 +50,7 @@ Deno.test('presets - each resolves to the expression a reviewer would write', ()
     assertEquals(weekends, '0 0 * * 6,0')
 })
 
-Deno.test('presets - each produces the occurrence its name claims', () => {
+test('presets - each produces the occurrence its name claims', () => {
     const ref = new Date('2026-03-04T10:07:00Z') // a Wednesday
 
     assertEquals(nextRun(hourly, ref), new Date('2026-03-04T11:00:00Z'))

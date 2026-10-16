@@ -2,6 +2,7 @@
  * Tests for @lockness/logger - Real-world patterns
  */
 
+import { test } from 'node:test'
 import { assertEquals, assertExists } from '@std/assert'
 import {
     JsonFormatter,
@@ -10,8 +11,8 @@ import {
     TextFormatter,
 } from '../mod.ts'
 
-Deno.test('Logger - Real-world patterns', async (t) => {
-    await t.step('HTTP request logging', async () => {
+test('Logger - Real-world patterns', async (t) => {
+    await t.test('HTTP request logging', async () => {
         const memory = new MemoryTransport()
         const log = new Logger({
             context: 'HTTP',
@@ -36,7 +37,7 @@ Deno.test('Logger - Real-world patterns', async (t) => {
         assertEquals(logs[1].metadata?.status, 200)
     })
 
-    await t.step('Error tracking with stack traces', async () => {
+    await t.test('Error tracking with stack traces', async () => {
         const memory = new MemoryTransport()
         const log = new Logger({
             transports: [memory],
@@ -54,7 +55,7 @@ Deno.test('Logger - Real-world patterns', async (t) => {
         assertExists(logs[0].metadata?.stack)
     })
 
-    await t.step('Service-specific loggers', async () => {
+    await t.test('Service-specific loggers', async () => {
         const memory = new MemoryTransport()
         const appLog = new Logger({
             context: 'App',

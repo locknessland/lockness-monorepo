@@ -6,6 +6,7 @@
  * @module @lockness/core/tests/scheduler_locks
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import {
     DenoKvSchedulerLock,
@@ -46,7 +47,7 @@ class FakeRedis implements RedisCommandClient {
 
 const AT = new Date('2026-03-01T10:01:00Z')
 
-Deno.test('RedisSchedulerLock - two replicas on one store claim the occurrence once', async () => {
+test('RedisSchedulerLock - two replicas on one store claim the occurrence once', async () => {
     const redis = new FakeRedis()
     const a = new RedisSchedulerLock(redis)
     const b = new RedisSchedulerLock(redis)
@@ -54,7 +55,7 @@ Deno.test('RedisSchedulerLock - two replicas on one store claim the occurrence o
     assertEquals(await b.acquire('t', AT), false)
 })
 
-Deno.test('RedisSchedulerLock - release is owner-checked (Lua compare-and-delete)', async () => {
+test('RedisSchedulerLock - release is owner-checked (Lua compare-and-delete)', async () => {
     const redis = new FakeRedis()
     const a = new RedisSchedulerLock(redis, 1_000)
     const b = new RedisSchedulerLock(redis, 1_000)
@@ -72,7 +73,7 @@ Deno.test('RedisSchedulerLock - release is owner-checked (Lua compare-and-delete
     )
 })
 
-Deno.test('RedisSchedulerLock - a normal release frees the key for re-acquisition', async () => {
+test('RedisSchedulerLock - a normal release frees the key for re-acquisition', async () => {
     const redis = new FakeRedis()
     const a = new RedisSchedulerLock(redis)
     assertEquals(await a.acquire('t', AT), true)
@@ -81,7 +82,7 @@ Deno.test('RedisSchedulerLock - a normal release frees the key for re-acquisitio
     assertEquals(await b.acquire('t', AT), true, 'released key is free')
 })
 
-Deno.test('DenoKvSchedulerLock - once across replicas + owner-checked release', async () => {
+test('DenoKvSchedulerLock - once across replicas + owner-checked release', async () => {
     const kv = await Deno.openKv(':memory:')
     try {
         const a = new DenoKvSchedulerLock(kv)

@@ -2,7 +2,7 @@
  * Tests for @lockness/socialite - Official Drivers (Google, GitHub, Discord)
  */
 
-import { describe, it } from '@std/testing/bdd'
+import { describe, it } from 'node:test'
 import { expect } from '@std/expect'
 import {
     DiscordDriver,

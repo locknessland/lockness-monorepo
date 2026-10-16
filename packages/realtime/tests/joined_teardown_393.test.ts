@@ -31,6 +31,7 @@
  * @module @lockness/realtime/tests/joined_teardown_393
  */
 
+import { test } from 'node:test'
 import {
     assert,
     assertEquals,
@@ -118,7 +119,7 @@ function managerOver(driver: BroadcastDriver): ChannelManager<User> {
     return new ChannelManager<User>({ driver, authorize: () => true })
 }
 
-Deno.test(
+test(
     "#393 W1 a same-turn double disconnect of one object joins — the second call IS the first call's promise, and the driver unwatches once",
     async () => {
         const driver = new GatedUnwatchDriver()
@@ -150,7 +151,7 @@ Deno.test(
     },
 )
 
-Deno.test(
+test(
     "#393 W2 the acceptance witness: overlapping teardowns of one object never remove a new holder's membership mid-loop",
     async () => {
         await watchingEscapes(async () => {
@@ -206,7 +207,7 @@ Deno.test(
     },
 )
 
-Deno.test(
+test(
     '#393 W3 a different object re-registering under a settled id gets its OWN teardown — the join is keyed by object, not by clientId',
     async () => {
         const driver = new GatedUnwatchDriver()

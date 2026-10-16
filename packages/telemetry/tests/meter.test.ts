@@ -13,6 +13,7 @@
  * @module @lockness/telemetry/tests/meter
  */
 
+import { test } from 'node:test'
 import { assertEquals, assertStrictEquals } from '@std/assert'
 // A hard-rule-#2 exception, the same one `meter.ts` documents: there is no
 // JSR mirror of the OpenTelemetry API, and `createNoopMeter` is the one way
@@ -20,7 +21,7 @@ import { assertEquals, assertStrictEquals } from '@std/assert'
 import { createNoopMeter } from '@opentelemetry/api'
 import { getMeter } from '../mod.ts'
 
-Deno.test('#360 T1 getMeter returns a meter that records without throwing when OTEL_DENO is unset', () => {
+test('#360 T1 getMeter returns a meter that records without throwing when OTEL_DENO is unset', () => {
     assertEquals(Deno.env.get('OTEL_DENO'), undefined, 'precondition')
     const meter = getMeter('x')
     assertStrictEquals(

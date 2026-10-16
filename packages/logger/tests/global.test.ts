@@ -2,6 +2,7 @@
  * Tests for @lockness/logger - Global instance & Isolated instances
  */
 
+import { test } from 'node:test'
 import { assertEquals, assertExists, assertStrictEquals } from '@std/assert'
 import {
     configureLogger,
@@ -17,21 +18,21 @@ import {
     warn,
 } from '../mod.ts'
 
-Deno.test('Logger - Global instance', async (t) => {
-    await t.step('configureLogger sets global logger', () => {
+test('Logger - Global instance', async (t) => {
+    await t.test('configureLogger sets global logger', () => {
         const log = configureLogger({ level: LogLevel.DEBUG })
         assertExists(log)
         assertEquals(logger(), log)
     })
 
-    await t.step('logger() returns global instance', () => {
+    await t.test('logger() returns global instance', () => {
         const log1 = logger()
         const log2 = logger()
         // STRICT: "returns global instance" is an identity claim.
         assertStrictEquals(log1, log2)
     })
 
-    await t.step('global helper functions work', async () => {
+    await t.test('global helper functions work', async () => {
         const memory = new MemoryTransport()
         configureLogger({
             level: LogLevel.DEBUG,
@@ -50,8 +51,8 @@ Deno.test('Logger - Global instance', async (t) => {
     })
 })
 
-Deno.test('Logger - createLogger creates isolated instances', async (t) => {
-    await t.step('creates independent logger', async () => {
+test('Logger - createLogger creates isolated instances', async (t) => {
+    await t.test('creates independent logger', async () => {
         const memory1 = new MemoryTransport()
         const memory2 = new MemoryTransport()
 

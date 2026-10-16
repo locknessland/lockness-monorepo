@@ -32,6 +32,7 @@
  * @module @lockness/realtime/tests/disconnect_admission_361
  */
 
+import { test } from 'node:test'
 import {
     assert,
     assertEquals,
@@ -396,7 +397,7 @@ function managerOver(
     return new ChannelManager<User>({ driver, authorize: spy.fn, ...options })
 }
 
-Deno.test('#361 W1 window (a): a subscribe admitted while its disconnect is suspended is refused, and nothing names the connection afterwards', async () => {
+test('#361 W1 window (a): a subscribe admitted while its disconnect is suspended is refused, and nothing names the connection afterwards', async () => {
     const driver = new GatedUnwatchDriver()
     const spy = new SpyAuthorizer()
     const manager = managerOver(driver, spy)
@@ -426,7 +427,7 @@ Deno.test('#361 W1 window (a): a subscribe admitted while its disconnect is susp
     assertEquals(presenceAbout(o, 1), [], 'the room never heard of member 1')
 })
 
-Deno.test('#361 W2 caps and watch: a refused subscribe takes no slot and issues no watch', async () => {
+test('#361 W2 caps and watch: a refused subscribe takes no slot and issues no watch', async () => {
     const driver = new GatedUnwatchDriver()
     const spy = new SpyAuthorizer()
     const manager = managerOver(driver, spy, {
@@ -455,7 +456,7 @@ Deno.test('#361 W2 caps and watch: a refused subscribe takes no slot and issues 
     assert((await manager.subscribe(n, 'b')).ok, 'both slots are free')
 })
 
-Deno.test('#361 W3 (i) window (b): a subscribe whose authorizer outlives the disconnect is refused, and no zombie is registered', async () => {
+test('#361 W3 (i) window (b): a subscribe whose authorizer outlives the disconnect is refused, and no zombie is registered', async () => {
     const driver = new RecordingDriver()
     const spy = new SpyAuthorizer()
     const manager = managerOver(driver, spy)
@@ -474,7 +475,7 @@ Deno.test('#361 W3 (i) window (b): a subscribe whose authorizer outlives the dis
     assert(!driver.watched.includes(PRIVATE))
 })
 
-Deno.test('#361 W3 (ii) pin: a denial during the disconnect is still a denial, and nothing is written', async () => {
+test('#361 W3 (ii) pin: a denial during the disconnect is still a denial, and nothing is written', async () => {
     const driver = new RecordingDriver()
     const spy = new SpyAuthorizer()
     const manager = managerOver(driver, spy)
@@ -493,7 +494,7 @@ Deno.test('#361 W3 (ii) pin: a denial during the disconnect is still a denial, a
     assert(!driver.watched.includes(PRIVATE))
 })
 
-Deno.test('#361 W4 window (c): a subscribe after the disconnect settled is refused before the authorizer runs, and spends no share', async () => {
+test('#361 W4 window (c): a subscribe after the disconnect settled is refused before the authorizer runs, and spends no share', async () => {
     // (i) The authorizer never runs for a retired connection.
     {
         const spy = new SpyAuthorizer()
@@ -539,7 +540,7 @@ Deno.test('#361 W4 window (c): a subscribe after the disconnect settled is refus
     }
 })
 
-Deno.test('#361 W5 register refuses a disconnected connection object, after and during its teardown', async () => {
+test('#361 W5 register refuses a disconnected connection object, after and during its teardown', async () => {
     {
         const manager = managerOver(new RecordingDriver(), new SpyAuthorizer())
         const c1 = conn('c1', 1)
@@ -564,7 +565,7 @@ Deno.test('#361 W5 register refuses a disconnected connection object, after and 
     }
 })
 
-Deno.test('#361 W6 (i) a failed unwatch leaves no presence ghost, and the rest of the teardown still runs', async () => {
+test('#361 W6 (i) a failed unwatch leaves no presence ghost, and the rest of the teardown still runs', async () => {
     const E = new Error('unwatch failed')
     const driver = new RejectingUnwatchDriver(ROOM, E)
     const manager = managerOver(driver, new SpyAuthorizer())
@@ -587,7 +588,7 @@ Deno.test('#361 W6 (i) a failed unwatch leaves no presence ghost, and the rest o
     assertEquals(driver.holds, holdsBefore, 'the lapse re-holds nothing')
 })
 
-Deno.test('#372 a rejecting unwatchChannel fires exactly once — the retry moved into @lockness/redis, not the manager', async () => {
+test('#372 a rejecting unwatchChannel fires exactly once — the retry moved into @lockness/redis, not the manager', async () => {
     // Companion to #372's redis-side fix, on the SAME harness: a rejecting
     // `unwatchChannel` still leaves `ChannelManager` alone. The redis-side
     // disposition explicitly rejected an owed-unwatch retry living here
@@ -612,7 +613,7 @@ Deno.test('#372 a rejecting unwatchChannel fires exactly once — the retry move
     )
 })
 
-Deno.test('#361 W6 (ii) disconnect: an unwatch rejecting with undefined still rejects the disconnect', async () => {
+test('#361 W6 (ii) disconnect: an unwatch rejecting with undefined still rejects the disconnect', async () => {
     const driver = new RejectingUnwatchDriver(ROOM, undefined)
     const manager = managerOver(driver, new SpyAuthorizer())
     const c1 = conn('c1', 1)
@@ -634,7 +635,7 @@ const FAILURES: [string, unknown][] = [
 ]
 
 for (const [what, value] of FAILURES) {
-    Deno.test(`#361 W6 (ii) evict: a durability write rejecting with ${what} rejects with that value, after the local revoke`, async () => {
+    test(`#361 W6 (ii) evict: a durability write rejecting with ${what} rejects with that value, after the local revoke`, async () => {
         const driver = new RevocationDriver(value)
         driver.markFails = true
         const manager = managerOver(driver, new SpyAuthorizer())
@@ -654,7 +655,7 @@ for (const [what, value] of FAILURES) {
         assert(!state(manager).connections.has('c2'))
     })
 
-    Deno.test(`#361 W6 (ii) revokeChannel durability: a durability write rejecting with ${what} rejects with that value, after the local leave`, async () => {
+    test(`#361 W6 (ii) revokeChannel durability: a durability write rejecting with ${what} rejects with that value, after the local leave`, async () => {
         const driver = new RevocationDriver(value)
         driver.markFails = true
         const manager = managerOver(driver, new SpyAuthorizer())
@@ -676,7 +677,7 @@ for (const [what, value] of FAILURES) {
         )
     })
 
-    Deno.test(`#361 W6 (ii) revokeChannel clear: a record clear rejecting with ${what} rejects with that value, after the local leave`, async () => {
+    test(`#361 W6 (ii) revokeChannel clear: a record clear rejecting with ${what} rejects with that value, after the local leave`, async () => {
         const driver = new RevocationDriver(value)
         driver.clearFails = true
         const manager = managerOver(driver, new SpyAuthorizer())
@@ -700,7 +701,7 @@ for (const [what, value] of FAILURES) {
     })
 }
 
-Deno.test('#361 W7 pin: a join that committed before the disconnect resolves ok, and the disconnect tears it down', async () => {
+test('#361 W7 pin: a join that committed before the disconnect resolves ok, and the disconnect tears it down', async () => {
     const driver = new GatedHoldDriver()
     const manager = managerOver(driver, new SpyAuthorizer())
     const c1 = conn('c1', 1)
@@ -715,7 +716,7 @@ Deno.test('#361 W7 pin: a join that committed before the disconnect resolves ok,
     assertForgotten(manager, driver, 'c1', 1)
 })
 
-Deno.test('#361 W8 id reuse: a different object under a retiring id is refused, and a later one inherits nothing', async () => {
+test('#361 W8 id reuse: a different object under a retiring id is refused, and a later one inherits nothing', async () => {
     const driver = new GatedUnwatchDriver()
     const spy = new SpyAuthorizer()
     const manager = managerOver(driver, spy)
@@ -758,7 +759,7 @@ Deno.test('#361 W8 id reuse: a different object under a retiring id is refused, 
     )
 })
 
-Deno.test('#361 W9 a subscribe racing a suspended leave joins, instead of reading a membership the leave is removing', async () => {
+test('#361 W9 a subscribe racing a suspended leave joins, instead of reading a membership the leave is removing', async () => {
     const driver = new GatedUnwatchDriver()
     const manager = managerOver(driver, new SpyAuthorizer())
     const c1 = conn('c1', 1)
@@ -778,7 +779,7 @@ Deno.test('#361 W9 a subscribe racing a suspended leave joins, instead of readin
     assertEquals(driver.held(ROOM), [1], 'and a roster hold')
 })
 
-Deno.test('#361 W10 an evicted connection is retired: its subscribe is refused before the authorizer runs', async () => {
+test('#361 W10 an evicted connection is retired: its subscribe is refused before the authorizer runs', async () => {
     const spy = new SpyAuthorizer()
     const driver = new RecordingDriver()
     const manager = managerOver(driver, spy)
@@ -797,7 +798,7 @@ Deno.test('#361 W10 an evicted connection is retired: its subscribe is refused b
     assertNothingWritten(manager, driver)
 })
 
-Deno.test('#361 W11 the framework socket path presents one object for the socket life, so a closed socket stays retired', async () => {
+test('#361 W11 the framework socket path presents one object for the socket life, so a closed socket stays retired', async () => {
     const manager = managerOver(new RecordingDriver(), new SpyAuthorizer())
     let captured: Connection<User> | undefined
     const events = buildEvents<User>(
@@ -816,7 +817,7 @@ Deno.test('#361 W11 the framework socket path presents one object for the socket
     )
 })
 
-Deno.test('#361 W12 (i) handlerHooks disconnects even when the app onClose throws, and rejects with the app error', async () => {
+test('#361 W12 (i) handlerHooks disconnects even when the app onClose throws, and rejects with the app error', async () => {
     const APP = new Error('the application onClose failed')
     const manager = managerOver(new RecordingDriver(), new SpyAuthorizer())
     const hooks = manager.handlerHooks({
@@ -837,7 +838,7 @@ Deno.test('#361 W12 (i) handlerHooks disconnects even when the app onClose throw
     )
 })
 
-Deno.test('#361 W12 (ii) when the disconnect fails too, the rejection is still the app error, and the disconnect failure is one WARN', async () => {
+test('#361 W12 (ii) when the disconnect fails too, the rejection is still the app error, and the disconnect failure is one WARN', async () => {
     const APP = new Error('the application onClose failed')
     const driver = new RejectingUnwatchDriver('news', new Error('unwatch'))
     const manager = managerOver(driver, new SpyAuthorizer())
@@ -863,7 +864,7 @@ Deno.test('#361 W12 (ii) when the disconnect fails too, the rejection is still t
     assertEquals(manager.connectionCount, 0)
 })
 
-Deno.test('#361 W13 the post-site sits above the caps: a disconnect during the authorizer is ConnectionDisconnectedError, not ChannelLimitError', async () => {
+test('#361 W13 the post-site sits above the caps: a disconnect during the authorizer is ConnectionDisconnectedError, not ChannelLimitError', async () => {
     // Moved here from the #370 witness file (A3): the #361 battery runs only
     // this suite, and its row for "the post-site moved below the caps" dies on
     // this test. A full instance makes the order observable — below the caps,

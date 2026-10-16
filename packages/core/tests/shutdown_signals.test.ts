@@ -13,6 +13,7 @@
  * working Ctrl-C into a hang, which is strictly worse than before the feature.
  */
 
+import { test } from 'node:test'
 import {
     assert,
     assertEquals,
@@ -226,7 +227,7 @@ setTimeout(() => { console.log('TIMED_OUT'); Deno.exit(99) }, 20000)
 `
 }
 
-Deno.test('signals - SIGTERM runs the hooks and exits 0', async () => {
+test('signals - SIGTERM runs the hooks and exits 0', async () => {
     const { code, out } = await probe(appSource(), 'SIGTERM')
 
     assertStringIncludes(out, 'HOOK_RAN')
@@ -234,7 +235,7 @@ Deno.test('signals - SIGTERM runs the hooks and exits 0', async () => {
     assertEquals(out.includes('TIMED_OUT'), false, 'it must not hang')
 })
 
-Deno.test('signals - SIGINT runs the hooks and exits 0', async () => {
+test('signals - SIGINT runs the hooks and exits 0', async () => {
     const { code, out } = await probe(appSource(), 'SIGINT')
 
     assertStringIncludes(out, 'HOOK_RAN')
@@ -253,7 +254,7 @@ setTimeout(() => { console.log('TIMED_OUT'); Deno.exit(99) }, 20000)
 `
 }
 
-Deno.test('signals - the process exits even with NO hooks registered', async () => {
+test('signals - the process exits even with NO hooks registered', async () => {
     // The regression that matters most. Registering a handler suppresses
     // Deno's default exit, so an app with nothing to tear down must still be
     // killed by Ctrl-C — otherwise this feature makes every trivial app worse.
@@ -263,7 +264,7 @@ Deno.test('signals - the process exits even with NO hooks registered', async () 
     assertEquals(out.includes('TIMED_OUT'), false)
 })
 
-Deno.test('signals - probes pass while the ports they once hard-coded are held', async () => {
+test('signals - probes pass while the ports they once hard-coded are held', async () => {
     // #493. The SIGINT and no-hooks probes used to bind these two ports, and a
     // second worktree's gate holding either one failed them for reasons that
     // had nothing to do with shutdown. The only literal ports left in the
@@ -301,7 +302,7 @@ Deno.test('signals - probes pass while the ports they once hard-coded are held',
     }
 })
 
-Deno.test('probe - a child that never prints READY fails as "did not start"', async () => {
+test('probe - a child that never prints READY fails as "did not start"', async () => {
     // A probe that dies before it is ready must not be signalled and then
     // judged on shutdown: its failure is a startup one, and says so.
     await assertRejects(
@@ -320,7 +321,7 @@ function spawnBare(code: string): Deno.ChildProcess {
     }).spawn()
 }
 
-Deno.test('probe - killing a child that has already exited is tolerated', async () => {
+test('probe - killing a child that has already exited is tolerated', async () => {
     // #495. A bare child.kill() throws here, and inside probe() that skipped
     // the drain, the status await and the temp-file removal.
     const child = spawnBare('')
@@ -329,7 +330,7 @@ Deno.test('probe - killing a child that has already exited is tolerated', async 
     killIfRunning(child, 'SIGTERM')
 })
 
-Deno.test('probe - any other kill error still surfaces', async () => {
+test('probe - any other kill error still surfaces', async () => {
     // Also a TypeError, so a helper that tolerated the class instead of the
     // one condition would swallow it. Only "already terminated" is benign.
     const child = spawnBare('setTimeout(() => {}, 60_000)')
@@ -345,7 +346,7 @@ Deno.test('probe - any other kill error still surfaces', async () => {
     }
 })
 
-Deno.test('probe - a child whose listen() never settles fails as "did not start"', async () => {
+test('probe - a child whose listen() never settles fails as "did not start"', async () => {
     // #495. The child's TIMED_OUT safety timer is armed after listen(), so it
     // never fires here, and the child prints nothing: only the parent's
     // deadline can end this probe. The interval keeps the child's event loop
@@ -364,7 +365,7 @@ await new Promise(() => {})`),
     )
 })
 
-Deno.test('signals - a failing hook still exits, with code 1', async () => {
+test('signals - a failing hook still exits, with code 1', async () => {
     const { code, out } = await probe(
         appSource(`app.onShutdown('boom', () => { throw new Error('x') })`),
         'SIGTERM',
@@ -378,7 +379,7 @@ Deno.test('signals - a failing hook still exits, with code 1', async () => {
     )
 })
 
-Deno.test('signals - a hook that hangs is bounded by the deadline', async () => {
+test('signals - a hook that hangs is bounded by the deadline', async () => {
     // Without this the process would sit forever: the hook never resolves, and
     // Deno's default exit is gone because a handler is installed.
     const { code, out } = await probe(
@@ -393,7 +394,7 @@ app.onShutdown('hangs', () => new Promise(() => {}))`,
     assertEquals(out.includes('TIMED_OUT'), false, 'the deadline fired first')
 })
 
-Deno.test("signals - signals:false leaves today's behaviour untouched", async () => {
+test("signals - signals:false leaves today's behaviour untouched", async () => {
     // An application that wires its own handler opts out and keeps it whole.
     // Without the opt-out the framework's exit would truncate it mid-drain.
     const core = new URL('../mod.ts', import.meta.url).href
@@ -419,13 +420,13 @@ setTimeout(() => { console.log('TIMED_OUT'); Deno.exit(99) }, 20000)
     assertEquals(code, 7, 'the author owns the exit when they opt out')
 })
 
-Deno.test('exitCodeFor - maps a report onto a process exit code', () => {
+test('exitCodeFor - maps a report onto a process exit code', () => {
     assertEquals(exitCodeFor({ failed: [], timedOut: false }), 0)
     assertEquals(exitCodeFor({ failed: ['x'], timedOut: false }), 1)
     assertEquals(exitCodeFor({ failed: [], timedOut: true }), 1)
 })
 
-Deno.test('FR-012 - a second signal exits immediately, without waiting', async () => {
+test('FR-012 - a second signal exits immediately, without waiting', async () => {
     // The `twice` option existed on the probe helper from the start and NO
     // call site ever passed it, so the `if (sequence.isShuttingDown)` branch in
     // signals.ts — the whole of FR-012 — had no test at all. Dead harness reads
@@ -455,7 +456,7 @@ setTimeout(() => { console.log('TIMED_OUT'); Deno.exit(99) }, 20000)
     assertStringIncludes(out, 'Second SIGINT')
 })
 
-Deno.test('FR-010 - installShutdownSignals reports what it installed', async () => {
+test('FR-010 - installShutdownSignals reports what it installed', async () => {
     // In a SUBPROCESS, deliberately. Calling installShutdownSignals in this
     // process would register real SIGINT/SIGTERM handlers on the test runner —
     // suppressing its default exit for every test after this one, and leaving

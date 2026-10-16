@@ -36,6 +36,7 @@
  * @module @lockness/realtime/tests/presence_roster_wrong_type_414
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
 import {
@@ -143,7 +144,7 @@ const SET_WRONG_KINDS: readonly FakeKind[] = ['string', 'hash', 'zset']
 // ---------------------------------------------------------------------------
 
 for (const kind of SET_WRONG_KINDS) {
-    Deno.test(`#414 a ${kind}-typed owned set self-heals on HOLD_MEMBER_SCRIPT: the hold completes and one WARN names '${kind}'`, async () => {
+    test(`#414 a ${kind}-typed owned set self-heals on HOLD_MEMBER_SCRIPT: the hold completes and one WARN names '${kind}'`, async () => {
         const redis = new FakeRedis()
         const d = driver(redis)
         const warnings = captureWarnings()
@@ -181,7 +182,7 @@ for (const kind of SET_WRONG_KINDS) {
         }
     })
 
-    Deno.test(`#414 a ${kind}-typed owned set self-heals on RELEASE_MEMBER_SCRIPT: the release completes and one WARN names '${kind}'`, async () => {
+    test(`#414 a ${kind}-typed owned set self-heals on RELEASE_MEMBER_SCRIPT: the release completes and one WARN names '${kind}'`, async () => {
         const redis = new FakeRedis()
         const d = driver(redis)
         const warnings = captureWarnings()
@@ -216,7 +217,7 @@ for (const kind of SET_WRONG_KINDS) {
 // ---------------------------------------------------------------------------
 
 for (const kind of SET_WRONG_KINDS) {
-    Deno.test(`#414 a ${kind}-typed instances set self-heals on HOLD_MEMBER_SCRIPT: the hold completes and one WARN names '${kind}'`, async () => {
+    test(`#414 a ${kind}-typed instances set self-heals on HOLD_MEMBER_SCRIPT: the hold completes and one WARN names '${kind}'`, async () => {
         const redis = new FakeRedis()
         const d = driver(redis)
         const warnings = captureWarnings()
@@ -254,7 +255,7 @@ for (const kind of SET_WRONG_KINDS) {
 }
 
 for (const kind of SET_WRONG_KINDS) {
-    Deno.test(`#414 a ${kind}-typed instances set self-heals on DEREGISTER_INSTANCE_SCRIPT: the sweep completes and one WARN names '${kind}'`, async () => {
+    test(`#414 a ${kind}-typed instances set self-heals on DEREGISTER_INSTANCE_SCRIPT: the sweep completes and one WARN names '${kind}'`, async () => {
         const redis = new FakeRedis()
         const DEAD = 'dead-instance-414'
         // Planted with RAW commands so nothing self-heals it before the sweep
@@ -309,7 +310,7 @@ for (const kind of SET_WRONG_KINDS) {
 // ---------------------------------------------------------------------------
 
 for (const kind of HASH_WRONG_KINDS) {
-    Deno.test(`#414 a ${kind}-typed presence key makes holdMember throw, never silently swallowed`, async () => {
+    test(`#414 a ${kind}-typed presence key makes holdMember throw, never silently swallowed`, async () => {
         const redis = new FakeRedis()
         const d = driver(redis)
         try {
@@ -324,7 +325,7 @@ for (const kind of HASH_WRONG_KINDS) {
         }
     })
 
-    Deno.test(`#414 a ${kind}-typed presence key makes releaseMember throw, never silently swallowed`, async () => {
+    test(`#414 a ${kind}-typed presence key makes releaseMember throw, never silently swallowed`, async () => {
         const redis = new FakeRedis()
         const d = driver(redis)
         try {
@@ -340,7 +341,7 @@ for (const kind of HASH_WRONG_KINDS) {
         }
     })
 
-    Deno.test(`#414 a ${kind}-typed presence key makes readRoster throw, never silently swallowed`, async () => {
+    test(`#414 a ${kind}-typed presence key makes readRoster throw, never silently swallowed`, async () => {
         const redis = new FakeRedis()
         const d = driver(redis)
         try {
@@ -355,7 +356,7 @@ for (const kind of HASH_WRONG_KINDS) {
         }
     })
 
-    Deno.test(`#414 a ${kind}-typed holders key makes holdMember throw, never silently swallowed`, async () => {
+    test(`#414 a ${kind}-typed holders key makes holdMember throw, never silently swallowed`, async () => {
         const redis = new FakeRedis()
         const d = driver(redis)
         try {
@@ -370,7 +371,7 @@ for (const kind of HASH_WRONG_KINDS) {
         }
     })
 
-    Deno.test(`#414 a ${kind}-typed holders key makes releaseMember throw, never silently swallowed`, async () => {
+    test(`#414 a ${kind}-typed holders key makes releaseMember throw, never silently swallowed`, async () => {
         const redis = new FakeRedis()
         const d = driver(redis)
         try {
@@ -391,7 +392,7 @@ for (const kind of HASH_WRONG_KINDS) {
 // The ordering fix: a presence-only corruption commits NOTHING (#414).
 // ---------------------------------------------------------------------------
 
-Deno.test('#414 a presence-only corruption aborts BEFORE the holders write: no orphan in holders or owned', async () => {
+test('#414 a presence-only corruption aborts BEFORE the holders write: no orphan in holders or owned', async () => {
     const redis = new FakeRedis()
     const d = driver(redis)
     try {
@@ -427,7 +428,7 @@ Deno.test('#414 a presence-only corruption aborts BEFORE the holders write: no o
     }
 })
 
-Deno.test('#414 a healthy or absent owned/instances key never WARNs on hold, release or deregister', async () => {
+test('#414 a healthy or absent owned/instances key never WARNs on hold, release or deregister', async () => {
     const redis = new FakeRedis()
     const DEAD = 'dead-instance-414-healthy'
     const entry = JSON.stringify({ member: { id: 9 }, owner: DEAD })
@@ -465,11 +466,10 @@ function liveWrongTypeRow(
     kind: 'list' | 'stream',
     corrupt: (client: RedisClient, key: string) => Promise<void>,
 ) {
-    Deno.test({
-        name:
-            `#414 (live) a ${kind}-typed ${key} set self-heals on HOLD_MEMBER_SCRIPT against a real broker`,
-        ignore: !LIVE_BROKER,
-        async fn() {
+    test(
+        `#414 (live) a ${kind}-typed ${key} set self-heals on HOLD_MEMBER_SCRIPT against a real broker`,
+        { skip: !LIVE_BROKER },
+        async function () {
             const config = brokerConfig()
             await preflight(config)
             const live = new RedisClient(config)
@@ -505,7 +505,7 @@ function liveWrongTypeRow(
                 await live.close()
             }
         },
-    })
+    )
 }
 
 for (const key of ['owned', 'instances'] as const) {

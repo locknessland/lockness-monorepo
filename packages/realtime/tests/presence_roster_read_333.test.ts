@@ -31,6 +31,7 @@
  * @module @lockness/realtime/tests/presence_roster_read_333
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { ChannelManager, type SubscribeResult } from '../manager.ts'
 import { RosterReadBarrier } from '../roster_read_barrier.ts'
@@ -156,7 +157,7 @@ function membersOf(result: SubscribeResult): PresenceMember[] {
 /** Let every already-queued microtask and timer run. */
 const drain = () => new Promise((r) => setTimeout(r, 0))
 
-Deno.test('#333 K concurrent presence subscribes cost exactly two reads', async () => {
+test('#333 K concurrent presence subscribes cost exactly two reads', async () => {
     const gate = gatedRosterDriver()
     const m = new ChannelManager<User>({ driver: gate.driver, authorize })
 
@@ -205,7 +206,7 @@ Deno.test('#333 K concurrent presence subscribes cost exactly two reads', async 
     )
 })
 
-Deno.test('#333 a joiner sees ITSELF in its own reply', async () => {
+test('#333 a joiner sees ITSELF in its own reply', async () => {
     // THE ROW THAT CHOOSES THE DESIGN, and the whole reason the barrier is
     // trailing-edge rather than a leading-edge single-flight.
     //
@@ -256,7 +257,7 @@ Deno.test('#333 a joiner sees ITSELF in its own reply', async () => {
     )
 })
 
-Deno.test('#333 an unconcurrent join still reads at its own ask-time', async () => {
+test('#333 an unconcurrent join still reads at its own ask-time', async () => {
     // The bound is "one in flight", never "one per interval". Nothing here is
     // shared, so nothing here is staler than before the change — which is what
     // keeps `churn_cost_329.test.ts`'s published cost table accurate: a
@@ -274,7 +275,7 @@ Deno.test('#333 an unconcurrent join still reads at its own ask-time', async () 
     assertEquals(membersOf(rejoin).map((member) => member.id), [1])
 })
 
-Deno.test('#333 distinct channels do not share a read, and leave nothing behind', async () => {
+test('#333 distinct channels do not share a read, and leave nothing behind', async () => {
     // The bound is per channel — R1b in the disposition — and the map is keyed
     // by channel names clients choose. What bounds it is reads IN FLIGHT, never
     // names ever seen; miss that and this remedy is #334 in a different map.
@@ -296,7 +297,7 @@ Deno.test('#333 distinct channels do not share a read, and leave nothing behind'
     )
 })
 
-Deno.test('#333 every caller of a shared read gets its OWN array', async () => {
+test('#333 every caller of a shared read gets its OWN array', async () => {
     // R1g. The barrier hands one array to everyone sharing a read;
     // `rosterSnapshot`'s spread is what keeps that from being observable, and
     // that spread stopped being defensive the day the barrier arrived.

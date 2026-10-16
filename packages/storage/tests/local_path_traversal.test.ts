@@ -8,6 +8,7 @@
  * @module @lockness/storage/tests/local_path_traversal
  */
 
+import { test } from 'node:test'
 import { assertEquals, assertRejects } from '@std/assert'
 import { join } from '@std/path'
 import { LocalStorageDriver } from '../mod.ts'
@@ -33,7 +34,7 @@ async function withDriver(
     }
 }
 
-Deno.test('LocalStorageDriver - rejects reading through parent traversal (#166)', async () => {
+test('LocalStorageDriver - rejects reading through parent traversal (#166)', async () => {
     await withDriver(async (driver, _root, base) => {
         await Deno.writeTextFile(join(base, 'secret.txt'), 'topsecret')
         await assertRejects(() => driver.get('../secret.txt'), Error)
@@ -41,7 +42,7 @@ Deno.test('LocalStorageDriver - rejects reading through parent traversal (#166)'
     })
 })
 
-Deno.test('LocalStorageDriver - rejects writing/deleting through parent traversal (#166)', async () => {
+test('LocalStorageDriver - rejects writing/deleting through parent traversal (#166)', async () => {
     await withDriver(async (driver, _root, base) => {
         await assertRejects(() => driver.put('../escape.txt', 'x'), Error)
         await assertRejects(
@@ -52,7 +53,7 @@ Deno.test('LocalStorageDriver - rejects writing/deleting through parent traversa
     })
 })
 
-Deno.test('LocalStorageDriver - rejects traversal in copy/move destination or source (#166)', async () => {
+test('LocalStorageDriver - rejects traversal in copy/move destination or source (#166)', async () => {
     await withDriver(async (driver) => {
         await driver.put('safe.txt', 'ok')
         await assertRejects(
@@ -66,7 +67,7 @@ Deno.test('LocalStorageDriver - rejects traversal in copy/move destination or so
     })
 })
 
-Deno.test('LocalStorageDriver - allows and round-trips a path that normalises inside root (#166)', async () => {
+test('LocalStorageDriver - allows and round-trips a path that normalises inside root (#166)', async () => {
     await withDriver(async (driver) => {
         // `nested/a/../b.txt` resolves to `nested/b.txt` — still inside root, so
         // the guard must NOT reject legitimate `..` that stays contained.

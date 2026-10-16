@@ -1,3 +1,4 @@
+import { test } from 'node:test'
 import { assertStringIncludes } from '@std/assert'
 import {
     PricingCard,
@@ -20,8 +21,8 @@ function renderToString(component: unknown): string {
     return result.toString()
 }
 
-Deno.test('Pricing components', async (t) => {
-    await t.step('PricingCard renders with base styles', () => {
+test('Pricing components', async (t) => {
+    await t.test('PricingCard renders with base styles', () => {
         const html = renderToString(
             <PricingCard>
                 <div>Content</div>
@@ -32,7 +33,7 @@ Deno.test('Pricing components', async (t) => {
         assertStringIncludes(html, 'Content')
     })
 
-    await t.step('PricingCard renders with featured style', () => {
+    await t.test('PricingCard renders with featured style', () => {
         const html = renderToString(
             <PricingCard featured>Content</PricingCard>,
         )
@@ -41,7 +42,7 @@ Deno.test('Pricing components', async (t) => {
         assertStringIncludes(html, 'scale-105')
     })
 
-    await t.step('PricingCardHeader renders with title', () => {
+    await t.test('PricingCardHeader renders with title', () => {
         const html = renderToString(
             <PricingCardHeader title='Pro Plan' />,
         )
@@ -49,7 +50,7 @@ Deno.test('Pricing components', async (t) => {
         assertStringIncludes(html, 'text-center')
     })
 
-    await t.step('PricingCardHeader renders with badge', () => {
+    await t.test('PricingCardHeader renders with badge', () => {
         const html = renderToString(
             <PricingCardHeader title='Pro' badge='Popular' />,
         )
@@ -57,13 +58,13 @@ Deno.test('Pricing components', async (t) => {
         assertStringIncludes(html, 'Popular')
     })
 
-    await t.step('PricingCardPrice renders with default currency', () => {
+    await t.test('PricingCardPrice renders with default currency', () => {
         const html = renderToString(<PricingCardPrice price={29} />)
         assertStringIncludes(html, '29')
         assertStringIncludes(html, '$')
     })
 
-    await t.step('PricingCardPrice renders with custom currency', () => {
+    await t.test('PricingCardPrice renders with custom currency', () => {
         const html = renderToString(
             <PricingCardPrice price={29} currency='€' />,
         )
@@ -71,7 +72,7 @@ Deno.test('Pricing components', async (t) => {
         assertStringIncludes(html, '€')
     })
 
-    await t.step('PricingCardPrice renders with period', () => {
+    await t.test('PricingCardPrice renders with period', () => {
         const html = renderToString(
             <PricingCardPrice price={29} period='month' />,
         )
@@ -79,7 +80,7 @@ Deno.test('Pricing components', async (t) => {
         assertStringIncludes(html, '/month')
     })
 
-    await t.step('PricingCardPrice renders with original price', () => {
+    await t.test('PricingCardPrice renders with original price', () => {
         const html = renderToString(
             <PricingCardPrice price={29} originalPrice={49} />,
         )
@@ -88,7 +89,7 @@ Deno.test('Pricing components', async (t) => {
         assertStringIncludes(html, 'line-through')
     })
 
-    await t.step('PricingCardPrice renders with description', () => {
+    await t.test('PricingCardPrice renders with description', () => {
         const html = renderToString(
             <PricingCardPrice price={0} description='Free forever' />,
         )
@@ -96,12 +97,12 @@ Deno.test('Pricing components', async (t) => {
         assertStringIncludes(html, 'Free forever')
     })
 
-    await t.step('PricingCardPrice handles string price', () => {
+    await t.test('PricingCardPrice handles string price', () => {
         const html = renderToString(<PricingCardPrice price='Custom' />)
         assertStringIncludes(html, 'Custom')
     })
 
-    await t.step('PricingCardDescription renders text', () => {
+    await t.test('PricingCardDescription renders text', () => {
         const html = renderToString(
             <PricingCardDescription>
                 Perfect for individuals
@@ -111,7 +112,7 @@ Deno.test('Pricing components', async (t) => {
         assertStringIncludes(html, 'text-center')
     })
 
-    await t.step('PricingCardFeatures renders container', () => {
+    await t.test('PricingCardFeatures renders container', () => {
         const html = renderToString(
             <PricingCardFeatures>
                 <PricingCardFeature>Feature 1</PricingCardFeature>
@@ -121,7 +122,7 @@ Deno.test('Pricing components', async (t) => {
         assertStringIncludes(html, '<ul')
     })
 
-    await t.step('PricingCardFeature renders with check icon', () => {
+    await t.test('PricingCardFeature renders with check icon', () => {
         const html = renderToString(
             <PricingCardFeature>Unlimited projects</PricingCardFeature>,
         )
@@ -130,7 +131,7 @@ Deno.test('Pricing components', async (t) => {
         assertStringIncludes(html, 'text-primary')
     })
 
-    await t.step(
+    await t.test(
         'PricingCardFeature renders with cross icon when not included',
         () => {
             const html = renderToString(
@@ -143,7 +144,7 @@ Deno.test('Pricing components', async (t) => {
         },
     )
 
-    await t.step('PricingCardAction renders button', () => {
+    await t.test('PricingCardAction renders button', () => {
         const html = renderToString(
             <PricingCardAction>Get Started</PricingCardAction>,
         )
@@ -151,7 +152,7 @@ Deno.test('Pricing components', async (t) => {
         assertStringIncludes(html, 'w-full')
     })
 
-    await t.step('PricingCardAction renders with custom variant', () => {
+    await t.test('PricingCardAction renders with custom variant', () => {
         const html = renderToString(
             <PricingCardAction variant='outline'>
                 Sign Up
@@ -160,7 +161,7 @@ Deno.test('Pricing components', async (t) => {
         assertStringIncludes(html, 'Sign Up')
     })
 
-    await t.step('PricingCardAction renders as link with href', () => {
+    await t.test('PricingCardAction renders as link with href', () => {
         const html = renderToString(
             <PricingCardAction href='/signup'>Subscribe</PricingCardAction>,
         )
@@ -168,28 +169,28 @@ Deno.test('Pricing components', async (t) => {
         assertStringIncludes(html, '/signup')
     })
 
-    await t.step('PricingToggle renders with monthly selected', () => {
+    await t.test('PricingToggle renders with monthly selected', () => {
         const html = renderToString(<PricingToggle selected='monthly' />)
         assertStringIncludes(html, 'Monthly')
         assertStringIncludes(html, 'Yearly')
         assertStringIncludes(html, 'data-billing-period="monthly"')
     })
 
-    await t.step('PricingToggle renders with yearly selected', () => {
+    await t.test('PricingToggle renders with yearly selected', () => {
         const html = renderToString(<PricingToggle selected='yearly' />)
         assertStringIncludes(html, 'Monthly')
         assertStringIncludes(html, 'Yearly')
         assertStringIncludes(html, 'data-billing-period="yearly"')
     })
 
-    await t.step('PricingToggle renders with yearly badge', () => {
+    await t.test('PricingToggle renders with yearly badge', () => {
         const html = renderToString(
             <PricingToggle selected='yearly' yearlyBadge='Save 20%' />,
         )
         assertStringIncludes(html, 'Save 20%')
     })
 
-    await t.step('PricingToggle renders with custom labels', () => {
+    await t.test('PricingToggle renders with custom labels', () => {
         const html = renderToString(
             <PricingToggle
                 monthlyLabel='Per Month'
@@ -200,7 +201,7 @@ Deno.test('Pricing components', async (t) => {
         assertStringIncludes(html, 'Per Year')
     })
 
-    await t.step('PricingSection renders with 2 columns', () => {
+    await t.test('PricingSection renders with 2 columns', () => {
         const html = renderToString(
             <PricingSection columns={2}>
                 <div>Card 1</div>
@@ -212,7 +213,7 @@ Deno.test('Pricing components', async (t) => {
         assertStringIncludes(html, 'Card 2')
     })
 
-    await t.step('PricingSection renders with 3 columns', () => {
+    await t.test('PricingSection renders with 3 columns', () => {
         const html = renderToString(
             <PricingSection columns={3}>
                 <div>Card 1</div>
@@ -226,7 +227,7 @@ Deno.test('Pricing components', async (t) => {
         assertStringIncludes(html, 'Card 3')
     })
 
-    await t.step('PricingComparison renders table with headers', () => {
+    await t.test('PricingComparison renders table with headers', () => {
         const html = renderToString(
             <PricingComparison
                 tiers={['Free', 'Pro', 'Enterprise']}
@@ -243,7 +244,7 @@ Deno.test('Pricing components', async (t) => {
         assertStringIncludes(html, 'Features')
     })
 
-    await t.step('PricingComparison renders feature rows', () => {
+    await t.test('PricingComparison renders feature rows', () => {
         const html = renderToString(
             <PricingComparison
                 tiers={['Free', 'Pro']}
@@ -261,7 +262,7 @@ Deno.test('Pricing components', async (t) => {
         assertStringIncludes(html, '100 GB')
     })
 
-    await t.step('PricingComparison renders boolean values as icons', () => {
+    await t.test('PricingComparison renders boolean values as icons', () => {
         const html = renderToString(
             <PricingComparison
                 tiers={['Free', 'Pro']}
@@ -278,7 +279,7 @@ Deno.test('Pricing components', async (t) => {
         assertStringIncludes(html, 'text-muted-foreground')
     })
 
-    await t.step('renders full pricing card composition', () => {
+    await t.test('renders full pricing card composition', () => {
         const html = renderToString(
             <PricingCard featured>
                 <PricingCardHeader title='Pro' badge='Popular' />
@@ -309,7 +310,7 @@ Deno.test('Pricing components', async (t) => {
         assertStringIncludes(html, '/signup')
     })
 
-    await t.step('all components forward custom classes', () => {
+    await t.test('all components forward custom classes', () => {
         const cardHtml = renderToString(
             <PricingCard class='custom-card'>Test</PricingCard>,
         )

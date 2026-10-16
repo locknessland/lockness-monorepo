@@ -16,6 +16,7 @@
  * @module @lockness/realtime/tests/control_replay
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertThrows } from '@std/assert'
 import { RedisBroadcastDriver } from '../drivers/redis.ts'
 import type { ControlMessage } from '../driver.ts'
@@ -72,7 +73,7 @@ async function warningsFrom(body: () => Promise<void>): Promise<string[]> {
     return captured
 }
 
-Deno.test('US1: a captured frame is obeyed ONCE — the replay is refused', async () => {
+test('US1: a captured frame is obeyed ONCE — the replay is refused', async () => {
     const redis = new FakeRedis()
     const a = publisher(redis)
     const b = receiver(redis)
@@ -103,7 +104,7 @@ Deno.test('US1: a captured frame is obeyed ONCE — the replay is refused', asyn
     }
 })
 
-Deno.test('US2: a frame older than the window is refused by an instance that never saw it', async () => {
+test('US2: a frame older than the window is refused by an instance that never saw it', async () => {
     const redis = new FakeRedis()
     const a = publisher(redis)
     try {
@@ -137,7 +138,7 @@ Deno.test('US2: a frame older than the window is refused by an instance that nev
     }
 })
 
-Deno.test('US3: two instances publishing concurrently are both obeyed', async () => {
+test('US3: two instances publishing concurrently are both obeyed', async () => {
     // The regression that would fail CLOSED — worse than the replay this
     // feature prevents. Keyed on the nonce alone rather than on
     // (origin, nonce), the second publisher's frame is discarded as the
@@ -162,7 +163,7 @@ Deno.test('US3: two instances publishing concurrently are both obeyed', async ()
     }
 })
 
-Deno.test('US3: a legitimate stream of frames is never dropped', async () => {
+test('US3: a legitimate stream of frames is never dropped', async () => {
     const redis = new FakeRedis()
     const a = publisher(redis)
     const b = receiver(redis)
@@ -181,7 +182,7 @@ Deno.test('US3: a legitimate stream of frames is never dropped', async () => {
     }
 })
 
-Deno.test('FR-011: an oversized control payload is dropped before it is parsed', async () => {
+test('FR-011: an oversized control payload is dropped before it is parsed', async () => {
     const redis = new FakeRedis()
     const b = receiver(redis)
     try {
@@ -201,7 +202,7 @@ Deno.test('FR-011: an oversized control payload is dropped before it is parsed',
     }
 })
 
-Deno.test('FR-012: a non-integer timestamp is refused at the shape gate', async () => {
+test('FR-012: a non-integer timestamp is refused at the shape gate', async () => {
     const redis = new FakeRedis()
     const b = receiver(redis)
     try {
@@ -234,7 +235,7 @@ Deno.test('FR-012: a non-integer timestamp is refused at the shape gate', async 
     }
 })
 
-Deno.test('FR-012: an object nonce is refused at the shape gate', async () => {
+test('FR-012: an object nonce is refused at the shape gate', async () => {
     const redis = new FakeRedis()
     const b = receiver(redis)
     try {
@@ -270,7 +271,7 @@ Deno.test('FR-012: an object nonce is refused at the shape gate', async () => {
 // FR-011 — isPlainMember, the pre-MAC guard on the one field that can be large
 // ---------------------------------------------------------------------------
 
-Deno.test('FR-011: a member that is not a plain object is refused at the shape gate', async () => {
+test('FR-011: a member that is not a plain object is refused at the shape gate', async () => {
     // Every rejection branch of `isPlainMember`. Without these, replacing the
     // whole conjunct with `true` leaves the suite green — the guard exists to
     // stop attacker-chosen bytes reaching a synchronous pure-JS SHA-256, and an
@@ -316,7 +317,7 @@ Deno.test('FR-011: a member that is not a plain object is refused at the shape g
     }
 })
 
-Deno.test('FR-011: a legitimate member shape still passes the guard', async () => {
+test('FR-011: a legitimate member shape still passes the guard', async () => {
     // The negative control. A guard that rejected everything would satisfy the
     // test above perfectly and break the entire presence control plane.
     const redis = new FakeRedis()
@@ -336,7 +337,7 @@ Deno.test('FR-011: a legitimate member shape still passes the guard', async () =
     }
 })
 
-Deno.test('FR-011: an oversized frame is refused at PUBLISH, not only at ingest', async () => {
+test('FR-011: an oversized frame is refused at PUBLISH, not only at ingest', async () => {
     // The failure surfaces where it can be fixed. Without the publish-side
     // check, an app whose member info grew past the ceiling would publish
     // happily and every remote instance would drop it silently.
@@ -367,7 +368,7 @@ Deno.test('FR-011: an oversized frame is refused at PUBLISH, not only at ingest'
     }
 })
 
-Deno.test('FR-007: an invalid windowMs is refused at construction, not silently ignored', () => {
+test('FR-007: an invalid windowMs is refused at construction, not silently ignored', () => {
     // `Math.abs(x) > NaN` is false for every frame, so a NaN window disables the
     // freshness check outright — and `Number(Deno.env.get('UNSET'))` is NaN.
     for (const windowMs of [NaN, 0, -1, Infinity]) {
@@ -389,7 +390,7 @@ Deno.test('FR-007: an invalid windowMs is refused at construction, not silently 
 // #283 — the entry cap reaches the window from the driver's own config
 // ---------------------------------------------------------------------------
 
-Deno.test('#283: control.maxEntries is FORWARDED to the replay window, not merely accepted', async () => {
+test('#283: control.maxEntries is FORWARDED to the replay window, not merely accepted', async () => {
     // The trap this is shaped to avoid is the same one #245's cadence test
     // names: a driver that silently DROPS the option behaves identically to one
     // that forwards it, because the default (10 000) would never be reached by
@@ -436,7 +437,7 @@ Deno.test('#283: control.maxEntries is FORWARDED to the replay window, not merel
     }
 })
 
-Deno.test('#283: an invalid control.maxEntries is refused at construction', async () => {
+test('#283: an invalid control.maxEntries is refused at construction', async () => {
     const redis = new FakeRedis()
     for (const bad of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
         assertThrows(

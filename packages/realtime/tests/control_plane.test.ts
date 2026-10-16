@@ -11,6 +11,7 @@
  * @module @lockness/realtime/tests/control_plane
  */
 
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { RedisBroadcastDriver } from '../drivers/redis.ts'
 import type { BroadcastMessage, ControlMessage } from '../driver.ts'
@@ -24,7 +25,7 @@ function driver(redis: FakeRedis, secret?: string) {
     )
 }
 
-Deno.test('a control message reaches onControl on other instances, never onMessage', async () => {
+test('a control message reaches onControl on other instances, never onMessage', async () => {
     const redis = new FakeRedis()
     const a = driver(redis, 'deployment-secret-with-enough-entropy')
     const b = driver(redis, 'deployment-secret-with-enough-entropy')
@@ -53,7 +54,7 @@ Deno.test('a control message reaches onControl on other instances, never onMessa
     }
 })
 
-Deno.test('a control publisher never receives its own control (self-loopback dropped)', async () => {
+test('a control publisher never receives its own control (self-loopback dropped)', async () => {
     const redis = new FakeRedis()
     const a = driver(redis, 'deployment-secret-with-enough-entropy')
     try {
@@ -66,7 +67,7 @@ Deno.test('a control publisher never receives its own control (self-loopback dro
     }
 })
 
-Deno.test('FR-015: a control message signed with the wrong secret is dropped', async () => {
+test('FR-015: a control message signed with the wrong secret is dropped', async () => {
     const redis = new FakeRedis()
     const b = driver(redis, 'deployment-secret-with-enough-entropy')
     const forger = driver(redis, 'a-different-secret-with-enough-entropy!')
@@ -81,7 +82,7 @@ Deno.test('FR-015: a control message signed with the wrong secret is dropped', a
     }
 })
 
-Deno.test('FR-015: with no secret configured, publish is refused and ingest drops', async () => {
+test('FR-015: with no secret configured, publish is refused and ingest drops', async () => {
     const redis = new FakeRedis()
     const insecure = driver(redis) // no secret
     const signed = driver(redis, 'deployment-secret-with-enough-entropy')
@@ -103,7 +104,7 @@ Deno.test('FR-015: with no secret configured, publish is refused and ingest drop
     }
 })
 
-Deno.test('FR-019: a control message with an out-of-charset target is dropped', async () => {
+test('FR-019: a control message with an out-of-charset target is dropped', async () => {
     const redis = new FakeRedis()
     const b = driver(redis, 'deployment-secret-with-enough-entropy')
     try {

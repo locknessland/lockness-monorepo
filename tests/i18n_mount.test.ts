@@ -9,6 +9,7 @@
  * These boot the real `mountPointConfig`, so that revert fails here.
  */
 
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { App, type Context } from '@lockness/core'
 import { Controller, Get } from '@lockness/core'
@@ -33,7 +34,7 @@ async function bootRealApp() {
     return app
 }
 
-Deno.test('#95 - the shipped mount pattern is constrained, not a literal', () => {
+test('#95 - the shipped mount pattern is constrained, not a literal', () => {
     // Pins FR-004: the pattern is DERIVED from config/i18n.ts. A hand-written
     // literal — constrained or not — is a second spelling of the code lists.
     for (const lang of validLanguages) {
@@ -56,7 +57,7 @@ Deno.test('#95 - the shipped mount pattern is constrained, not a literal', () =>
     assertEquals(mountPointConfig.pattern.includes('(?:'), true)
 })
 
-Deno.test('#95 - DevTools probe does not reach the shipped i18n middleware', async () => {
+test('#95 - DevTools probe does not reach the shipped i18n middleware', async () => {
     const app = await bootRealApp()
 
     // A 404 alone proves NOTHING here: the buggy version 404s from inside the
@@ -87,7 +88,7 @@ Deno.test('#95 - DevTools probe does not reach the shipped i18n middleware', asy
     )
 })
 
-Deno.test('#95 - the console.error oracle can actually fire (positive control)', async () => {
+test('#95 - the console.error oracle can actually fire (positive control)', async () => {
     // The test above asserts an EMPTY set, which passes trivially if the log
     // prefix ever changes. This is its other half: with an UNCONSTRAINED mount
     // the same probe DOES reach the real middleware, so the oracle must fire.
@@ -126,7 +127,7 @@ Deno.test('#95 - the console.error oracle can actually fire (positive control)',
     )
 })
 
-Deno.test('#95 - a mounted app still accepts post-init() registration', async () => {
+test('#95 - a mounted app still accepts post-init() registration', async () => {
     // probeCompile seals the ROOT router at init(). This pins the other half of
     // why that is safe: the public post-init() surfaces operate on the internal
     // app, so they are unaffected by the seal.
@@ -138,7 +139,7 @@ Deno.test('#95 - a mounted app still accepts post-init() registration', async ()
     assertEquals(res.status, 200)
 })
 
-Deno.test('#95 - a real locale still resolves, mount root included', async () => {
+test('#95 - a real locale still resolves, mount root included', async () => {
     const app = await bootRealApp()
 
     const root = await app.fetch(new Request('http://localhost/fr/ca'))
@@ -150,7 +151,7 @@ Deno.test('#95 - a real locale still resolves, mount root included', async () =>
     assertEquals((await bare.json()).locale, undefined)
 })
 
-Deno.test('#95 - a mounted app still installs its 404 handler after the boot probe', async () => {
+test('#95 - a mounted app still installs its 404 handler after the boot probe', async () => {
     // probeCompile() builds and SEALS the root router at init(). This pins the
     // invariant that makes that safe: the bootstrap step which runs after it
     // installs a notFound handler (a property, not a route), so it still works.

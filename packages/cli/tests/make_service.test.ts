@@ -2,11 +2,12 @@
  * Tests for CLI make:service command
  */
 
+import { test } from 'node:test'
 import { assertStringIncludes } from '@std/assert'
 import { Stub } from '../stubs.ts'
 
-Deno.test('make:service', async (t) => {
-    await t.step('generates valid service from stub', async () => {
+test('make:service', async (t) => {
+    await t.test('generates valid service from stub', async () => {
         const content = await Stub.render('make', 'service', {
             className: 'UserService',
         })
@@ -15,7 +16,7 @@ Deno.test('make:service', async (t) => {
         assertStringIncludes(content, '@Service')
     })
 
-    await t.step('includes Service decorator', async () => {
+    await t.test('includes Service decorator', async () => {
         const content = await Stub.render('make', 'service', {
             className: 'PaymentService',
         })

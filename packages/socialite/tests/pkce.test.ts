@@ -9,7 +9,7 @@
  * @module @lockness/socialite/tests/pkce
  */
 
-import { describe, it } from '@std/testing/bdd'
+import { describe, it } from 'node:test'
 import { expect } from '@std/expect'
 import { encodeBase64Url } from '@std/encoding/base64url'
 import {

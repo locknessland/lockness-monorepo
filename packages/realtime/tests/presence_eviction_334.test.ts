@@ -38,6 +38,7 @@
  * @module @lockness/realtime/tests/presence_eviction_334
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { ChannelManager } from '../manager.ts'
 import type { BroadcastDriver } from '../driver.ts'
@@ -119,7 +120,7 @@ function rosterDriver(options: { failAdd?: boolean } = {}) {
     return { driver, roster, commands }
 }
 
-Deno.test('#334 the channel entry is GONE once the last member leaves', async () => {
+test('#334 the channel entry is GONE once the last member leaves', async () => {
     const { driver } = rosterDriver()
     const m = new ChannelManager<User>({ driver, authorize })
     const rosterReadsBefore = rosterReadCount()
@@ -141,7 +142,7 @@ Deno.test('#334 the channel entry is GONE once the last member leaves', async ()
     )
 })
 
-Deno.test('#334 the entry SURVIVES while any member remains', async () => {
+test('#334 the entry SURVIVES while any member remains', async () => {
     // The over-application guard. A delete that ran on every leave rather than
     // on the 1→0 transition would drop a map still holding somebody, and the
     // roster projection would then compute "absent" for a member who is
@@ -168,7 +169,7 @@ Deno.test('#334 the entry SURVIVES while any member remains', async () => {
     assertEquals(presenceOf(m).has(ROOM), false, 'now the last one is out')
 })
 
-Deno.test('#334 the authoritative roster still receives the removal', async () => {
+test('#334 the authoritative roster still receives the removal', async () => {
     // THE TEST THAT GUARDS THE FIX, not the defect. `unsubscribe` deletes the
     // local entry BEFORE awaiting `#syncRosterMember`, which derives what to
     // write by scanning `presence.get(channel)`. If an absent entry did not
@@ -201,7 +202,7 @@ Deno.test('#334 the authoritative roster still receives the removal', async () =
     )
 })
 
-Deno.test('#334 churn over unique names is cost-neutral at rest', async () => {
+test('#334 churn over unique names is cost-neutral at rest', async () => {
     // #329's premise, stated as a test. Before the fix this map held 25
     // entries at the end of this loop and never gave one back.
     const { driver } = rosterDriver()
@@ -222,7 +223,7 @@ Deno.test('#334 churn over unique names is cost-neutral at rest', async () => {
     )
 })
 
-Deno.test('#334 a rolled-back join does not strand the entry it created', async () => {
+test('#334 a rolled-back join does not strand the entry it created', async () => {
     // The SECOND deletion site, and the one no other test in this package
     // reaches. `#joinPresence` creates the entry, claims the membership, then
     // compensates when the authoritative write is refused — and that

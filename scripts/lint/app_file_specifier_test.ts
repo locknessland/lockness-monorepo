@@ -3,6 +3,7 @@
  * per shape, the shapes that must stay clean, and the file scoping.
  */
 
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import plugin, { inScope } from './app_file_specifier.ts'
 import { REPO_ROOT } from './repo_path.ts'
@@ -30,7 +31,7 @@ const POSITIVES: ReadonlyArray<readonly [string, string]> = [
 ]
 
 for (const [label, source] of POSITIVES) {
-    Deno.test(`app-file-specifier - flags ${label}`, () => {
+    test(`app-file-specifier - flags ${label}`, () => {
         assertEquals(hits(source), 1)
     })
 }
@@ -54,12 +55,12 @@ const NEGATIVES: ReadonlyArray<readonly [string, string]> = [
 ]
 
 for (const [label, source] of NEGATIVES) {
-    Deno.test(`app-file-specifier - leaves ${label} alone`, () => {
+    test(`app-file-specifier - leaves ${label} alone`, () => {
         assertEquals(hits(source), 0)
     })
 }
 
-Deno.test('app-file-specifier - reports nothing in tests or outside packages', () => {
+test('app-file-specifier - reports nothing in tests or outside packages', () => {
     const source = 'await import(`file://${p}`)'
     assertEquals(hits(source, `${REPO_ROOT}packages/x/tests/a.ts`), 0)
     assertEquals(hits(source, `${REPO_ROOT}packages/x/a.test.ts`), 0)
@@ -67,7 +68,7 @@ Deno.test('app-file-specifier - reports nothing in tests or outside packages', (
     assertEquals(hits(source, `${REPO_ROOT}scripts/a.ts`), 0)
 })
 
-Deno.test('app-file-specifier - inScope reads Windows separators', () => {
+test('app-file-specifier - inScope reads Windows separators', () => {
     assertEquals(inScope('C:\\repo\\packages\\x\\mod.ts', 'C:\\repo'), true)
     assertEquals(
         inScope('C:\\repo\\packages\\x\\tests\\a.ts', 'C:\\repo'),
@@ -75,7 +76,7 @@ Deno.test('app-file-specifier - inScope reads Windows separators', () => {
     )
 })
 
-Deno.test('app-file-specifier - inScope ignores where the checkout lives', () => {
+test('app-file-specifier - inScope ignores where the checkout lives', () => {
     assertEquals(
         inScope('/home/tests/repo/packages/x/mod.ts', '/home/tests/repo'),
         true,

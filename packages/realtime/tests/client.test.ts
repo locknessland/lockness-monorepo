@@ -7,6 +7,7 @@
  * @module @lockness/realtime/tests/client
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { RealtimeClient } from '../client.ts'
 
@@ -16,7 +17,7 @@ function makeClient() {
     return { client, sent }
 }
 
-Deno.test('subscribe/unsubscribe/ping send encoded client frames', () => {
+test('subscribe/unsubscribe/ping send encoded client frames', () => {
     const { client, sent } = makeClient()
     client.subscribe('private-room.1')
     client.unsubscribe('news')
@@ -29,7 +30,7 @@ Deno.test('subscribe/unsubscribe/ping send encoded client frames', () => {
     assertEquals(JSON.parse(sent[2]), { type: 'ping' })
 })
 
-Deno.test('an inbound event frame dispatches to the matching event handler', () => {
+test('an inbound event frame dispatches to the matching event handler', () => {
     const { client } = makeClient()
     const received: Array<{ data: unknown; channel?: string }> = []
     client.on(
@@ -51,7 +52,7 @@ Deno.test('an inbound event frame dispatches to the matching event handler', () 
     }])
 })
 
-Deno.test('onMessage receives every frame; off removes an event handler', () => {
+test('onMessage receives every frame; off removes an event handler', () => {
     const { client } = makeClient()
     const frames: string[] = []
     client.onMessage((m) => frames.push(m.type))
@@ -61,7 +62,7 @@ Deno.test('onMessage receives every frame; off removes an event handler', () => 
     assertEquals(frames, ['pong'])
 })
 
-Deno.test('connect wires the socket message listener to receive()', () => {
+test('connect wires the socket message listener to receive()', () => {
     const listeners: Record<string, (e: { data: string }) => void> = {}
     class FakeWS {
         sent: string[] = []
@@ -85,7 +86,7 @@ Deno.test('connect wires the socket message listener to receive()', () => {
     assertEquals(received, [{ n: 1 }])
 })
 
-Deno.test('a malformed inbound frame is ignored, never thrown', () => {
+test('a malformed inbound frame is ignored, never thrown', () => {
     const { client } = makeClient()
     let threw = false
     try {

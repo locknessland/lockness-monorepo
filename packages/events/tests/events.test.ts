@@ -1,3 +1,4 @@
+import { test } from 'node:test'
 import { assertEquals, assertExists } from '@std/assert'
 import {
     configureEvents,
@@ -17,7 +18,7 @@ import {
 // EventEmitter Basic Tests
 // =============================================================================
 
-Deno.test('EventEmitter - basic on and emit', async () => {
+test('EventEmitter - basic on and emit', async () => {
     const emitter = new EventEmitter<{ test: string }>()
     let received: string | undefined
 
@@ -30,7 +31,7 @@ Deno.test('EventEmitter - basic on and emit', async () => {
     assertEquals(received, 'hello')
 })
 
-Deno.test('EventEmitter - multiple listeners', async () => {
+test('EventEmitter - multiple listeners', async () => {
     const emitter = new EventEmitter<{ test: string }>()
     const results: string[] = []
 
@@ -49,7 +50,7 @@ Deno.test('EventEmitter - multiple listeners', async () => {
     assertEquals(results[1], 'listener2: hello')
 })
 
-Deno.test('EventEmitter - async listeners', async () => {
+test('EventEmitter - async listeners', async () => {
     const emitter = new EventEmitter<{ test: string }>()
     const results: string[] = []
 
@@ -68,7 +69,7 @@ Deno.test('EventEmitter - async listeners', async () => {
     assertEquals(results.length, 2)
 })
 
-Deno.test('EventEmitter - listener priorities', async () => {
+test('EventEmitter - listener priorities', async () => {
     const emitter = new EventEmitter()
     const results: string[] = []
 
@@ -87,7 +88,7 @@ Deno.test('EventEmitter - listener priorities', async () => {
     assertEquals(results, ['high', 'medium', 'low'])
 })
 
-Deno.test('EventEmitter - once listener', async () => {
+test('EventEmitter - once listener', async () => {
     const emitter = new EventEmitter()
     let count = 0
 
@@ -102,7 +103,7 @@ Deno.test('EventEmitter - once listener', async () => {
     assertEquals(count, 1)
 })
 
-Deno.test('EventEmitter - off removes listener', async () => {
+test('EventEmitter - off removes listener', async () => {
     const emitter = new EventEmitter()
     let count = 0
 
@@ -119,7 +120,7 @@ Deno.test('EventEmitter - off removes listener', async () => {
     assertEquals(count, 1)
 })
 
-Deno.test('EventEmitter - removeAllListeners', async () => {
+test('EventEmitter - removeAllListeners', async () => {
     const emitter = new EventEmitter()
     let count = 0
 
@@ -140,7 +141,7 @@ Deno.test('EventEmitter - removeAllListeners', async () => {
     assertEquals(count, 1) // Only test2 fired
 })
 
-Deno.test('EventEmitter - removeAllListeners without event', async () => {
+test('EventEmitter - removeAllListeners without event', async () => {
     const emitter = new EventEmitter()
     let count = 0
 
@@ -158,7 +159,7 @@ Deno.test('EventEmitter - removeAllListeners without event', async () => {
     assertEquals(count, 0)
 })
 
-Deno.test('EventEmitter - listenerCount', () => {
+test('EventEmitter - listenerCount', () => {
     const emitter = new EventEmitter()
 
     emitter.on('test', () => {})
@@ -170,7 +171,7 @@ Deno.test('EventEmitter - listenerCount', () => {
     assertEquals(emitter.listenerCount('nonexistent'), 0)
 })
 
-Deno.test('EventEmitter - eventNames', () => {
+test('EventEmitter - eventNames', () => {
     const emitter = new EventEmitter()
 
     emitter.on('test1', () => {})
@@ -184,7 +185,7 @@ Deno.test('EventEmitter - eventNames', () => {
     assertEquals(names.includes('test3'), true)
 })
 
-Deno.test('EventEmitter - listeners', () => {
+test('EventEmitter - listeners', () => {
     const emitter = new EventEmitter()
 
     const listener1 = () => {}
@@ -199,7 +200,7 @@ Deno.test('EventEmitter - listeners', () => {
     assertEquals(listeners[1], listener2)
 })
 
-Deno.test('EventEmitter - emitSync', async () => {
+test('EventEmitter - emitSync', async () => {
     const emitter = new EventEmitter()
     let received: string | undefined
 
@@ -214,7 +215,7 @@ Deno.test('EventEmitter - emitSync', async () => {
     assertEquals(received, 'hello')
 })
 
-Deno.test('EventEmitter - onAny wildcard listener', async () => {
+test('EventEmitter - onAny wildcard listener', async () => {
     const emitter = new EventEmitter()
     const results: Array<{ event: string; data: unknown }> = []
 
@@ -228,7 +229,7 @@ Deno.test('EventEmitter - onAny wildcard listener', async () => {
     assertEquals(results.length, 2)
 })
 
-Deno.test('EventEmitter - offAny removes wildcard listener', async () => {
+test('EventEmitter - offAny removes wildcard listener', async () => {
     const emitter = new EventEmitter()
     let count = 0
 
@@ -245,7 +246,7 @@ Deno.test('EventEmitter - offAny removes wildcard listener', async () => {
     assertEquals(count, 1)
 })
 
-Deno.test('EventEmitter - setMaxListeners', () => {
+test('EventEmitter - setMaxListeners', () => {
     const emitter = new EventEmitter()
 
     emitter.setMaxListeners(20)
@@ -256,7 +257,7 @@ Deno.test('EventEmitter - setMaxListeners', () => {
 // Type-safe Events Tests
 // =============================================================================
 
-Deno.test('EventEmitter - type-safe events', async () => {
+test('EventEmitter - type-safe events', async () => {
     interface AppEvents {
         'user:created': { id: number; name: string }
         'user:deleted': { id: number }
@@ -280,7 +281,7 @@ Deno.test('EventEmitter - type-safe events', async () => {
 // Global Events Tests
 // =============================================================================
 
-Deno.test('configureEvents - sets up global emitter', async () => {
+test('configureEvents - sets up global emitter', async () => {
     const emitter = configureEvents()
     let received: string | undefined
 
@@ -293,7 +294,7 @@ Deno.test('configureEvents - sets up global emitter', async () => {
     assertEquals(received, 'hello')
 })
 
-Deno.test('events - returns global emitter', async () => {
+test('events - returns global emitter', async () => {
     const emitter = events()
     let received: string | undefined
 
@@ -306,7 +307,7 @@ Deno.test('events - returns global emitter', async () => {
     assertEquals(received, 'world')
 })
 
-Deno.test('on - global helper', async () => {
+test('on - global helper', async () => {
     let received: string | undefined
 
     on('helper-test', (data: string) => {
@@ -318,7 +319,7 @@ Deno.test('on - global helper', async () => {
     assertEquals(received, 'hello')
 })
 
-Deno.test('once - global helper', async () => {
+test('once - global helper', async () => {
     let count = 0
 
     once('once-test', () => {
@@ -331,7 +332,7 @@ Deno.test('once - global helper', async () => {
     assertEquals(count, 1)
 })
 
-Deno.test('off - global helper', async () => {
+test('off - global helper', async () => {
     let count = 0
 
     const listener = () => {
@@ -347,7 +348,7 @@ Deno.test('off - global helper', async () => {
     assertEquals(count, 1)
 })
 
-Deno.test('emitSync - global helper', async () => {
+test('emitSync - global helper', async () => {
     let received: string | undefined
 
     on('sync-test', (data: string) => {
@@ -365,7 +366,7 @@ Deno.test('emitSync - global helper', async () => {
 // Utility Tests
 // =============================================================================
 
-Deno.test('createEventBus - isolated bus', async () => {
+test('createEventBus - isolated bus', async () => {
     const bus1 = createEventBus()
     const bus2 = createEventBus()
 
@@ -385,7 +386,7 @@ Deno.test('createEventBus - isolated bus', async () => {
     assertEquals(count2, 0) // Not affected
 })
 
-Deno.test('waitForEvent - waits for event', async () => {
+test('waitForEvent - waits for event', async () => {
     const emitter = new EventEmitter()
 
     const promise = waitForEvent<string>(emitter, 'delayed')
@@ -398,7 +399,7 @@ Deno.test('waitForEvent - waits for event', async () => {
     assertEquals(result, 'result')
 })
 
-Deno.test('waitForEvent - timeout', async () => {
+test('waitForEvent - timeout', async () => {
     const emitter = new EventEmitter()
     let error: Error | undefined
 
@@ -412,7 +413,7 @@ Deno.test('waitForEvent - timeout', async () => {
     assertEquals(error!.message.includes('Timeout'), true)
 })
 
-Deno.test('eventStream - async iteration', async () => {
+test('eventStream - async iteration', async () => {
     const emitter = new EventEmitter()
     const results: number[] = []
 
@@ -441,7 +442,7 @@ Deno.test('eventStream - async iteration', async () => {
 // Real-world Patterns Tests
 // =============================================================================
 
-Deno.test('EventEmitter - domain events pattern', async () => {
+test('EventEmitter - domain events pattern', async () => {
     interface DomainEvents {
         'order:placed': { orderId: string; total: number }
         'order:shipped': { orderId: string; trackingNumber: string }
@@ -476,7 +477,7 @@ Deno.test('EventEmitter - domain events pattern', async () => {
     assertEquals(orderLog[2].includes('delivered'), true)
 })
 
-Deno.test('EventEmitter - pub/sub pattern', async () => {
+test('EventEmitter - pub/sub pattern', async () => {
     const bus = createEventBus()
     const messages: string[] = []
 
@@ -498,7 +499,7 @@ Deno.test('EventEmitter - pub/sub pattern', async () => {
     assertEquals(messages[1], 'Sub2: Hello, World!')
 })
 
-Deno.test('EventEmitter - error handling', async () => {
+test('EventEmitter - error handling', async () => {
     const emitter = new EventEmitter()
     let errorCaught = false
 
@@ -522,7 +523,7 @@ Deno.test('EventEmitter - error handling', async () => {
 // Dispatch immunity to concurrent modification — FR-000 / US0
 // =============================================================================
 
-Deno.test('emit - a listener that removes itself does not skip the next one', async () => {
+test('emit - a listener that removes itself does not skip the next one', async () => {
     // `emit()` used to iterate the LIVE array held in listenerMap while `off()`
     // spliced that same array, so removing index 0 mid-dispatch shifted index 1
     // out from under the cursor. An abort handler is exactly this shape, which
@@ -546,7 +547,7 @@ Deno.test('emit - a listener that removes itself does not skip the next one', as
     assertEquals(ran, ['A', 'B', 'C'], 'B was in the dispatch and must run')
 })
 
-Deno.test('emit - the wildcard path has the same immunity', async () => {
+test('emit - the wildcard path has the same immunity', async () => {
     // It always did: `emit()` spread wildcardListeners into a copy. This pins
     // the behaviour the specific-event path was brought up to match, so the two
     // cannot drift apart again.
@@ -568,7 +569,7 @@ Deno.test('emit - the wildcard path has the same immunity', async () => {
     assertEquals(ran, ['A', 'B'])
 })
 
-Deno.test('emit - a listener added during a dispatch runs in the NEXT one, not this one', async () => {
+test('emit - a listener added during a dispatch runs in the NEXT one, not this one', async () => {
     // The other half of "the dispatch runs the listeners that existed when it
     // started" — invariant 3. Without the snapshot this depends on where the
     // priority sort happened to place the new entry.
@@ -603,7 +604,7 @@ Deno.test('emit - a listener added during a dispatch runs in the NEXT one, not t
     )
 })
 
-Deno.test('a signal aborting DURING a dispatch takes effect from the next one', async () => {
+test('a signal aborting DURING a dispatch takes effect from the next one', async () => {
     // The edge case FR-000's sequencing argument rests on, and the shape the
     // snapshot tests missed: they all used off()/offAny(), never an abort fired
     // from inside a listener while the dispatch was in flight.
@@ -629,7 +630,7 @@ Deno.test('a signal aborting DURING a dispatch takes effect from the next one', 
 // AbortSignal — FR-001..FR-005, FR-015 / US2
 // =============================================================================
 
-Deno.test('on - aborting the signal removes the listener', async () => {
+test('on - aborting the signal removes the listener', async () => {
     const emitter = new EventEmitter()
     const controller = new AbortController()
     let ran = 0
@@ -644,7 +645,7 @@ Deno.test('on - aborting the signal removes the listener', async () => {
     assertEquals(emitter.listenerCount('x'), 0)
 })
 
-Deno.test('on - an ALREADY-aborted signal never registers the listener', async () => {
+test('on - an ALREADY-aborted signal never registers the listener', async () => {
     // Not "registered then immediately removed": never registered. The
     // difference is observable through listenerCount between the two calls.
     const emitter = new EventEmitter()
@@ -659,7 +660,7 @@ Deno.test('on - an ALREADY-aborted signal never registers the listener', async (
     assertEquals(ran, 0)
 })
 
-Deno.test('on - aborting after off() is a no-op and does not throw', async () => {
+test('on - aborting after off() is a no-op and does not throw', async () => {
     // This was FR-003's only test and it asserted NOTHING — not one assert call
     // in the body. "Does not throw" was not covered either: emit() swallows a
     // listener's throw into console.error by design, so a broken path produced
@@ -680,7 +681,7 @@ Deno.test('on - aborting after off() is a no-op and does not throw', async () =>
     assertEquals(ran, 0, 'the listener is gone and did not run')
 })
 
-Deno.test('off - detaches the abort handler, not just the listener', async () => {
+test('off - detaches the abort handler, not just the listener', async () => {
     // The assertion lands on the SIGNAL's behaviour, not on listenerCount():
     // an orphaned handler lives on the AbortSignal, not in listenerMap, so
     // listenerCount() returns to its prior value whether or not it leaked.
@@ -702,7 +703,7 @@ Deno.test('off - detaches the abort handler, not just the listener', async () =>
     assertEquals(ran, 1, 'the second registration must survive the abort')
 })
 
-Deno.test('removeAllListeners - detaches abort handlers too', async () => {
+test('removeAllListeners - detaches abort handlers too', async () => {
     // removeAllListeners() is the one removal path that never calls off(), so
     // anything wired into off() alone leaks here.
     const emitter = new EventEmitter()
@@ -720,7 +721,7 @@ Deno.test('removeAllListeners - detaches abort handlers too', async () => {
     assertEquals(ran, 1, 'the second registration must survive the abort')
 })
 
-Deno.test('onAny - a signalled wildcard listener is removed on abort', async () => {
+test('onAny - a signalled wildcard listener is removed on abort', async () => {
     const emitter = new EventEmitter()
     const controller = new AbortController()
     let ran = 0
@@ -738,7 +739,7 @@ Deno.test('onAny - a signalled wildcard listener is removed on abort', async () 
     )
 })
 
-Deno.test('once + signal - whichever fires first wins, and the other is a no-op', async () => {
+test('once + signal - whichever fires first wins, and the other is a no-op', async () => {
     const emitter = new EventEmitter()
 
     // once fires first
@@ -759,7 +760,7 @@ Deno.test('once + signal - whichever fires first wins, and the other is a no-op'
     assertEquals(ranB, 0)
 })
 
-Deno.test('on - a signalled listener is exempt from the maxListeners warning', () => {
+test('on - a signalled listener is exempt from the maxListeners warning', () => {
     // US2's own pattern is one registration per request. Without this exemption
     // the framework emits a "possible memory leak" line per request past the
     // tenth concurrent one — a client-controlled log flood, warning about
@@ -785,7 +786,7 @@ Deno.test('on - a signalled listener is exempt from the maxListeners warning', (
     }
 })
 
-Deno.test('once + signal - the auto-removal detaches the abort handler too', async () => {
+test('once + signal - the auto-removal detaches the abort handler too', async () => {
     // The review found this: emit()'s `once` cleanup spliced the array directly
     // instead of going through the removal gate, so `dispose` never ran and the
     // abort handler outlived the listener it belonged to. N once-listeners with
@@ -832,7 +833,7 @@ Deno.test('once + signal - the auto-removal detaches the abort handler too', asy
     controller.abort()
 })
 
-Deno.test('once - a consumed listener leaves no empty bucket behind', async () => {
+test('once - a consumed listener leaves no empty bucket behind', async () => {
     // off() deletes the map key when the bucket empties; the once path did not,
     // so eventNames() reported an event with no listeners depending on how the
     // last one was removed. One removal gate, one behaviour.
@@ -848,7 +849,7 @@ Deno.test('once - a consumed listener leaves no empty bucket behind', async () =
     )
 })
 
-Deno.test('on - a REFUSED registration leaves no empty bucket behind', () => {
+test('on - a REFUSED registration leaves no empty bucket behind', () => {
     // `on()` created the map entry before `#register()` had a chance to refuse,
     // so a listener rejected for an already-aborted signal still left an empty
     // array under its name. `eventNames()` then reported an event nobody
@@ -868,7 +869,7 @@ Deno.test('on - a REFUSED registration leaves no empty bucket behind', () => {
     )
 })
 
-Deno.test('on - a refused registration does not disturb an existing bucket', async () => {
+test('on - a refused registration does not disturb an existing bucket', async () => {
     // The other half: refusing must not delete listeners that were already
     // there under the same name.
     const emitter = new EventEmitter()

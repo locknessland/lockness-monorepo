@@ -16,6 +16,7 @@
  * exhausting the stack.
  */
 
+import { test } from 'node:test'
 import { assertEquals, assertThrows } from '@std/assert'
 import { CircularDependencyError, Container, Inject, Service } from '../mod.ts'
 
@@ -23,7 +24,7 @@ import { CircularDependencyError, Container, Inject, Service } from '../mod.ts'
 // The fault: eager construction that loops
 // ============================================================================
 
-Deno.test('Container - a constructor cycle throws CircularDependencyError, not a stack overflow', () => {
+test('Container - a constructor cycle throws CircularDependencyError, not a stack overflow', () => {
     const container = new Container()
 
     class Alpha {
@@ -48,7 +49,7 @@ Deno.test('Container - a constructor cycle throws CircularDependencyError, not a
     )
 })
 
-Deno.test('Container - a service that constructs itself is reported the same way', () => {
+test('Container - a service that constructs itself is reported the same way', () => {
     const container = new Container()
 
     class SelfReferential {
@@ -64,7 +65,7 @@ Deno.test('Container - a service that constructs itself is reported the same way
     assertEquals(error.chain, ['SelfReferential', 'SelfReferential'])
 })
 
-Deno.test('Container - the message names the services and points at the remedy', () => {
+test('Container - the message names the services and points at the remedy', () => {
     const container = new Container()
 
     class Orders {
@@ -90,7 +91,7 @@ Deno.test('Container - the message names the services and points at the remedy',
 // Not a fault: the stack unwinds, so a later resolve still works
 // ============================================================================
 
-Deno.test('Container - a failed cycle does not poison later resolutions', () => {
+test('Container - a failed cycle does not poison later resolutions', () => {
     const container = new Container()
 
     class Looping {
@@ -110,7 +111,7 @@ Deno.test('Container - a failed cycle does not poison later resolutions', () => 
     assertThrows(() => container.get(Looping), CircularDependencyError)
 })
 
-Deno.test('Container - sibling dependencies on one service are not mistaken for a cycle', () => {
+test('Container - sibling dependencies on one service are not mistaken for a cycle', () => {
     const container = new Container()
 
     class Shared {
@@ -140,7 +141,7 @@ Deno.test('Container - sibling dependencies on one service are not mistaken for 
 // Not a fault: mutual @Inject, which is the documented way to hold a cycle
 // ============================================================================
 
-Deno.test('Container - @Inject resolves on read, so a held reference is not a construction cycle', () => {
+test('Container - @Inject resolves on read, so a held reference is not a construction cycle', () => {
     @Service()
     class Subscriber {
         readonly name = 'subscriber'

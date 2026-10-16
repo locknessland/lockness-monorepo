@@ -20,6 +20,7 @@
  * and that it swallows nothing.
  */
 
+import { test } from 'node:test'
 import {
     assert,
     assertEquals,
@@ -60,7 +61,7 @@ async function withAwkwardDir(
 // appFileUrl
 // ============================================================================
 
-Deno.test('appFileUrl - builds a file: URL anchored at the app root', () => {
+test('appFileUrl - builds a file: URL anchored at the app root', () => {
     const root = resolve('/srv/my-app')
     const url = new URL(appFileUrl('app/middleware/auth.ts', root))
     assertEquals(url.protocol, 'file:')
@@ -70,7 +71,7 @@ Deno.test('appFileUrl - builds a file: URL anchored at the app root', () => {
     )
 })
 
-Deno.test('appFileUrl - keeps an absolute path, and normalises ./', () => {
+test('appFileUrl - keeps an absolute path, and normalises ./', () => {
     const root = resolve('/srv/my-app')
     const elsewhere = resolve('/opt/shared/x.ts')
     assertEquals(fromFileUrl(appFileUrl(elsewhere, root)), elsewhere)
@@ -80,7 +81,7 @@ Deno.test('appFileUrl - keeps an absolute path, and normalises ./', () => {
     )
 })
 
-Deno.test("appFileUrl - escapes '#', '?' and a space instead of truncating", () => {
+test("appFileUrl - escapes '#', '?' and a space instead of truncating", () => {
     const root = resolve('/srv/my app#1')
     const url = new URL(appFileUrl('app/odd?name.ts', root))
     assertEquals(url.hash, '')
@@ -88,7 +89,7 @@ Deno.test("appFileUrl - escapes '#', '?' and a space instead of truncating", () 
     assertEquals(fromFileUrl(url), join(root, 'app', 'odd?name.ts'))
 })
 
-Deno.test('appFileUrl - defaults the root to the working directory', () => {
+test('appFileUrl - defaults the root to the working directory', () => {
     assertEquals(
         appFileUrl('app/kernel.ts'),
         toFileUrl(join(Deno.cwd(), 'app', 'kernel.ts')).href,
@@ -99,7 +100,7 @@ Deno.test('appFileUrl - defaults the root to the working directory', () => {
 // importAppFile
 // ============================================================================
 
-Deno.test("importAppFile - loads a file under a path with '#' and a space", async () => {
+test("importAppFile - loads a file under a path with '#' and a space", async () => {
     await withAwkwardDir({
         'job.ts': 'export const loaded = "awkward"\n',
     }, async ({ rel, abs }) => {
@@ -110,7 +111,7 @@ Deno.test("importAppFile - loads a file under a path with '#' and a space", asyn
     })
 })
 
-Deno.test('importAppFile - anchors a relative path at the root it is given', async () => {
+test('importAppFile - anchors a relative path at the root it is given', async () => {
     await withAwkwardDir({
         'app/kernel.ts': 'export const loaded = "kernel"\n',
     }, async ({ abs }) => {
@@ -119,13 +120,13 @@ Deno.test('importAppFile - anchors a relative path at the root it is given', asy
     })
 })
 
-Deno.test('importAppFile - rejects for a file that does not exist', async () => {
+test('importAppFile - rejects for a file that does not exist', async () => {
     await withAwkwardDir({}, async ({ abs }) => {
         await assertRejects(() => importAppFile(join(abs, 'missing.ts')))
     })
 })
 
-Deno.test('importAppFile - rejects for a file that throws while it evaluates', async () => {
+test('importAppFile - rejects for a file that throws while it evaluates', async () => {
     await withAwkwardDir({
         'broken.ts': 'throw new Error("broken at load")\nexport {}\n',
     }, async ({ abs }) => {
@@ -140,7 +141,7 @@ Deno.test('importAppFile - rejects for a file that throws while it evaluates', a
 // From a referrer that is not a file: URL
 // ============================================================================
 
-Deno.test('appFileUrl - loads an app file from a module served over HTTP, where a bare path reaches the server', async () => {
+test('appFileUrl - loads an app file from a module served over HTTP, where a bare path reaches the server', async () => {
     // The referrer is what decides how a specifier resolves. Every package is
     // a file: module in this repository and an https: one for every consumer,
     // so the only honest test serves the importing module over HTTP. The child

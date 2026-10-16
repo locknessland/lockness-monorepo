@@ -4,6 +4,7 @@
  * @module tests/coverage_floor_test
  */
 
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { aggregateByPackage, parseLcov } from '../scripts/coverage_floor.ts'
 
@@ -29,14 +30,14 @@ LH:0
 end_of_record
 `
 
-Deno.test('parseLcov - de-duplicates a file to its best (max LH) record', () => {
+test('parseLcov - de-duplicates a file to its best (max LH) record', () => {
     const files = parseLcov(FIXTURE)
     assertEquals(files.size, 4)
     // Two records for foo/mod.ts — the one with the most lines hit wins.
     assertEquals(files.get('/repo/packages/foo/mod.ts'), { lf: 10, lh: 7 })
 })
 
-Deno.test('aggregateByPackage - excludes test files and non-package paths', () => {
+test('aggregateByPackage - excludes test files and non-package paths', () => {
     const pct = aggregateByPackage(parseLcov(FIXTURE))
     // foo: only mod.ts counts (the test file is excluded) -> 7/10 = 70.0
     assertEquals(pct.get('foo'), 70)

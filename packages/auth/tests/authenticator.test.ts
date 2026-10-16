@@ -1,9 +1,10 @@
 // deno-lint-ignore-file no-explicit-any
+import { test } from 'node:test'
 import { assertEquals, assertExists } from '@std/assert'
 import { Authenticator, SessionGuard } from '../mod.ts'
 import { createMockContext, MockSessionProvider } from './mocks.ts'
 
-Deno.test('Authenticator - can be instantiated', async () => {
+test('Authenticator - can be instantiated', async () => {
     const ctx = await createMockContext()
     const provider = new MockSessionProvider()
     const config = {
@@ -17,7 +18,7 @@ Deno.test('Authenticator - can be instantiated', async () => {
     assertEquals(auth.defaultGuard, 'web')
 })
 
-Deno.test('Authenticator - throws when accessing user before authentication', async () => {
+test('Authenticator - throws when accessing user before authentication', async () => {
     const ctx = await createMockContext()
     const provider = new MockSessionProvider()
     const auth = new Authenticator(ctx, {
@@ -31,7 +32,7 @@ Deno.test('Authenticator - throws when accessing user before authentication', as
     assertEquals(auth.user, undefined)
 })
 
-Deno.test('Authenticator - use specific guard', async () => {
+test('Authenticator - use specific guard', async () => {
     const ctx = await createMockContext()
     const provider = new MockSessionProvider()
 

@@ -7,6 +7,7 @@
  * from the index and 404s on its URL (SC-002).
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { App, CacheServiceToken, container } from '@lockness/core'
 import { cache } from '@lockness/cache'
@@ -72,7 +73,7 @@ async function bootApp(isProduction: boolean) {
     return app
 }
 
-Deno.test('dev - draft is listed and badged on the index', async () => {
+test('dev - draft is listed and badged on the index', async () => {
     const app = await bootApp(false)
     const html = await (await app.fetch(new Request('http://localhost/blog')))
         .text()
@@ -81,7 +82,7 @@ Deno.test('dev - draft is listed and badged on the index', async () => {
     assert(html.includes('Draft'), 'the draft must carry a Draft badge')
 })
 
-Deno.test('dev - draft is reachable on its own page', async () => {
+test('dev - draft is reachable on its own page', async () => {
     const app = await bootApp(false)
     const res = await app.fetch(new Request('http://localhost/blog/sneak-peek'))
 
@@ -91,7 +92,7 @@ Deno.test('dev - draft is reachable on its own page', async () => {
     assert(html.includes('Draft'), 'the draft page shows the Draft badge')
 })
 
-Deno.test('prod - draft is absent from the index', async () => {
+test('prod - draft is absent from the index', async () => {
     const app = await bootApp(true)
     const html = await (await app.fetch(new Request('http://localhost/blog')))
         .text()
@@ -100,7 +101,7 @@ Deno.test('prod - draft is absent from the index', async () => {
     assert(!html.includes('Sneak Peek'), 'the draft must not appear in prod')
 })
 
-Deno.test('prod - draft 404s on its own page', async () => {
+test('prod - draft 404s on its own page', async () => {
     const app = await bootApp(true)
     const res = await app.fetch(new Request('http://localhost/blog/sneak-peek'))
 
@@ -110,7 +111,7 @@ Deno.test('prod - draft 404s on its own page', async () => {
 // Negative case for A3: the "Draft" badge is keyed on post.draft, not on the
 // environment. A published post must carry NO badge — an always-on or
 // env-keyed badge bug would pass every positive test above but fail here.
-Deno.test('a published post page carries no Draft badge (A3 negative)', async () => {
+test('a published post page carries no Draft badge (A3 negative)', async () => {
     const app = await bootApp(false) // even in dev, a published post is unbadged
     const res = await app.fetch(new Request('http://localhost/blog/released'))
 
@@ -120,7 +121,7 @@ Deno.test('a published post page carries no Draft badge (A3 negative)', async ()
     assert(!html.includes('Draft'), 'a published post must not be badged')
 })
 
-Deno.test('dev index badges only the draft, not the published post (A3 negative)', async () => {
+test('dev index badges only the draft, not the published post (A3 negative)', async () => {
     const app = await bootApp(false)
     const html = await (await app.fetch(new Request('http://localhost/blog')))
         .text()

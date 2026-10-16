@@ -3,6 +3,7 @@
  * Validates dual-layer routing architecture with mount point
  */
 
+import { test } from 'node:test'
 import { assertEquals, assertExists } from '@std/assert'
 import { App } from '../app.ts'
 import type { Context, Next } from '../types.ts'
@@ -37,7 +38,7 @@ class ProductController {
     }
 }
 
-Deno.test('App - mounts at root when no mountPoint defined', async () => {
+test('App - mounts at root when no mountPoint defined', async () => {
     const app = new App()
 
     await app.init({
@@ -51,7 +52,7 @@ Deno.test('App - mounts at root when no mountPoint defined', async () => {
     assertEquals(Array.isArray(data.users), true)
 })
 
-Deno.test('App - controllers accessible at root path parameter routes', async () => {
+test('App - controllers accessible at root path parameter routes', async () => {
     const app = new App()
 
     await app.init({
@@ -65,7 +66,7 @@ Deno.test('App - controllers accessible at root path parameter routes', async ()
     assertEquals(data.id, '123')
 })
 
-Deno.test('App - mounts controllers under mount point pattern', async () => {
+test('App - mounts controllers under mount point pattern', async () => {
     const app = new App()
 
     await app.init({
@@ -81,7 +82,7 @@ Deno.test('App - mounts controllers under mount point pattern', async () => {
     assertEquals(Array.isArray(data.users), true)
 })
 
-Deno.test('App - routes accessible at root AND under mount point', async () => {
+test('App - routes accessible at root AND under mount point', async () => {
     const app = new App()
 
     await app.init({
@@ -100,7 +101,7 @@ Deno.test('App - routes accessible at root AND under mount point', async () => {
     assertEquals(mountRes.status, 200)
 })
 
-Deno.test('App - executes mount-specific middleware', async () => {
+test('App - executes mount-specific middleware', async () => {
     let middlewareCalled = false
     let extractedLang: string | undefined
     let extractedCountry: string | undefined
@@ -138,7 +139,7 @@ Deno.test('App - executes mount-specific middleware', async () => {
     assertEquals(data.context, 'from-middleware')
 })
 
-Deno.test('App - middleware can set context values for controllers', async () => {
+test('App - middleware can set context values for controllers', async () => {
     const i18nMiddleware = async (c: Context, next: Next) => {
         const langId = c.req.param('langId')
         const countryId = c.req.param('countryId')
@@ -163,7 +164,7 @@ Deno.test('App - middleware can set context values for controllers', async () =>
     assertEquals(data.locale, 'en-us')
 })
 
-Deno.test('App - middleware does not run for root access', async () => {
+test('App - middleware does not run for root access', async () => {
     let middlewareCalled = false
 
     const i18nMiddleware = async (c: Context, next: Next) => {
@@ -191,7 +192,7 @@ Deno.test('App - middleware does not run for root access', async () => {
     assertEquals(data.locale, undefined)
 })
 
-Deno.test('App - middleware can reject invalid parameters', async () => {
+test('App - middleware can reject invalid parameters', async () => {
     const i18nMiddleware = async (c: Context, next: Next) => {
         const langId = c.req.param('langId')
         if (!['fr', 'en'].includes(langId)) {
@@ -223,7 +224,7 @@ Deno.test('App - middleware can reject invalid parameters', async () => {
     assertEquals(invalidRes.status, 404)
 })
 
-Deno.test('App - middleware can return custom error responses', async () => {
+test('App - middleware can return custom error responses', async () => {
     const i18nMiddleware = async (c: Context, next: Next) => {
         const langId = c.req.param('langId')
         if (!['en', 'fr'].includes(langId)) {
@@ -257,7 +258,7 @@ Deno.test('App - middleware can return custom error responses', async () => {
     assertEquals(data.error, 'Unsupported language')
 })
 
-Deno.test('App - 404 handler works with mount point', async () => {
+test('App - 404 handler works with mount point', async () => {
     const app = new App()
 
     await app.init({
@@ -278,7 +279,7 @@ Deno.test('App - 404 handler works with mount point', async () => {
     assertEquals(res2.status, 404)
 })
 
-Deno.test('App - path parameters work in controller routes with mount point', async () => {
+test('App - path parameters work in controller routes with mount point', async () => {
     const app = new App()
 
     await app.init({
@@ -293,7 +294,7 @@ Deno.test('App - path parameters work in controller routes with mount point', as
     assertEquals(data.id, '456')
 })
 
-Deno.test('App - POST requests work with mount point', async () => {
+test('App - POST requests work with mount point', async () => {
     const app = new App()
 
     await app.init({
@@ -314,7 +315,7 @@ Deno.test('App - POST requests work with mount point', async () => {
     assertEquals(data.created, true)
 })
 
-Deno.test('App - mount point works with multiple controllers', async () => {
+test('App - mount point works with multiple controllers', async () => {
     const app = new App()
 
     await app.init({
@@ -335,7 +336,7 @@ Deno.test('App - mount point works with multiple controllers', async () => {
     assertEquals(productsRes.status, 200)
 })
 
-Deno.test('App - getRoutes() still works with mount point', async () => {
+test('App - getRoutes() still works with mount point', async () => {
     const app = new App()
 
     await app.init({
@@ -403,7 +404,7 @@ async function appWithLocaleMount(pattern: string) {
     return { app, seen }
 }
 
-Deno.test('mount ambiguity - a .well-known path never reaches the mount middleware', async () => {
+test('mount ambiguity - a .well-known path never reaches the mount middleware', async () => {
     const { app, seen } = await appWithLocaleMount(CONSTRAINED_PATTERN)
 
     await app.fetch(
@@ -417,7 +418,7 @@ Deno.test('mount ambiguity - a .well-known path never reaches the mount middlewa
     assertEquals(seen, [])
 })
 
-Deno.test('mount ambiguity - the unconstrained pattern DOES reach it (the bug being fixed)', async () => {
+test('mount ambiguity - the unconstrained pattern DOES reach it (the bug being fixed)', async () => {
     const { app, seen } = await appWithLocaleMount('/:langId/:countryId')
 
     await app.fetch(
@@ -430,7 +431,7 @@ Deno.test('mount ambiguity - the unconstrained pattern DOES reach it (the bug be
     assertEquals(seen, ['.well-known/appspecific'])
 })
 
-Deno.test('mount ambiguity - a two-segment miss never reaches the mount middleware', async () => {
+test('mount ambiguity - a two-segment miss never reaches the mount middleware', async () => {
     const { app, seen } = await appWithLocaleMount(CONSTRAINED_PATTERN)
 
     await app.fetch(new Request('http://localhost/css/missing.css'))
@@ -438,7 +439,7 @@ Deno.test('mount ambiguity - a two-segment miss never reaches the mount middlewa
     assertEquals(seen, [])
 })
 
-Deno.test('mount ambiguity - a two-segment non-locale path does not resolve to the root route', async () => {
+test('mount ambiguity - a two-segment non-locale path does not resolve to the root route', async () => {
     const { app } = await appWithLocaleMount(CONSTRAINED_PATTERN)
 
     const res = await app.fetch(new Request('http://localhost/foo/bar'))
@@ -450,7 +451,7 @@ Deno.test('mount ambiguity - a two-segment non-locale path does not resolve to t
 
 // --- US2: valid locale routes keep working ---
 
-Deno.test('mount ambiguity - a valid locale route still reaches the middleware', async () => {
+test('mount ambiguity - a valid locale route still reaches the middleware', async () => {
     const { app, seen } = await appWithLocaleMount(CONSTRAINED_PATTERN)
 
     const res = await app.fetch(new Request('http://localhost/fr/ca/users'))
@@ -459,7 +460,7 @@ Deno.test('mount ambiguity - a valid locale route still reaches the middleware',
     assertEquals(seen, ['fr/ca'])
 })
 
-Deno.test('mount ambiguity - an unsupported locale never reaches the middleware', async () => {
+test('mount ambiguity - an unsupported locale never reaches the middleware', async () => {
     const { app, seen } = await appWithLocaleMount(CONSTRAINED_PATTERN)
 
     const res = await app.fetch(new Request('http://localhost/zz/zz/users'))
@@ -479,7 +480,7 @@ Deno.test('mount ambiguity - an unsupported locale never reaches the middleware'
 // In a downstream app that puts tenant scoping in `mountPoint.middleware`,
 // that is a gate that does not cover the tenant root.
 
-Deno.test('mount ambiguity - the mount ROOT executes the mount middleware', async () => {
+test('mount ambiguity - the mount ROOT executes the mount middleware', async () => {
     const { app, seen } = await appWithLocaleMount(CONSTRAINED_PATTERN)
 
     const res = await app.fetch(new Request('http://localhost/fr/ca'))
@@ -491,7 +492,7 @@ Deno.test('mount ambiguity - the mount ROOT executes the mount middleware', asyn
     assertEquals(data.locale, 'fr-ca')
 })
 
-Deno.test('mount ambiguity - every path the mount route serves also runs the mount gate', async () => {
+test('mount ambiguity - every path the mount route serves also runs the mount gate', async () => {
     const { app, seen } = await appWithLocaleMount(CONSTRAINED_PATTERN)
 
     for (const path of ['/fr/ca', '/fr/ca/users', '/en/us', '/en/us/users']) {
@@ -521,7 +522,7 @@ async function capturingWarnings(run: () => Promise<void>): Promise<string[]> {
     return warnings
 }
 
-Deno.test('mount hardening - warns when an unconstrained mount gates traffic', async () => {
+test('mount hardening - warns when an unconstrained mount gates traffic', async () => {
     const warnings = await capturingWarnings(async () => {
         await appWithLocaleMount('/:langId/:countryId')
     })
@@ -534,7 +535,7 @@ Deno.test('mount hardening - warns when an unconstrained mount gates traffic', a
     assertEquals(warning.includes('constrainedParam'), true)
 })
 
-Deno.test('mount hardening - stays silent for a constrained mount', async () => {
+test('mount hardening - stays silent for a constrained mount', async () => {
     const warnings = await capturingWarnings(async () => {
         await appWithLocaleMount(CONSTRAINED_PATTERN)
     })
@@ -542,7 +543,7 @@ Deno.test('mount hardening - stays silent for a constrained mount', async () => 
     assertEquals(warnings.filter((w) => w.includes('Mount point')), [])
 })
 
-Deno.test('mount hardening - stays silent for an unconstrained mount with no middleware', async () => {
+test('mount hardening - stays silent for an unconstrained mount with no middleware', async () => {
     const warnings = await capturingWarnings(async () => {
         const app = new App()
         await app.init({
@@ -556,7 +557,7 @@ Deno.test('mount hardening - stays silent for an unconstrained mount with no mid
     assertEquals(warnings.filter((w) => w.includes('Mount point')), [])
 })
 
-Deno.test('mount hardening - a valid mount probe-compiles at boot and still serves', async () => {
+test('mount hardening - a valid mount probe-compiles at boot and still serves', async () => {
     const { app } = await appWithLocaleMount(CONSTRAINED_PATTERN)
 
     // The probe runs during init(); reaching here means it did not throw.
@@ -566,7 +567,7 @@ Deno.test('mount hardening - a valid mount probe-compiles at boot and still serv
 
 // --- US4: root access is unchanged ---
 
-Deno.test('mount ambiguity - root access still bypasses the mount middleware', async () => {
+test('mount ambiguity - root access still bypasses the mount middleware', async () => {
     const { app, seen } = await appWithLocaleMount(CONSTRAINED_PATTERN)
 
     const res = await app.fetch(new Request('http://localhost/users'))
@@ -576,7 +577,7 @@ Deno.test('mount ambiguity - root access still bypasses the mount middleware', a
     assertEquals(seen, [])
 })
 
-Deno.test('mount ambiguity - an UNCONSTRAINED mount runs its middleware exactly once', async () => {
+test('mount ambiguity - an UNCONSTRAINED mount runs its middleware exactly once', async () => {
     // Back-compat guard. `${pattern}/*` already covers the mount root for an
     // unconstrained pattern, because Hono's tail wildcard matches the empty
     // tail. Registering the bare pattern as well made the gate fire TWICE
@@ -592,7 +593,7 @@ Deno.test('mount ambiguity - an UNCONSTRAINED mount runs its middleware exactly 
     assertEquals(seen, ['fr/ca'])
 })
 
-Deno.test('mount ambiguity - a CONSTRAINED mount also runs it exactly once, trailing slash included', async () => {
+test('mount ambiguity - a CONSTRAINED mount also runs it exactly once, trailing slash included', async () => {
     const { app, seen } = await appWithLocaleMount(CONSTRAINED_PATTERN)
 
     for (const path of ['/fr/ca', '/fr/ca/', '/fr/ca/users', '/en/us']) {
@@ -602,7 +603,7 @@ Deno.test('mount ambiguity - a CONSTRAINED mount also runs it exactly once, trai
     }
 })
 
-Deno.test('mount ambiguity - the gate runs exactly once for every pattern shape', async () => {
+test('mount ambiguity - the gate runs exactly once for every pattern shape', async () => {
     // Two static heuristics were tried before this and each mis-classified one
     // of these shapes, in the direction that double-fires a non-idempotent
     // gate. Whether `${pattern}/*` alone covers the mount root is not

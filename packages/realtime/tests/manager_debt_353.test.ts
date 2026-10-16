@@ -50,6 +50,7 @@
  * @module @lockness/realtime/tests/manager_debt_353
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import {
     type Authorizer,
@@ -351,7 +352,7 @@ function refusalRows(
 ): void {
     for (const [backendName, makeBackend] of BACKENDS) {
         for (const channel of channels) {
-            Deno.test(
+            test(
                 `#353 ${backendName} ${channel}: ${title} — ${
                     refusalClaims(backendName, channel)
                 }`,
@@ -382,7 +383,7 @@ async function rejectsWithTrapError(attempt: () => Promise<unknown>) {
 
 // --- The classifier and the label -------------------------------------------
 
-Deno.test('#353 classifyAuthorizeResult answers `invalid` for a value it cannot inspect, and never throws', () => {
+test('#353 classifyAuthorizeResult answers `invalid` for a value it cannot inspect, and never throws', () => {
     assertEquals(classifyAuthorizeResult(revokedProxy()), {
         verdict: 'invalid',
         type: UNINSPECTABLE,
@@ -400,7 +401,7 @@ Deno.test('#353 classifyAuthorizeResult answers `invalid` for a value it cannot 
     })
 })
 
-Deno.test('#353 typeLabel names a value it cannot inspect without running a trap', () => {
+test('#353 typeLabel names a value it cannot inspect without running a trap', () => {
     assertEquals(typeLabel(revokedProxy()), UNINSPECTABLE)
     assertEquals(typeLabel(throwingPrototypeProxy()), UNINSPECTABLE)
     // CONTROL: a transparent Proxy is labelled through its target.
@@ -408,7 +409,7 @@ Deno.test('#353 typeLabel names a value it cannot inspect without running a trap
     assertEquals(typeLabel(new Proxy({}, {})), 'object')
 })
 
-Deno.test('#353 a prototype-less object is an object: classified `admit`, labelled `object`', () => {
+test('#353 a prototype-less object is an object: classified `admit`, labelled `object`', () => {
     // `instanceof` walks a null prototype chain and answers `false` without
     // throwing, so nothing here is uninspectable.
     const member = nullPrototypeMember(1)
@@ -416,7 +417,7 @@ Deno.test('#353 a prototype-less object is an object: classified `admit`, labell
     assertEquals(typeLabel(Object.create(null)), 'object')
 })
 
-Deno.test('#353 an array is judged by what it IS, not the prototype its Proxy claims', () => {
+test('#353 an array is judged by what it IS, not the prototype its Proxy claims', () => {
     // `Array.isArray` sees through a Proxy to its target and runs no trap; the
     // wire sees the same thing, since `JSON.stringify` asks the same question.
     assertEquals(classifyAuthorizeResult(arrayDisguisedAsObject()), {
@@ -554,7 +555,7 @@ refusalRows(
     },
 )
 
-Deno.test('#353 a prototype-less authorizer result admits on both kinds, and its member reaches the roster', async () => {
+test('#353 a prototype-less authorizer result admits on both kinds, and its member reaches the roster', async () => {
     for (const [backendName, makeBackend] of BACKENDS) {
         const backend = makeBackend()
         try {
@@ -589,13 +590,13 @@ Deno.test('#353 a prototype-less authorizer result admits on both kinds, and its
 
 // --- protocol.ts: the wire predicates answer, never throw -------------------
 
-Deno.test('#353 isPresenceMemberInfoValue answers false for a revoked Proxy', () => {
+test('#353 isPresenceMemberInfoValue answers false for a revoked Proxy', () => {
     assertEquals(isPresenceMemberInfoValue(revokedProxy()), false)
     // CONTROL: the predicate still admits an object.
     assertEquals(isPresenceMemberInfoValue({ name: 'Ada' }), true)
 })
 
-Deno.test('#353 isPresenceMemberInfoValue runs no trap of a live Proxy, so a throwing one cannot make it throw', () => {
+test('#353 isPresenceMemberInfoValue runs no trap of a live Proxy, so a throwing one cannot make it throw', () => {
     // Its only inspection is `Array.isArray`, which reads a live Proxy's
     // target without a trap. Not refused: the one caller that hands it a
     // non-JSON value, the departure handler, announces through a path whose
@@ -604,14 +605,14 @@ Deno.test('#353 isPresenceMemberInfoValue runs no trap of a live Proxy, so a thr
     assertEquals(isPresenceMemberInfoValue(throwingGetProxy()), true)
 })
 
-Deno.test('#353 isPresenceMemberWire answers false for a revoked Proxy, as the member or as its info', () => {
+test('#353 isPresenceMemberWire answers false for a revoked Proxy, as the member or as its info', () => {
     assertEquals(isPresenceMemberWire(revokedProxy()), false)
     assertEquals(isPresenceMemberWire({ id: 1, info: revokedProxy() }), false)
     // CONTROL: a well-formed member passes.
     assertEquals(isPresenceMemberWire({ id: 1, info: { name: 'Ada' } }), true)
 })
 
-Deno.test('#353 isPresenceMemberWire answers false, and never throws, for a live Proxy whose ownKeys or get trap throws', () => {
+test('#353 isPresenceMemberWire answers false, and never throws, for a live Proxy whose ownKeys or get trap throws', () => {
     assertEquals(isPresenceMemberWire(throwingOwnKeysProxy()), false)
     assertEquals(isPresenceMemberWire(throwingGetProxy()), false)
     // CONTROL: the same target behind a transparent Proxy passes, so the
@@ -619,18 +620,18 @@ Deno.test('#353 isPresenceMemberWire answers false, and never throws, for a live
     assertEquals(isPresenceMemberWire(new Proxy({ id: 1 }, {})), true)
 })
 
-Deno.test('#353 isPresenceMemberWire judges a disguised or prototype-less member by its content', () => {
+test('#353 isPresenceMemberWire judges a disguised or prototype-less member by its content', () => {
     assertEquals(isPresenceMemberWire(arrayDisguisedAsObject()), false)
     assertEquals(isPresenceMemberWire(objectDisguisedAsArray()), true)
     assertEquals(isPresenceMemberWire(nullPrototypeMember(1)), true)
     assertEquals(isPresenceMemberWire(nullPrototypeMember(null)), false)
 })
 
-Deno.test('#353 isPresenceMemberIdValue already answers false for a revoked Proxy — `typeof` runs no trap', () => {
+test('#353 isPresenceMemberIdValue already answers false for a revoked Proxy — `typeof` runs no trap', () => {
     assertEquals(isPresenceMemberIdValue(revokedProxy()), false)
 })
 
-Deno.test('#353 a departure a driver reports with a value it cannot inspect is dropped with one WARN — the handler never throws', async () => {
+test('#353 a departure a driver reports with a value it cannot inspect is dropped with one WARN — the handler never throws', async () => {
     let handler: ((d: RosterDeparture) => void | Promise<void>) | undefined
     const published: ControlMessage[] = []
     const roster = new Map<string, PresenceMember>()
@@ -772,7 +773,7 @@ Deno.test('#353 a departure a driver reports with a value it cannot inspect is d
 
 // --- The member invariant precedes every write -------------------------------
 
-Deno.test('#353 a presence subscribe writes no binding of its own, admitted or refused (#370)', async () => {
+test('#353 a presence subscribe writes no binding of its own, admitted or refused (#370)', async () => {
     // What #353's ordering protected — a throwing subscribe leaving a
     // `connections` entry behind — can no longer happen: since #370 only
     // `register` binds. This pins that from both sides. The battery's M1 (the

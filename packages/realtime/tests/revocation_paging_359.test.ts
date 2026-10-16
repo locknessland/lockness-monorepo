@@ -37,6 +37,7 @@
  * @module @lockness/realtime/tests/revocation_paging_359
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertThrows } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
 import {
@@ -268,7 +269,7 @@ async function plantForeign(redis: FakeRedis, count: number): Promise<void> {
 
 // --- US1 + US2: a large index is fully enforced, no reply over a page --------
 
-Deno.test('#359 R1 307 live records, five for B: one drained pass applies all five through one reap and ZSCAN pages from cursor 0 to cursor 0, and nothing else reads the index', async () => {
+test('#359 R1 307 live records, five for B: one drained pass applies all five through one reap and ZSCAN pages from cursor 0 to cursor 0, and nothing else reads the index', async () => {
     const redis = new FakeRedis()
     redis.setTime(NOW)
     const time = new FakeTime(START)
@@ -378,7 +379,7 @@ async function plantForeignIn(
     }
 }
 
-Deno.test('#359 R3 (a, b) the pass judges every page against the reap’s one now: a record whose expiry passes mid-pass is applied, one scored at t is not', async () => {
+test('#359 R3 (a, b) the pass judges every page against the reap’s one now: a record whose expiry passes mid-pass is applied, one scored at t is not', async () => {
     const redis = new FakeRedis()
     redis.setTime(NOW)
     const time = new FakeTime(START)
@@ -417,7 +418,7 @@ Deno.test('#359 R3 (a, b) the pass judges every page against the reap’s one no
 })
 
 for (const skewMs of [3_600_000, -3_600_000]) {
-    Deno.test(`#359 R3 (c) the instance clock skewed ${skewMs > 0 ? '+' : '-'}1 h from the broker's changes nothing — liveness is never Date.now()`, async () => {
+    test(`#359 R3 (c) the instance clock skewed ${skewMs > 0 ? '+' : '-'}1 h from the broker's changes nothing — liveness is never Date.now()`, async () => {
         const redis = new FakeRedis()
         redis.setTime(NOW)
         const time = new FakeTime(START.getTime() + skewMs)
@@ -451,7 +452,7 @@ for (const skewMs of [3_600_000, -3_600_000]) {
     })
 }
 
-Deno.test('#359 R4 undecodable members across pages survive every pass and are never applied or counted; expired members are reaped', async () => {
+test('#359 R4 undecodable members across pages survive every pass and are never applied or counted; expired members are reaped', async () => {
     const redis = new FakeRedis()
     redis.setTime(NOW)
     const time = new FakeTime(START)
@@ -497,7 +498,7 @@ Deno.test('#359 R4 undecodable members across pages survive every pass and are n
     }
 })
 
-Deno.test('#359 R5 two records of one local pair on different pages: one leave, one unsubscribed, both cleared — and a re-subscribe is not kicked next tick', async () => {
+test('#359 R5 two records of one local pair on different pages: one leave, one unsubscribed, both cleared — and a re-subscribe is not kicked next tick', async () => {
     const redis = new FakeRedis()
     redis.setTime(NOW)
     const time = new FakeTime(START)
@@ -535,7 +536,7 @@ Deno.test('#359 R5 two records of one local pair on different pages: one leave, 
     }
 })
 
-Deno.test('#359 R6 a record written between two pages: ahead of the cursor, applied this pass; behind it, applied by the next', async () => {
+test('#359 R6 a record written between two pages: ahead of the cursor, applied this pass; behind it, applied by the next', async () => {
     const redis = new FakeRedis()
     redis.setTime(NOW)
     const time = new FakeTime(START)
@@ -580,7 +581,7 @@ Deno.test('#359 R6 a record written between two pages: ahead of the cursor, appl
     }
 })
 
-Deno.test('#359 R7 an empty page with a non-zero cursor does not end the pass', async () => {
+test('#359 R7 an empty page with a non-zero cursor does not end the pass', async () => {
     const redis = new FakeRedis()
     redis.setTime(NOW)
     const time = new FakeTime(START)
@@ -612,7 +613,7 @@ Deno.test('#359 R7 an empty page with a non-zero cursor does not end the pass', 
     }
 })
 
-Deno.test('#359 R11 a page read that fails applies NOTHING, page 1 included; the WARN names the trigger; the next pass applies everything', async () => {
+test('#359 R11 a page read that fails applies NOTHING, page 1 included; the WARN names the trigger; the next pass applies everything', async () => {
     const redis = new FakeRedis()
     redis.setTime(NOW)
     const time = new FakeTime(START)
@@ -701,7 +702,7 @@ class RecordingRevocationDriver implements RevocationStoreDriver {
     }
 }
 
-Deno.test('#359 R13 (a) the Redis driver keeps only what owns accepts, asking once per decoded record; without owns it returns every record', async () => {
+test('#359 R13 (a) the Redis driver keeps only what owns accepts, asking once per decoded record; without owns it returns every record', async () => {
     const redis = new FakeRedis()
     redis.setTime(NOW)
     const driver = new RedisBroadcastDriver(
@@ -733,7 +734,7 @@ Deno.test('#359 R13 (a) the Redis driver keeps only what owns accepts, asking on
     }
 })
 
-Deno.test('#359 R13 (e) a throw from owns fails listRevocations: the call rejects with that error, returns nothing to apply, and deletes nothing', async () => {
+test('#359 R13 (e) a throw from owns fails listRevocations: the call rejects with that error, returns nothing to apply, and deletes nothing', async () => {
     // The port contract (driver.ts): `owns` is called synchronously and a
     // throw from it fails the call. A `try` around it that swallowed the
     // throw would turn a broken predicate into "not mine" — or "mine" —
@@ -777,7 +778,7 @@ Deno.test('#359 R13 (e) a throw from owns fails listRevocations: the call reject
     }
 })
 
-Deno.test('#359 R13 (b, c) the manager asks for exactly its local ids, and applies only local records even from a driver that ignores the question', async () => {
+test('#359 R13 (b, c) the manager asks for exactly its local ids, and applies only local records even from a driver that ignores the question', async () => {
     const driver = new RecordingRevocationDriver()
     const manager = new ChannelManager<User>({ driver, authorize })
     const warnings = captureWarnings()
@@ -817,7 +818,7 @@ Deno.test('#359 R13 (b, c) the manager asks for exactly its local ids, and appli
 
 // R13 (d) retired by #361: its precondition, a membership naming an id absent from `connections`, is no longer reachable. See `disconnect_admission_361.test.ts` W1.
 
-Deno.test('#359 R15 a re-check run that rejects never stops the tail: its caller sees the rejection, and the next run reaps and applies', async () => {
+test('#359 R15 a re-check run that rejects never stops the tail: its caller sees the rejection, and the next run reaps and applies', async () => {
     const redis = new FakeRedis()
     redis.setTime(NOW)
     const time = new FakeTime(START)
@@ -854,7 +855,7 @@ Deno.test('#359 R15 a re-check run that rejects never stops the tail: its caller
 
 // --- US3: a slow pass never runs beside another ------------------------------
 
-Deno.test('#359 R8 a page held across three intervals: one reap until it is released, and the next pass one interval after the held one ends', async () => {
+test('#359 R8 a page held across three intervals: one reap until it is released, and the next pass one interval after the held one ends', async () => {
     const redis = new FakeRedis()
     redis.setTime(NOW)
     const time = new FakeTime(START)
@@ -887,7 +888,7 @@ Deno.test('#359 R8 a page held across three intervals: one reap until it is rele
     }
 })
 
-Deno.test('#359 R9 (a) one reconnect during a held pass → exactly one trailing pass, after it', async () => {
+test('#359 R9 (a) one reconnect during a held pass → exactly one trailing pass, after it', async () => {
     const redis = new FakeRedis()
     redis.setTime(NOW)
     const time = new FakeTime(START)
@@ -916,7 +917,7 @@ Deno.test('#359 R9 (a) one reconnect during a held pass → exactly one trailing
     }
 })
 
-Deno.test('#359 R9 (b) two reconnects during a held pass → still one trailing pass', async () => {
+test('#359 R9 (b) two reconnects during a held pass → still one trailing pass', async () => {
     const redis = new FakeRedis()
     redis.setTime(NOW)
     const time = new FakeTime(START)
@@ -1005,15 +1006,15 @@ async function retryAndReconnectDuringHold(
     }
 }
 
-Deno.test("#359 R9 (c) a retry, then a reconnect, during a held pass → one trailing pass whose trigger is 'reconnect', and its failure arms the one #308 retry", () =>
+test("#359 R9 (c) a retry, then a reconnect, during a held pass → one trailing pass whose trigger is 'reconnect', and its failure arms the one #308 retry", () =>
     retryAndReconnectDuringHold('retry-then-reconnect'))
 
-Deno.test("#359 R9 (c) a reconnect, then a retry, during a held pass → still 'reconnect': the retry arriving last does not overwrite it", () =>
+test("#359 R9 (c) a reconnect, then a retry, during a held pass → still 'reconnect': the retry arriving last does not overwrite it", () =>
     retryAndReconnectDuringHold('reconnect-then-retry'))
 
 // --- US5: shutting down mid-pass stops reading -------------------------------
 
-Deno.test('#359 R10 close() during a held page read: no page read after it but the one in flight, one closing WARN, no trailing pass, no timer, no retry', async () => {
+test('#359 R10 close() during a held page read: no page read after it but the one in flight, one closing WARN, no trailing pass, no timer, no retry', async () => {
     const redis = new FakeRedis()
     redis.setTime(NOW)
     const time = new FakeTime(START)
@@ -1070,7 +1071,7 @@ Deno.test('#359 R10 close() during a held page read: no page read after it but t
 
 // --- US4: re-checks never overlap (the manager's serial tail) ----------------
 
-Deno.test('#359 R14 a lapse during a held apply queues its re-check behind the pass: no second reap until release, a record written meanwhile applied, a re-subscribed pair not kicked', async () => {
+test('#359 R14 a lapse during a held apply queues its re-check behind the pass: no second reap until release, a record written meanwhile applied, a re-subscribed pair not kicked', async () => {
     const redis = new FakeRedis()
     redis.setTime(NOW)
     const time = new FakeTime(START)
@@ -1141,7 +1142,7 @@ const int = (value: number) => ({ type: 'integer', value })
 const arr = (...value: unknown[]) => ({ type: 'array', value })
 const MARKER = 'MARKER-359-z9'
 
-Deno.test('#359/#405/#411 R12 decodeReapReply accepts only a {t, indexKind, floorKind} triple — t a canonical bulk of at most 15 digits, indexKind and floorKind bulk strings — and refuses anything else with one constant message carrying no reply bytes', () => {
+test('#359/#405/#411 R12 decodeReapReply accepts only a {t, indexKind, floorKind} triple — t a canonical bulk of at most 15 digits, indexKind and floorKind bulk strings — and refuses anything else with one constant message carrying no reply bytes', () => {
     assertEquals(
         decodeReapReply(arr(bulk('1790157600'), bulk('zset'), bulk('zset'))),
         { t: 1790157600, indexKind: 'zset', floorKind: 'zset' },
@@ -1183,7 +1184,7 @@ Deno.test('#359/#405/#411 R12 decodeReapReply accepts only a {t, indexKind, floo
     }
 })
 
-Deno.test('#359 R12 decodeRevocationPage: a bad envelope throws SCAN_REPLY_REFUSED, an odd body REVOCATION_PAGE_REFUSED, neither carrying reply bytes', () => {
+test('#359 R12 decodeRevocationPage: a bad envelope throws SCAN_REPLY_REFUSED, an odd body REVOCATION_PAGE_REFUSED, neither carrying reply bytes', () => {
     const envelope: unknown[] = [
         { type: 'nil' },
         arr(bulk('0')),
@@ -1208,7 +1209,7 @@ Deno.test('#359 R12 decodeRevocationPage: a bad envelope throws SCAN_REPLY_REFUS
     assert(!odd.message.includes(MARKER))
 })
 
-Deno.test('#359 R12 decodeRevocationPage: inside a well-formed page each malformed pair is skipped and counted, and only that pair', () => {
+test('#359 R12 decodeRevocationPage: inside a well-formed page each malformed pair is skipped and counted, and only that pair', () => {
     const bad: [unknown, unknown][] = [
         [int(1), bulk('100')],
         [bulk('m1'), int(100)],
@@ -1241,7 +1242,7 @@ Deno.test('#359 R12 decodeRevocationPage: inside a well-formed page each malform
     assertEquals(empty, { cursor: '0', entries: [], skipped: 0 })
 })
 
-Deno.test('#359 R12 through listRevocations: malformed pairs never stop the pass — the rest applied, ONE skip WARN per pass with the exact count and no broker bytes; a clean pass logs none', async () => {
+test('#359 R12 through listRevocations: malformed pairs never stop the pass — the rest applied, ONE skip WARN per pass with the exact count and no broker bytes; a clean pass logs none', async () => {
     const redis = new FakeRedis()
     redis.setTime(NOW)
     const time = new FakeTime(START)
@@ -1335,11 +1336,10 @@ const SEED_SCRIPT = [
     'return tonumber(ARGV[1])',
 ].join('\n')
 
-Deno.test({
-    name:
-        '#359 R2 an index past the 32 MiB reply cap: one pass on B applies its own three, with no failure line, and B’s client keeps working',
-    ignore: !LIVE_BROKER,
-    async fn() {
+test(
+    '#359 R2 an index past the 32 MiB reply cap: one pass on B applies its own three, with no failure line, and B’s client keeps working',
+    { skip: !LIVE_BROKER },
+    async function () {
         const config = brokerConfig()
         await preflight(config)
         const live = new RedisClient(config)
@@ -1405,4 +1405,4 @@ Deno.test({
             await live.close()
         }
     },
-})
+)

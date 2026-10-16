@@ -2,6 +2,7 @@
  * Tests for @lockness/validator - Validator Class & Errors
  */
 
+import { test } from 'node:test'
 import { assertEquals, assertRejects } from '@std/assert'
 import {
     alphanumeric,
@@ -14,8 +15,8 @@ import {
     validator,
 } from '../mod.ts'
 
-Deno.test('Validator - Validator class', async (t) => {
-    await t.step('fluent API', async () => {
+test('Validator - Validator class', async (t) => {
+    await t.test('fluent API', async () => {
         const v = validator()
             .field('email', [email()])
             .field('password', [minLength(8)])
@@ -28,7 +29,7 @@ Deno.test('Validator - Validator class', async (t) => {
         assertEquals(result.valid, true)
     })
 
-    await t.step('optional fields', async () => {
+    await t.test('optional fields', async () => {
         const v = validator()
         v.field('nickname', [minLength(3)], { optional: true })
 
@@ -39,7 +40,7 @@ Deno.test('Validator - Validator class', async (t) => {
         assertEquals(withField.valid, false)
     })
 
-    await t.step('nullable fields', async () => {
+    await t.test('nullable fields', async () => {
         const v = validator()
         v.field('middle_name', [minLength(2)], { nullable: true })
 
@@ -47,7 +48,7 @@ Deno.test('Validator - Validator class', async (t) => {
         assertEquals(withNull.valid, true)
     })
 
-    await t.step('required fields', async () => {
+    await t.test('required fields', async () => {
         const v = validator()
         v.field('username', [minLength(3)])
 
@@ -56,7 +57,7 @@ Deno.test('Validator - Validator class', async (t) => {
         assertEquals(missing.errors.username?.[0], 'username is required')
     })
 
-    await t.step('multiple errors per field', async () => {
+    await t.test('multiple errors per field', async () => {
         const v = validator()
         v.field('password', [minLength(8), alphanumeric()])
 
@@ -66,8 +67,8 @@ Deno.test('Validator - Validator class', async (t) => {
     })
 })
 
-Deno.test('Validator - validateOrThrow', async (t) => {
-    await t.step('throws on validation error', async () => {
+test('Validator - validateOrThrow', async (t) => {
+    await t.test('throws on validation error', async () => {
         await assertRejects(
             async () => {
                 await validateOrThrow(
@@ -80,7 +81,7 @@ Deno.test('Validator - validateOrThrow', async (t) => {
         )
     })
 
-    await t.step('returns sanitized data on success', async () => {
+    await t.test('returns sanitized data on success', async () => {
         const v = validator()
         v.field('email', [email()])
         v.sanitize('email', [trim(), lowercase()])
@@ -92,7 +93,7 @@ Deno.test('Validator - validateOrThrow', async (t) => {
         assertEquals(data.email, 'test@example.com')
     })
 
-    await t.step('ValidationError methods', async () => {
+    await t.test('ValidationError methods', async () => {
         try {
             await validateOrThrow(
                 { email: 'invalid', password: '123' },

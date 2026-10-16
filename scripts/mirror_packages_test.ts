@@ -13,6 +13,7 @@
  * @module
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertNotEquals } from '@std/assert'
 import { join } from '@std/path'
 import {
@@ -375,7 +376,7 @@ async function withFixture(
     }
 }
 
-Deno.test('mirror: the tree comes from the release tag even when HEAD has moved', async () => {
+test('mirror: the tree comes from the release tag even when HEAD has moved', async () => {
     await withFixture(async (f) => {
         await Deno.writeTextFile(
             join(f.mono, 'packages/realtime/mod.ts'),
@@ -432,14 +433,14 @@ async function assertRefused(
     assertEquals(await pushes(f), [], 'a mirror was pushed despite refusal')
 }
 
-Deno.test('mirror: refuses when the release tag is missing locally', async () => {
+test('mirror: refuses when the release tag is missing locally', async () => {
     await withFixture(async (f) => {
         await f.git(f.mono, 'tag', '-d', 'v1.0.0')
         await assertRefused(f, await mirror(f), 'does not exist locally')
     })
 })
 
-Deno.test('mirror: refuses when the local tag differs from origin', async () => {
+test('mirror: refuses when the local tag differs from origin', async () => {
     await withFixture(async (f) => {
         await f.git(f.mono, 'commit', '-q', '--allow-empty', '-m', 'later')
         await f.git(f.mono, 'tag', '-f', '-a', 'v1.0.0', '-m', 'moved')
@@ -447,14 +448,14 @@ Deno.test('mirror: refuses when the local tag differs from origin', async () => 
     })
 })
 
-Deno.test('mirror: refuses when origin has no such tag', async () => {
+test('mirror: refuses when origin has no such tag', async () => {
     await withFixture(async (f) => {
         await f.git(f.mono, 'push', '-q', 'origin', ':refs/tags/v1.0.0')
         await assertRefused(f, await mirror(f), 'is not on origin')
     })
 })
 
-Deno.test('mirror: refuses a tag that is not on origin/main', async () => {
+test('mirror: refuses a tag that is not on origin/main', async () => {
     await withFixture(async (f) => {
         // A release commit on a side branch, tagged and pushed as a tag only.
         await f.git(f.mono, 'checkout', '-q', '-b', 'side')
@@ -477,14 +478,14 @@ Deno.test('mirror: refuses a tag that is not on origin/main', async () => {
     })
 })
 
-Deno.test('mirror: refuses without a green Secret scan run on main', async () => {
+test('mirror: refuses without a green Secret scan run on main', async () => {
     await withFixture(async (f) => {
         f.greenHeads.length = 0
         await assertRefused(f, await mirror(f), 'no green Secret scan run')
     })
 })
 
-Deno.test('mirror: refuses when every green scan predates the tag', async () => {
+test('mirror: refuses when every green scan predates the tag', async () => {
     await withFixture(async (f) => {
         f.greenHeads.length = 0
         f.greenHeads.push(await f.git(f.mono, 'rev-parse', 'v1.0.0^{commit}~1'))
@@ -492,7 +493,7 @@ Deno.test('mirror: refuses when every green scan predates the tag', async () => 
     })
 })
 
-Deno.test('mirror: refuses a green scan whose head contains the tag but is not on origin/main', async () => {
+test('mirror: refuses a green scan whose head contains the tag but is not on origin/main', async () => {
     await withFixture(async (f) => {
         // A descendant of the tag that never reached origin/main — what a
         // run on a fork's pull request from a branch named main would scan.
@@ -503,7 +504,7 @@ Deno.test('mirror: refuses a green scan whose head contains the tag but is not o
     })
 })
 
-Deno.test('mirror: refuses when the only green scan on the tag is not a push event', async () => {
+test('mirror: refuses when the only green scan on the tag is not a push event', async () => {
     await withFixture(async (f) => {
         const [tagCommit] = f.greenHeads
         f.greenHeads.length = 0
@@ -517,7 +518,7 @@ Deno.test('mirror: refuses when the only green scan on the tag is not a push eve
     })
 })
 
-Deno.test('mirror: refuses when the only scan on the tag did not succeed', async () => {
+test('mirror: refuses when the only scan on the tag did not succeed', async () => {
     // `--status success` is asked of gh, but a run that did not succeed must
     // not become provenance if that flag is ever dropped or ignored.
     await withFixture(async (f) => {
@@ -533,7 +534,7 @@ Deno.test('mirror: refuses when the only scan on the tag did not succeed', async
     })
 })
 
-Deno.test('mirror: a green scan on a later origin/main commit admits the tag', async () => {
+test('mirror: a green scan on a later origin/main commit admits the tag', async () => {
     await withFixture(async (f) => {
         await f.git(f.mono, 'commit', '-q', '--allow-empty', '-m', 'later')
         await f.git(f.mono, 'push', '-q', 'origin', 'main')
@@ -544,7 +545,7 @@ Deno.test('mirror: a green scan on a later origin/main commit admits the tag', a
     })
 })
 
-Deno.test('mirror: a gh repo view failure that is not "not found" fails closed', async () => {
+test('mirror: a gh repo view failure that is not "not found" fails closed', async () => {
     await withFixture(async (f) => {
         f.viewFailure = 'HTTP 502: Bad Gateway (https://api.github.com/graphql)'
         const result = await mirror(f)
@@ -561,7 +562,7 @@ Deno.test('mirror: a gh repo view failure that is not "not found" fails closed',
     })
 })
 
-Deno.test('mirror: a missing repository is reported, not created, without --create', async () => {
+test('mirror: a missing repository is reported, not created, without --create', async () => {
     await withFixture(async (f) => {
         await Deno.remove(join(f.mirrors, 'mail.git'), { recursive: true })
         const result = await mirror(f)
@@ -576,7 +577,7 @@ Deno.test('mirror: a missing repository is reported, not created, without --crea
     })
 })
 
-Deno.test('mirror: a failed description update is reported as a failure', async () => {
+test('mirror: a failed description update is reported as a failure', async () => {
     await withFixture(async (f) => {
         f.editFailure = 'HTTP 403: Resource not accessible by integration'
         const result = await mirror(f)
@@ -597,7 +598,7 @@ Deno.test('mirror: a failed description update is reported as a failure', async 
     })
 })
 
-Deno.test('mirror: a re-run with every mirror synced pushes nothing', async () => {
+test('mirror: a re-run with every mirror synced pushes nothing', async () => {
     await withFixture(async (f) => {
         assertEquals((await mirror(f)).ok, true)
         const heads = await Promise.all(
@@ -623,7 +624,7 @@ Deno.test('mirror: a re-run with every mirror synced pushes nothing', async () =
     })
 })
 
-Deno.test('mirror: a mirror missing only its tag gets a tag-only push (mail case)', async () => {
+test('mirror: a mirror missing only its tag gets a tag-only push (mail case)', async () => {
     await withFixture(async (f) => {
         assertEquals((await mirror(f)).ok, true)
         const mailHead = await mirrorRef(f, 'mail', 'main')
@@ -647,7 +648,7 @@ Deno.test('mirror: a mirror missing only its tag gets a tag-only push (mail case
     })
 })
 
-Deno.test('mirror: a changed package gets one atomic branch + tag push (realtime case), from a clone that never held the mirror history', async () => {
+test('mirror: a changed package gets one atomic branch + tag push (realtime case), from a clone that never held the mirror history', async () => {
     await withFixture(async (f) => {
         assertEquals((await mirror(f)).ok, true)
         const previous = await mirrorRef(f, 'realtime', 'main')
@@ -690,7 +691,7 @@ Deno.test('mirror: a changed package gets one atomic branch + tag push (realtime
     })
 })
 
-Deno.test('mirror: a rejected tag keeps its branch from landing (--atomic), and its stderr is surfaced', async () => {
+test('mirror: a rejected tag keeps its branch from landing (--atomic), and its stderr is surfaced', async () => {
     await withFixture(async (f) => {
         // A per-ref `update` hook: it refuses the tag and accepts the branch.
         // Without --atomic, receive-pack would apply refs/heads/main and
@@ -743,7 +744,7 @@ async function repoState(f: Fixture, dir: string): Promise<string> {
     ].join('\n---\n')
 }
 
-Deno.test('mirror: an inherited GIT_DIR cannot redirect git at another repository', async () => {
+test('mirror: an inherited GIT_DIR cannot redirect git at another repository', async () => {
     await withFixture(async (f) => {
         // A decoy repository with no origin and no packages/. If GIT_DIR
         // reached a child git, the fetch, the tag lookup and every
@@ -766,7 +767,7 @@ Deno.test('mirror: an inherited GIT_DIR cannot redirect git at another repositor
     })
 })
 
-Deno.test('mirror: --dry-run reports the plan and pushes nothing', async () => {
+test('mirror: --dry-run reports the plan and pushes nothing', async () => {
     await withFixture(async (f) => {
         const result = await mirror(f, f.mono, { dryRun: true })
         assertEquals(result.ok, true, result.lines.join('\n'))
@@ -780,7 +781,7 @@ Deno.test('mirror: --dry-run reports the plan and pushes nothing', async () => {
     })
 })
 
-Deno.test('mirror: the real repository was never touched', async () => {
+test('mirror: the real repository was never touched', async () => {
     // Every call above ran with GIT_DIR & co. stripped and cwd in a temp dir.
     const bare = await new Deno.Command('git', {
         args: ['config', '--get', 'core.bare'],
@@ -849,14 +850,14 @@ async function forbiddenGitleaks(
     return { bin, marker }
 }
 
-Deno.test('mirror: refuses when deno.jsonc has no version', async () => {
+test('mirror: refuses when deno.jsonc has no version', async () => {
     await withFixture(async (f) => {
         await Deno.writeTextFile(join(f.mono, 'deno.jsonc'), '{}\n')
         await assertRefused(f, await mirror(f), 'no "version" in deno.jsonc')
     })
 })
 
-Deno.test('mirror: refuses a tag whose deno.jsonc carries another version', async () => {
+test('mirror: refuses a tag whose deno.jsonc carries another version', async () => {
     await withFixture(async (f) => {
         // v1.1.0 is cut on a commit still saying 1.0.0; the working tree
         // says 1.1.0, so that tag is selected and its own config disagrees.
@@ -876,7 +877,7 @@ Deno.test('mirror: refuses a tag whose deno.jsonc carries another version', asyn
     })
 })
 
-Deno.test('mirror: refuses when git fetch origin fails', async () => {
+test('mirror: refuses when git fetch origin fails', async () => {
     await withFixture(async (f) => {
         await f.git(
             f.mono,
@@ -889,7 +890,7 @@ Deno.test('mirror: refuses when git fetch origin fails', async () => {
     })
 })
 
-Deno.test('mirror: refuses when git ls-remote origin fails', async () => {
+test('mirror: refuses when git ls-remote origin fails', async () => {
     await withFixture(async (f) => {
         const gitEnv = await gitShim(f, 'ls-remote --tags origin')
         const result = await mirror(f, f.mono, { gitEnv })
@@ -898,7 +899,7 @@ Deno.test('mirror: refuses when git ls-remote origin fails', async () => {
     })
 })
 
-Deno.test('mirror: refuses when merge-base cannot compare the tag with origin/main', async () => {
+test('mirror: refuses when merge-base cannot compare the tag with origin/main', async () => {
     await withFixture(async (f) => {
         const gitEnv = await gitShim(
             f,
@@ -915,7 +916,7 @@ Deno.test('mirror: refuses when merge-base cannot compare the tag with origin/ma
     })
 })
 
-Deno.test('mirror: refuses when gh run list fails', async () => {
+test('mirror: refuses when gh run list fails', async () => {
     await withFixture(async (f) => {
         f.runListFailure = 'HTTP 401: Bad credentials'
         const result = await mirror(f)
@@ -924,7 +925,7 @@ Deno.test('mirror: refuses when gh run list fails', async () => {
     })
 })
 
-Deno.test('mirror: a malformed green-run headSha is never accepted', async () => {
+test('mirror: a malformed green-run headSha is never accepted', async () => {
     await withFixture(async (f) => {
         const [tagCommit] = f.greenHeads
         f.greenHeads.length = 0
@@ -949,7 +950,7 @@ Deno.test('mirror: a malformed green-run headSha is never accepted', async () =>
     })
 })
 
-Deno.test('mirror: --flatten replaces a parented head with one parentless commit', async () => {
+test('mirror: --flatten replaces a parented head with one parentless commit', async () => {
     await withFixture(async (f) => {
         assertEquals((await mirror(f)).ok, true)
         f.greenHeads.push(
@@ -987,7 +988,7 @@ Deno.test('mirror: --flatten replaces a parented head with one parentless commit
     })
 })
 
-Deno.test('mirror: --create creates a missing repository, then syncs it', async () => {
+test('mirror: --create creates a missing repository, then syncs it', async () => {
     await withFixture(async (f) => {
         await Deno.remove(join(f.mirrors, 'mail.git'), { recursive: true })
 
@@ -1009,7 +1010,7 @@ Deno.test('mirror: --create creates a missing repository, then syncs it', async 
     })
 })
 
-Deno.test("mirror: the mirror's own pushes pass runPrepushScan by admission, end to end", async () => {
+test("mirror: the mirror's own pushes pass runPrepushScan by admission, end to end", async () => {
     await withFixture(async (f) => {
         // Record exactly what git hands the pre-push hook on every push to a
         // mirror ($2 is the URL); the release's own push to origin is not.
@@ -1092,7 +1093,7 @@ async function cloneOrigin(f: Fixture, cloneArgs: string[]): Promise<string> {
     return clone
 }
 
-Deno.test('mirror: from a shallow clone whose tip is the release it syncs', async () => {
+test('mirror: from a shallow clone whose tip is the release it syncs', async () => {
     await withFixture(async (f) => {
         const clone = await cloneOrigin(f, ['--depth', '1'])
         assertEquals(
@@ -1112,7 +1113,7 @@ Deno.test('mirror: from a shallow clone whose tip is the release it syncs', asyn
     })
 })
 
-Deno.test('mirror: from a shallow clone that cut the release off its history it refuses', async () => {
+test('mirror: from a shallow clone that cut the release off its history it refuses', async () => {
     await withFixture(async (f) => {
         // origin/main moves past the release, and the depth-1 clone holds
         // only the new tip: the tag's ancestry cannot be proven from it.
@@ -1124,7 +1125,7 @@ Deno.test('mirror: from a shallow clone that cut the release off its history it 
     })
 })
 
-Deno.test('mirror: from a blobless partial clone it syncs, fetching blobs on demand', async () => {
+test('mirror: from a blobless partial clone it syncs, fetching blobs on demand', async () => {
     await withFixture(async (f) => {
         const clone = await cloneOrigin(f, ['--filter=blob:none'])
         const result = await mirror(f, clone)
@@ -1136,7 +1137,7 @@ Deno.test('mirror: from a blobless partial clone it syncs, fetching blobs on dem
     })
 })
 
-Deno.test('ghCli runs gh with an explicit environment: a stray GH_HOST cannot redirect it', async () => {
+test('ghCli runs gh with an explicit environment: a stray GH_HOST cannot redirect it', async () => {
     const dir = await Deno.realPath(
         await Deno.makeTempDir({ prefix: 'gh-env-' }),
     )

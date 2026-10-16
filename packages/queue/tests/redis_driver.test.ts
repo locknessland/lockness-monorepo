@@ -5,6 +5,7 @@
  * @module @lockness/queue/tests/redis_driver
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { type RedisCommandClient, RedisQueueDriver } from '../drivers/redis.ts'
 import type { SerializedJob } from '../types.ts'
@@ -169,7 +170,7 @@ function job(id: string, availableAt: number): SerializedJob {
     }
 }
 
-Deno.test('RedisQueueDriver - push then pop returns the due job; a delayed job waits', async () => {
+test('RedisQueueDriver - push then pop returns the due job; a delayed job waits', async () => {
     const d = new RedisQueueDriver(new FakeRedis())
     await d.push(job('due', 0)) // available now
     await d.push(job('later', Date.now() + 3_600_000)) // an hour out
@@ -181,12 +182,12 @@ Deno.test('RedisQueueDriver - push then pop returns the due job; a delayed job w
     assertEquals(await d.size('default'), 1, 'the delayed job is still queued')
 })
 
-Deno.test('RedisQueueDriver - pop on an empty queue is null', async () => {
+test('RedisQueueDriver - pop on an empty queue is null', async () => {
     const d = new RedisQueueDriver(new FakeRedis())
     assertEquals(await d.pop('default'), null)
 })
 
-Deno.test('RedisQueueDriver - deadLetter → listFailed (no payload) → retryFailed round-trip', async () => {
+test('RedisQueueDriver - deadLetter → listFailed (no payload) → retryFailed round-trip', async () => {
     const d = new RedisQueueDriver(new FakeRedis())
     await d.deadLetter(job('dead', 0), new RangeError('nope'))
 
@@ -205,7 +206,7 @@ Deno.test('RedisQueueDriver - deadLetter → listFailed (no payload) → retryFa
     assertEquals(revived?.id, 'dead', 're-enqueued and immediately due')
 })
 
-Deno.test('RedisQueueDriver - retryFailed preserves empty-array and empty-object payload fields (#269)', async () => {
+test('RedisQueueDriver - retryFailed preserves empty-array and empty-object payload fields (#269)', async () => {
     const d = new RedisQueueDriver(new FakeRedis())
     const dead: SerializedJob = {
         id: 'j1',
@@ -253,7 +254,7 @@ Deno.test('RedisQueueDriver - retryFailed preserves empty-array and empty-object
     assertEquals(revived.attempts, 0)
 })
 
-Deno.test('RedisQueueDriver - retryFailed still revives a legacy DLQ entry (payload nested in the job)', async () => {
+test('RedisQueueDriver - retryFailed still revives a legacy DLQ entry (payload nested in the job)', async () => {
     const redis = new FakeRedis()
     const d = new RedisQueueDriver(redis)
     // Plant an entry in the pre-#269 wire shape: the whole job, payload and
@@ -272,12 +273,12 @@ Deno.test('RedisQueueDriver - retryFailed still revives a legacy DLQ entry (payl
     assertEquals(revived?.payload, { secret: 'DO_NOT_LEAK' })
 })
 
-Deno.test('RedisQueueDriver - retryFailed on an unknown id is false', async () => {
+test('RedisQueueDriver - retryFailed on an unknown id is false', async () => {
     const d = new RedisQueueDriver(new FakeRedis())
     assertEquals(await d.retryFailed('ghost'), false)
 })
 
-Deno.test('RedisQueueDriver - retryFailed is a single atomic EVAL (no HGET/ZADD/HDEL round-trips)', async () => {
+test('RedisQueueDriver - retryFailed is a single atomic EVAL (no HGET/ZADD/HDEL round-trips)', async () => {
     const redis = new FakeRedis()
     const d = new RedisQueueDriver(redis)
     await d.deadLetter(job('dead', 0), new RangeError('nope'))
@@ -287,7 +288,7 @@ Deno.test('RedisQueueDriver - retryFailed is a single atomic EVAL (no HGET/ZADD/
     assertEquals(redis.commands, ['EVAL'], 'retry folds into one EVAL')
 })
 
-Deno.test('RedisQueueDriver - retryFailed on a missing id issues one EVAL and touches nothing', async () => {
+test('RedisQueueDriver - retryFailed on a missing id issues one EVAL and touches nothing', async () => {
     const redis = new FakeRedis()
     const d = new RedisQueueDriver(redis)
     redis.commands.length = 0
@@ -297,7 +298,7 @@ Deno.test('RedisQueueDriver - retryFailed on a missing id issues one EVAL and to
     assertEquals(await d.size('default'), 0, 'nothing enqueued on a miss')
 })
 
-Deno.test('RedisQueueDriver - clear empties the queue', async () => {
+test('RedisQueueDriver - clear empties the queue', async () => {
     const d = new RedisQueueDriver(new FakeRedis())
     await d.push(job('a', 0))
     await d.clear('default')

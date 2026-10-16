@@ -2,13 +2,14 @@
  * Tests for the CLI make:resource command.
  */
 
+import { test } from 'node:test'
 import { assert, assertStringIncludes } from '@std/assert'
 import { Stub } from '../stubs.ts'
 import { MAKE_COMMANDS } from '../commands/make/index.ts'
 import { makeResource } from '../commands/make/resource.ts'
 
-Deno.test('make:resource', async (t) => {
-    await t.step('generates a Resource subclass from the stub', async () => {
+test('make:resource', async (t) => {
+    await t.test('generates a Resource subclass from the stub', async () => {
         const content = await Stub.render('make', 'resource', {
             className: 'User',
         })
@@ -24,7 +25,7 @@ Deno.test('make:resource', async (t) => {
         assertStringIncludes(content, 'override toArray()')
     })
 
-    await t.step(
+    await t.test(
         'the stub is opt-in — it names fields, never spreads the model',
         async () => {
             const content = await Stub.render('make', 'resource', {
@@ -36,12 +37,12 @@ Deno.test('make:resource', async (t) => {
         },
     )
 
-    await t.step('is registered in MAKE_COMMANDS', () => {
+    await t.test('is registered in MAKE_COMMANDS', () => {
         const names = MAKE_COMMANDS.map((c) => c.name)
         assert(names.includes('make:resource'))
     })
 
-    await t.step(
+    await t.test(
         'the handler writes the resource file to ./app/resource',
         async () => {
             // The handler writes to `./app/resource` relative to cwd. Run it in

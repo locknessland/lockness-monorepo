@@ -11,6 +11,7 @@
  * @module @lockness/auth/tests/session_logout_revocation
  */
 
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
@@ -59,7 +60,7 @@ class RememberProvider extends MockSessionProvider {
     }
 }
 
-Deno.test('session logout - invalidates the remember-me token even when not via remember (SC-011)', async () => {
+test('session logout - invalidates the remember-me token even when not via remember (SC-011)', async () => {
     // A session store already holding the auth key: the user is logged in via
     // session, NOT via the remember cookie.
     const data = new Map<string, unknown>([['auth_web', 1]])
@@ -110,7 +111,7 @@ Deno.test('session logout - invalidates the remember-me token even when not via 
     )
 })
 
-Deno.test('session logout - guard.logout() revokes the session so a replayed cookie is refused (SC-009)', async () => {
+test('session logout - guard.logout() revokes the session so a replayed cookie is refused (SC-009)', async () => {
     const {
         CookieSessionDriver,
         SessionStore,

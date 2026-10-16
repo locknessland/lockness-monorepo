@@ -30,6 +30,7 @@
  * @module @lockness/realtime/tests/redis_broker_integration
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import {
     brokerConfig,
@@ -58,14 +59,10 @@ function integrationTest(
     name: string,
     fn: (namespace: string, reader: Reader) => Promise<void>,
 ): void {
-    Deno.test({
-        name: `[integration] ${name}`,
-        ignore: !LIVE_BROKER,
-        async fn() {
-            await preflight(brokerConfig())
-            const namespace = runNamespace()
-            await withReader(namespace, (reader) => fn(namespace, reader))
-        },
+    test(`[integration] ${name}`, { skip: !LIVE_BROKER }, async function () {
+        await preflight(brokerConfig())
+        const namespace = runNamespace()
+        await withReader(namespace, (reader) => fn(namespace, reader))
     })
 }
 

@@ -18,6 +18,7 @@
  *   and why caching the derived key would silently reinstate it.
  */
 
+import { test } from 'node:test'
 import {
     assertEquals,
     assertNotEquals,
@@ -51,13 +52,13 @@ const OTHER = generateAppKey()
 /** The exact value from #137's report: base64 of `{"auth_web":1}`. */
 const FORGERY = 'JTdCJTIyYXV0aF93ZWIlMjIlM0ExJTdE'
 
-Deno.test('wire - a sealed payload round-trips', async () => {
+test('wire - a sealed payload round-trips', async () => {
     const sealed = await seal(KEY, { auth_web: 1 }, 3600)
 
     assertEquals(await open(KEY, sealed), { auth_web: 1 })
 })
 
-Deno.test('wire - seal now writes the @lockness/crypto Crypt format, not v1 (#265)', async () => {
+test('wire - seal now writes the @lockness/crypto Crypt format, not v1 (#265)', async () => {
     // The convergence lock: cookie sealing delegates to Crypt, so the driver no
     // longer emits its own `v1.` wire. Crypt's marker is `c1.` and is
     // domain-separated from the legacy cookie's HKDF `info`, so the two formats
@@ -69,7 +70,7 @@ Deno.test('wire - seal now writes the @lockness/crypto Crypt format, not v1 (#26
     assertEquals(await open(KEY, sealed), { auth_web: 1 }, 'and round-trips')
 })
 
-Deno.test('wire - a legacy v1 cookie still opens (backward compatibility, #265)', async () => {
+test('wire - a legacy v1 cookie still opens (backward compatibility, #265)', async () => {
     // The reason a read-compat path exists at all: every session issued before
     // #265 is a `v1.` cookie, and dropping the read would log every user out on
     // deploy. A genuine v1 cookie (crafted under the session's own domain key)
@@ -84,7 +85,7 @@ Deno.test('wire - a legacy v1 cookie still opens (backward compatibility, #265)'
     assertEquals(await open(KEY, legacy), { auth_web: 7 }, 'still opens')
 })
 
-Deno.test('wire - a legacy v1 cookie under another key is rejected', async () => {
+test('wire - a legacy v1 cookie under another key is rejected', async () => {
     // The read-compat path is authenticated, not a bypass: a v1 cookie sealed
     // under a different key must fail the tag, exactly as a c1 cookie would.
     const future = Math.floor(Date.now() / 1000) + 3600
@@ -96,22 +97,22 @@ Deno.test('wire - a legacy v1 cookie under another key is rejected', async () =>
     assertEquals(await open(KEY, legacyOther), null)
 })
 
-Deno.test('wire - the #137 forgery is rejected', async () => {
+test('wire - the #137 forgery is rejected', async () => {
     assertEquals(await open(KEY, FORGERY), null)
 })
 
-Deno.test('wire - the #137 forgery with the version prefix prepended is rejected', async () => {
+test('wire - the #137 forgery with the version prefix prepended is rejected', async () => {
     // The prefix is public. Prepending it is free, and it must buy nothing.
     assertEquals(await open(KEY, WIRE_VERSION + FORGERY), null)
 })
 
-Deno.test('wire - a cookie sealed under another key is rejected', async () => {
+test('wire - a cookie sealed under another key is rejected', async () => {
     const sealed = await seal(OTHER, { auth_web: 1 }, 3600)
 
     assertEquals(await open(KEY, sealed), null)
 })
 
-Deno.test('wire - a bit-flipped ciphertext is rejected', async () => {
+test('wire - a bit-flipped ciphertext is rejected', async () => {
     const sealed = await seal(KEY, { auth_web: 1 }, 3600)
     const tail = sealed.slice(-4)
     const flipped = sealed.slice(0, -4) + (tail === 'AAAA' ? 'BBBB' : 'AAAA')
@@ -119,7 +120,7 @@ Deno.test('wire - a bit-flipped ciphertext is rejected', async () => {
     assertEquals(await open(KEY, flipped), null)
 })
 
-Deno.test('wire - a truncated payload is rejected before any crypto call', async () => {
+test('wire - a truncated payload is rejected before any crypto call', async () => {
     // Structural, by decision. Relying on OperationError means the rejection is
     // an accident of the crypto API, and narrowing the catch later turns it into
     // a 500 instead of an empty session.
@@ -134,7 +135,7 @@ Deno.test('wire - a truncated payload is rejected before any crypto call', async
     assertEquals(await openSealed(KEY, short), 'too-short')
 })
 
-Deno.test('wire - an over-long cookie is rejected on length', async () => {
+test('wire - an over-long cookie is rejected on length', async () => {
     assertEquals(await open(KEY, WIRE_VERSION + 'A'.repeat(5000)), null)
     assertEquals(
         await openSealed(KEY, WIRE_VERSION + 'A'.repeat(5000)),
@@ -142,7 +143,7 @@ Deno.test('wire - an over-long cookie is rejected on length', async () => {
     )
 })
 
-Deno.test('wire - a value with no version prefix is rejected', async () => {
+test('wire - a value with no version prefix is rejected', async () => {
     assertEquals(await open(KEY, 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'), null)
     assertEquals(
         await openSealed(KEY, 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'),
@@ -150,7 +151,7 @@ Deno.test('wire - a value with no version prefix is rejected', async () => {
     )
 })
 
-Deno.test('wire - an expired payload is rejected', async () => {
+test('wire - an expired payload is rejected', async () => {
     // maxAge is a browser hint an attacker ignores, and the cookie driver keeps
     // no server-side record — so without exp inside the ciphertext a captured
     // cookie authenticates for ever, across the victim's logout.
@@ -160,14 +161,14 @@ Deno.test('wire - an expired payload is rejected', async () => {
     assertEquals(await openSealed(KEY, sealed), 'expired')
 })
 
-Deno.test('wire - two seals of the same data differ', async () => {
+test('wire - two seals of the same data differ', async () => {
     const a = await seal(KEY, { auth_web: 1 }, 3600)
     const b = await seal(KEY, { auth_web: 1 }, 3600)
 
     assertNotEquals(a, b)
 })
 
-Deno.test('wire - no two seals share a salt', async () => {
+test('wire - no two seals share a salt', async () => {
     // Invariant 2, worded as it should be: overwhelming probability from 16
     // random bytes, not a guarantee. Asserted over a sample.
     const salts = new Set<string>()
@@ -179,7 +180,7 @@ Deno.test('wire - no two seals share a salt', async () => {
     assertEquals(salts.size, 32)
 })
 
-Deno.test('wire - the derived key is never cached', async () => {
+test('wire - the derived key is never cached', async () => {
     // Invariant 5. The first optimisation anyone proposes on seeing HKDF called
     // per request is "cache the derived key" — which, with a per-cookie salt,
     // reinstates the nonce-collision bound the design exists to avoid.
@@ -202,7 +203,7 @@ Deno.test('wire - the derived key is never cached', async () => {
     )
 })
 
-Deno.test('wire - the derivation is HKDF, and no iteration count survives', async () => {
+test('wire - the derivation is HKDF, and no iteration count survives', async () => {
     // SC-005, asserted on the algorithm rather than the clock. A wall-clock
     // threshold is the classic three-cycles-later `ignore: true`.
     //
@@ -218,7 +219,7 @@ Deno.test('wire - the derivation is HKDF, and no iteration count survives', asyn
     assertEquals(/^\s*iterations:/m.test(source), false, 'no iteration count')
 })
 
-Deno.test('wire - sealing a large payload does not blow the stack', async () => {
+test('wire - sealing a large payload does not blow the stack', async () => {
     // String.fromCharCode(...bytes) throws RangeError between 125k and 200k
     // arguments — measured — and session payloads are application-influenced.
     // The encoder must survive it. Whether the result is a *usable* cookie is
@@ -234,7 +235,7 @@ Deno.test('wire - sealing a large payload does not blow the stack', async () => 
     assertEquals(sealed.length > 200_000, true)
 })
 
-Deno.test('wire - an over-large sealed payload is refused on the way back in', async () => {
+test('wire - an over-large sealed payload is refused on the way back in', async () => {
     // A browser caps a cookie near 4 KB, so a value this size was never issued
     // by us and is bounded before atob rather than decoded and mapped.
     const sealed = await seal(KEY, { blob: 'x'.repeat(200_000) }, 3600)
@@ -242,7 +243,7 @@ Deno.test('wire - an over-large sealed payload is refused on the way back in', a
     assertEquals(await open(KEY, sealed), null)
 })
 
-Deno.test('wire - sealing without a secret throws, it does not fall back', async () => {
+test('wire - sealing without a secret throws, it does not fall back', async () => {
     // Found by negative-testing: reintroducing `if (!secret) return btoa(...)`
     // in seal() left every test above green, because they all pass a real key.
     // The base64 fallback WAS #137, and nothing exercised its absence.
@@ -258,7 +259,7 @@ Deno.test('wire - sealing without a secret throws, it does not fall back', async
     }
 })
 
-Deno.test('wire - the cookie driver refuses to construct without a usable secret', () => {
+test('wire - the cookie driver refuses to construct without a usable secret', () => {
     // The request path is the wrong place to discover a configuration error.
     // deno-lint-ignore no-explicit-any
     const context = {} as any
@@ -277,7 +278,7 @@ Deno.test('wire - the cookie driver refuses to construct without a usable secret
     )
 })
 
-Deno.test('wire - the legacy v1 version is bound to the tag, not merely prepended', async () => {
+test('wire - the legacy v1 version is bound to the tag, not merely prepended', async () => {
     // The property: the version marker is GCM `additionalData`, so relabelling a
     // body does not open it. It is asserted in both directions — a payload opens
     // under its own marker and under no other. Without the positive half, an
@@ -344,7 +345,7 @@ Deno.test('wire - the legacy v1 version is bound to the tag, not merely prepende
     await assertRejects(() => decryptWith('v2.'), DOMException)
 })
 
-Deno.test('wire - a tampered SALT is rejected', async () => {
+test('wire - a tampered SALT is rejected', async () => {
     // The salt is an HKDF input, so perturbing it derives a different key and
     // the tag fails. Asserted rather than assumed: the existing tamper test
     // flips the ciphertext tail, which exercises a different byte range
@@ -362,7 +363,7 @@ Deno.test('wire - a tampered SALT is rejected', async () => {
     )
 })
 
-Deno.test('wire - a tampered IV is rejected', async () => {
+test('wire - a tampered IV is rejected', async () => {
     const sealed = await seal(KEY, { auth_web: 1 }, 3600)
     const prefix = sealed.slice(0, WIRE_VERSION.length)
     const raw = decodeBase64(sealed.slice(WIRE_VERSION.length))
@@ -375,7 +376,7 @@ Deno.test('wire - a tampered IV is rejected', async () => {
     )
 })
 
-Deno.test('wire - invalid base64 after the prefix is rejected on the base64 branch', async () => {
+test('wire - invalid base64 after the prefix is rejected on the base64 branch', async () => {
     // The `bad-base64` class had no test at all, so the branch could have been
     // deleted and every remaining assertion would still have passed.
     assertEquals(await open(KEY, WIRE_VERSION + '@@@not base64@@@'), null)
@@ -385,7 +386,7 @@ Deno.test('wire - invalid base64 after the prefix is rejected on the base64 bran
     )
 })
 
-Deno.test('wire - a well-formed v2 marker over a real v1 body is rejected', async () => {
+test('wire - a well-formed v2 marker over a real v1 body is rejected', async () => {
     // Not the same test as prepending the marker to garbage. This is a genuine,
     // openable payload relabelled — the shape a downgrade actually takes — and
     // it must die on the tag because the version is additionalData.
@@ -396,7 +397,7 @@ Deno.test('wire - a well-formed v2 marker over a real v1 body is rejected', asyn
     assertEquals(await openSealed(KEY, relabelled), 'bad-prefix')
 })
 
-Deno.test('wire - a payload whose data is not an object is rejected', async () => {
+test('wire - a payload whose data is not an object is rejected', async () => {
     // `exp` was guarded and `d` was not. The tag already proves we wrote it, so
     // this is asymmetry rather than a hole — but a future change to what gets
     // sealed would otherwise hand a string to SessionStore as if it were a

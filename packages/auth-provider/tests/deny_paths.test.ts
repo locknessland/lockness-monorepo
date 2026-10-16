@@ -14,6 +14,7 @@
  * @module @lockness/auth-provider/tests/deny_paths
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertRejects, assertThrows } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
 import { integer, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core'
@@ -89,7 +90,7 @@ const rememberMeTokens = pgTable('remember_me_tokens', {
 // Basic-auth kind (drizzle)
 // -----------------------------------------------------------------------------
 
-Deno.test('basic-auth (drizzle) - unknown user and bad credentials resolve to null', async () => {
+test('basic-auth (drizzle) - unknown user and bad credentials resolve to null', async () => {
     const provider = new DrizzleBasicAuthProvider<Authenticatable>({
         // deno-lint-ignore no-explicit-any -- deny lookups never touch db
         db: () => null as any,
@@ -102,7 +103,7 @@ Deno.test('basic-auth (drizzle) - unknown user and bad credentials resolve to nu
     )
 })
 
-Deno.test('basic-auth (drizzle) - insecure default verifyPassword only ever denies a mismatch', async () => {
+test('basic-auth (drizzle) - insecure default verifyPassword only ever denies a mismatch', async () => {
     const provider = new DrizzleBasicAuthProvider<Authenticatable>({
         // deno-lint-ignore no-explicit-any
         db: () => null as any,
@@ -114,7 +115,7 @@ Deno.test('basic-auth (drizzle) - insecure default verifyPassword only ever deni
     assertEquals(await provider.verifyPassword('secret', 'not-secret'), false)
 })
 
-Deno.test('basic-auth (drizzle) - a custom verifyPassword overrides the default', async () => {
+test('basic-auth (drizzle) - a custom verifyPassword overrides the default', async () => {
     const seen: Array<[string, string]> = []
     const provider = new DrizzleBasicAuthProvider<Authenticatable>({
         // deno-lint-ignore no-explicit-any
@@ -137,13 +138,13 @@ Deno.test('basic-auth (drizzle) - a custom verifyPassword overrides the default'
 // proven against a real Postgres by scripts/kit_token_flow_live_test.ts.
 // -----------------------------------------------------------------------------
 
-Deno.test('token - an unknown token does not verify', async () => {
+test('token - an unknown token does not verify', async () => {
     const { provider, alice } = setup()
     await provider.createToken(alice, 'ci')
     assertEquals(await provider.verifyToken('never-issued'), null)
 })
 
-Deno.test('token - an expired token does not verify', async () => {
+test('token - an expired token does not verify', async () => {
     using time = new FakeTime(new Date('2026-01-01T00:00:00Z'))
     const { provider, alice } = setup()
     const token = await provider.createToken(alice, 'ci', 60_000)
@@ -151,7 +152,7 @@ Deno.test('token - an expired token does not verify', async () => {
     assertEquals(await provider.verifyToken(token.value), null)
 })
 
-Deno.test('token - a revoked token does not verify, by deleteToken or deleteAllTokens', async () => {
+test('token - a revoked token does not verify, by deleteToken or deleteAllTokens', async () => {
     const { provider, alice } = setup()
     const one = await provider.createToken(alice, 'one')
     const two = await provider.createToken(alice, 'two')
@@ -164,7 +165,7 @@ Deno.test('token - a revoked token does not verify, by deleteToken or deleteAllT
     assertEquals(await provider.verifyToken(two.value), null)
 })
 
-Deno.test('token (drizzle) - a table name or an incomplete table is refused at construction', () => {
+test('token (drizzle) - a table name or an incomplete table is refused at construction', () => {
     const construct = (tokensTable: unknown) =>
         new DrizzleTokenProvider<Authenticatable>({
             // deno-lint-ignore no-explicit-any -- construction never touches db
@@ -201,7 +202,7 @@ Deno.test('token (drizzle) - a table name or an incomplete table is refused at c
 // Session kind (drizzle)
 // -----------------------------------------------------------------------------
 
-Deno.test('session (drizzle) - unknown user resolves to null', async () => {
+test('session (drizzle) - unknown user resolves to null', async () => {
     const provider = new DrizzleSessionProvider<Authenticatable>({
         // deno-lint-ignore no-explicit-any
         db: () => null as any,
@@ -214,7 +215,7 @@ Deno.test('session (drizzle) - unknown user resolves to null', async () => {
     )
 })
 
-Deno.test('session (drizzle) - remember-me off: verify denies, create throws naming rememberTokensTable', async () => {
+test('session (drizzle) - remember-me off: verify denies, create throws naming rememberTokensTable', async () => {
     const provider = new DrizzleSessionProvider<Authenticatable>({
         // deno-lint-ignore no-explicit-any -- remember-me off never touches db
         db: () => null as any,
@@ -228,7 +229,7 @@ Deno.test('session (drizzle) - remember-me off: verify denies, create throws nam
     )
 })
 
-Deno.test('session (drizzle) - an unknown remember token is denied (the store finds no row)', async () => {
+test('session (drizzle) - an unknown remember token is denied (the store finds no row)', async () => {
     let lookups = 0
     const chain = {
         from: () => chain,
@@ -253,7 +254,7 @@ Deno.test('session (drizzle) - an unknown remember token is denied (the store fi
 // Session kind (kysely)
 // -----------------------------------------------------------------------------
 
-Deno.test('session (kysely) - unknown user resolves to null', async () => {
+test('session (kysely) - unknown user resolves to null', async () => {
     const provider = new KyselySessionProvider<Authenticatable>({
         db: () => fakeKyselySelect(undefined),
         ...denying,
@@ -261,7 +262,7 @@ Deno.test('session (kysely) - unknown user resolves to null', async () => {
     assertEquals(await provider.findById(999), null)
 })
 
-Deno.test('session (kysely) - default verifyPassword denies a mismatch', async () => {
+test('session (kysely) - default verifyPassword denies a mismatch', async () => {
     const provider = new KyselySessionProvider<Authenticatable>({
         db: () => fakeKyselySelect(undefined),
         ...denying,
@@ -269,7 +270,7 @@ Deno.test('session (kysely) - default verifyPassword denies a mismatch', async (
     assertEquals(await provider.verifyPassword('a', 'b'), false)
 })
 
-Deno.test('session (kysely) - remember token denied when remember-me is off', async () => {
+test('session (kysely) - remember token denied when remember-me is off', async () => {
     const value = neverIssued()
     const row = liveRow(await sha256(value))
     const provider = new KyselySessionProvider<Authenticatable>({
@@ -280,7 +281,7 @@ Deno.test('session (kysely) - remember token denied when remember-me is off', as
     assertEquals(await provider.verifyRememberToken(value), null)
 })
 
-Deno.test('session (kysely) - an expired row is returned by the store and denied by the base', async () => {
+test('session (kysely) - an expired row is returned by the store and denied by the base', async () => {
     using _time = new FakeTime(new Date('2026-01-01T00:00:00Z'))
     const value = neverIssued()
     const row = liveRow(await sha256(value))
@@ -304,7 +305,7 @@ Deno.test('session (kysely) - an expired row is returned by the store and denied
     )
 })
 
-Deno.test('session (kysely) - remember token denied when the user is gone (orphaned token)', async () => {
+test('session (kysely) - remember token denied when the user is gone (orphaned token)', async () => {
     const value = neverIssued()
     const row = liveRow(await sha256(value))
     const provider = new KyselySessionProvider<Authenticatable>({

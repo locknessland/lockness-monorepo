@@ -18,6 +18,7 @@
  * @module @lockness/cli/tests/command_failures
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { Cli } from '../mod.ts'
 import { registerCoreCommands } from '../core_commands.ts'
@@ -52,11 +53,11 @@ function onlyErrorLine(error: unknown[][]): string {
     return String(error[0][0])
 }
 
-Deno.test('package:* with no package name', async (t) => {
+test('package:* with no package name', async (t) => {
     for (
         const command of ['package:add', 'package:install', 'package:remove']
     ) {
-        await t.step(
+        await t.test(
             `${command} exits 1 with the usage on one line`,
             async () => {
                 const { result, error } = await dispatchIn([command])
@@ -74,7 +75,7 @@ Deno.test('package:* with no package name', async (t) => {
     }
 })
 
-Deno.test('package:install when the installer import fails exits 1, without Deno.exit', async () => {
+test('package:install when the installer import fails exits 1, without Deno.exit', async () => {
     const { result, error } = await dispatchIn([
         'package:install',
         'definitely-not-a-lockness-package',
@@ -87,7 +88,7 @@ Deno.test('package:install when the installer import fails exits 1, without Deno
     )
 })
 
-Deno.test('router:list without app/controller exits 1, the cause rendered', async () => {
+test('router:list without app/controller exits 1, the cause rendered', async () => {
     const { result, error } = await dispatchIn(['router:list'])
 
     assertEquals(result, 1)
@@ -96,7 +97,7 @@ Deno.test('router:list without app/controller exits 1, the cause rendered', asyn
     assertStringIncludes(line, ' caused by: ')
 })
 
-Deno.test('queue:retry with an unknown id exits 1', async () => {
+test('queue:retry with an unknown id exits 1', async () => {
     const { result, error } = await dispatchIn(['queue:retry', 'no-such-id'])
 
     assertEquals(result, 1)
@@ -106,8 +107,8 @@ Deno.test('queue:retry with an unknown id exits 1', async () => {
     )
 })
 
-Deno.test('nessy:install', async (t) => {
-    await t.step('without cli.ts exits 1 naming the fix', async () => {
+test('nessy:install', async (t) => {
+    await t.test('without cli.ts exits 1 naming the fix', async () => {
         const { result, error } = await dispatchIn(['nessy:install'])
 
         assertEquals(result, 1)
@@ -116,7 +117,7 @@ Deno.test('nessy:install', async (t) => {
         assertStringIncludes(line, 'project root')
     })
 
-    await t.step('a failed write exits 1, printed once', async () => {
+    await t.test('a failed write exits 1, printed once', async () => {
         const { result, error } = await dispatchIn(
             ['nessy:install'],
             async () => {
@@ -133,7 +134,7 @@ Deno.test('nessy:install', async (t) => {
         assert(onlyErrorLine(error).startsWith('❌ '), String(error[0][0]))
     })
 
-    await t.step('without .gitignore installs quietly', async () => {
+    await t.test('without .gitignore installs quietly', async () => {
         const { result, warn, error } = await dispatchIn(
             ['nessy:install'],
             () => Deno.writeTextFile('cli.ts', ''),
@@ -144,7 +145,7 @@ Deno.test('nessy:install', async (t) => {
         assertEquals(error.length, 0)
     })
 
-    await t.step('an unreadable .gitignore warns, still exits 0', async () => {
+    await t.test('an unreadable .gitignore warns, still exits 0', async () => {
         const { result, warn, error } = await dispatchIn(
             ['nessy:install'],
             async () => {
@@ -161,8 +162,8 @@ Deno.test('nessy:install', async (t) => {
     })
 })
 
-Deno.test('make:auth finishes, then fails', async (t) => {
-    await t.step('a failed file leaves the others written', async () => {
+test('make:auth finishes, then fails', async (t) => {
+    await t.test('a failed file leaves the others written', async () => {
         await inTempDir(async () => {
             // A directory where the provider goes makes that write fail.
             await Deno.mkdir('app/provider/user_provider.ts', {
@@ -182,7 +183,7 @@ Deno.test('make:auth finishes, then fails', async (t) => {
         })
     })
 
-    await t.step('every file written exits 0', async () => {
+    await t.test('every file written exits 0', async () => {
         const { result, error } = await dispatchIn(['make:auth', '--social'])
 
         assertEquals(result, 0)

@@ -7,6 +7,7 @@
  * @module
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import { fromFileUrl } from '@std/path'
 import { type KitName, KITS } from '@lockness/init'
@@ -29,7 +30,7 @@ import {
 } from './kit_smoke.ts'
 import { LocalJsrStore } from './local_jsr.ts'
 
-Deno.test('judgeRouterList passes only a zero exit that lists the route', () => {
+test('judgeRouterList passes only a zero exit that lists the route', () => {
     const table =
         '┃ GET    ┃ /auth/login ┃ auth.login        ┃ AuthController ┃'
     assert(judgeRouterList(true, table, 'auth.login').ok)
@@ -39,7 +40,7 @@ Deno.test('judgeRouterList passes only a zero exit that lists the route', () => 
     assert(!judgeRouterList(true, '┃ auth.login.submit ┃', 'auth.login').ok)
 })
 
-Deno.test('ROUTER_LIST_ROUTE names a route each kit stub defines', async () => {
+test('ROUTER_LIST_ROUTE names a route each kit stub defines', async () => {
     const stubs = new URL('../packages/init/stubs/kits/', import.meta.url)
     for (const [kit, route] of Object.entries(ROUTER_LIST_ROUTE)) {
         let found = false
@@ -56,7 +57,7 @@ Deno.test('ROUTER_LIST_ROUTE names a route each kit stub defines', async () => {
 
 const ROOT = fromFileUrl(new URL('..', import.meta.url))
 
-Deno.test('publishableMembers lists named, exported @lockness members only', async () => {
+test('publishableMembers lists named, exported @lockness members only', async () => {
     const members = await publishableMembers(ROOT)
     const names = members.map((m) => m.name)
     assert(names.includes('@lockness/core'))
@@ -67,7 +68,7 @@ Deno.test('publishableMembers lists named, exported @lockness members only', asy
     assert(!names.some((n) => n.includes('demo')))
 })
 
-Deno.test('missingFromRegistry names every member that never arrived', () => {
+test('missingFromRegistry names every member that never arrived', () => {
     const store = new LocalJsrStore()
     store.add('core', '0.4.0', { files: new Map(), exports: { '.': './m.ts' } })
     assertEquals(
@@ -80,7 +81,7 @@ Deno.test('missingFromRegistry names every member that never arrived', () => {
     )
 })
 
-Deno.test('unexpectedInRegistry names every stored version beyond the expected members (#475)', () => {
+test('unexpectedInRegistry names every stored version beyond the expected members (#475)', () => {
     const store = new LocalJsrStore()
     const pkg = { files: new Map(), exports: { '.': './m.ts' } }
     store.add('core', '0.4.0', pkg)
@@ -96,7 +97,7 @@ Deno.test('unexpectedInRegistry names every stored version beyond the expected m
     ])
 })
 
-Deno.test('judgeNotFound passes only an HTML 404 from the default view', () => {
+test('judgeNotFound passes only an HTML 404 from the default view', () => {
     const view = 'default-view'
     assert(judgeNotFound(404, 'text/html; charset=UTF-8', '<html>', view).ok)
     assert(!judgeNotFound(404, 'application/json', '{}', view).ok)
@@ -105,7 +106,7 @@ Deno.test('judgeNotFound passes only an HTML 404 from the default view', () => {
     assert(!judgeNotFound(404, null, '', view).ok)
 })
 
-Deno.test("judgeNotFound passes only the app handler's JSON 404 when one is shipped (#479)", () => {
+test("judgeNotFound passes only the app handler's JSON 404 when one is shipped (#479)", () => {
     const handler = 'app-handler'
     const json = 'application/json'
     assert(
@@ -120,7 +121,7 @@ Deno.test("judgeNotFound passes only the app handler's JSON 404 when one is ship
     assert(!judgeNotFound(500, json, '{"error":"Not Found"}', handler).ok)
 })
 
-Deno.test('judgeNotFound rejects a message in the app handler 404 under production (#479)', () => {
+test('judgeNotFound rejects a message in the app handler 404 under production (#479)', () => {
     const handler = 'app-handler'
     const json = 'application/json'
     const bare = '{"error":"Not Found","status":404}'
@@ -132,7 +133,7 @@ Deno.test('judgeNotFound rejects a message in the app handler 404 under producti
     assert(judgeNotFound(404, json, detailed, handler).ok)
 })
 
-Deno.test('NOT_FOUND_ANSWER expects the app handler exactly where a kit ships one (#479)', async () => {
+test('NOT_FOUND_ANSWER expects the app handler exactly where a kit ships one (#479)', async () => {
     for (const kit of Object.keys(KITS) as KitName[]) {
         const stub = new URL(
             `../packages/init/stubs/kits/${kit}/app/view/pages/errors/error_handler.tsx.stub`,
@@ -150,7 +151,7 @@ Deno.test('NOT_FOUND_ANSWER expects the app handler exactly where a kit ships on
     }
 })
 
-Deno.test('appPathRequests flags a registry line naming a path inside the app (#474)', () => {
+test('appPathRequests flags a registry line naming a path inside the app (#474)', () => {
     // The line the #470 slim boot logged and nobody acted on: an app file
     // requested from the registry, which means core resolved it against its
     // own URL instead of the app root. On macOS the app's cwd is the
@@ -173,7 +174,7 @@ Deno.test('appPathRequests flags a registry line naming a path inside the app (#
     )
 })
 
-Deno.test('appPathRequests does not match a sibling directory sharing a prefix', () => {
+test('appPathRequests does not match a sibling directory sharing a prefix', () => {
     assertEquals(
         appPathRequests(['404 GET //tmp/slim-app-2/app/x.ts (not served)'], [
             '/tmp/slim-app',
@@ -182,7 +183,7 @@ Deno.test('appPathRequests does not match a sibling directory sharing a prefix',
     )
 })
 
-Deno.test('appPathRequests matches the percent-encoded spelling of an app dir holding a space (#479)', () => {
+test('appPathRequests matches the percent-encoded spelling of an app dir holding a space (#479)', () => {
     // The registry logs url.pathname, so a space arrives as %20.
     const lines = [
         '404 GET //tmp/run-1/slim%20app/app/middleware/example_middleware.ts (not served)',
@@ -195,7 +196,7 @@ Deno.test('appPathRequests matches the percent-encoded spelling of an app dir ho
     )
 })
 
-Deno.test('publishToRegistry refuses a non-loopback registry before spawning', async () => {
+test('publishToRegistry refuses a non-loopback registry before spawning', async () => {
     for (
         const url of [
             'https://jsr.io',
@@ -216,7 +217,7 @@ Deno.test('publishToRegistry refuses a non-loopback registry before spawning', a
 // `--docker` (#503): reading `docker inspect`, judging it, and polling it
 // ---------------------------------------------------------------------------
 
-Deno.test('parseContainerState reads the INSPECT_FORMAT line, none as no health check', () => {
+test('parseContainerState reads the INSPECT_FORMAT line, none as no health check', () => {
     assertEquals(parseContainerState('running starting 0\n'), {
         status: 'running',
         health: 'starting',
@@ -238,7 +239,7 @@ function state(status: string, health: string | null, exitCode = 0) {
     return { status, health, exitCode }
 }
 
-Deno.test('judgeContainerHealth passes only healthy, waits only while starting', () => {
+test('judgeContainerHealth passes only healthy, waits only while starting', () => {
     assertEquals(judgeContainerHealth(state('running', 'healthy')), {
         done: true,
         result: { ok: true, detail: 'container healthy' },
@@ -279,7 +280,7 @@ function fakeClock() {
     }
 }
 
-Deno.test('pollHealthy reads until healthy and says how long it took', async () => {
+test('pollHealthy reads until healthy and says how long it took', async () => {
     const readings = ['starting', 'starting', 'healthy']
     const result = await pollHealthy(
         () => Promise.resolve(state('running', readings.shift()!)),
@@ -289,7 +290,7 @@ Deno.test('pollHealthy reads until healthy and says how long it took', async () 
     assertEquals(readings, [])
 })
 
-Deno.test('pollHealthy fails at the timeout with the last status seen', async () => {
+test('pollHealthy fails at the timeout with the last status seen', async () => {
     let reads = 0
     const result = await pollHealthy(
         () => {
@@ -307,7 +308,7 @@ Deno.test('pollHealthy fails at the timeout with the last status seen', async ()
     assertEquals(reads, 6)
 })
 
-Deno.test('pollHealthy stops at the first final reading, not at the timeout', async () => {
+test('pollHealthy stops at the first final reading, not at the timeout', async () => {
     let reads = 0
     const result = await pollHealthy(
         () => {
@@ -327,7 +328,7 @@ Deno.test('pollHealthy stops at the first final reading, not at the timeout', as
     assertEquals(reads, 2)
 })
 
-Deno.test('pollHealthy turns an inspect failure into a failed verdict', async () => {
+test('pollHealthy turns an inspect failure into a failed verdict', async () => {
     const result = await pollHealthy(
         () => Promise.reject(new Error('No such container: abc')),
         fakeClock(),
@@ -338,7 +339,7 @@ Deno.test('pollHealthy turns an inspect failure into a failed verdict', async ()
     })
 })
 
-Deno.test('removeDockerObject warns, naming the object and the label, when removal fails', async () => {
+test('removeDockerObject warns, naming the object and the label, when removal fails', async () => {
     const warnings: string[] = []
     const removed = await removeDockerObject(
         ['rm', '-f', 'lockness-kit-smoke-web-1a2b3c4d'],
@@ -356,7 +357,7 @@ Deno.test('removeDockerObject warns, naming the object and the label, when remov
     assert(warnings[0].includes('cannot remove: in use'))
 })
 
-Deno.test('removeDockerObject: success and "No such …" are removed, silently', async () => {
+test('removeDockerObject: success and "No such …" are removed, silently', async () => {
     const warnings: string[] = []
     const warn = (message: string) => warnings.push(message)
     for (
@@ -377,7 +378,7 @@ Deno.test('removeDockerObject: success and "No such …" are removed, silently',
     assertEquals(warnings, [])
 })
 
-Deno.test('removeDockerObject swallows only a missing docker binary', async () => {
+test('removeDockerObject swallows only a missing docker binary', async () => {
     const warn = () => {}
     assert(
         await removeDockerObject(

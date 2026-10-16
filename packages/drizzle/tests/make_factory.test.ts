@@ -5,6 +5,7 @@
  * @module @lockness/drizzle/tests/make_factory
  */
 
+import { test } from 'node:test'
 import {
     assert,
     assertEquals,
@@ -16,7 +17,7 @@ import { registerDrizzleCommands } from '../mod.ts'
 import { processStub } from '../cli_commands.ts'
 import { handleMakeFactory } from '../generators/factory_generator.ts'
 
-Deno.test('make:factory stub is a faker-backed Factory subclass with explicit fields', async () => {
+test('make:factory stub is a faker-backed Factory subclass with explicit fields', async () => {
     const content = await processStub('factory', { className: 'User' })
     assertStringIncludes(content, 'export class UserFactory extends Factory')
     assertStringIncludes(content, "import { Factory } from '@lockness/drizzle'")
@@ -26,7 +27,7 @@ Deno.test('make:factory stub is a faker-backed Factory subclass with explicit fi
     assert(!content.includes('...'))
 })
 
-Deno.test('make:factory is registered by registerDrizzleCommands', () => {
+test('make:factory is registered by registerDrizzleCommands', () => {
     const names: string[] = []
     const fakeCli = {
         register(name: string, _handler: unknown, _description?: string) {
@@ -38,8 +39,8 @@ Deno.test('make:factory is registered by registerDrizzleCommands', () => {
     assert(names.includes('make:factory'))
 })
 
-Deno.test('handleMakeFactory end-to-end', async (t) => {
-    await t.step(
+test('handleMakeFactory end-to-end', async (t) => {
+    await t.test(
         'empty-name guard throws a failure and writes no file',
         async () => {
             // The guard runs before any path is built, so nothing is written.
@@ -66,7 +67,7 @@ Deno.test('handleMakeFactory end-to-end', async (t) => {
         },
     )
 
-    await t.step(
+    await t.test(
         'capitalizes the class name, writes to ./database/factories/<name>_factory.ts, and fills the stub',
         async () => {
             // Lowercase input exercises the capitalization branch: `user` must
@@ -100,7 +101,7 @@ Deno.test('handleMakeFactory end-to-end', async (t) => {
         },
     )
 
-    await t.step(
+    await t.test(
         'builds the output path from the raw name, lowercased',
         async () => {
             // AC3: an already-capitalized name yields the lowercased file name

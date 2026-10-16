@@ -35,6 +35,7 @@
  * @module @lockness/realtime/tests/mixed_fleet_332
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { hmacSha256Hex } from '../../redis/mod.ts'
 import { RedisBroadcastDriver } from '../drivers/redis.ts'
@@ -130,7 +131,7 @@ function conn(id: string, userId: number): Connection<User> {
     } as Connection<User>
 }
 
-Deno.test('#332 row 1+2: a previous-release reader is INERT on a channel-scoped record', async () => {
+test('#332 row 1+2: a previous-release reader is INERT on a channel-scoped record', async () => {
     const redis = new FakeRedis()
     redis.setTime(1_000)
     const driver = new RedisBroadcastDriver(
@@ -171,7 +172,7 @@ Deno.test('#332 row 1+2: a previous-release reader is INERT on a channel-scoped 
     }
 })
 
-Deno.test('#332 row 3+4: the current reader handles both shapes, with no index migration', async () => {
+test('#332 row 3+4: the current reader handles both shapes, with no index migration', async () => {
     const redis = new FakeRedis()
     redis.setTime(1_000)
     const driver = new RedisBroadcastDriver(
@@ -199,7 +200,7 @@ Deno.test('#332 row 3+4: the current reader handles both shapes, with no index m
     }
 })
 
-Deno.test('#337 evict and presence frames are BYTE-IDENTICAL to the previous release', async () => {
+test('#337 evict and presence frames are BYTE-IDENTICAL to the previous release', async () => {
     // The half of the mixed-fleet argument that must never move. A field
     // present on these kinds would change their canonical bytes, every older
     // peer would drop them as forgeries, and an evict issued mid-deploy would
@@ -237,7 +238,7 @@ Deno.test('#337 evict and presence frames are BYTE-IDENTICAL to the previous rel
     }
 })
 
-Deno.test('#337 a previous-release peer DROPS revoke-channel — and it is covered by the MAC here', async () => {
+test('#337 a previous-release peer DROPS revoke-channel — and it is covered by the MAC here', async () => {
     const [wire] = await publishedFrames((driver) =>
         driver.publishControl({
             kind: 'revoke-channel',
@@ -280,7 +281,7 @@ Deno.test('#337 a previous-release peer DROPS revoke-channel — and it is cover
     )
 })
 
-Deno.test('#332 a previous-release peer receiving the new kind does NOTHING', async () => {
+test('#332 a previous-release peer receiving the new kind does NOTHING', async () => {
     // `handleControl`'s switch has three arms and no `default`, so an unknown
     // kind falls off the end. Modelled by handing a manager a frame it does
     // not know: the `evict` arm must not fire, and nothing may be torn down.
@@ -351,7 +352,7 @@ Deno.test('#332 a previous-release peer receiving the new kind does NOTHING', as
     assertEquals(await m.unsubscribe('c1', ROOM), 'left', 'still subscribed')
 })
 
-Deno.test('#332 the accepted cost: a revoke aimed at a previous-release owner does not land', async () => {
+test('#332 the accepted cost: a revoke aimed at a previous-release owner does not land', async () => {
     // Stated rather than skipped. The record is only ever applied by the
     // instance that owns the socket, and that instance is precisely the one
     // that cannot read a channel-scoped record — so the reconcile cannot

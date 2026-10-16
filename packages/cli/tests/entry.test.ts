@@ -10,6 +10,7 @@
  * @module @lockness/cli/tests/entry
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { fromFileUrl } from '@std/path'
 import { CommandFailedError } from '../command_failure.ts'
@@ -42,7 +43,7 @@ function fakeSecret(tag: string): string {
     return ['fx', tag, crypto.randomUUID().slice(0, 8)].join('')
 }
 
-Deno.test('runEntry - work that resolves returns 0 and leaves Deno.exitCode as it was', async () => {
+test('runEntry - work that resolves returns 0 and leaves Deno.exitCode as it was', async () => {
     let ran = false
     const { result, error, exitCode } = await observe(
         7,
@@ -57,7 +58,7 @@ Deno.test('runEntry - work that resolves returns 0 and leaves Deno.exitCode as i
     assertEquals(exitCode, 7)
 })
 
-Deno.test('runEntry - a failure returns its status, sets Deno.exitCode and prints one ❌ line', async () => {
+test('runEntry - a failure returns its status, sets Deno.exitCode and prints one ❌ line', async () => {
     const { result, error, exitCode } = await observe(
         0,
         () =>
@@ -71,7 +72,7 @@ Deno.test('runEntry - a failure returns its status, sets Deno.exitCode and print
     assertEquals(error, [['❌ No kit named "x"']])
 })
 
-Deno.test('runEntry - a synchronous throw is caught too', async () => {
+test('runEntry - a synchronous throw is caught too', async () => {
     const { result, error } = await observe(0, () =>
         runEntry('tool', () => {
             throw new CommandFailedError('A component name is required')
@@ -80,7 +81,7 @@ Deno.test('runEntry - a synchronous throw is caught too', async () => {
     assertEquals(error, [['❌ A component name is required']])
 })
 
-Deno.test('runEntry - a TypeError takes the catch-all branch under the label', async () => {
+test('runEntry - a TypeError takes the catch-all branch under the label', async () => {
     const original = Deno.env.get('LOCKNESS_CLI_RAW_ERRORS')
     Deno.env.delete('LOCKNESS_CLI_RAW_ERRORS')
     try {
@@ -108,7 +109,7 @@ Deno.test('runEntry - a TypeError takes the catch-all branch under the label', a
     }
 })
 
-Deno.test('runEntry - a finally block in the work still runs on failure', async () => {
+test('runEntry - a finally block in the work still runs on failure', async () => {
     let closed = false
     const { result } = await observe(0, () =>
         runEntry('tool', async () => {
@@ -123,7 +124,7 @@ Deno.test('runEntry - a finally block in the work still runs on failure', async 
 })
 
 for (const kind of ['failure', 'unexpected'] as const) {
-    Deno.test(`runEntry - a subprocess whose work throws (${kind}) exits non-zero, redacted, with no uncaught error`, async () => {
+    test(`runEntry - a subprocess whose work throws (${kind}) exits non-zero, redacted, with no uncaught error`, async () => {
         const [inMessage, inCause] = ['msg', 'cause'].map(fakeSecret)
         const fixture = new URL('./fixtures/entry/tool.ts', import.meta.url)
         const { code, stdout, stderr } = await new Deno.Command(

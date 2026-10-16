@@ -12,6 +12,7 @@
  * @module @lockness/drizzle/tests/status_libsql
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { join } from '@std/path'
 import { CommandFailedError } from '@lockness/cli/command-failure'
@@ -174,7 +175,7 @@ async function withProject(
 
 const FIRST: readonly Entry[] = [['0000_init', T], ['0001_users', T + 10]]
 
-Deno.test('#439 libsql: never migrated, every migration pending, and status creates nothing', async () => {
+test('#439 libsql: never migrated, every migration pending, and status creates nothing', async () => {
     await withProject(async (folder, url, config) => {
         await writeJournal(folder, FIRST)
 
@@ -191,7 +192,7 @@ Deno.test('#439 libsql: never migrated, every migration pending, and status crea
     })
 })
 
-Deno.test('#439 libsql: after db:migrate, status exits 0', async () => {
+test('#439 libsql: after db:migrate, status exits 0', async () => {
     await withProject(async (folder, _url, config) => {
         await writeJournal(folder, FIRST)
         assertEquals((await run('db:migrate', config)).error, undefined)
@@ -204,7 +205,7 @@ Deno.test('#439 libsql: after db:migrate, status exits 0', async () => {
     })
 })
 
-Deno.test('#439 libsql: an appended newer entry is pending; an appended older one is out of order', async () => {
+test('#439 libsql: an appended newer entry is pending; an appended older one is out of order', async () => {
     await withProject(async (folder, _url, config) => {
         await writeJournal(folder, FIRST)
         await run('db:migrate', config)
@@ -227,7 +228,7 @@ Deno.test('#439 libsql: an appended newer entry is pending; an appended older on
     })
 })
 
-Deno.test('#439 libsql: an applied file edited afterwards warns, and exits 0', async () => {
+test('#439 libsql: an applied file edited afterwards warns, and exits 0', async () => {
     await withProject(async (folder, _url, config) => {
         await writeJournal(folder, FIRST)
         await run('db:migrate', config)
@@ -246,7 +247,7 @@ Deno.test('#439 libsql: an applied file edited afterwards warns, and exits 0', a
     })
 })
 
-Deno.test('#439 libsql parity: db:migrate applies exactly what db:status called pending, never the out-of-order entry', async () => {
+test('#439 libsql parity: db:migrate applies exactly what db:status called pending, never the out-of-order entry', async () => {
     await withProject(async (folder, url, config) => {
         await writeJournal(folder, FIRST)
         await run('db:migrate', config)

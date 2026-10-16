@@ -9,6 +9,7 @@
  * refuses — and it runs on every `deno task test`.
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import { dirname, fromFileUrl } from '@std/path'
 import { gitEnvFromCwd } from '../../../tests/mutations/harness.ts'
@@ -90,7 +91,7 @@ async function trackedFiles(
     return files
 }
 
-Deno.test('no placeholder key survives anywhere in the tree', async () => {
+test('no placeholder key survives anywhere in the tree', async () => {
     const offenders: string[] = []
 
     for (const relative of await trackedFiles(ROOT, gitEnvFromCwd())) {
@@ -124,7 +125,7 @@ Deno.test('no placeholder key survives anywhere in the tree', async () => {
     assertEquals(offenders, [], 'these files ship a placeholder key')
 })
 
-Deno.test('the reject list is not silently emptied', () => {
+test('the reject list is not silently emptied', () => {
     // The test above passes trivially against an empty list. This is the guard
     // that makes it mean something.
     assertEquals(REJECTED.length >= 10, true)
@@ -158,7 +159,7 @@ async function isolatedDir(): Promise<
     }
 }
 
-Deno.test('a git that cannot list the tree fails the scan instead of passing it', async () => {
+test('a git that cannot list the tree fails the scan instead of passing it', async () => {
     await using sandbox = await isolatedDir()
 
     // The message is pinned to the exit-status branch: the empty-list guard
@@ -172,7 +173,7 @@ Deno.test('a git that cannot list the tree fails the scan instead of passing it'
     assert(error.message.includes('not a git repository'), error.message)
 })
 
-Deno.test('a git failure naming an absolute path reports it relative to the root', async () => {
+test('a git failure naming an absolute path reports it relative to the root', async () => {
     await using sandbox = await isolatedDir()
     // An inherited `GIT_DIR` pointing at no repository — the #356 situation —
     // is a failure git reports by echoing the path it was given, absolute.
@@ -187,7 +188,7 @@ Deno.test('a git failure naming an absolute path reports it relative to the root
     assert(!error.message.includes(sandbox.dir), error.message)
 })
 
-Deno.test('a repository tracking no file fails the scan instead of passing it', async () => {
+test('a repository tracking no file fails the scan instead of passing it', async () => {
     await using sandbox = await isolatedDir()
     const init = await new Deno.Command('git', {
         args: ['init', '--quiet'],

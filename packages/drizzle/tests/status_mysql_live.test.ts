@@ -20,6 +20,7 @@
  * @module @lockness/drizzle/tests/status_mysql_live
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { join } from '@std/path'
 import mysql from 'mysql2/promise'
@@ -168,11 +169,10 @@ async function tables(admin: Admin): Promise<string[]> {
 
 const FIRST: readonly Entry[] = [['0000_init', T], ['0001_users', T + 10]]
 
-Deno.test({
-    name:
-        '#439 live mysql: never migrated, every migration pending, and no bookkeeping table is created',
-    ignore: !LIVE,
-    fn: () =>
+test(
+    '#439 live mysql: never migrated, every migration pending, and no bookkeeping table is created',
+    { skip: !LIVE },
+    () =>
         live(async (admin, url, folder) => {
             await writeJournal(folder, FIRST)
             const config = {
@@ -193,13 +193,12 @@ Deno.test({
             )
             assertEquals(await tables(admin), [])
         }),
-})
+)
 
-Deno.test({
-    name:
-        '#439 live mysql: after db:migrate, status reads the BIGINT created_at and exits 0',
-    ignore: !LIVE,
-    fn: () =>
+test(
+    '#439 live mysql: after db:migrate, status reads the BIGINT created_at and exits 0',
+    { skip: !LIVE },
+    () =>
         live(async (_admin, url, folder) => {
             await writeJournal(folder, FIRST)
             const config = {
@@ -219,52 +218,49 @@ Deno.test({
             assertEquals(listed(status, 'applied'), ['0000_init', '0001_users'])
             assertEquals(status.lines.at(-1), '✅ All 2 migrations are applied')
         }),
-})
+)
 
-Deno.test({
-    name: '#439 live mysql: a custom bookkeeping table with awkward characters',
-    ignore: !LIVE,
-    fn: () =>
-        live(async (admin, url, folder) => {
-            // drizzle-orm quotes identifiers without doubling the backtick,
-            // so the awkward characters are the ones its migrator survives.
-            const table = "hist'ory \\ log"
-            await writeJournal(folder, FIRST)
-            const config = {
-                dialect: 'mysql',
-                out: folder,
-                dbCredentials: { url },
-                migrations: { table },
-            }
-            // The default table is not the one asked about.
-            await admin.query(
-                `CREATE TABLE \`${DATABASE}\`.__drizzle_migrations ` +
-                    '(id serial PRIMARY KEY, hash text NOT NULL, created_at bigint)',
-            )
+test('#439 live mysql: a custom bookkeeping table with awkward characters', {
+    skip: !LIVE,
+}, () =>
+    live(async (admin, url, folder) => {
+        // drizzle-orm quotes identifiers without doubling the backtick,
+        // so the awkward characters are the ones its migrator survives.
+        const table = "hist'ory \\ log"
+        await writeJournal(folder, FIRST)
+        const config = {
+            dialect: 'mysql',
+            out: folder,
+            dbCredentials: { url },
+            migrations: { table },
+        }
+        // The default table is not the one asked about.
+        await admin.query(
+            `CREATE TABLE \`${DATABASE}\`.__drizzle_migrations ` +
+                '(id serial PRIMARY KEY, hash text NOT NULL, created_at bigint)',
+        )
 
-            const never = await run('db:status', config)
-            assertEquals(
-                failure(never),
-                '2 of 2 migrations are not applied: 2 pending',
-            )
+        const never = await run('db:status', config)
+        assertEquals(
+            failure(never),
+            '2 of 2 migrations are not applied: 2 pending',
+        )
 
-            assertEquals((await run('db:migrate', config)).error, undefined)
-            const status = await run('db:status', config)
+        assertEquals((await run('db:migrate', config)).error, undefined)
+        const status = await run('db:status', config)
 
-            assertEquals(status.error, undefined)
-            assertEquals(
-                status.lines[0],
-                "📊 Migration status (bookkeeping table `hist'ory \\ log`)",
-            )
-            assertEquals(listed(status, 'applied'), ['0000_init', '0001_users'])
-        }),
-})
+        assertEquals(status.error, undefined)
+        assertEquals(
+            status.lines[0],
+            "📊 Migration status (bookkeeping table `hist'ory \\ log`)",
+        )
+        assertEquals(listed(status, 'applied'), ['0000_init', '0001_users'])
+    }))
 
-Deno.test({
-    name:
-        '#439 live mysql parity: pending, then db:migrate, then clean; an out-of-order entry is never applied',
-    ignore: !LIVE,
-    fn: () =>
+test(
+    '#439 live mysql parity: pending, then db:migrate, then clean; an out-of-order entry is never applied',
+    { skip: !LIVE },
+    () =>
         live(async (admin, url, folder) => {
             await writeJournal(folder, FIRST)
             const config = {
@@ -303,4 +299,4 @@ Deno.test({
                 '1 of 4 migrations is not applied: 1 out of order',
             )
         }),
-})
+)

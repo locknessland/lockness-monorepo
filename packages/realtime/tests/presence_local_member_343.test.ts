@@ -20,6 +20,7 @@
  * @module @lockness/realtime/tests/presence_local_member_343
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertNotStrictEquals } from '@std/assert'
 import { ChannelManager, type SubscribeResult } from '../manager.ts'
 import { MemoryBroadcastDriver } from '../drivers/memory.ts'
@@ -122,7 +123,7 @@ async function seedTwoTabs(
     return hereOf(await m.subscribe(c2, ROOM))
 }
 
-Deno.test('#343 the local fallback lists one entry per member', async () => {
+test('#343 the local fallback lists one entry per member', async () => {
     const m = new ChannelManager<User>({
         driver: unreadableDriver(),
         authorize,
@@ -140,7 +141,7 @@ Deno.test('#343 the local fallback lists one entry per member', async () => {
     )
 })
 
-Deno.test('#343 a roster-less driver lists one entry per member', async () => {
+test('#343 a roster-less driver lists one entry per member', async () => {
     const m = new ChannelManager<User>({
         driver: rosterlessDriver(),
         authorize,
@@ -154,7 +155,7 @@ Deno.test('#343 a roster-less driver lists one entry per member', async () => {
     assertEquals(infoOf(here, 7), { tab: 'a' })
 })
 
-Deno.test('#343 when the winning connection leaves, the next one speaks for the member', async () => {
+test('#343 when the winning connection leaves, the next one speaks for the member', async () => {
     const run = async (driver: BroadcastDriver) => {
         const m = new ChannelManager<User>({ driver, authorize })
         const tabs: Partial<Tabs> = {}
@@ -183,7 +184,7 @@ Deno.test('#343 when the winning connection leaves, the next one speaks for the 
     )
 })
 
-Deno.test('#343 ids 1 and "1" are one member on the local view', async () => {
+test('#343 ids 1 and "1" are one member on the local view', async () => {
     const m = new ChannelManager<User>({
         driver: unreadableDriver(),
         authorize,
@@ -202,7 +203,7 @@ Deno.test('#343 ids 1 and "1" are one member on the local view', async () => {
     assertEquals(ids(here), [1])
 })
 
-Deno.test('#343 the bound cuts members, and `total` counts members', async () => {
+test('#343 the bound cuts members, and `total` counts members', async () => {
     const m = new ChannelManager<User>({
         driver: unreadableDriver(),
         authorize,
@@ -219,7 +220,7 @@ Deno.test('#343 the bound cuts members, and `total` counts members', async () =>
     assertEquals(here.total, 2, 'two members, however many tabs')
 })
 
-Deno.test('#343 join order is kept, not sorted, on the local view', async () => {
+test('#343 join order is kept, not sorted, on the local view', async () => {
     const m = new ChannelManager<User>({
         driver: rosterlessDriver(),
         authorize,
@@ -242,7 +243,7 @@ Deno.test('#343 join order is kept, not sorted, on the local view', async () => 
     assertEquals(here.total, 3)
 })
 
-Deno.test("#343 under the bound, self as a member's SECOND connection is kept once", async () => {
+test("#343 under the bound, self as a member's SECOND connection is kept once", async () => {
     // Self is looked up by connection id and matched by member id. When the
     // caller is the later tab of a deduped member, the kept entry is the
     // earlier tab's — one entry, the roster's info, never self twice.
@@ -269,7 +270,7 @@ Deno.test("#343 under the bound, self as a member's SECOND connection is kept on
     assertEquals(here.total, 2)
 })
 
-Deno.test('#343 unit: uniqueMembers keeps the first occurrence, in order, without mutating', () => {
+test('#343 unit: uniqueMembers keeps the first occurrence, in order, without mutating', () => {
     // OUT OF ORDER on purpose (#343 review): ascending input cannot tell
     // "order kept" from "sorted".
     const input: PresenceMember[] = [

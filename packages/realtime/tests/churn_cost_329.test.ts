@@ -60,6 +60,7 @@
  * @module @lockness/realtime/tests/churn_cost_329
  */
 
+import { test } from 'node:test'
 import {
     assertEquals,
     assertNotEquals,
@@ -222,7 +223,7 @@ const take = (cost: Cost): Cost => {
     return snapshot
 }
 
-Deno.test('#329 a presence churn PAIR, sole holder — the worst-case cell', async () => {
+test('#329 a presence churn PAIR, sole holder — the worst-case cell', async () => {
     const f = fleet()
     const c = conn('c1', 1)
     f.local.register(c)
@@ -272,7 +273,7 @@ Deno.test('#329 a presence churn PAIR, sole holder — the worst-case cell', asy
     )
 })
 
-Deno.test('#329 an ALREADY-HOSTED presence channel is the low end of the range', async () => {
+test('#329 an ALREADY-HOSTED presence channel is the low end of the range', async () => {
     // The published table gives ranges, and five of its eight rows would have
     // had an unasserted low end. The low end is "another connection already
     // holds this channel", so no watch op is issued — and a budget cannot tell
@@ -300,7 +301,7 @@ Deno.test('#329 an ALREADY-HOSTED presence channel is the low end of the range',
     assertEquals(driverCommands(leave), 1, 'EVAL only')
 })
 
-Deno.test('#329 a presence re-join is one authoritative READ, bounded since #341', async () => {
+test('#329 a presence re-join is one authoritative READ, bounded since #341', async () => {
     const f = fleet()
     const c = conn('c1', 1)
     f.local.register(c)
@@ -329,7 +330,7 @@ Deno.test('#329 a presence re-join is one authoritative READ, bounded since #341
     )
 })
 
-Deno.test('#329 a PRIVATE channel isolates the authorizer from the roster work', async () => {
+test('#329 a PRIVATE channel isolates the authorizer from the roster work', async () => {
     const f = fleet()
     const c = conn('c1', 1)
     f.local.register(c)
@@ -357,7 +358,7 @@ Deno.test('#329 a PRIVATE channel isolates the authorizer from the roster work',
     })
 })
 
-Deno.test('#329 a DENIED subscribe costs an authorizer call and nothing else — ahead of every cap', async () => {
+test('#329 a DENIED subscribe costs an authorizer call and nothing else — ahead of every cap', async () => {
     // The cheapest charge in the package that lands on the APPLICATION's
     // database rather than on the broker. `#checkChannelCaps` is downstream of
     // the authorizer, so no cap sees this, and the channel need not exist —
@@ -372,7 +373,7 @@ Deno.test('#329 a DENIED subscribe costs an authorizer call and nothing else —
     assertEquals(take(f.cost), { ...zero(), authorizerCalls: 1 })
 })
 
-Deno.test('#329 a PUBLIC churn pair runs NO authorizer — the path the shipped advice cannot see', async () => {
+test('#329 a PUBLIC churn pair runs NO authorizer — the path the shipped advice cannot see', async () => {
     const f = fleet()
     const c = conn('c1', 1)
     f.local.register(c)
@@ -389,7 +390,7 @@ Deno.test('#329 a PUBLIC churn pair runs NO authorizer — the path the shipped 
     // charged — the set returns to rest. On unique names this runs forever.
 })
 
-Deno.test('#329 an unsubscribe this instance does not own costs ZERO', async () => {
+test('#329 an unsubscribe this instance does not own costs ZERO', async () => {
     // The ordinary double-unsubscribe, and the cell #332's `revokeChannel`
     // will add a caller to. `#leaveLocal` returns early and the presence
     // branch is gated on the member lookup.
@@ -413,7 +414,7 @@ Deno.test('#329 an unsubscribe this instance does not own costs ZERO', async () 
     )
 })
 
-Deno.test('#329 `maxChannelsPerConnection` reports the EFFECTIVE cap, not the default', () => {
+test('#329 `maxChannelsPerConnection` reports the EFFECTIVE cap, not the default', () => {
     // The branch's only new production API, and the whole reason it exists.
     // Returning MAX_CHANNELS_PER_CONNECTION here would pass every other test
     // in the package — and `docs/realtime.md` tells operators to size their
@@ -442,7 +443,7 @@ Deno.test('#329 `maxChannelsPerConnection` reports the EFFECTIVE cap, not the de
     )
 })
 
-Deno.test('#329 the decision that there is no framework meter is ANCHORED, not merely written', async () => {
+test('#329 the decision that there is no framework meter is ANCHORED, not merely written', async () => {
     // Deleting the docstring must fail something. Without this the home in the
     // plan's decision table is enforced by nothing: every gate stays green
     // while the reason a maintainer needs is removed. Precedent:

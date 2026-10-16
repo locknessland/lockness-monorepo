@@ -7,6 +7,7 @@
  * broken with the whole suite green.
  */
 
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import type { App } from '../app.ts'
 import { Kernel } from '../kernel/kernel_decorators.ts'
@@ -45,7 +46,7 @@ function recordingApp() {
     }
 }
 
-Deno.test('FR-013 - an @OnShutdown method runs at app.shutdown(), end to end', async () => {
+test('FR-013 - an @OnShutdown method runs at app.shutdown(), end to end', async () => {
     // The whole point of the decorator, and it had no test: shutdown_hooks.ts
     // could have registered nothing — its `typeof method !== 'function'` skip,
     // its `.call(kernel)` binding and its priority pass-through were all
@@ -80,7 +81,7 @@ Deno.test('FR-013 - an @OnShutdown method runs at app.shutdown(), end to end', a
     assertEquals(report.failed, [])
 })
 
-Deno.test('FR-013 - the hook is invoked with the kernel as `this`', async () => {
+test('FR-013 - the hook is invoked with the kernel as `this`', async () => {
     // `.call(kernel)` in the step. Without it a hook touching `this.anything`
     // throws at the worst possible moment, and nothing would have noticed.
     isolateScheduler()
@@ -102,7 +103,7 @@ Deno.test('FR-013 - the hook is invoked with the kernel as `this`', async () => 
     assertEquals(seenThis, 'the-kernel')
 })
 
-Deno.test('FR-009 - @Kernel({ shutdown: { signals: false } }) reaches App through the real path', async () => {
+test('FR-009 - @Kernel({ shutdown: { signals: false } }) reaches App through the real path', async () => {
     // The tests for the opt-out called `app.configureShutdown()`, which is
     // @internal. The surface FR-009 actually specifies is the decorator, and
     // the route from it — loader.ts, the context, the step — was untraversed.
@@ -125,7 +126,7 @@ Deno.test('FR-009 - @Kernel({ shutdown: { signals: false } }) reaches App throug
     assertEquals(enabled, false, 'signals:false reached App')
 })
 
-Deno.test('SC-007 - an invalid deadlineMs fails the BOOT, not the shutdown', async () => {
+test('SC-007 - an invalid deadlineMs fails the BOOT, not the shutdown', async () => {
     // resolveDeadlineMs was well tested in isolation; nothing showed createApp
     // actually rejecting. A step that swallowed the TypeError would have passed.
     isolateScheduler()
@@ -148,7 +149,7 @@ Deno.test('SC-007 - an invalid deadlineMs fails the BOOT, not the shutdown', asy
     )
 })
 
-Deno.test('FR-013 - the step throws rather than silently skipping when the App is absent', () => {
+test('FR-013 - the step throws rather than silently skipping when the App is absent', () => {
     // `?.` here is what let the database teardown vanish for a whole review
     // cycle. This step throws instead, and that is worth pinning.
     let thrown: unknown
@@ -160,7 +161,7 @@ Deno.test('FR-013 - the step throws rather than silently skipping when the App i
     assertEquals(thrown instanceof Error, true)
 })
 
-Deno.test('FR-019 - the scheduler step registers its teardown at SERVICES', async () => {
+test('FR-019 - the scheduler step registers its teardown at SERVICES', async () => {
     // The registration existed and no test executed it. A step passing
     // SHUTDOWN_PRIORITY.NOTIFY would have closed the scheduler first, and the
     // band test in shutdown_sequence.test.ts asserts a property of the
@@ -180,7 +181,7 @@ Deno.test('FR-019 - the scheduler step registers its teardown at SERVICES', asyn
     assertEquals(entry?.priority, SHUTDOWN_PRIORITY.SERVICES)
 })
 
-Deno.test('FR-019 - the database teardown step runs AFTER the app exists', async () => {
+test('FR-019 - the database teardown step runs AFTER the app exists', async () => {
     // The defect this whole step was extracted for: at order 100 the app did
     // not exist yet and `context.app?.onShutdown(...)` registered nothing, in
     // silence. It throws now.

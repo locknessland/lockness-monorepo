@@ -11,6 +11,7 @@
  * @module @lockness/core/tests/kernel_ssg_config
  */
 
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import {
     Kernel,
@@ -19,7 +20,7 @@ import {
     type SsgConfig,
 } from '../mod.ts'
 
-Deno.test('@Kernel - stores the ssg locale list via KERNEL_CONFIG', () => {
+test('@Kernel - stores the ssg locale list via KERNEL_CONFIG', () => {
     const ssg: SsgConfig = { locales: ['en-us', 'fr-ca'] }
     const config: KernelConfig = { controllersDir: './app/controller', ssg }
 
@@ -31,7 +32,7 @@ Deno.test('@Kernel - stores the ssg locale list via KERNEL_CONFIG', () => {
     assertEquals(stored?.ssg?.locales, ['en-us', 'fr-ca'])
 })
 
-Deno.test('@Kernel - absent ssg config yields undefined (root-only build)', () => {
+test('@Kernel - absent ssg config yields undefined (root-only build)', () => {
     @Kernel({ controllersDir: './app/controller' })
     class TestKernel {}
 

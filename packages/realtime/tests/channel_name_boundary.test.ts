@@ -15,6 +15,7 @@
  * @module @lockness/realtime/tests/channel_name_boundary
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { ChannelManager, ChannelNameError } from '../manager.ts'
 import { isValidName } from '../protocol.ts'
@@ -41,7 +42,7 @@ const REFUSED = [
     '', // empty
 ]
 
-Deno.test('#314 subscribe refuses a channel the WebSocket wire would refuse', async () => {
+test('#314 subscribe refuses a channel the WebSocket wire would refuse', async () => {
     for (const channel of REFUSED) {
         assert(!isValidName(channel), `fixture is wrong: ${channel} is valid`)
         const m = new ChannelManager<User>({ authorize: () => true })
@@ -60,7 +61,7 @@ Deno.test('#314 subscribe refuses a channel the WebSocket wire would refuse', as
     }
 })
 
-Deno.test('#314 the refusal happens BEFORE the authorizer runs', async () => {
+test('#314 the refusal happens BEFORE the authorizer runs', async () => {
     // The authorizer may be a DB read, an audit write or a rate-limit
     // increment. Running it for a channel that can never work spends that side
     // effect on nothing — the same reasoning #304 gives for the id assertion
@@ -84,7 +85,7 @@ Deno.test('#314 the refusal happens BEFORE the authorizer runs', async () => {
     )
 })
 
-Deno.test('#314 an ordinary channel is unaffected, including one containing `:`', async () => {
+test('#314 an ordinary channel is unaffected, including one containing `:`', async () => {
     // `:` is inside the charset and is load-bearing for namespaced channels —
     // a guard that refused it would break far more than it fixed.
     for (const channel of ['chat', 'presence-eu:orders', 'private-a.b_c-d']) {
@@ -100,7 +101,7 @@ Deno.test('#314 an ordinary channel is unaffected, including one containing `:`'
     }
 })
 
-Deno.test('#314 UNSUBSCRIBE is not guarded — cleanup must be total', async () => {
+test('#314 UNSUBSCRIBE is not guarded — cleanup must be total', async () => {
     // Deliberate asymmetry: creation is guarded, removal is not. Refusing a
     // removal strands the state it would have removed, and `disconnect`
     // iterates every known channel — so on a process holding a name created
@@ -113,7 +114,7 @@ Deno.test('#314 UNSUBSCRIBE is not guarded — cleanup must be total', async () 
     await m.disconnect(c.id)
 })
 
-Deno.test('#314 the owned-set separator rule holds: the channel has no space, the member id may', () => {
+test('#314 the owned-set separator rule holds: the channel has no space, the member id may', () => {
     // What the boundary buys, stated as the invariant `OWNED_SEP`'s docstring
     // asserts and used to only assume. The entry is `<channel> <field>` parsed
     // on the FIRST space, so the split is unambiguous exactly while a channel

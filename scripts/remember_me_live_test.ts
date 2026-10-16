@@ -19,6 +19,7 @@
  * @module
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertNotEquals } from '@std/assert'
 import postgres from 'postgres'
 import { eq } from 'drizzle-orm'
@@ -86,11 +87,10 @@ function rememberCookie(response: Response): { value: string; maxAge: number } {
     return { value, maxAge }
 }
 
-Deno.test({
-    name:
-        '#457 live: SessionGuard and DrizzleSessionProvider store, verify, recycle and revoke remember-me tokens on Postgres',
-    ignore: !LIVE_POSTGRES,
-    async fn(t) {
+test(
+    '#457 live: SessionGuard and DrizzleSessionProvider store, verify, recycle and revoke remember-me tokens on Postgres',
+    { skip: !LIVE_POSTGRES },
+    async function (t) {
         const adminUrl = await liveUrl()
         const database = `lockness_remember_${
             crypto.randomUUID().replaceAll('-', '').slice(0, 12)
@@ -157,7 +157,7 @@ Deno.test({
                     .where(eq(rememberMeTokens.userId, userId))
 
             let first = { value: '', maxAge: 0 }
-            await t.step(
+            await t.test(
                 'login with remember stores the hash only, for the cookie Max-Age in seconds',
                 async () => {
                     const response = await request((g) =>
@@ -182,7 +182,7 @@ Deno.test({
                 },
             )
 
-            await t.step(
+            await t.test(
                 'the cookie authenticates and is recycled, keeping first_issued_at',
                 async () => {
                     const [before] = await rowsOf(alice.id)
@@ -213,13 +213,13 @@ Deno.test({
                 },
             )
 
-            await t.step('a cross-user delete has no effect', async () => {
+            await t.test('a cross-user delete has no effect', async () => {
                 const [row] = await rowsOf(alice.id)
                 await provider.deleteRememberToken(bob, row.id)
                 assert(await provider.verifyRememberToken(first.value))
             })
 
-            await t.step(
+            await t.test(
                 'deleteAllRememberTokens is scoped to its user',
                 async () => {
                     const bobToken = await provider.createRememberToken(
@@ -243,7 +243,7 @@ Deno.test({
                 },
             )
 
-            await t.step(
+            await t.test(
                 'unknown, expired and revoked tokens deny',
                 async () => {
                     assertEquals(
@@ -284,4 +284,4 @@ Deno.test({
             await releaseDatabase(admin, database, { connections: [sql] })
         }
     },
-})
+)

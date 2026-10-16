@@ -7,6 +7,7 @@
  * @module
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import { join } from '@std/path'
 import {
@@ -33,14 +34,14 @@ function envOf(vars: Record<string, string>): EnvReader {
     return { get: (key) => vars[key] }
 }
 
-Deno.test('platformKey maps supported os/arch pairs', () => {
+test('platformKey maps supported os/arch pairs', () => {
     assertEquals(platformKey('linux', 'x86_64'), 'linux_x64')
     assertEquals(platformKey('linux', 'aarch64'), 'linux_arm64')
     assertEquals(platformKey('darwin', 'x86_64'), 'darwin_x64')
     assertEquals(platformKey('darwin', 'aarch64'), 'darwin_arm64')
 })
 
-Deno.test('platformKey refuses an unsupported os', () => {
+test('platformKey refuses an unsupported os', () => {
     let threw = false
     try {
         platformKey('windows', 'x86_64')
@@ -51,7 +52,7 @@ Deno.test('platformKey refuses an unsupported os', () => {
     assert(threw, 'accepted an unsupported os')
 })
 
-Deno.test('platformKey refuses an unsupported arch', () => {
+test('platformKey refuses an unsupported arch', () => {
     let threw = false
     try {
         platformKey('linux', 'arm')
@@ -62,7 +63,7 @@ Deno.test('platformKey refuses an unsupported arch', () => {
     assert(threw, 'accepted an unsupported arch')
 })
 
-Deno.test('pinnedSha256 refuses a platform with no pinned hash', () => {
+test('pinnedSha256 refuses a platform with no pinned hash', () => {
     let threw = false
     try {
         pinnedSha256(TEST_MANIFEST, 'linux_arm64')
@@ -73,7 +74,7 @@ Deno.test('pinnedSha256 refuses a platform with no pinned hash', () => {
     assert(threw, 'returned a hash for an unpinned platform')
 })
 
-Deno.test('sha256Hex matches a known vector', async () => {
+test('sha256Hex matches a known vector', async () => {
     const digest = await sha256Hex(new TextEncoder().encode('abc'))
     assertEquals(
         digest,
@@ -81,7 +82,7 @@ Deno.test('sha256Hex matches a known vector', async () => {
     )
 })
 
-Deno.test('cacheDir uses LOCKNESS_CACHE_HOME when set', () => {
+test('cacheDir uses LOCKNESS_CACHE_HOME when set', () => {
     const env = envOf({ LOCKNESS_CACHE_HOME: '/tmp/fixture-cache' })
     assertEquals(
         cacheDir('8.30.1', env),
@@ -89,7 +90,7 @@ Deno.test('cacheDir uses LOCKNESS_CACHE_HOME when set', () => {
     )
 })
 
-Deno.test('cacheDir falls back to HOME/.cache/lockness', () => {
+test('cacheDir falls back to HOME/.cache/lockness', () => {
     const env = envOf({ HOME: '/tmp/fixture-home' })
     assertEquals(
         cacheDir('8.30.1', env),
@@ -97,7 +98,7 @@ Deno.test('cacheDir falls back to HOME/.cache/lockness', () => {
     )
 })
 
-Deno.test('cacheDir refuses when neither override nor HOME is set', () => {
+test('cacheDir refuses when neither override nor HOME is set', () => {
     let threw = false
     try {
         cacheDir('8.30.1', envOf({}))
@@ -125,7 +126,7 @@ async function withCache<T>(
     }
 }
 
-Deno.test('install rejects a checksum mismatch and installs nothing', async () => {
+test('install rejects a checksum mismatch and installs nothing', async () => {
     await withCache(async (cacheHome) => {
         let extracted = false
         await assertRejects(
@@ -159,7 +160,7 @@ Deno.test('install rejects a checksum mismatch and installs nothing', async () =
     })
 })
 
-Deno.test('install verifies, extracts, and caches a matching tarball', async () => {
+test('install verifies, extracts, and caches a matching tarball', async () => {
     await withCache(async (cacheHome) => {
         const bytes = new TextEncoder().encode('a fake gitleaks tarball')
         const manifest: GitleaksManifest = {
@@ -207,7 +208,7 @@ Deno.test('install verifies, extracts, and caches a matching tarball', async () 
     })
 })
 
-Deno.test('install creates the cache directory owner-only (0o700)', async () => {
+test('install creates the cache directory owner-only (0o700)', async () => {
     await withCache(async (cacheHome) => {
         const bytes = new TextEncoder().encode('a fake gitleaks tarball')
         const manifest: GitleaksManifest = {
@@ -235,7 +236,7 @@ Deno.test('install creates the cache directory owner-only (0o700)', async () => 
     })
 })
 
-Deno.test('install rejects a tampered cached binary and re-installs', async () => {
+test('install rejects a tampered cached binary and re-installs', async () => {
     await withCache(async (cacheHome) => {
         const goodBytes = new TextEncoder().encode('a fake gitleaks tarball')
         const manifest: GitleaksManifest = {
@@ -281,7 +282,7 @@ Deno.test('install rejects a tampered cached binary and re-installs', async () =
     })
 })
 
-Deno.test('install rejects a cached binary with no recorded hash (pre-upgrade cache)', async () => {
+test('install rejects a cached binary with no recorded hash (pre-upgrade cache)', async () => {
     await withCache(async (cacheHome) => {
         const bytes = new TextEncoder().encode('a fake gitleaks tarball')
         const manifest: GitleaksManifest = {
@@ -320,7 +321,7 @@ Deno.test('install rejects a cached binary with no recorded hash (pre-upgrade ca
     })
 })
 
-Deno.test('install refuses an unsupported platform before any download', async () => {
+test('install refuses an unsupported platform before any download', async () => {
     await withCache(async (cacheHome) => {
         let fetchCalls = 0
         await assertRejects(

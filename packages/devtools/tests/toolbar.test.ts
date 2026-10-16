@@ -2,11 +2,12 @@
  * Tests for toolbar HTML generation
  */
 
+import { test } from 'node:test'
 import { assertStringIncludes } from '@std/assert'
 import { DebugToolbar } from '../components/toolbar.tsx'
 import { collector } from '../collector.ts'
 
-Deno.test('DebugToolbar - generates valid HTML', () => {
+test('DebugToolbar - generates valid HTML', () => {
     collector.clear()
 
     const html = DebugToolbar({}).toString()
@@ -14,7 +15,7 @@ Deno.test('DebugToolbar - generates valid HTML', () => {
     assertStringIncludes(html, 'lockness-debug-toolbar')
 })
 
-Deno.test('DebugToolbar - includes stats', () => {
+test('DebugToolbar - includes stats', () => {
     collector.clear()
 
     collector.setRoutes([{ method: 'GET', path: '/test', middlewares: [] }])
@@ -27,7 +28,7 @@ Deno.test('DebugToolbar - includes stats', () => {
     assertStringIncludes(html.toLowerCase(), '>1<') // Count of routes/logs
 })
 
-Deno.test('DebugToolbar - shows request duration', () => {
+test('DebugToolbar - shows request duration', () => {
     collector.clear()
 
     const requestId = crypto.randomUUID()
@@ -47,7 +48,7 @@ Deno.test('DebugToolbar - shows request duration', () => {
     assertStringIncludes(html, '123ms')
 })
 
-Deno.test('DebugToolbar - shows error badge', () => {
+test('DebugToolbar - shows error badge', () => {
     collector.clear()
 
     collector.addLog({
@@ -62,7 +63,7 @@ Deno.test('DebugToolbar - shows error badge', () => {
     assertStringIncludes(html, '#ef4444')
 })
 
-Deno.test('DebugToolbar - includes links to dashboard', () => {
+test('DebugToolbar - includes links to dashboard', () => {
     collector.clear()
 
     const html = DebugToolbar({}).toString()

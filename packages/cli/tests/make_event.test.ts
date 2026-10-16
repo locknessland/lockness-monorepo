@@ -2,11 +2,12 @@
  * Tests for CLI make:event command
  */
 
+import { test } from 'node:test'
 import { assertEquals, assertStringIncludes } from '@std/assert'
 import { Stub } from '../stubs.ts'
 
-Deno.test('make:event', async (t) => {
-    await t.step('generates valid event from stub', async () => {
+test('make:event', async (t) => {
+    await t.test('generates valid event from stub', async () => {
         const content = await Stub.render('make', 'event', {
             className: 'UserRegistered',
             description: 'user registered',
@@ -16,7 +17,7 @@ Deno.test('make:event', async (t) => {
         assertStringIncludes(content, 'extends BaseEvent')
     })
 
-    await t.step('includes BaseEvent import', async () => {
+    await t.test('includes BaseEvent import', async () => {
         const content = await Stub.render('make', 'event', {
             className: 'OrderPlaced',
             description: 'order placed',
@@ -28,7 +29,7 @@ Deno.test('make:event', async (t) => {
         )
     })
 
-    await t.step('replaces all placeholders correctly', async () => {
+    await t.test('replaces all placeholders correctly', async () => {
         const content = await Stub.render('make', 'event', {
             className: 'PaymentProcessed',
             description: 'payment processed',
@@ -45,7 +46,7 @@ Deno.test('make:event', async (t) => {
         assertStringIncludes(content, 'payment processed')
     })
 
-    await t.step('has proper JSDoc comment', async () => {
+    await t.test('has proper JSDoc comment', async () => {
         const content = await Stub.render('make', 'event', {
             className: 'UserDeleted',
             description: 'user deleted',

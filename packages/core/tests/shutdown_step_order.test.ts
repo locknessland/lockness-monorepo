@@ -13,11 +13,12 @@
  * and `?.` turned a wiring error into silence.
  */
 
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { getDefaultSteps } from '../kernel/bootstrap/registry.ts'
 import { appInitStep } from '../kernel/bootstrap/steps/app_init.ts'
 
-Deno.test('bootstrap - every step that registers a teardown runs after the App exists', async () => {
+test('bootstrap - every step that registers a teardown runs after the App exists', async () => {
     // Enumerated by SEARCH over the step sources, not by listing the two I know
     // about — the point is to catch the next one, written by someone who has
     // never read this comment.
@@ -65,7 +66,7 @@ Deno.test('bootstrap - every step that registers a teardown runs after the App e
     )
 })
 
-Deno.test('bootstrap - the database teardown step is registered and ordered correctly', () => {
+test('bootstrap - the database teardown step is registered and ordered correctly', () => {
     const steps = getDefaultSteps()
     const step = steps.find((s) => s.id === 'database_teardown')
 

@@ -39,6 +39,7 @@
  * @module @lockness/realtime/tests/marked_fallback_sinks_391
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
 import {
@@ -296,7 +297,7 @@ const SINKS: SinkRow[] = [
 ]
 
 for (const [index, row] of SINKS.entries()) {
-    Deno.test(`#391 S${index + 1} ${row.name}: every channel throwing, nothing escapes`, async () => {
+    test(`#391 S${index + 1} ${row.name}: every channel throwing, nothing escapes`, async () => {
         await watchingEscapes(async (escaped) => {
             const armed = await row.arm()
             let thrown: unknown = undefined
@@ -333,7 +334,7 @@ for (const [index, row] of SINKS.entries()) {
  * with stderr left working, and the write it received is asserted on
  * directly.
  */
-Deno.test('#391 stderr fallback: a refusing console still reaches stderr', async () => {
+test('#391 stderr fallback: a refusing console still reaches stderr', async () => {
     await watchingEscapes(async (escaped) => {
         const armed = await websocketRow({})
         let thrown: unknown = undefined

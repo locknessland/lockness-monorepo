@@ -1,3 +1,4 @@
+import { test } from 'node:test'
 import { assertStringIncludes } from '@std/assert'
 import {
     Accordion,
@@ -14,8 +15,8 @@ function renderToString(component: unknown): string {
     return result.toString()
 }
 
-Deno.test('Accordion components', async (t) => {
-    await t.step('renders complete accordion', () => {
+test('Accordion components', async (t) => {
+    await t.test('renders complete accordion', () => {
         const html = renderToString(
             <Accordion>
                 <AccordionItem value='item-1'>
@@ -34,7 +35,7 @@ Deno.test('Accordion components', async (t) => {
         assertStringIncludes(html, 'Answer 2')
     })
 
-    await t.step('AccordionItem uses details element', () => {
+    await t.test('AccordionItem uses details element', () => {
         const html = renderToString(
             <AccordionItem value='test'>
                 <AccordionTrigger>Trigger</AccordionTrigger>
@@ -44,7 +45,7 @@ Deno.test('Accordion components', async (t) => {
         assertStringIncludes(html, 'data-value="test"')
     })
 
-    await t.step('AccordionTrigger uses summary element', () => {
+    await t.test('AccordionTrigger uses summary element', () => {
         const html = renderToString(
             <AccordionTrigger>Click me</AccordionTrigger>,
         )
@@ -52,7 +53,7 @@ Deno.test('Accordion components', async (t) => {
         assertStringIncludes(html, 'Click me')
     })
 
-    await t.step('AccordionContent renders children', () => {
+    await t.test('AccordionContent renders children', () => {
         const html = renderToString(
             <AccordionContent>Content here</AccordionContent>,
         )

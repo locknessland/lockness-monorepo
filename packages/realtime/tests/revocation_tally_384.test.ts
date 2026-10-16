@@ -31,6 +31,7 @@
  * @module @lockness/realtime/tests/revocation_tally_384
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
 import { ChannelManager } from '../manager.ts'
@@ -286,7 +287,7 @@ async function withLogs(
 // US1 — the re-check resolves a tally
 // ---------------------------------------------------------------------------
 
-Deno.test('#384 T1 the re-check resolves how many applies it attempted: a pair with two ids is one', async () => {
+test('#384 T1 the re-check resolves how many applies it attempted: a pair with two ids is one', async () => {
     await withLogs(async () => {
         const h = managerHarness()
         h.connect('c1', 1)
@@ -301,7 +302,7 @@ Deno.test('#384 T1 the re-check resolves how many applies it attempted: a pair w
     })
 })
 
-Deno.test('#384 T2 a pair whose roster release rejects is one failure; the next pass finds it not-subscribed and is clean', async () => {
+test('#384 T2 a pair whose roster release rejects is one failure; the next pass finds it not-subscribed and is clean', async () => {
     await withLogs(async (logs) => {
         const h = managerHarness()
         const c1 = h.connect('c1', 1)
@@ -326,7 +327,7 @@ Deno.test('#384 T2 a pair whose roster release rejects is one failure; the next 
     })
 })
 
-Deno.test('#384 T3 a connection revocation whose disconnect rejects is one failure, the socket is closed anyway, and the next pass has nothing local', async () => {
+test('#384 T3 a connection revocation whose disconnect rejects is one failure, the socket is closed anyway, and the next pass has nothing local', async () => {
     await withLogs(async (logs) => {
         const h = managerHarness()
         const c1 = h.connect('c1', 1)
@@ -347,7 +348,7 @@ Deno.test('#384 T3 a connection revocation whose disconnect rejects is one failu
     })
 })
 
-Deno.test("#384 T4 an apply whose own WARN throws is counted by the wrapper's catch, and the next revocation is still applied", async () => {
+test("#384 T4 an apply whose own WARN throws is counted by the wrapper's catch, and the next revocation is still applied", async () => {
     await withLogs(async (logs) => {
         const h = managerHarness()
         h.connect('c1', 1, true)
@@ -367,7 +368,7 @@ Deno.test("#384 T4 an apply whose own WARN throws is counted by the wrapper's ca
     })
 })
 
-Deno.test('#384 T5 a record the ownership filter drops is not attempted', async () => {
+test('#384 T5 a record the ownership filter drops is not attempted', async () => {
     await withLogs(async () => {
         const h = managerHarness()
         h.connect('c1', 1)
@@ -378,7 +379,7 @@ Deno.test('#384 T5 a record the ownership filter drops is not attempted', async 
     })
 })
 
-Deno.test('#384 T6 a pair whose leave succeeds and whose clear rejects is applied, not failed', async () => {
+test('#384 T6 a pair whose leave succeeds and whose clear rejects is applied, not failed', async () => {
     await withLogs(async (logs) => {
         const h = managerHarness()
         const c3 = h.connect('c3', 3)
@@ -393,7 +394,7 @@ Deno.test('#384 T6 a pair whose leave succeeds and whose clear rejects is applie
     })
 })
 
-Deno.test('#384 T7 an index read that rejects rejects the re-check: there is no tally', async () => {
+test('#384 T7 an index read that rejects rejects the re-check: there is no tally', async () => {
     await withLogs(async () => {
         const h = managerHarness()
         h.connect('c1', 1)
@@ -407,7 +408,7 @@ Deno.test('#384 T7 an index read that rejects rejects the re-check: there is no 
     })
 })
 
-Deno.test('#384 T8 a socket that refuses to close fails on every pass, and stays registered', async () => {
+test('#384 T8 a socket that refuses to close fails on every pass, and stays registered', async () => {
     await withLogs(async () => {
         const h = managerHarness()
         const c1 = h.connect('c1', 1, true)
@@ -596,7 +597,7 @@ const elapsed = (time: FakeTime) => time.now - START.getTime()
 // US1 — each revocation sample carries the tally
 // ---------------------------------------------------------------------------
 
-Deno.test('#384 R1 a handler that resolves a tally puts it on the sample; the outcome stays ok', async () => {
+test('#384 R1 a handler that resolves a tally puts it on the sample; the outcome stays ok', async () => {
     await withClock(async ({ time }) => {
         const f = fleet()
         f.record()
@@ -612,7 +613,7 @@ Deno.test('#384 R1 a handler that resolves a tally puts it on the sample; the ou
     })
 })
 
-Deno.test('#384 R2 a handler that resolves nothing puts neither key on the sample', async () => {
+test('#384 R2 a handler that resolves nothing puts neither key on the sample', async () => {
     await withClock(async ({ time }) => {
         const f = fleet()
         f.record()
@@ -627,7 +628,7 @@ Deno.test('#384 R2 a handler that resolves nothing puts neither key on the sampl
     })
 })
 
-Deno.test('#384 R3a a value that is not tally-shaped is no tally: no counts, no WARN, and the deadline behaves as today', async (t) => {
+test('#384 R3a a value that is not tally-shaped is no tally: no counts, no WARN, and the deadline behaves as today', async (t) => {
     const values: [string, unknown][] = [
         ['a string', 'x'],
         ['a number', 42],
@@ -636,7 +637,7 @@ Deno.test('#384 R3a a value that is not tally-shaped is no tally: no counts, no 
         ['an empty object', {}],
     ]
     for (const [name, value] of values) {
-        await t.step(name, async () => {
+        await t.test(name, async () => {
             await withClock(async ({ time, logs }) => {
                 const f = fleet()
                 f.record()
@@ -656,7 +657,7 @@ Deno.test('#384 R3a a value that is not tally-shaped is no tally: no counts, no 
     }
 })
 
-Deno.test('#384 R3b a tally-shaped value with bad counts is one WARN per pass, no counts, ok, no retry, and never re-arms', async (t) => {
+test('#384 R3b a tally-shaped value with bad counts is one WARN per pass, no counts, ok, no retry, and never re-arms', async (t) => {
     const values: [string, () => unknown][] = [
         ['failed above attempted', () => ({ attempted: 1, failed: 2 })],
         ['a negative count', () => ({ attempted: -1, failed: 0 })],
@@ -672,7 +673,7 @@ Deno.test('#384 R3b a tally-shaped value with bad counts is one WARN per pass, n
         })],
     ]
     for (const [name, make] of values) {
-        await t.step(name, async () => {
+        await t.test(name, async () => {
             await withClock(async ({ time, logs }) => {
                 const f = fleet()
                 f.record()
@@ -750,7 +751,7 @@ Deno.test('#384 R3b a tally-shaped value with bad counts is one WARN per pass, n
 // US2 — only a clean pass re-arms the deadline
 // ---------------------------------------------------------------------------
 
-Deno.test('#384 R3c a sink that refuses the malformed WARN writes one marked line per pass, and the pass stays ok', async () => {
+test('#384 R3c a sink that refuses the malformed WARN writes one marked line per pass, and the pass stays ok', async () => {
     await withClock(async ({ time, logs }) => {
         const f = fleet()
         f.record()
@@ -771,7 +772,7 @@ Deno.test('#384 R3c a sink that refuses the malformed WARN writes one marked lin
     })
 })
 
-Deno.test('#384 R4 a pass whose every apply failed never re-arms: one MISSED at the TTL, and one only', async () => {
+test('#384 R4 a pass whose every apply failed never re-arms: one MISSED at the TTL, and one only', async () => {
     await withClock(async ({ time, logs }) => {
         const f = fleet()
         f.listen(() => ({ attempted: 1, failed: 1 }))
@@ -785,7 +786,7 @@ Deno.test('#384 R4 a pass whose every apply failed never re-arms: one MISSED at 
     })
 })
 
-Deno.test('#384 R5 a pass with one failure among five never re-arms either', async () => {
+test('#384 R5 a pass with one failure among five never re-arms either', async () => {
     await withClock(async ({ time, logs }) => {
         const f = fleet()
         f.listen(() => ({ attempted: 5, failed: 1 }))
@@ -799,7 +800,7 @@ Deno.test('#384 R5 a pass with one failure among five never re-arms either', asy
     })
 })
 
-Deno.test('#384 R6 one pass with a failure among clean ones costs margin, not a line', async () => {
+test('#384 R6 one pass with a failure among clean ones costs margin, not a line', async () => {
     await withClock(async ({ time, logs }) => {
         const f = fleet()
         let dirty = 0
@@ -815,7 +816,7 @@ Deno.test('#384 R6 one pass with a failure among clean ones costs margin, not a 
     })
 })
 
-Deno.test('#384 R7 a handler that resolves nothing re-arms on every ok pass, as today', async () => {
+test('#384 R7 a handler that resolves nothing re-arms on every ok pass, as today', async () => {
     await withClock(async ({ time, logs }) => {
         const f = fleet()
         f.listen(() => undefined)
@@ -825,8 +826,8 @@ Deno.test('#384 R7 a handler that resolves nothing re-arms on every ok pass, as 
     })
 })
 
-Deno.test("#384 R8 both deadline lines state the premise: no pass completed without failures since the last clean pass's start", async (t) => {
-    await t.step('MISSED', async () => {
+test("#384 R8 both deadline lines state the premise: no pass completed without failures since the last clean pass's start", async (t) => {
+    await t.test('MISSED', async () => {
         await withClock(async ({ time, logs }) => {
             const f = fleet()
             f.listen(() => ({ attempted: 1, failed: 1 }))
@@ -838,7 +839,7 @@ Deno.test("#384 R8 both deadline lines state the premise: no pass completed with
             await f.driver.close()
         })
     })
-    await t.step('STALLED', async () => {
+    await t.test('STALLED', async () => {
         await withClock(async ({ time, logs }) => {
             const f = fleet()
             // The first pass never settles: no pass has ended since the last
@@ -854,7 +855,7 @@ Deno.test("#384 R8 both deadline lines state the premise: no pass completed with
     })
 })
 
-Deno.test('#384 R9 an expiry during a healthy pass, after passes with failures, is MISSED — never STALLED', async () => {
+test('#384 R9 an expiry during a healthy pass, after passes with failures, is MISSED — never STALLED', async () => {
     await withClock(async ({ time, logs }) => {
         const f = fleet()
         let calls = 0
@@ -879,7 +880,7 @@ Deno.test('#384 R9 an expiry during a healthy pass, after passes with failures, 
     })
 })
 
-Deno.test('#384 R10 a failing pass, then a clean pass, then a stall: the clean pass forgets the failure, and the stall is STALLED', async () => {
+test('#384 R10 a failing pass, then a clean pass, then a stall: the clean pass forgets the failure, and the stall is STALLED', async () => {
     await withClock(async ({ time, logs }) => {
         const f = fleet()
         let calls = 0
@@ -905,7 +906,7 @@ Deno.test('#384 R10 a failing pass, then a clean pass, then a stall: the clean p
 // US4 — every ghost sweep counts the dead instances it swept
 // ---------------------------------------------------------------------------
 
-Deno.test('#384 S1 two dead instances, one of whose release throws, and a live peer: two attempts, one failure, ok', async () => {
+test('#384 S1 two dead instances, one of whose release throws, and a live peer: two attempts, one failure, ok', async () => {
     await withClock(async ({ time }) => {
         const f = fleet()
         f.record()
@@ -927,7 +928,7 @@ Deno.test('#384 S1 two dead instances, one of whose release throws, and a live p
     })
 })
 
-Deno.test('#384 S1b the sweep failure is counted before its WARN: a throwing sink cannot skip it', async () => {
+test('#384 S1b the sweep failure is counted before its WARN: a throwing sink cannot skip it', async () => {
     await withClock(async ({ time, logs }) => {
         const f = fleet()
         f.record()
@@ -943,7 +944,7 @@ Deno.test('#384 S1b the sweep failure is counted before its WARN: a throwing sin
     })
 })
 
-Deno.test('#384 S2 a sweep with no dead instance counts zero attempts and zero failures', async () => {
+test('#384 S2 a sweep with no dead instance counts zero attempts and zero failures', async () => {
     await withClock(async ({ time }) => {
         const f = fleet()
         f.record()
@@ -958,7 +959,7 @@ Deno.test('#384 S2 a sweep with no dead instance counts zero attempts and zero f
     })
 })
 
-Deno.test('#384 S3 a dead instance that renews itself mid-sweep is attempted, not failed', async () => {
+test('#384 S3 a dead instance that renews itself mid-sweep is attempted, not failed', async () => {
     await withClock(async ({ time, logs }) => {
         const f = fleet()
         f.record()
@@ -987,7 +988,7 @@ Deno.test('#384 S3 a dead instance that renews itself mid-sweep is attempted, no
     })
 })
 
-Deno.test('#384 S4 a sweep that fails after sweeping one instance reports the counts it reached', async () => {
+test('#384 S4 a sweep that fails after sweeping one instance reports the counts it reached', async () => {
     await withClock(async ({ time }) => {
         const f = fleet()
         f.record()
@@ -1012,7 +1013,7 @@ Deno.test('#384 S4 a sweep that fails after sweeping one instance reports the co
 // End to end — a revoked socket that cannot be closed
 // ---------------------------------------------------------------------------
 
-Deno.test('#384 E1 a revoked socket that refuses to close fails every pass, stays registered, and is reported once at the TTL', async () => {
+test('#384 E1 a revoked socket that refuses to close fails every pass, stays registered, and is reported once at the TTL', async () => {
     await withClock(async ({ time, logs }) => {
         const redis = new FakeRedis()
         redis.setTime(NOW_S)

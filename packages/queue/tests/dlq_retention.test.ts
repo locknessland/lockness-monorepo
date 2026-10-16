@@ -10,6 +10,7 @@
  * @module @lockness/queue/tests/dlq_retention
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { MemoryQueueDriver } from '../drivers/memory.ts'
 import { DenoKvQueueDriver } from '../drivers/deno_kv.ts'
@@ -41,7 +42,7 @@ function job(id: string, queue = 'default'): SerializedJob {
 // Memory driver
 // =============================================================================
 
-Deno.test('memory retention - an entry older than the window is swept on listFailed', async () => {
+test('memory retention - an entry older than the window is swept on listFailed', async () => {
     let clock = 0
     const d = new MemoryQueueDriver({ retentionMs: 7 * DAY, now: () => clock })
 
@@ -53,7 +54,7 @@ Deno.test('memory retention - an entry older than the window is swept on listFai
     assertEquals(failed.map((e) => e.id), ['fresh'], 'the aged entry is gone')
 })
 
-Deno.test('memory retention - the default window applies when unset', async () => {
+test('memory retention - the default window applies when unset', async () => {
     let clock = 0
     const d = new MemoryQueueDriver({ now: () => clock }) // retentionMs unset
 
@@ -66,7 +67,7 @@ Deno.test('memory retention - the default window applies when unset', async () =
     assertEquals((await d.listFailed()).length, 0, 'swept past the default')
 })
 
-Deno.test('memory retention - the size cap evicts the oldest entry', async () => {
+test('memory retention - the size cap evicts the oldest entry', async () => {
     let clock = 0
     const d = new MemoryQueueDriver({
         retentionMs: 365 * DAY, // long, so only the cap can evict
@@ -84,7 +85,7 @@ Deno.test('memory retention - the size cap evicts the oldest entry', async () =>
     assertEquals(ids, ['b', 'c'], 'the oldest (a) was evicted at the cap')
 })
 
-Deno.test('memory retention - the default cap is a positive bound', () => {
+test('memory retention - the default cap is a positive bound', () => {
     assert(
         DEFAULT_DEAD_LETTER_MAX_ENTRIES > 0,
         'a sensible default cap keeps the in-memory DLQ bounded',
@@ -112,7 +113,7 @@ async function withFakeKv(fn: (fake: FakeKv) => Promise<void>): Promise<void> {
     }
 }
 
-Deno.test('deno-kv retention - deadLetter writes the entry with expireIn = retentionMs', async () => {
+test('deno-kv retention - deadLetter writes the entry with expireIn = retentionMs', async () => {
     await withFakeKv(async (fake) => {
         const d = new DenoKvQueueDriver(undefined, { retentionMs: 7 * DAY })
         await d.deadLetter(job('k1'), new Error('boom'))
@@ -121,7 +122,7 @@ Deno.test('deno-kv retention - deadLetter writes the entry with expireIn = reten
     })
 })
 
-Deno.test('deno-kv retention - the default window applies when unset', async () => {
+test('deno-kv retention - the default window applies when unset', async () => {
     await withFakeKv(async (fake) => {
         const d = new DenoKvQueueDriver() // no retention configured
         await d.deadLetter(job('k2'), new Error('boom'))
@@ -173,7 +174,7 @@ class FakeRedisHash implements RedisCommandClient {
     }
 }
 
-Deno.test('redis retention - deadLetter purges entries past the window opportunistically', async () => {
+test('redis retention - deadLetter purges entries past the window opportunistically', async () => {
     let clock = 0
     const redis = new FakeRedisHash()
     const d = new RedisQueueDriver(redis, {
@@ -192,7 +193,7 @@ Deno.test('redis retention - deadLetter purges entries past the window opportuni
     )
 })
 
-Deno.test('redis retention - listFailed drops entries past the window', async () => {
+test('redis retention - listFailed drops entries past the window', async () => {
     let clock = 0
     const redis = new FakeRedisHash()
     const d = new RedisQueueDriver(redis, {
@@ -208,7 +209,7 @@ Deno.test('redis retention - listFailed drops entries past the window', async ()
     assertEquals(redis.fields(), [], 'and it was purged from the hash')
 })
 
-Deno.test('redis retention - the default window applies when unset', async () => {
+test('redis retention - the default window applies when unset', async () => {
     let clock = 0
     const redis = new FakeRedisHash()
     const d = new RedisQueueDriver(redis, { now: () => clock }) // retention unset

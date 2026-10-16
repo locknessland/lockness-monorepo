@@ -5,6 +5,7 @@
  * @module @lockness/telemetry/tests/middleware
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { trace } from '@opentelemetry/api'
 import type { Span, Tracer, TracerProvider } from '@opentelemetry/api'
@@ -42,7 +43,7 @@ function fakeProvider(): { provider: TracerProvider; recorded: unknown[] } {
     return { provider: provider as unknown as TracerProvider, recorded }
 }
 
-Deno.test('SC-004: middleware calls next and does not throw when OTEL is off', async () => {
+test('SC-004: middleware calls next and does not throw when OTEL is off', async () => {
     // No OTEL_DENO in the test process → the API's no-op provider; the span ops
     // are inert and next runs normally.
     const mw = telemetryMiddleware()
@@ -55,7 +56,7 @@ Deno.test('SC-004: middleware calls next and does not throw when OTEL is off', a
     assert(called, 'next must be called')
 })
 
-Deno.test('middleware re-throws a handler error (span records it, then rethrows)', async () => {
+test('middleware re-throws a handler error (span records it, then rethrows)', async () => {
     const mw = telemetryMiddleware()
     const boom = new Error('boom')
     const next: Next = () => Promise.reject(boom)
@@ -68,7 +69,7 @@ Deno.test('middleware re-throws a handler error (span records it, then rethrows)
     assertEquals(caught, boom)
 })
 
-Deno.test('S4 wiring: a thrown error is routed through redaction before recordException', async () => {
+test('S4 wiring: a thrown error is routed through redaction before recordException', async () => {
     // Inject a fake tracer whose span captures the recordException argument, so
     // this locks the WIRING: a future refactor that passed the raw error to
     // `span.recordException` (bypassing `toRecordedException`) would fail here.

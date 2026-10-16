@@ -19,6 +19,7 @@
  * @module tests/mutations/lock_recovery
  */
 
+import { test } from 'node:test'
 import {
     assert,
     assertEquals,
@@ -47,7 +48,7 @@ async function withLock(
     }
 }
 
-Deno.test('#320 a lock owned by a DEAD pid is reclaimed', async () => {
+test('#320 a lock owned by a DEAD pid is reclaimed', async () => {
     await withLock(async (lock) => {
         await Deno.writeTextFile(
             lock,
@@ -65,7 +66,7 @@ Deno.test('#320 a lock owned by a DEAD pid is reclaimed', async () => {
     })
 })
 
-Deno.test('#320 a lock owned by a LIVE pid still refuses', async () => {
+test('#320 a lock owned by a LIVE pid still refuses', async () => {
     // The half that must not regress. `Deno.pid` is this very process, so it is
     // alive by construction — no sleep, no race.
     await withLock(async (lock) => {
@@ -84,7 +85,7 @@ Deno.test('#320 a lock owned by a LIVE pid still refuses', async () => {
     })
 })
 
-Deno.test('#320 a lock naming no usable pid is left ALONE, not reclaimed', async () => {
+test('#320 a lock naming no usable pid is left ALONE, not reclaimed', async () => {
     // An unreadable lock is not evidence of a dead owner. Reclaiming on a parse
     // failure would turn "I cannot tell" into "go ahead", which is the one
     // direction this must never take.
@@ -102,7 +103,7 @@ Deno.test('#320 a lock naming no usable pid is left ALONE, not reclaimed', async
     }
 })
 
-Deno.test('#320 an absent lock is reported as absent, not as a reclaim', async () => {
+test('#320 an absent lock is reported as absent, not as a reclaim', async () => {
     await withLock(async (lock) => {
         assertEquals((await reclaimStaleLock(lock)).outcome, 'absent')
     })
@@ -221,7 +222,7 @@ async function refusal(repo: Repo): Promise<string> {
     return error.message
 }
 
-Deno.test('#356 a DEAD owner over a PRISTINE committed file is reclaimed', async () => {
+test('#356 a DEAD owner over a PRISTINE committed file is reclaimed', async () => {
     await withRepo(async ({ subject, lock }) => {
         await writeLock(lock, DEAD_PID)
         const decision = await reclaimStaleLock(lock, subject)
@@ -231,7 +232,7 @@ Deno.test('#356 a DEAD owner over a PRISTINE committed file is reclaimed', async
     })
 })
 
-Deno.test('#356 a DEAD owner over a MODIFIED committed file is left alone, and says so', async () => {
+test('#356 a DEAD owner over a MODIFIED committed file is left alone, and says so', async () => {
     // A SIGKILL can leave a mutant on disk. Reclaiming then would mutate a
     // mutant and "restore" a source nobody wrote — so the pristine check is
     // part of the reclaim, not an afterthought.
@@ -247,7 +248,7 @@ Deno.test('#356 a DEAD owner over a MODIFIED committed file is left alone, and s
     })
 })
 
-Deno.test('#356 a DEAD owner over a MODIFIED file refuses before mutating, naming the fix', async () => {
+test('#356 a DEAD owner over a MODIFIED file refuses before mutating, naming the fix', async () => {
     // The harness cannot tell a leftover mutant from the developer's own
     // uncommitted edit, so it restores nothing: it stops, says what the state
     // is, and names the commands that fix each reading of it — quoted, so a
@@ -279,7 +280,7 @@ Deno.test('#356 a DEAD owner over a MODIFIED file refuses before mutating, namin
     }, 'lockness 356 repo ')
 })
 
-Deno.test('#356 a DEAD owner over a file git cannot answer for is refused WITHOUT the leftover-mutant fix', async () => {
+test('#356 a DEAD owner over a file git cannot answer for is refused WITHOUT the leftover-mutant fix', async () => {
     // Outside any repository `git status` exits 128. That is "git could not
     // answer", not "modified", and the refusal must not prescribe a
     // `git checkout` it has no evidence for.
@@ -302,7 +303,7 @@ Deno.test('#356 a DEAD owner over a file git cannot answer for is refused WITHOU
     })
 })
 
-Deno.test('#356 a LIVE owner over a modified file does NOT get the leftover-mutant refusal', async () => {
+test('#356 a LIVE owner over a modified file does NOT get the leftover-mutant refusal', async () => {
     await withRepo(async (repo) => {
         await Deno.writeTextFile(repo.subject, 'export const x = 2\n')
         await writeLock(repo.lock, Deno.pid)
@@ -316,7 +317,7 @@ Deno.test('#356 a LIVE owner over a modified file does NOT get the leftover-muta
     })
 })
 
-Deno.test('#356 a lock naming no usable pid over a modified file does NOT get the leftover-mutant refusal', async () => {
+test('#356 a lock naming no usable pid over a modified file does NOT get the leftover-mutant refusal', async () => {
     for (const content of ['', 'not-a-pid']) {
         await withRepo(async (repo) => {
             await Deno.writeTextFile(repo.subject, 'export const x = 2\n')
@@ -333,7 +334,7 @@ Deno.test('#356 a lock naming no usable pid over a modified file does NOT get th
     }
 })
 
-Deno.test('#356 a git fixture and probe ignore an inherited GIT_DIR, as under a worktree hook', async () => {
+test('#356 a git fixture and probe ignore an inherited GIT_DIR, as under a worktree hook', async () => {
     // A git hook exports GIT_DIR to every child. Before the fix this fixture
     // committed onto the pushing worktree's HEAD instead of its own repo.
     // Deno.env.set is process-wide: this is only safe because test files run
@@ -355,7 +356,7 @@ Deno.test('#356 a git fixture and probe ignore an inherited GIT_DIR, as under a 
     }
 })
 
-Deno.test('#377 a git fixture ignores the global git config of the machine running it', async () => {
+test('#377 a git fixture ignores the global git config of the machine running it', async () => {
     // git's default global ignore file ignoring the subject makes `git add`
     // refuse it: a fixture reading the user's git files would pass on one
     // machine and fail on another. Deno.env.set is process-wide, safe only

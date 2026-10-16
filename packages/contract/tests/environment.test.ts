@@ -7,6 +7,7 @@
  * @module @lockness/contract/tests/environment
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import {
     isDevelopment,
@@ -65,7 +66,7 @@ const DENO_ENV_COLUMNS: (string | undefined)[] = [
     'development',
 ]
 
-Deno.test('the predicates depend on APP_ENV alone, across every DENO_ENV', () => {
+test('the predicates depend on APP_ENV alone, across every DENO_ENV', () => {
     for (const [appEnv, expected] of APP_ENV_ROWS) {
         for (const denoEnv of DENO_ENV_COLUMNS) {
             withEnv({ APP_ENV: appEnv, DENO_ENV: denoEnv }, () => {
@@ -85,7 +86,7 @@ Deno.test('the predicates depend on APP_ENV alone, across every DENO_ENV', () =>
     }
 })
 
-Deno.test('isProduction and isExplicitlyDevelopment are never both true', () => {
+test('isProduction and isExplicitlyDevelopment are never both true', () => {
     for (const [appEnv] of APP_ENV_ROWS) {
         for (const denoEnv of DENO_ENV_COLUMNS) {
             withEnv({ APP_ENV: appEnv, DENO_ENV: denoEnv }, () => {
@@ -100,7 +101,7 @@ Deno.test('isProduction and isExplicitlyDevelopment are never both true', () => 
     }
 })
 
-Deno.test('resolveEnvName - NotCapable read resolves to development, never throws', () => {
+test('resolveEnvName - NotCapable read resolves to development, never throws', () => {
     // deno-lint-ignore no-explicit-any
     const envAny = Deno.env as any
     const original = envAny.get
@@ -117,7 +118,7 @@ Deno.test('resolveEnvName - NotCapable read resolves to development, never throw
     }
 })
 
-Deno.test('a read failure other than NotCapable is not swallowed', () => {
+test('a read failure other than NotCapable is not swallowed', () => {
     // deno-lint-ignore no-explicit-any
     const envAny = Deno.env as any
     const original = envAny.get

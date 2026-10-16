@@ -1,3 +1,4 @@
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import {
     configureCache,
@@ -18,35 +19,35 @@ function resetCache() {
     })
 }
 
-Deno.test('cache basic operations', async (t) => {
-    await t.step('set and get work correctly', async () => {
+test('cache basic operations', async (t) => {
+    await t.test('set and get work correctly', async () => {
         resetCache()
         await set('key1', 'value1')
         const value = await get('key1')
         assertEquals(value, 'value1')
     })
 
-    await t.step('get returns null for non-existent key', async () => {
+    await t.test('get returns null for non-existent key', async () => {
         resetCache()
         const value = await get('nonexistent')
         assertEquals(value, null)
     })
 
-    await t.step('has checks key existence', async () => {
+    await t.test('has checks key existence', async () => {
         resetCache()
         await set('key1', 'value1')
         assertEquals(await has('key1'), true)
         assertEquals(await has('key2'), false)
     })
 
-    await t.step('forget deletes a key', async () => {
+    await t.test('forget deletes a key', async () => {
         resetCache()
         await set('key1', 'value1')
         await forget('key1')
         assertEquals(await has('key1'), false)
     })
 
-    await t.step('flush clears all cache', async () => {
+    await t.test('flush clears all cache', async () => {
         resetCache()
         await set('key1', 'value1')
         await set('key2', 'value2')

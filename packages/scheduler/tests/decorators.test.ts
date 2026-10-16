@@ -5,6 +5,7 @@
  * wrap the method, does not derive a name, and does not catch anything.
  */
 
+import { test } from 'node:test'
 import { assertEquals, assertThrows } from '@std/assert'
 import { getScheduleMetadata, Schedule } from '../decorators.ts'
 import { daily, everyMinute, hourly, PRESETS } from '../presets.ts'
@@ -14,7 +15,7 @@ import { FakeTime } from '@std/testing/time'
 
 const quiet = { error: () => {}, warn: () => {} }
 
-Deno.test('Schedule - a malformed expression throws when the class is DEFINED', () => {
+test('Schedule - a malformed expression throws when the class is DEFINED', () => {
     for (const bad of ['nonsense', '* * *', '99 * * * *', '0 0 * JAN *']) {
         assertThrows(
             () => {
@@ -30,7 +31,7 @@ Deno.test('Schedule - a malformed expression throws when the class is DEFINED', 
     }
 })
 
-Deno.test('Schedule - malformed options throw at decoration time too', () => {
+test('Schedule - malformed options throw at decoration time too', () => {
     assertThrows(() => {
         class _S {
             @Schedule(hourly, { retryDelay: 0 })
@@ -45,7 +46,7 @@ Deno.test('Schedule - malformed options throw at decoration time too', () => {
     }, TypeError)
 })
 
-Deno.test('Schedule - a SYNCHRONOUS method is legal', () => {
+test('Schedule - a SYNCHRONOUS method is legal', () => {
     // The decorator returns the method unchanged, so there is no TS1270 and no
     // async constraint — which is the difference from @Cached.
     class S {
@@ -61,7 +62,7 @@ Deno.test('Schedule - a SYNCHRONOUS method is legal', () => {
     assertEquals(s.calls, 1)
 })
 
-Deno.test('Schedule - the method identity is preserved', () => {
+test('Schedule - the method identity is preserved', () => {
     class S {
         @Schedule(hourly)
         tick(a: number, b: number): number {
@@ -75,7 +76,7 @@ Deno.test('Schedule - the method identity is preserved', () => {
     )
 })
 
-Deno.test('Schedule - metadata appears only once the class is instantiated', () => {
+test('Schedule - metadata appears only once the class is instantiated', () => {
     class S {
         @Schedule('0 3 * * *', { name: 'digest' })
         run() {}
@@ -94,7 +95,7 @@ Deno.test('Schedule - metadata appears only once the class is instantiated', () 
     assertEquals(meta[0].options.name, 'digest')
 })
 
-Deno.test('Schedule - several methods on one class are all recorded', () => {
+test('Schedule - several methods on one class are all recorded', () => {
     class S {
         @Schedule(hourly)
         a() {}
@@ -108,7 +109,7 @@ Deno.test('Schedule - several methods on one class are all recorded', () => {
     ])
 })
 
-Deno.test('Schedule - accepts every preset', () => {
+test('Schedule - accepts every preset', () => {
     for (const [name, expression] of Object.entries(PRESETS)) {
         class _S {
             @Schedule(expression)
@@ -118,7 +119,7 @@ Deno.test('Schedule - accepts every preset', () => {
     }
 })
 
-Deno.test('Schedule - end to end: a decorated method runs on its schedule', async () => {
+test('Schedule - end to end: a decorated method runs on its schedule', async () => {
     const time = new FakeTime(new Date('2026-03-01T10:00:00Z'))
     try {
         class DigestService {
@@ -152,7 +153,7 @@ Deno.test('Schedule - end to end: a decorated method runs on its schedule', asyn
     }
 })
 
-Deno.test('Schedule - every preset fires at the instant its name claims', () => {
+test('Schedule - every preset fires at the instant its name claims', () => {
     // The full preset table, not `yearly` alone — a cap protects one path, and
     // an invariant over the table protects the rest.
     const ref = new Date('2026-03-04T10:07:00Z')

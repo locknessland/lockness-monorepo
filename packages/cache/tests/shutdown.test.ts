@@ -7,6 +7,7 @@
  * first.
  */
 
+import { test } from 'node:test'
 import { assertEquals, assertNotStrictEquals, assertRejects } from '@std/assert'
 import {
     deregisterDisposable,
@@ -18,7 +19,7 @@ import { DenoKvCacheDriver } from '../drivers/deno_kv_driver.ts'
 import { MemoryCacheDriver } from '../drivers/memory_driver.ts'
 import { RedisCacheDriver } from '../drivers/redis_driver.ts'
 
-Deno.test('cache - the KV driver closes its handle on drain', async () => {
+test('cache - the KV driver closes its handle on drain', async () => {
     drainDisposables()
     const path = `${Deno.cwd()}/tmp/cache-shutdown-${
         crypto.randomUUID().slice(0, 8)
@@ -43,7 +44,7 @@ Deno.test('cache - the KV driver closes its handle on drain', async () => {
     }
 })
 
-Deno.test('cache - close() on a driver that never opened is a no-op, not a throw', async () => {
+test('cache - close() on a driver that never opened is a no-op, not a throw', async () => {
     // Every KV driver in this repo opens LAZILY. A driver constructed and never
     // used holds nothing, and an unguarded close() would throw inside the drain
     // — which core catches and logs, turning every clean shutdown into a red
@@ -59,7 +60,7 @@ Deno.test('cache - close() on a driver that never opened is a no-op, not a throw
     assertEquals(disposableCount(), 0)
 })
 
-Deno.test('cache - the memory driver announces nothing', () => {
+test('cache - the memory driver announces nothing', () => {
     // Its Maps are module-level and shared across every instance, so a close()
     // clearing them would corrupt other instances. Owning no OS resource, it has
     // nothing to release.
@@ -69,7 +70,7 @@ Deno.test('cache - the memory driver announces nothing', () => {
     assertEquals(disposableCount(), 0)
 })
 
-Deno.test('cache - a borrowed (non-owning) redis client registers nothing (SC-005)', async () => {
+test('cache - a borrowed (non-owning) redis client registers nothing (SC-005)', async () => {
     // A non-owning driver's close() closes nothing (the app still owns the
     // client), so enrolling it in the registry only grows it for the process
     // lifetime — a per-tenant driver created and dropped is exactly the leak.
@@ -96,7 +97,7 @@ Deno.test('cache - a borrowed (non-owning) redis client registers nothing (SC-00
     assertEquals(closed, false, 'close() spares a client we do not own')
 })
 
-Deno.test('cache - ownsClient:true registers and closes on drain', async () => {
+test('cache - ownsClient:true registers and closes on drain', async () => {
     drainDisposables()
     let closed = false
     const client = {
@@ -118,7 +119,7 @@ Deno.test('cache - ownsClient:true registers and closes on drain', async () => {
     void driver
 })
 
-Deno.test('cache - a closed driver is never handed out again', async () => {
+test('cache - a closed driver is never handed out again', async () => {
     // Without this, a programmatic `await app.shutdown()` leaves getDriver()
     // returning a closed handle and every later request fails BadResource —
     // converting a shutdown leak into a post-shutdown outage.
@@ -143,7 +144,7 @@ Deno.test('cache - a closed driver is never handed out again', async () => {
     await Deno.remove(path).catch(() => {})
 })
 
-Deno.test('cache - a driver deregisters when closed directly', async () => {
+test('cache - a driver deregisters when closed directly', async () => {
     // The driver must actually REGISTER first, which happens on first use, not
     // in the constructor. The first version closed a never-used driver whose
     // count was already 0 — unfalsifiable by any change to close().
@@ -166,7 +167,7 @@ Deno.test('cache - a driver deregisters when closed directly', async () => {
     }
 })
 
-Deno.test('cache - registering does not require the framework', () => {
+test('cache - registering does not require the framework', () => {
     // Used standalone, outside a Lockness app: no throw, no warning.
     drainDisposables()
     const noise: string[] = []
@@ -183,7 +184,7 @@ Deno.test('cache - registering does not require the framework', () => {
     assertEquals(noise, [])
 })
 
-Deno.test('cache - a concurrent cold start opens exactly one KV handle (SC-006)', async () => {
+test('cache - a concurrent cold start opens exactly one KV handle (SC-006)', async () => {
     // Two callers racing the first operation must share one open. The unfixed
     // `if (!this.kv) { this.kv = await Deno.openKv() }` awaits between the guard
     // and the assignment, so both open and the first handle leaks unreferenced.
@@ -225,14 +226,15 @@ Deno.test('cache - a concurrent cold start opens exactly one KV handle (SC-006)'
     }
 })
 
-Deno.test({
-    name:
-        'cache - an owned redis driver dropped without close() deregisters on GC',
-    // Best-effort: FinalizationRegistry callbacks are not guaranteed to run, so
-    // this is only meaningful under `--v8-flags=--expose-gc`. Skipped otherwise.
-    // deno-lint-ignore no-explicit-any -- optional V8 GC hook, not in lib.dom
-    ignore: typeof (globalThis as any).gc !== 'function',
-    fn: async () => {
+test(
+    'cache - an owned redis driver dropped without close() deregisters on GC',
+    {
+        // Best-effort: FinalizationRegistry callbacks are not guaranteed to run, so
+        // this is only meaningful under `--v8-flags=--expose-gc`. Skipped otherwise.
+        // deno-lint-ignore no-explicit-any -- optional V8 GC hook, not in lib.dom
+        skip: typeof (globalThis as any).gc !== 'function',
+    },
+    async () => {
         drainDisposables()
         // deno-lint-ignore no-explicit-any -- optional V8 GC hook
         const gc = (globalThis as any).gc as () => void
@@ -256,9 +258,9 @@ Deno.test({
         }
         assertEquals(disposableCount(), 0, 'GC withdrew the dropped driver')
     },
-})
+)
 
-Deno.test('cache - a failed cold open is not memoised; a later call retries', async () => {
+test('cache - a failed cold open is not memoised; a later call retries', async () => {
     // #openKv clears the memo on failure, so a transient open error does not
     // poison the driver forever. Without that clear, the rejected promise would
     // be handed to every later caller.
@@ -299,7 +301,7 @@ Deno.test('cache - a failed cold open is not memoised; a later call retries', as
     }
 })
 
-Deno.test('cache - close() during a cold open orphans no KV handle (SC-006 raced)', async () => {
+test('cache - close() during a cold open orphans no KV handle (SC-006 raced)', async () => {
     // The interleaving that leaked a handle before the isCurrent() guard:
     // open #1 is in flight, close() clears the memo, a fresh op starts open #2,
     // and the two opens resolve OUT OF ORDER. The stale open #1 must release its

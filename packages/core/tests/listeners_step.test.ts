@@ -15,6 +15,7 @@
  * hand-built error would prove nothing.
  */
 
+import { test } from 'node:test'
 import {
     assert,
     assertEquals,
@@ -94,7 +95,7 @@ async function captured(body: () => Promise<unknown>): Promise<string> {
     return lines.join('\n')
 }
 
-Deno.test('#518 a listener importing an unresolvable specifier refuses the boot, naming the file', async () => {
+test('#518 a listener importing an unresolvable specifier refuses the boot, naming the file', async () => {
     await withDir(
         { 'healthy.ts': HEALTHY, 'unresolvable_listener.ts': UNRESOLVABLE },
         async (rel) => {
@@ -115,7 +116,7 @@ Deno.test('#518 a listener importing an unresolvable specifier refuses the boot,
     )
 })
 
-Deno.test('#518 a listener that throws while it loads refuses the boot, naming the file', async () => {
+test('#518 a listener that throws while it loads refuses the boot, naming the file', async () => {
     await withDir({ 'nested/throwing_listener.ts': THROWING }, async (rel) => {
         const error = await assertRejects(
             () =>
@@ -129,7 +130,7 @@ Deno.test('#518 a listener that throws while it loads refuses the boot, naming t
     })
 })
 
-Deno.test('#518 a listener module that throws NotFound is a broken file, not an absent directory', async () => {
+test('#518 a listener module that throws NotFound is a broken file, not an absent directory', async () => {
     // A module reading a missing file at load throws Deno.errors.NotFound —
     // the very class an absent directory throws. It must not pass as one.
     const source =
@@ -146,7 +147,7 @@ Deno.test('#518 a listener module that throws NotFound is a broken file, not an 
     })
 })
 
-Deno.test('#518 the error carries no cause, so an uncaught refusal prints only the rendered line', async () => {
+test('#518 the error carries no cause, so an uncaught refusal prints only the rendered line', async () => {
     await withDir({ 'throwing.ts': THROWING }, async (rel) => {
         const error = await assertRejects(
             () => discoverListeners(rel),
@@ -156,7 +157,7 @@ Deno.test('#518 the error carries no cause, so an uncaught refusal prints only t
     })
 })
 
-Deno.test('#518 an absent listeners directory boots silently', async () => {
+test('#518 an absent listeners directory boots silently', async () => {
     const output = await captured(() =>
         Promise.resolve(
             listenersStep.run(
@@ -167,7 +168,7 @@ Deno.test('#518 an absent listeners directory boots silently', async () => {
     assertEquals(output, '')
 })
 
-Deno.test('#518 discoverListeners reports an absent directory as NotFound and lets the caller decide', async () => {
+test('#518 discoverListeners reports an absent directory as NotFound and lets the caller decide', async () => {
     await assertRejects(
         () => discoverListeners('./tmp/listeners-518-absent'),
         Deno.errors.NotFound,
@@ -188,7 +189,7 @@ class ExplicitListener {
     }
 }
 
-Deno.test('#518 explicit listeners register when the listeners directory is absent', async () => {
+test('#518 explicit listeners register when the listeners directory is absent', async () => {
     received.length = 0
     try {
         await captured(() =>
@@ -208,7 +209,7 @@ Deno.test('#518 explicit listeners register when the listeners directory is abse
     }
 })
 
-Deno.test('#518 explicit listeners register alongside a healthy listeners directory', async () => {
+test('#518 explicit listeners register alongside a healthy listeners directory', async () => {
     received.length = 0
     try {
         await withDir({ 'healthy.ts': HEALTHY }, async (rel) => {
@@ -234,7 +235,7 @@ Deno.test('#518 explicit listeners register alongside a healthy listeners direct
     }
 })
 
-Deno.test('#518 a refused boot names the file outside a stack trace', async () => {
+test('#518 a refused boot names the file outside a stack trace', async () => {
     await withDir({ 'broken.ts': UNRESOLVABLE }, async (rel) => {
         const error = await assertRejects(
             () => discoverListeners(rel),

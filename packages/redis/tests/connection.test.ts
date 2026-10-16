@@ -11,6 +11,7 @@
  * @module @lockness/redis/tests/connection
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import { AuthenticatedConnection, deadlineIn, exchange } from '../connection.ts'
 import {
@@ -83,7 +84,7 @@ async function withConnectTlsStub(
     }
 }
 
-Deno.test('connection - connect() dials and round-trips a PING over the socket', async () => {
+test('connection - connect() dials and round-trips a PING over the socket', async () => {
     const server = await startFakeServer()
     const conn = new AuthenticatedConnection({
         hostname: '127.0.0.1',
@@ -100,7 +101,7 @@ Deno.test('connection - connect() dials and round-trips a PING over the socket',
     }
 })
 
-Deno.test('connection - connect() runs AUTH then SELECT during the handshake', async () => {
+test('connection - connect() runs AUTH then SELECT during the handshake', async () => {
     const server = await startFakeServer()
     const conn = new AuthenticatedConnection({
         hostname: '127.0.0.1',
@@ -122,7 +123,7 @@ Deno.test('connection - connect() runs AUTH then SELECT during the handshake', a
     }
 })
 
-Deno.test('connection - connect() is single-flighted: concurrent callers open ONE socket', async () => {
+test('connection - connect() is single-flighted: concurrent callers open ONE socket', async () => {
     const server = await startFakeServer()
     const real = Deno.connect
     let opens = 0
@@ -147,7 +148,7 @@ Deno.test('connection - connect() is single-flighted: concurrent callers open ON
     server.stop()
 })
 
-Deno.test('connection - TLS dials via connectTls with validation ON (no trust-all option)', async () => {
+test('connection - TLS dials via connectTls with validation ON (no trust-all option)', async () => {
     let captured: Record<string, unknown> | undefined
     await withConnectTlsStub(
         (opts) => {
@@ -173,7 +174,7 @@ Deno.test('connection - TLS dials via connectTls with validation ON (no trust-al
     assertEquals(captured, { hostname: 'redis.internal', port: 6380 })
 })
 
-Deno.test('connection - warns ONCE on cleartext AUTH and never logs the password', async () => {
+test('connection - warns ONCE on cleartext AUTH and never logs the password', async () => {
     const messages = await captureWarnings(() => {
         new AuthenticatedConnection({
             hostname: 'redis.internal',
@@ -192,7 +193,7 @@ Deno.test('connection - warns ONCE on cleartext AUTH and never logs the password
     )
 })
 
-Deno.test('connection - TLS suppresses the cleartext-AUTH warning', async () => {
+test('connection - TLS suppresses the cleartext-AUTH warning', async () => {
     const messages = await captureWarnings(() => {
         new AuthenticatedConnection({
             hostname: 'redis.internal',
@@ -203,7 +204,7 @@ Deno.test('connection - TLS suppresses the cleartext-AUTH warning', async () => 
     assertEquals(cleartextWarnings(messages), 0)
 })
 
-Deno.test('connection - discard() self-heals: the next connect reconnects', async () => {
+test('connection - discard() self-heals: the next connect reconnects', async () => {
     const server = await startFakeServer()
     const real = Deno.connect
     let opens = 0
@@ -230,7 +231,7 @@ Deno.test('connection - discard() self-heals: the next connect reconnects', asyn
     server.stop()
 })
 
-Deno.test('connection - a failed handshake closes the socket and drops the memo', async () => {
+test('connection - a failed handshake closes the socket and drops the memo', async () => {
     // A socket whose AUTH reply is a server error must not be published as live;
     // the next connect must retry rather than reuse a half-open socket.
     const real = Deno.connect
@@ -276,7 +277,7 @@ Deno.test('connection - a failed handshake closes the socket and drops the memo'
     )
 })
 
-Deno.test('#287: discard of a STALE socket does not cancel an in-flight dial', async () => {
+test('#287: discard of a STALE socket does not cancel an in-flight dial', async () => {
     // The guard that has no witness today. `discard` clears `connection`
     // CONDITIONALLY (`if (this.connection === conn)`) and then clears
     // `connectPromise` UNCONDITIONALLY on the very next line — so a discard of
@@ -337,7 +338,7 @@ Deno.test('#287: discard of a STALE socket does not cancel an in-flight dial', a
     server.stop()
 })
 
-Deno.test('#287: discarding the socket a dial PRODUCED frees that dial', async () => {
+test('#287: discarding the socket a dial PRODUCED frees that dial', async () => {
     // The other direction, and the one that had no witness. The test above
     // proves the guard is not too BROAD — an unrelated discard must not cancel
     // a live dial. Nothing proved it is not too NARROW, and a mutation that
@@ -400,7 +401,7 @@ function wedgedWriteConn(): Deno.Conn {
     } as unknown as Deno.Conn
 }
 
-Deno.test('#297: the handshake is bounded in TOTAL when its write leg stalls', async () => {
+test('#297: the handshake is bounded in TOTAL when its write leg stalls', async () => {
     // `exchange` passed its timeout to `readReply` only, so `writeFrame` ran
     // with no deadline and a peer that accepts the connection and then stops
     // draining hung the handshake forever — with `connect()`'s carefully
@@ -440,7 +441,7 @@ Deno.test('#297: the handshake is bounded in TOTAL when its write leg stalls', a
     }
 })
 
-Deno.test('#297: a stalled AUTH write discloses nothing about the password', async () => {
+test('#297: a stalled AUTH write discloses nothing about the password', async () => {
     // The disclosure this feature would otherwise CREATE. `writeTimeout`
     // interpolates `frame.byteLength`, and for `encodeCommand(['AUTH', pw])`
     // that is an invertible function of the password's byte length — 8/16/32/64
@@ -499,7 +500,7 @@ Deno.test('#297: a stalled AUTH write discloses nothing about the password', asy
     }
 })
 
-Deno.test('#297: a nonsense handshakeTimeoutMs is refused at construction', () => {
+test('#297: a nonsense handshakeTimeoutMs is refused at construction', () => {
     // It reached `readReply` alone before this branch and now bounds the write
     // leg as well, so an unchecked value decides twice as much. `NaN` made
     // every handshake fail instantly with "after NaNms" — a misconfiguration
@@ -523,8 +524,8 @@ Deno.test('#297: a nonsense handshakeTimeoutMs is refused at construction', () =
     })
 })
 
-Deno.test({
-    name: '#297: the handshake write leg is capped, not given the whole window',
+test(
+    '#297: the handshake write leg is capped, not given the whole window',
     // ~5s by construction. A cheaper fixture cannot tell `min(remaining,
     // ceiling)` from `remaining`, because with a small handshake budget the two
     // agree — which is exactly how this decision would have shipped untested.
@@ -532,9 +533,7 @@ Deno.test({
     // defaults to `livenessMs` (45s), so its ~40-byte AUTH write would get 45s
     // while its ~40-byte PSUBSCRIBE write gets 5s. Same socket, same frame,
     // nine times the tolerance — and the loose one carries the credential.
-    sanitizeOps: false,
-    sanitizeResources: false,
-    async fn() {
+    async function () {
         const real = Deno.connect
         Object.defineProperty(Deno, 'connect', {
             value: () => Promise.resolve(wedgedWriteConn()),
@@ -568,9 +567,9 @@ Deno.test({
             })
         }
     },
-})
+)
 
-Deno.test('#297: the ZERO-PROGRESS write error names no total either', async () => {
+test('#297: the ZERO-PROGRESS write error names no total either', async () => {
     // The sibling branch of the same loop. #297 removed `frame.byteLength`
     // from the timeout error and left it here, which the review gate found —
     // the same disclosure, one branch away, and the disclosure test above could
@@ -602,7 +601,7 @@ Deno.test('#297: the ZERO-PROGRESS write error names no total either', async () 
     }
 })
 
-Deno.test('#297: the write consumes the shared budget, leaving the read the remainder', async () => {
+test('#297: the write consumes the shared budget, leaving the read the remainder', async () => {
     // What the review gate asked for was a witness for the post-write guard at
     // `exchange`. Writing it showed the guard is near-unreachable by
     // construction, and that is worth recording rather than faking: `writeFrame`

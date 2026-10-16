@@ -1,4 +1,5 @@
 // deno-lint-ignore-file no-explicit-any
+import { test } from 'node:test'
 import { assertEquals, assertExists } from '@std/assert'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
@@ -11,7 +12,7 @@ import {
 } from '../mod.ts'
 import { MockSessionProvider, MockTokenProvider } from './mocks.ts'
 
-Deno.test('initializeAuthMiddleware - attaches auth to context', async () => {
+test('initializeAuthMiddleware - attaches auth to context', async () => {
     const app = new Hono()
     const provider = new MockSessionProvider()
 
@@ -36,7 +37,7 @@ Deno.test('initializeAuthMiddleware - attaches auth to context', async () => {
     assertEquals(res.status, 200)
 })
 
-Deno.test('authMiddleware - protects routes', async () => {
+test('authMiddleware - protects routes', async () => {
     const app = new Hono()
     const provider = new MockTokenProvider()
 
@@ -89,7 +90,7 @@ Deno.test('authMiddleware - protects routes', async () => {
     assertEquals(res2.status, 200)
 })
 
-Deno.test('Authenticator - check returns boolean', async () => {
+test('Authenticator - check returns boolean', async () => {
     const provider = new MockTokenProvider()
     const app = new Hono()
 

@@ -11,6 +11,7 @@
  * @module @lockness/session/tests/cookie_revocation
  */
 
+import { test } from 'node:test'
 import {
     assertEquals,
     AssertionError,
@@ -40,7 +41,7 @@ function reset(): void {
     drainDisposables()
 }
 
-Deno.test('cookie revocation - a replayed pre-logout cookie is refused end-to-end (SC-006)', async () => {
+test('cookie revocation - a replayed pre-logout cookie is refused end-to-end (SC-006)', async () => {
     reset()
     configureSession({
         driver: 'cookie',
@@ -120,7 +121,7 @@ const REV_CONFIG: SessionConfig = {
     sameSite: 'Lax',
 }
 
-Deno.test('cookie revocation - a store read error fails CLOSED (SC-010 read path)', async () => {
+test('cookie revocation - a store read error fails CLOSED (SC-010 read path)', async () => {
     const throwingStore: RevocationStore = {
         isRevoked: () => Promise.reject(new Error('kv down')),
         revoke: () => Promise.resolve(),
@@ -143,7 +144,7 @@ Deno.test('cookie revocation - a store read error fails CLOSED (SC-010 read path
     )
 })
 
-Deno.test('cookie revocation - a revoke error propagates from destroy (SC-010 write path)', async () => {
+test('cookie revocation - a revoke error propagates from destroy (SC-010 write path)', async () => {
     const throwingStore: RevocationStore = {
         isRevoked: () => Promise.resolve(false),
         revoke: () => Promise.reject(new Error('kv down')),
@@ -168,7 +169,7 @@ Deno.test('cookie revocation - a revoke error propagates from destroy (SC-010 wr
     )
 })
 
-Deno.test('cookie revocation - a revoked jti stays revoked through a re-seal (SC-007)', async () => {
+test('cookie revocation - a revoked jti stays revoked through a re-seal (SC-007)', async () => {
     const revoked = new Set<string>()
     const store: RevocationStore = {
         isRevoked: (jti) => Promise.resolve(revoked.has(jti)),
@@ -210,7 +211,7 @@ Deno.test('cookie revocation - a revoked jti stays revoked through a re-seal (SC
     )
 })
 
-Deno.test('cookie revocation - regenerate() revokes the old jti then resets the identity', async () => {
+test('cookie revocation - regenerate() revokes the old jti then resets the identity', async () => {
     const revoked = new Set<string>()
     const store: RevocationStore = {
         isRevoked: (jti) => Promise.resolve(revoked.has(jti)),
@@ -246,7 +247,7 @@ Deno.test('cookie revocation - regenerate() revokes the old jti then resets the 
     )
 })
 
-Deno.test('cookie revocation - destroy() suppresses the trailing re-seal (no logout re-issue)', async () => {
+test('cookie revocation - destroy() suppresses the trailing re-seal (no logout re-issue)', async () => {
     const store: RevocationStore = {
         isRevoked: () => Promise.resolve(false),
         revoke: () => Promise.resolve(),
@@ -278,7 +279,7 @@ Deno.test('cookie revocation - destroy() suppresses the trailing re-seal (no log
     )
 })
 
-Deno.test('cookie revocation - without absoluteLifetime, destroy fails loud and leaves the cookie in place', async () => {
+test('cookie revocation - without absoluteLifetime, destroy fails loud and leaves the cookie in place', async () => {
     // The core boot gate refuses `revocation` without `absoluteLifetime`; a
     // caller that bypasses it (a direct `configureSession`) must get an error,
     // not a revocation entry with a NaN TTL — the store would drop it silently
@@ -321,7 +322,7 @@ Deno.test('cookie revocation - without absoluteLifetime, destroy fails loud and 
     )
 })
 
-Deno.test('cookie revocation - negative control: the no-cookie assertion fails when a cookie is present', async () => {
+test('cookie revocation - negative control: the no-cookie assertion fails when a cookie is present', async () => {
     // #398: the assertion above (`getSetCookie()` is `[]`) previously had no
     // direct proof that it CAN fail — only the #389 mutation battery showed
     // that, by reordering `destroy()` so the cookie is deleted before the

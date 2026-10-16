@@ -12,11 +12,12 @@
  * @module @lockness/hono/tests/reexport_contract
  */
 
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import * as live from '../mod.ts'
 import baseline from './reexport_baseline.json' with { type: 'json' }
 
-Deno.test('reexport contract - @lockness/hono surface matches the baseline', () => {
+test('reexport contract - @lockness/hono surface matches the baseline', () => {
     const current: Record<string, string> = {}
     for (const name of Object.keys(live).sort()) {
         current[name] = typeof (live as Record<string, unknown>)[name]

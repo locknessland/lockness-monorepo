@@ -11,6 +11,7 @@
  * @module scripts/deps_analyzer_test
  */
 
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { parse } from '@std/jsonc'
 import { parsePolicy } from './deps_analyzer.ts'
@@ -35,7 +36,7 @@ const POLICY_WITH_SLASHES = `{
 }
 `
 
-Deno.test('parsePolicy: a reason containing // survives intact', () => {
+test('parsePolicy: a reason containing // survives intact', () => {
     const policy = parsePolicy(POLICY_WITH_SLASHES) as unknown as {
         packages: {
             cli: { runtimeImports: Record<string, { reason: string }> }
@@ -47,7 +48,7 @@ Deno.test('parsePolicy: a reason containing // survives intact', () => {
     )
 })
 
-Deno.test('parsePolicy: agrees with the parser publish:check uses', async () => {
+test('parsePolicy: agrees with the parser publish:check uses', async () => {
     assertEquals<unknown>(
         parsePolicy(POLICY_WITH_SLASHES),
         parse(POLICY_WITH_SLASHES),

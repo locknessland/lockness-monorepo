@@ -10,11 +10,12 @@
  * @module @lockness/core/tests/reexport_contract
  */
 
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import * as live from '../mod.ts'
 import baseline from './reexport_baseline.json' with { type: 'json' }
 
-Deno.test('reexport contract - @lockness/core surface matches the baseline', () => {
+test('reexport contract - @lockness/core surface matches the baseline', () => {
     const current: Record<string, string> = {}
     for (const name of Object.keys(live).sort()) {
         current[name] = typeof (live as Record<string, unknown>)[name]
@@ -28,7 +29,7 @@ Deno.test('reexport contract - @lockness/core surface matches the baseline', () 
     )
 })
 
-Deno.test('reexport contract - importAppFile is not on the @lockness/core surface', () => {
+test('reexport contract - importAppFile is not on the @lockness/core surface', () => {
     assertEquals(
         'importAppFile' in live,
         false,

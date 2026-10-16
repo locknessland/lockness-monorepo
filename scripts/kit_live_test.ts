@@ -6,6 +6,7 @@
  * @module
  */
 
+import { test } from 'node:test'
 import { assertEquals, assertRejects } from '@std/assert'
 import { exists } from '@std/fs'
 import { type AdminConnection, releaseDatabase } from './kit_live.ts'
@@ -33,7 +34,7 @@ function fakeAdmin(
     }
 }
 
-Deno.test('#450 releaseDatabase: drops, closes and removes the workdir', async () => {
+test('#450 releaseDatabase: drops, closes and removes the workdir', async () => {
     const admin = fakeAdmin(false)
     const workdir = await Deno.makeTempDir()
     await releaseDatabase(admin, 'lockness_kit_x', { workdir })
@@ -44,7 +45,7 @@ Deno.test('#450 releaseDatabase: drops, closes and removes the workdir', async (
     assertEquals(await exists(workdir), false)
 })
 
-Deno.test('#450 releaseDatabase: a failed drop still closes and removes, then throws', async () => {
+test('#450 releaseDatabase: a failed drop still closes and removes, then throws', async () => {
     const admin = fakeAdmin(true)
     const workdir = await Deno.makeTempDir()
     await assertRejects(
@@ -56,13 +57,13 @@ Deno.test('#450 releaseDatabase: a failed drop still closes and removes, then th
     assertEquals(await exists(workdir), false)
 })
 
-Deno.test('#450 releaseDatabase: the workdir is optional', async () => {
+test('#450 releaseDatabase: the workdir is optional', async () => {
     const admin = fakeAdmin(false)
     await releaseDatabase(admin, 'lockness_kit_x')
     assertEquals(admin.calls.at(-1), 'end')
 })
 
-Deno.test('#450 releaseDatabase: when the drop and the close both fail, the drop error surfaces', async () => {
+test('#450 releaseDatabase: when the drop and the close both fail, the drop error surfaces', async () => {
     // The drop is the likely root cause; a later failure must not hide it.
     const admin = fakeAdmin(true, true)
     const workdir = await Deno.makeTempDir()
@@ -74,7 +75,7 @@ Deno.test('#450 releaseDatabase: when the drop and the close both fail, the drop
     assertEquals(await exists(workdir), false)
 })
 
-Deno.test('#450 releaseDatabase: the suite connections close first, and their error wins', async () => {
+test('#450 releaseDatabase: the suite connections close first, and their error wins', async () => {
     const admin = fakeAdmin(true)
     const order: string[] = []
     const connection = {

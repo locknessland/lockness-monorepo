@@ -9,6 +9,7 @@
  * @module @lockness/notification/tests/channels/mail
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertRejects, assertThrows } from '@std/assert'
 import {
     type MailBuilder,
@@ -59,7 +60,7 @@ class Welcome extends Notification {
 
 const user: Notifiable = { routeNotificationFor: () => 'alice@example.com' }
 
-Deno.test('the mail channel builds a message addressed to the resolved route', async () => {
+test('the mail channel builds a message addressed to the resolved route', async () => {
     const built: FakeMail[] = []
     const channel = new MailChannel(() => {
         const m = new FakeMail()
@@ -76,7 +77,7 @@ Deno.test('the mail channel builds a message addressed to the resolved route', a
     assert(built[0].sent)
 })
 
-Deno.test('a mail notification with no toMail() builder fails clearly', async () => {
+test('a mail notification with no toMail() builder fails clearly', async () => {
     class NoBuilder extends Notification {
         override via(): string[] {
             return ['mail']
@@ -90,7 +91,7 @@ Deno.test('a mail notification with no toMail() builder fails clearly', async ()
     )
 })
 
-Deno.test('a text-only mail notification uses text(), not html()', async () => {
+test('a text-only mail notification uses text(), not html()', async () => {
     class TextOnly extends Notification {
         override via(): string[] {
             return ['mail']
@@ -110,7 +111,7 @@ Deno.test('a text-only mail notification uses text(), not html()', async () => {
     assertEquals(built[0].html_, undefined)
 })
 
-Deno.test('the SMS and Slack stubs throw a typed "configure a provider" error', () => {
+test('the SMS and Slack stubs throw a typed "configure a provider" error', () => {
     const n = new Welcome()
     assertThrows(
         () => new SmsChannel().send(n, user, '+3312'),

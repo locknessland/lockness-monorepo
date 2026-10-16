@@ -6,6 +6,7 @@
  * @module @lockness/core/tests/signed_url
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { verify } from '@lockness/crypto'
 import { generateAppKey } from '@lockness/contract'
@@ -25,7 +26,7 @@ function parts(url: string): { path: string; entries: [string, string][] } {
     return { path: u.pathname, entries: [...u.searchParams.entries()] }
 }
 
-Deno.test('SC-003: a valid signed URL verifies', async () => {
+test('SC-003: a valid signed URL verifies', async () => {
     const url = await signedUrl('verify-email', { id: 42 }, {
         expiresIn: 3600,
         baseUrl: ORIGIN,
@@ -37,7 +38,7 @@ Deno.test('SC-003: a valid signed URL verifies', async () => {
     assertEquals(await verify(canon, sig, KEY), true)
 })
 
-Deno.test('SC-003: reorder, append, flip, and strip-signature all fail', async () => {
+test('SC-003: reorder, append, flip, and strip-signature all fail', async () => {
     const url = await signedUrl('verify-email', { id: 42 }, {
         query: { a: '1', b: '2' },
         baseUrl: ORIGIN,
@@ -64,7 +65,7 @@ Deno.test('SC-003: reorder, append, flip, and strip-signature all fail', async (
     assertEquals(await verify(wrongPath, sig, KEY), false)
 })
 
-Deno.test('SC-003: canonicalise rejects a duplicate query key', () => {
+test('SC-003: canonicalise rejects a duplicate query key', () => {
     let threw = false
     try {
         canonicalise(ORIGIN, '/verify/42', [['expires', '1'], ['expires', '2']])
@@ -74,7 +75,7 @@ Deno.test('SC-003: canonicalise rejects a duplicate query key', () => {
     assert(threw, 'duplicate key must throw')
 })
 
-Deno.test('HIGH-1: a value containing =/& cannot collide with a different param set', () => {
+test('HIGH-1: a value containing =/& cannot collide with a different param set', () => {
     // Two structurally different query strings must NOT canonicalise the same.
     const oneParam = canonicalise(ORIGIN, '/p', [['a', 'b&c=d']])
     const twoParams = canonicalise(ORIGIN, '/p', [['a', 'b'], ['c', 'd']])
@@ -84,7 +85,7 @@ Deno.test('HIGH-1: a value containing =/& cannot collide with a different param 
     )
 })
 
-Deno.test('HIGH-1: a signed URL whose value holds =/& still round-trips', async () => {
+test('HIGH-1: a signed URL whose value holds =/& still round-trips', async () => {
     const url = await signedUrl('verify-email', { id: 7 }, {
         query: { token: 'a&b=c' },
         baseUrl: ORIGIN,
@@ -98,7 +99,7 @@ Deno.test('HIGH-1: a signed URL whose value holds =/& still round-trips', async 
     assertEquals(await verify(canon, sig, KEY), true)
 })
 
-Deno.test('canonicalise sorts params and drops the signature (order-independent)', () => {
+test('canonicalise sorts params and drops the signature (order-independent)', () => {
     const a = canonicalise(ORIGIN, '/p', [['b', '2'], ['a', '1'], [
         'signature',
         'X',
@@ -137,7 +138,7 @@ async function withEnv(fn: () => Promise<void>): Promise<void> {
     }
 }
 
-Deno.test('middleware: a valid signed URL calls next', async () => {
+test('middleware: a valid signed URL calls next', async () => {
     await withEnv(async () => {
         const url = await signedUrl('verify-email', { id: 42 }, {
             expiresIn: 3600,
@@ -154,7 +155,7 @@ Deno.test('middleware: a valid signed URL calls next', async () => {
     })
 })
 
-Deno.test('MED-1: the request Host is NOT trusted — origin comes from APP_URL (S1)', async () => {
+test('MED-1: the request Host is NOT trusted — origin comes from APP_URL (S1)', async () => {
     await withEnv(async () => {
         const url = await signedUrl('verify-email', { id: 42 }, {
             expiresIn: 3600,
@@ -177,7 +178,7 @@ Deno.test('MED-1: the request Host is NOT trusted — origin comes from APP_URL 
     })
 })
 
-Deno.test('middleware: stripped signature, tampered param, and expired all 403', async () => {
+test('middleware: stripped signature, tampered param, and expired all 403', async () => {
     await withEnv(async () => {
         const valid = await signedUrl('verify-email', { id: 42 }, {
             expiresIn: 3600,

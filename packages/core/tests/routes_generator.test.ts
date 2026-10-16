@@ -6,6 +6,7 @@
  * @module @lockness/core/tests/routes_generator
  */
 
+import { test } from 'node:test'
 import { assertEquals, assertStringIncludes } from '@std/assert'
 import { existsSync } from '@std/fs'
 import {
@@ -40,7 +41,7 @@ async function setupControllerDir(): Promise<void> {
 // generateRoutesContent Tests
 // =============================================================================
 
-Deno.test('generateRoutesContent - generates empty registry for no controllers', () => {
+test('generateRoutesContent - generates empty registry for no controllers', () => {
     const content = generateRoutesContent([])
 
     assertStringIncludes(content, 'AUTO-GENERATED FILE')
@@ -48,7 +49,7 @@ Deno.test('generateRoutesContent - generates empty registry for no controllers',
     assertStringIncludes(content, ']')
 })
 
-Deno.test('generateRoutesContent - generates imports for controllers', () => {
+test('generateRoutesContent - generates imports for controllers', () => {
     const controllers: ControllerInfo[] = [
         {
             className: 'AppController',
@@ -76,7 +77,7 @@ Deno.test('generateRoutesContent - generates imports for controllers', () => {
     assertStringIncludes(content, 'UserController,')
 })
 
-Deno.test('generateRoutesContent - includes auto-generated header', () => {
+test('generateRoutesContent - includes auto-generated header', () => {
     const content = generateRoutesContent([])
 
     assertStringIncludes(content, 'Controllers Registry')
@@ -91,7 +92,7 @@ Deno.test('generateRoutesContent - includes auto-generated header', () => {
 // scanControllers Tests
 // =============================================================================
 
-Deno.test('scanControllers - returns empty array for empty directory', async () => {
+test('scanControllers - returns empty array for empty directory', async () => {
     await setupControllerDir()
 
     try {
@@ -102,7 +103,7 @@ Deno.test('scanControllers - returns empty array for empty directory', async () 
     }
 })
 
-Deno.test('scanControllers - discovers .ts files', async () => {
+test('scanControllers - discovers .ts files', async () => {
     await setupControllerDir()
 
     try {
@@ -122,7 +123,7 @@ Deno.test('scanControllers - discovers .ts files', async () => {
     }
 })
 
-Deno.test('scanControllers - discovers .tsx files', async () => {
+test('scanControllers - discovers .tsx files', async () => {
     await setupControllerDir()
 
     try {
@@ -141,7 +142,7 @@ Deno.test('scanControllers - discovers .tsx files', async () => {
     }
 })
 
-Deno.test('scanControllers - converts snake_case to PascalCase', async () => {
+test('scanControllers - converts snake_case to PascalCase', async () => {
     await setupControllerDir()
 
     try {
@@ -158,7 +159,7 @@ Deno.test('scanControllers - converts snake_case to PascalCase', async () => {
     }
 })
 
-Deno.test('scanControllers - sorts controllers by class name', async () => {
+test('scanControllers - sorts controllers by class name', async () => {
     await setupControllerDir()
 
     try {
@@ -186,7 +187,7 @@ Deno.test('scanControllers - sorts controllers by class name', async () => {
     }
 })
 
-Deno.test('scanControllers - ignores non-ts files', async () => {
+test('scanControllers - ignores non-ts files', async () => {
     await setupControllerDir()
 
     try {
@@ -216,7 +217,7 @@ Deno.test('scanControllers - ignores non-ts files', async () => {
 // Integration Tests
 // =============================================================================
 
-Deno.test('scanControllers + generateRoutesContent - full workflow', async () => {
+test('scanControllers + generateRoutesContent - full workflow', async () => {
     await setupControllerDir()
 
     try {

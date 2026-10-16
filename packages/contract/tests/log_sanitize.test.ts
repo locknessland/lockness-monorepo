@@ -1,7 +1,8 @@
+import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { renderError, safeForLog } from '../logging/sanitize.ts'
 
-Deno.test('safeForLog - neutralises a newline injected through a decoded path', () => {
+test('safeForLog - neutralises a newline injected through a decoded path', () => {
     // decodeURI turns %0A into a real newline, so this is what reaches the sink.
     const forged = '/x\nGET /admin 200 - looks like a second request'
 
@@ -11,32 +12,32 @@ Deno.test('safeForLog - neutralises a newline injected through a decoded path', 
     assertStringIncludes(out, '\\x0a')
 })
 
-Deno.test('safeForLog - neutralises a carriage return', () => {
+test('safeForLog - neutralises a carriage return', () => {
     const out = safeForLog('/x\rGET /admin')
 
     assertEquals(out.includes('\r'), false)
     assertStringIncludes(out, '\\x0d')
 })
 
-Deno.test('safeForLog - neutralises a terminal escape', () => {
+test('safeForLog - neutralises a terminal escape', () => {
     const out = safeForLog('/x\u001b[2J\u001b[H')
 
     assertEquals(out.includes('\u001b'), false)
     assertStringIncludes(out, '\\x1b')
 })
 
-Deno.test('safeForLog - leaves an ordinary path untouched', () => {
+test('safeForLog - leaves an ordinary path untouched', () => {
     assertEquals(safeForLog('/fr/ca/users?q=1'), '/fr/ca/users?q=1')
 })
 
-Deno.test('safeForLog - truncates a very long value rather than flooding the log', () => {
+test('safeForLog - truncates a very long value rather than flooding the log', () => {
     const out = safeForLog('/'.padEnd(5000, 'a'))
 
     assertEquals(out.length < 600, true)
     assertStringIncludes(out, '[truncated at 512 of 5000]')
 })
 
-Deno.test('safeForLog - neutralises DEL, the C1 range and the JS line terminators', () => {
+test('safeForLog - neutralises DEL, the C1 range and the JS line terminators', () => {
     // The predicate singles out four classes and the tests covered only C0.
     // Deleting `code === 0x7f`, `(code >= 0x80 && code <= 0x9f)` or the
     // U+2028/U+2029 clause left every test green — and U+2028 is the one the
@@ -60,7 +61,7 @@ Deno.test('safeForLog - neutralises DEL, the C1 range and the JS line terminator
     assertEquals(safeForLog('héllo — ok'), 'héllo — ok')
 })
 
-Deno.test('safeForLog - truncates at exactly the documented bound', () => {
+test('safeForLog - truncates at exactly the documented bound', () => {
     // `out.length < 600` passed for any MAX_LENGTH from 1 to ~587.
     const out = safeForLog('a'.repeat(5000))
     assertEquals(out.length, 512 + '\u2026[truncated at 512 of 5000]'.length)
@@ -69,7 +70,7 @@ Deno.test('safeForLog - truncates at exactly the documented bound', () => {
     assertStringIncludes(out, '[truncated at 512 of 5000]')
 })
 
-Deno.test('renderError - redacts credentials in a PostgreSQL DSN in the message', () => {
+test('renderError - redacts credentials in a PostgreSQL DSN in the message', () => {
     // A postgres driver failure carries the whole connection string, userinfo
     // included, verbatim in error.message.
     const out = renderError(
@@ -84,7 +85,7 @@ Deno.test('renderError - redacts credentials in a PostgreSQL DSN in the message'
     assertStringIncludes(out, 'postgres://***:***@')
 })
 
-Deno.test('renderError - redacts credentials in a MySQL DSN in the message', () => {
+test('renderError - redacts credentials in a MySQL DSN in the message', () => {
     const out = renderError(
         new Error('access denied: mysql://user:password@db.internal:3306/app'),
     )
@@ -94,7 +95,7 @@ Deno.test('renderError - redacts credentials in a MySQL DSN in the message', () 
     assertStringIncludes(out, 'mysql://***:***@')
 })
 
-Deno.test('renderError - leaves a credential-free SQLite/file DSN intact', () => {
+test('renderError - leaves a credential-free SQLite/file DSN intact', () => {
     // SQLite connection strings carry no userinfo; the redactor must not mangle
     // them, and the `://path` shape must survive untouched.
     const out = renderError(
@@ -105,7 +106,7 @@ Deno.test('renderError - leaves a credential-free SQLite/file DSN intact', () =>
     assertEquals(out.includes('***'), false)
 })
 
-Deno.test('renderError - does not touch a host:port that is not userinfo', () => {
+test('renderError - does not touch a host:port that is not userinfo', () => {
     // A colon in the host authority (the port) must not be mistaken for a
     // password separator: there is no `@`, so nothing is redacted.
     const out = renderError(new Error('timeout reaching redis://cache:6379/0'))
@@ -145,7 +146,7 @@ const CONTENT_FORMAT_MARKS: readonly number[] = [
 
 const escapeOf = (code: number) => `\\u{${code.toString(16)}}`
 
-Deno.test('safeForLog - encodes each bidi range the issue names, per range', () => {
+test('safeForLog - encodes each bidi range the issue names, per range', () => {
     // Per range, not by one representative: a fix that catches U+202E and
     // misses U+2066 passes a single-sample test.
     const perRange: [number, string][] = [
@@ -166,7 +167,7 @@ Deno.test('safeForLog - encodes each bidi range the issue names, per range', () 
     }
 })
 
-Deno.test('safeForLog - encodes the format characters the issue did NOT name', () => {
+test('safeForLog - encodes the format characters the issue did NOT name', () => {
     // Each named individually. These are what the `\p{Cf}` criterion buys over
     // the three enumerated ranges, and a criterion asserted only in aggregate
     // can lose one of them to an off-by-one without a test noticing.
@@ -201,7 +202,7 @@ Deno.test('safeForLog - encodes the format characters the issue did NOT name', (
     }
 })
 
-Deno.test('safeForLog - a RUN of format characters is escaped, every one of them', () => {
+test('safeForLog - a RUN of format characters is escaped, every one of them', () => {
     // Every other test feeds one format character isolated between ASCII, and
     // that shape cannot see the defect this guards. Add a `g` flag to
     // FORMAT_CHARACTER and the regex carries `lastIndex` between calls: the
@@ -221,7 +222,7 @@ Deno.test('safeForLog - a RUN of format characters is escaped, every one of them
     )
 })
 
-Deno.test('safeForLog - the Cf criterion holds in both directions', () => {
+test('safeForLog - the Cf criterion holds in both directions', () => {
     // The property behind FR-001/FR-003, swept over the whole class rather than
     // sampled. Asserting only the escaped half would let the carve-out be
     // asserted by nothing but the code that implements it.
@@ -269,13 +270,13 @@ Deno.test('safeForLog - the Cf criterion holds in both directions', () => {
     assertEquals(letters, [], 'no Cf codepoint is a letter or a digit')
 })
 
-Deno.test('safeForLog - right-to-left script is untouched', () => {
+test('safeForLog - right-to-left script is untouched', () => {
     for (const word of ['مرحبا بالعالم', 'שלום עולם', 'ܫܠܡܐ']) {
         assertEquals(safeForLog(word), word, word)
     }
 })
 
-Deno.test('safeForLog - escapes a joiner without touching the letters around it', () => {
+test('safeForLog - escapes a joiner without touching the letters around it', () => {
     // ZWNJ and ZWJ are NOT bidi controls, and escaping them is a real cost to
     // legitimate text (plan §12). The assertion is the exact rendered string,
     // because a letters-only assertion passes straight over this.
@@ -294,7 +295,7 @@ Deno.test('safeForLog - escapes a joiner without touching the letters around it'
     )
 })
 
-Deno.test("safeForLog - the issue's own probe string no longer round-trips", () => {
+test("safeForLog - the issue's own probe string no longer round-trips", () => {
     const probe = `/admin${String.fromCodePoint(0x202e)}gnp.txt${
         String.fromCodePoint(0x202c)
     }${String.fromCodePoint(0x200b)}${String.fromCodePoint(0x2066)}x`
@@ -310,7 +311,7 @@ Deno.test("safeForLog - the issue's own probe string no longer round-trips", () 
     )
 })
 
-Deno.test('safeForLog - the backslash escape removes the spelling collision', () => {
+test('safeForLog - the backslash escape removes the spelling collision', () => {
     // The backslash is what makes this true. Without FR-004b a real U+2028 and
     // the literal text of its own escape are byte-identical, and the claim is
     // false whichever escape width is chosen.
@@ -342,13 +343,13 @@ Deno.test('safeForLog - the backslash escape removes the spelling collision', ()
     }
 })
 
-Deno.test('safeForLog - a backslash is doubled, which is the visible cost', () => {
+test('safeForLog - a backslash is doubled, which is the visible cost', () => {
     // The user-facing consequence of FR-004b, asserted in the shape an operator
     // will actually see rather than only through the collision test.
     assertEquals(safeForLog('C:\\Users\\kevin'), 'C:\\\\Users\\\\kevin')
 })
 
-Deno.test('safeForLog - an astral codepoint outside Cf survives byte-identical', () => {
+test('safeForLog - an astral codepoint outside Cf survives byte-identical', () => {
     // Only true while the loop iterates code POINTS. This fails the moment
     // someone switches it to charCodeAt, which is exactly what an earlier draft
     // of the plan would have told them to do.
@@ -368,7 +369,7 @@ Deno.test('safeForLog - an astral codepoint outside Cf survives byte-identical',
     )
 })
 
-Deno.test('safeForLog - a hostile prefix cannot evict the diagnostic tail', () => {
+test('safeForLog - a hostile prefix cannot evict the diagnostic tail', () => {
     // The eviction primitive: charge the cap against EMITTED output and each
     // hostile character buys ~8 characters of budget, so a short prefix discards
     // the tail — including, in renderError, the evidence that redaction fired.
@@ -389,7 +390,7 @@ Deno.test('safeForLog - a hostile prefix cannot evict the diagnostic tail', () =
     assertStringIncludes(out, tail)
 })
 
-Deno.test('safeForLog - the cap is charged against consumed input', () => {
+test('safeForLog - the cap is charged against consumed input', () => {
     // Input-charged, so the emitted bound is derived and deterministic rather
     // than chosen by the attacker: 512 code points x the widest escape.
     const wide = String.fromCodePoint(0xe0001) // \u{e0001} — 9 characters
@@ -410,14 +411,14 @@ Deno.test('safeForLog - the cap is charged against consumed input', () => {
     assertStringIncludes(overCap, '[truncated at 512 of 513]')
 })
 
-Deno.test('renderError - inherits the encoding with no change of its own', () => {
+test('renderError - inherits the encoding with no change of its own', () => {
     const out = renderError(new Error(`boom${String.fromCodePoint(0x202e)}x`))
 
     assertStringIncludes(out, escapeOf(0x202e))
     assertStringIncludes(out, 'Error: boom')
 })
 
-Deno.test('renderError - its own 200-cap is charged in code points too', () => {
+test('renderError - its own 200-cap is charged in code points too', () => {
     // The same units mismatch the encoder below it just closed, one layer up:
     // slice(0, 200) charges an astral character two UTF-16 units, so 120 of them
     // spent the whole budget and evicted the ***:*** that proves redaction ran.
@@ -448,7 +449,7 @@ Deno.test('renderError - its own 200-cap is charged in code points too', () => {
     )
 })
 
-Deno.test('renderError - a redacted DSN keeps its evidence behind a hostile prefix', () => {
+test('renderError - a redacted DSN keeps its evidence behind a hostile prefix', () => {
     // The two halves together: the prefix cannot evict, so ***:*** survives.
     // renderError caps its message at 200 before safeForLog sees it, and
     // 200 < 512, so a rendered error is never truncated by safeForLog again.
@@ -502,7 +503,7 @@ function everyNonAsciiWhitespace(): number[] {
     return found
 }
 
-Deno.test('renderError - no non-ASCII whitespace can end the userinfo match', () => {
+test('renderError - no non-ASCII whitespace can end the userinfo match', () => {
     // #301, stated as the criterion rather than as a sample. The old class was
     // `[^@\s/]+`, so every codepoint below leaked the password it sat next to.
     const set = everyNonAsciiWhitespace()
@@ -521,7 +522,7 @@ Deno.test('renderError - no non-ASCII whitespace can end the userinfo match', ()
     assertEquals(leaked, [], 'codepoints that still end the match')
 })
 
-Deno.test('renderError - nor can an invisible format character', () => {
+test('renderError - nor can an invisible format character', () => {
     // The ADJACENT class, labelled as adjacent. None of these is in JS `\s`, so
     // none of them leaked even before #301 — they pass today by accident of
     // where a JS engine drew a line, not by design. Asserting them alongside
@@ -537,7 +538,7 @@ Deno.test('renderError - nor can an invisible format character', () => {
     }
 })
 
-Deno.test('renderError - redacts a password containing a slash', () => {
+test('renderError - redacts a password containing a slash', () => {
     // The character that closes this is the same character that OPENS it. A `/`
     // in the userinfo makes WHATWG `new URL()` throw, and the thrown message
     // carries the whole DSN — so the redactor was failing on precisely the
@@ -561,7 +562,7 @@ Deno.test('renderError - redacts a password containing a slash', () => {
     assertStringIncludes(out, 'postgres://***:***@db.internal:5432/prod')
 })
 
-Deno.test('renderError - the slash residual is whitespace, and it is known', () => {
+test('renderError - the slash residual is whitespace, and it is known', () => {
     // Not every character can be spanned, and pretending otherwise is how the
     // last gap survived. Whitespace still terminates, because removing it would
     // let the rule eat `see http://docs and mail bob@y.com`. A DSN whose
@@ -576,7 +577,7 @@ Deno.test('renderError - the slash residual is whitespace, and it is known', () 
     )
 })
 
-Deno.test('renderError - redacts a colon-less userinfo, the token-in-URL shape', () => {
+test('renderError - redacts a colon-less userinfo, the token-in-URL shape', () => {
     // #303. The old gate fired only when the userinfo carried a `:`, which is
     // how every bare-token URL — the shape GitHub, GitLab and most APIs accept
     // — reached the log verbatim. A `fetch` rejection carries the URL in
@@ -595,7 +596,7 @@ Deno.test('renderError - redacts a colon-less userinfo, the token-in-URL shape',
     assertStringIncludes(out, 'https://***@github.com/org/repo')
 })
 
-Deno.test('renderError - keeps the two userinfo shapes distinguishable', () => {
+test('renderError - keeps the two userinfo shapes distinguishable', () => {
     // `***:***` for a pair, `***` for a single value. The shape is the only
     // thing left of the credential, and it is what tells an operator whether a
     // password was configured at all.
@@ -609,7 +610,7 @@ Deno.test('renderError - keeps the two userinfo shapes distinguishable', () => {
     )
 })
 
-Deno.test('renderError - does not eat things that only look like a DSN', () => {
+test('renderError - does not eat things that only look like a DSN', () => {
     // The bound. Each row is a control that failed to survive an earlier draft
     // of this rule, or that the old `:`-gate and `\s` terminator were the only
     // thing protecting.
@@ -684,7 +685,7 @@ Deno.test('renderError - does not eat things that only look like a DSN', () => {
 // #302 — renderError follows the cause chain.
 // ---------------------------------------------------------------------------
 
-Deno.test('renderError - follows the cause chain instead of dropping it', () => {
+test('renderError - follows the cause chain instead of dropping it', () => {
     // A wrapper whose whole content is its cause used to render to nothing:
     // `Error: websocket transport error` and not one word about what failed.
     const out = renderError(
@@ -702,7 +703,7 @@ Deno.test('renderError - follows the cause chain instead of dropping it', () => 
     )
 })
 
-Deno.test('renderError - a credential in a cause is redacted like any other', () => {
+test('renderError - a credential in a cause is redacted like any other', () => {
     // The whole chain goes through the same redaction and the same cap. A cause
     // that skipped either would be a hole opened by the fix for #302.
     const out = renderError(
@@ -719,7 +720,7 @@ Deno.test('renderError - a credential in a cause is redacted like any other', ()
     assertStringIncludes(out, 'postgres://***:***@')
 })
 
-Deno.test('renderError - the chain is bounded and a cycle terminates', () => {
+test('renderError - the chain is bounded and a cycle terminates', () => {
     // Depth first: a five-deep chain renders three links and stops.
     let deep = new Error('root')
     for (const label of ['c1', 'c2', 'c3', 'c4']) {
@@ -747,7 +748,7 @@ Deno.test('renderError - the chain is bounded and a cycle terminates', () => {
     assertStringIncludes(cyclic, '[cycle]')
 })
 
-Deno.test('renderError - renders a non-Error cause through the same rules', () => {
+test('renderError - renders a non-Error cause through the same rules', () => {
     // EXACT equality per row. The previous version asserted only that
     // `Error: wrapper` was present — which the HEAD produces, whatever the
     // cause branch does — and that the render was one line, which is a
@@ -770,7 +771,7 @@ Deno.test('renderError - renders a non-Error cause through the same rules', () =
     }
 })
 
-Deno.test('renderError - a non-Error at the TOP level is redacted too', () => {
+test('renderError - a non-Error at the TOP level is redacted too', () => {
     // Nothing in this suite passed a non-Error to renderError at all, so the
     // whole branch — its redaction, its cap and its encoder — was unasserted.
     // A rejected promise carrying a string is an ordinary way to reach it.
@@ -789,7 +790,7 @@ Deno.test('renderError - a non-Error at the TOP level is redacted too', () => {
     assertStringIncludes(renderError('a\u0000b'), '\\x00')
 })
 
-Deno.test('renderError - is total, whatever a cause does', () => {
+test('renderError - is total, whatever a cause does', () => {
     // A log encoder is called from `catch` blocks, several of them shutdown
     // drains and one a `void guard(...)` whose rejection Deno turns into a
     // process exit. A throw here replaces the error being reported, at the one
@@ -862,7 +863,7 @@ Deno.test('renderError - is total, whatever a cause does', () => {
     }
 })
 
-Deno.test('renderError - a hostile error name cannot inflate the line', () => {
+test('renderError - a hostile error name cannot inflate the line', () => {
     // `name` was uncapped, which is why this file's own length bound was wrong.
     // safeForLog can emit nine characters per code point, so one name could
     // contribute thousands to a line reasoned about as a few hundred.
@@ -871,7 +872,7 @@ Deno.test('renderError - a hostile error name cannot inflate the line', () => {
     assertEquals(renderError(wide).length < 200, true, 'the name is not capped')
 })
 
-Deno.test('renderError - a long scheme-legal run does not stall the event loop', () => {
+test('renderError - a long scheme-legal run does not stall the event loop', () => {
     // The scheme group `[a-z][a-z0-9+.-]*` backtracks O(n) per start position
     // over a run of scheme-legal characters. Measured on the unbounded form:
     // 44 ms at n=8k, 704 ms at n=32k, 11.6 SECONDS at n=128k — and this is
@@ -894,7 +895,7 @@ Deno.test('renderError - a long scheme-legal run does not stall the event loop',
     )
 })
 
-Deno.test('renderError - the sink policy is honoured in both directions', () => {
+test('renderError - the sink policy is honoured in both directions', () => {
     // `RenderErrorOptions` is public and introduced by this change, and its
     // only exercise was one value of it from a DOWNSTREAM package. The contract
     // package's own suite would have stayed green with the parameter deleted.

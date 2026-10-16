@@ -10,6 +10,7 @@
  * @module @lockness/drizzle/tests/migration_status
  */
 
+import { test } from 'node:test'
 import {
     assertEquals,
     assertRejects,
@@ -63,7 +64,7 @@ function states(
 // The comparison — drizzle-orm's rule: pending ⇔ when > max(created_at)
 // -----------------------------------------------------------------------------
 
-Deno.test('#439 an absent bookkeeping table: every entry pending, never migrated', () => {
+test('#439 an absent bookkeeping table: every entry pending, never migrated', () => {
     const status = computeMigrationStatus(JOURNAL, undefined)
     assertEquals(status.tableExists, false)
     assertEquals(status.unknownRows, [])
@@ -74,7 +75,7 @@ Deno.test('#439 an absent bookkeeping table: every entry pending, never migrated
     ])
 })
 
-Deno.test('#439 an empty bookkeeping table: every entry pending, but the table exists', () => {
+test('#439 an empty bookkeeping table: every entry pending, but the table exists', () => {
     const status = computeMigrationStatus(JOURNAL, [])
     assertEquals(status.tableExists, true)
     assertEquals(states(JOURNAL, []), [
@@ -84,7 +85,7 @@ Deno.test('#439 an empty bookkeeping table: every entry pending, but the table e
     ])
 })
 
-Deno.test('#439 every entry has its row: all applied', () => {
+test('#439 every entry has its row: all applied', () => {
     assertEquals(states(JOURNAL, [row(100), row(200), row(300)]), [
         '0000_init:applied',
         '0001_users:applied',
@@ -92,7 +93,7 @@ Deno.test('#439 every entry has its row: all applied', () => {
     ])
 })
 
-Deno.test('#439 entries newer than the latest row are pending', () => {
+test('#439 entries newer than the latest row are pending', () => {
     assertEquals(states(JOURNAL, [row(100)]), [
         '0000_init:applied',
         '0001_users:pending',
@@ -100,7 +101,7 @@ Deno.test('#439 entries newer than the latest row are pending', () => {
     ])
 })
 
-Deno.test('#439 an unmatched entry older than the latest row is out of order', () => {
+test('#439 an unmatched entry older than the latest row is out of order', () => {
     assertEquals(states(JOURNAL, [row(100), row(300)]), [
         '0000_init:applied',
         '0001_users:out-of-order',
@@ -108,7 +109,7 @@ Deno.test('#439 an unmatched entry older than the latest row is out of order', (
     ])
 })
 
-Deno.test('#439 the boundary: an entry at exactly max(created_at) is applied, one past it pending, one short of it out of order', () => {
+test('#439 the boundary: an entry at exactly max(created_at) is applied, one past it pending, one short of it out of order', () => {
     // drizzle-orm applies an entry only when `created_at < when`, strictly:
     // an entry sitting on the high-water mark is not re-applied. A `>=` in
     // the comparison would call it pending.
@@ -120,7 +121,7 @@ Deno.test('#439 the boundary: an entry at exactly max(created_at) is applied, on
     ])
 })
 
-Deno.test('#439 a row matches its entry by created_at, not by position or hash', () => {
+test('#439 a row matches its entry by created_at, not by position or hash', () => {
     assertEquals(states(JOURNAL, [row(300), row(100), row(200)]), [
         '0000_init:applied',
         '0001_users:applied',
@@ -128,7 +129,7 @@ Deno.test('#439 a row matches its entry by created_at, not by position or hash',
     ])
 })
 
-Deno.test('#439 an applied entry whose file changed is edited, and still applied', () => {
+test('#439 an applied entry whose file changed is edited, and still applied', () => {
     const status = computeMigrationStatus(JOURNAL, [
         row(100),
         row(200, 'stale-hash'),
@@ -138,7 +139,7 @@ Deno.test('#439 an applied entry whose file changed is edited, and still applied
     assertEquals(status.entries[1].state, 'applied')
 })
 
-Deno.test('#439 a row no entry matches is unknown, and raises the high-water mark', () => {
+test('#439 a row no entry matches is unknown, and raises the high-water mark', () => {
     // A branch merged a migration whose file this checkout does not have: its
     // row sits above 0001 and 0002, so db:migrate will never apply them.
     const status = computeMigrationStatus(JOURNAL, [row(100), row(999)])
@@ -150,13 +151,13 @@ Deno.test('#439 a row no entry matches is unknown, and raises the high-water mar
     ])
 })
 
-Deno.test('#439 an empty journal over an empty table: nothing to report', () => {
+test('#439 an empty journal over an empty table: nothing to report', () => {
     const status = computeMigrationStatus([], [])
     assertEquals(status.entries, [])
     assertEquals(status.unknownRows, [])
 })
 
-Deno.test('#439 an empty journal over recorded rows: every row unknown', () => {
+test('#439 an empty journal over recorded rows: every row unknown', () => {
     const status = computeMigrationStatus([], [row(1), row(2)])
     assertEquals(status.unknownRows, [row(1), row(2)])
 })
@@ -165,7 +166,7 @@ Deno.test('#439 an empty journal over recorded rows: every row unknown', () => {
 // Normalising a bookkeeping row — postgres.js, mysql2 and libsql disagree
 // -----------------------------------------------------------------------------
 
-Deno.test('#439 created_at normalises to BigInt from a string, a number or a bigint', () => {
+test('#439 created_at normalises to BigInt from a string, a number or a bigint', () => {
     // postgres.js returns int8 as a string, mysql2 BIGINT and libsql numeric
     // as a number, a client in bigint mode as a bigint.
     for (
@@ -183,7 +184,7 @@ Deno.test('#439 created_at normalises to BigInt from a string, a number or a big
     }
 })
 
-Deno.test('#439 a string created_at beyond 2^53 keeps every digit', () => {
+test('#439 a string created_at beyond 2^53 keeps every digit', () => {
     assertEquals(
         toBookkeepingRow({ hash: 'h', created_at: '9007199254740993' })
             .createdAt,
@@ -203,7 +204,7 @@ for (
         ['a boolean', true],
     ] as const
 ) {
-    Deno.test(`#439 a row whose created_at is ${label} fails, never guessed at`, () => {
+    test(`#439 a row whose created_at is ${label} fails, never guessed at`, () => {
         const error = assertThrows(
             () => toBookkeepingRow({ hash: 'h', created_at: value }),
             Error,
@@ -218,7 +219,7 @@ for (
         undefined,
     ]] as const
 ) {
-    Deno.test(`#439 a row whose hash is ${label} fails`, () => {
+    test(`#439 a row whose hash is ${label} fails`, () => {
         const error = assertThrows(
             () => toBookkeepingRow({ hash: value, created_at: 1 }),
             Error,
@@ -247,7 +248,7 @@ const SQLITE: BookkeepingLocation = {
     schema: undefined,
 }
 
-Deno.test('#439 the catalogue query is fixed text per dialect', () => {
+test('#439 the catalogue query is fixed text per dialect', () => {
     assertEquals(
         catalogueQuery('postgres'),
         'SELECT schemaname AS schema, tablename AS name FROM pg_catalog.pg_tables',
@@ -263,7 +264,7 @@ Deno.test('#439 the catalogue query is fixed text per dialect', () => {
     )
 })
 
-Deno.test('#439 the bookkeeping read, per dialect, with the default names', () => {
+test('#439 the bookkeeping read, per dialect, with the default names', () => {
     assertEquals(
         rowsQuery(POSTGRES),
         'SELECT hash, created_at FROM "drizzle"."__drizzle_migrations" ' +
@@ -282,7 +283,7 @@ Deno.test('#439 the bookkeeping read, per dialect, with the default names', () =
 /** A name holding every character a quoting rule must survive. */
 const AWKWARD = 'a"b`c\'d\\e'
 
-Deno.test('#439 awkward identifiers are quoted per dialect, never embedded raw', () => {
+test('#439 awkward identifiers are quoted per dialect, never embedded raw', () => {
     assertEquals(
         rowsQuery({ dialect: 'postgres', table: AWKWARD, schema: AWKWARD }),
         `SELECT hash, created_at FROM "a""b\`c'd\\e"."a""b\`c'd\\e" ORDER BY created_at`,
@@ -297,7 +298,7 @@ Deno.test('#439 awkward identifiers are quoted per dialect, never embedded raw',
     )
 })
 
-Deno.test('#439 a custom postgres schema and table are both honoured', () => {
+test('#439 a custom postgres schema and table are both honoured', () => {
     assertEquals(
         bookkeepingName({
             dialect: 'postgres',
@@ -337,7 +338,7 @@ function fakeQuery(
     return { asked, maintenance }
 }
 
-Deno.test('#439 postgres: a missing table is read from the catalogue, and no row query runs', async () => {
+test('#439 postgres: a missing table is read from the catalogue, and no row query runs', async () => {
     const { asked, maintenance } = fakeQuery({
         [catalogueQuery('postgres')]: [
             // The right table in another schema, and the right schema with
@@ -350,7 +351,7 @@ Deno.test('#439 postgres: a missing table is read from the catalogue, and no row
     assertEquals(asked, [catalogueQuery('postgres')])
 })
 
-Deno.test('#439 postgres: a present table is read whole and normalised', async () => {
+test('#439 postgres: a present table is read whole and normalised', async () => {
     const { asked, maintenance } = fakeQuery({
         [catalogueQuery('postgres')]: [{
             schema: 'drizzle',
@@ -368,7 +369,7 @@ Deno.test('#439 postgres: a present table is read whole and normalised', async (
     assertEquals(asked, [catalogueQuery('postgres'), rowsQuery(POSTGRES)])
 })
 
-Deno.test('#439 the names are compared exactly, in TypeScript, never put in the SQL', async () => {
+test('#439 the names are compared exactly, in TypeScript, never put in the SQL', async () => {
     const location: BookkeepingLocation = {
         dialect: 'postgres',
         table: AWKWARD,
@@ -385,7 +386,7 @@ Deno.test('#439 the names are compared exactly, in TypeScript, never put in the 
     assertEquals(asked[0].includes(AWKWARD), false)
 })
 
-Deno.test('#439 mysql and sqlite match the table name alone', async () => {
+test('#439 mysql and sqlite match the table name alone', async () => {
     for (const location of [MYSQL, SQLITE]) {
         const present = fakeQuery({
             [catalogueQuery(location.dialect)]: [{
@@ -409,7 +410,7 @@ Deno.test('#439 mysql and sqlite match the table name alone', async () => {
     }
 })
 
-Deno.test('#439 a catalogue row without a text name fails the read', async () => {
+test('#439 a catalogue row without a text name fails the read', async () => {
     const { maintenance } = fakeQuery({
         [catalogueQuery('sqlite')]: [{ name: 42 }],
     })
@@ -420,7 +421,7 @@ Deno.test('#439 a catalogue row without a text name fails the read', async () =>
     assertStringIncludes(error.message, 'catalogue')
 })
 
-Deno.test('#439 a malformed bookkeeping row fails the read and names the table, not the value', async () => {
+test('#439 a malformed bookkeeping row fails the read and names the table, not the value', async () => {
     const { maintenance } = fakeQuery({
         [catalogueQuery('sqlite')]: [{ name: '__drizzle_migrations' }],
         [rowsQuery(SQLITE)]: [{ hash: 'a', created_at: 'not-a-number' }],
@@ -437,7 +438,7 @@ Deno.test('#439 a malformed bookkeeping row fails the read and names the table, 
 // The report — human lines, the count last
 // -----------------------------------------------------------------------------
 
-Deno.test('#439 the report lists every state, the warnings, and fails with the count', () => {
+test('#439 the report lists every state, the warnings, and fails with the count', () => {
     const journal = [
         entry('0000_init', 100),
         entry('0001_users', 200),
@@ -466,7 +467,7 @@ Deno.test('#439 the report lists every state, the warnings, and fails with the c
     )
 })
 
-Deno.test('#439 the report names pending and out-of-order counts together', () => {
+test('#439 the report names pending and out-of-order counts together', () => {
     const journal = [
         entry('a', 100),
         entry('b', 200),
@@ -489,7 +490,7 @@ Deno.test('#439 the report names pending and out-of-order counts together', () =
     )
 })
 
-Deno.test('#439 all applied: one ✅ line, no failure', () => {
+test('#439 all applied: one ✅ line, no failure', () => {
     const report = renderMigrationStatus(
         computeMigrationStatus(JOURNAL, [row(100), row(200), row(300)]),
         MYSQL,
@@ -502,7 +503,7 @@ Deno.test('#439 all applied: one ✅ line, no failure', () => {
     assertEquals(report.failure, undefined)
 })
 
-Deno.test('#439 one migration, applied or pending: the count reads in the singular', () => {
+test('#439 one migration, applied or pending: the count reads in the singular', () => {
     const one = [entry('0000_init', 100)]
     assertEquals(
         renderMigrationStatus(computeMigrationStatus(one, [row(100)]), SQLITE)
@@ -516,7 +517,7 @@ Deno.test('#439 one migration, applied or pending: the count reads in the singul
     )
 })
 
-Deno.test('#439 never migrated: says so, lists everything pending, and fails', () => {
+test('#439 never migrated: says so, lists everything pending, and fails', () => {
     const report = renderMigrationStatus(
         computeMigrationStatus(JOURNAL, undefined),
         SQLITE,
@@ -531,7 +532,7 @@ Deno.test('#439 never migrated: says so, lists everything pending, and fails', (
     assertEquals(report.failure, '3 of 3 migrations are not applied: 3 pending')
 })
 
-Deno.test('#439 an empty journal: one ✅ line, exit 0, even with no table', () => {
+test('#439 an empty journal: one ✅ line, exit 0, even with no table', () => {
     for (const rows of [undefined, []]) {
         const report = renderMigrationStatus(
             computeMigrationStatus([], rows),
@@ -542,7 +543,7 @@ Deno.test('#439 an empty journal: one ✅ line, exit 0, even with no table', () 
     }
 })
 
-Deno.test('#439 an unknown row with a created_at no Date can hold is shown as recorded', () => {
+test('#439 an unknown row with a created_at no Date can hold is shown as recorded', () => {
     const report = renderMigrationStatus(
         computeMigrationStatus([entry('a', 1)], [row(1), row(10n ** 18n)]),
         SQLITE,

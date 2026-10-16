@@ -15,6 +15,7 @@
  * @module @lockness/realtime/tests/revoke_channel_idless_340
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { ChannelManager } from '../manager.ts'
 import type {
@@ -93,7 +94,7 @@ async function ownerOf(target: string) {
     }
 }
 
-Deno.test('#340 WITNESS: an id-less revoke-channel frame logs a WARN and is still not applied', async () => {
+test('#340 WITNESS: an id-less revoke-channel frame logs a WARN and is still not applied', async () => {
     const { manager, cleared, send } = await ownerOf('c1')
     using warn = captureWarnings()
 
@@ -128,7 +129,7 @@ Deno.test('#340 WITNESS: an id-less revoke-channel frame logs a WARN and is stil
     )
 })
 
-Deno.test('#340 CONTROL: the same frame WITH an id is applied within the same settle', async () => {
+test('#340 CONTROL: the same frame WITH an id is applied within the same settle', async () => {
     // Without this, the witness's "not applied" half could pass because the
     // apply is merely slower than the settle, not because it never ran.
     const { manager, cleared, send } = await ownerOf('c1')
@@ -151,7 +152,7 @@ Deno.test('#340 CONTROL: the same frame WITH an id is applied within the same se
     )
 })
 
-Deno.test('#340 the channel name in the WARN is log-encoded', async () => {
+test('#340 the channel name in the WARN is log-encoded', async () => {
     // Channel names are attacker-influenced. A raw newline in the WARN lets a
     // name forge a second log line.
     const { send } = await ownerOf('c1')
@@ -169,7 +170,7 @@ Deno.test('#340 the channel name in the WARN is log-encoded', async () => {
     assert(!lines[0].includes('\n'), `the name is encoded: ${lines[0]}`)
 })
 
-Deno.test('#340 an instance that does not own the target stays silent', async () => {
+test('#340 an instance that does not own the target stays silent', async () => {
     // The frame reaches every instance. Only the owner's enforcement is
     // delayed, so only the owner says so — one WARN per frame, not one per
     // instance in the fleet.

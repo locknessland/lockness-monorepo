@@ -7,6 +7,7 @@
  * @module
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertMatch } from '@std/assert'
 import { boots, ChildTracker } from './kit_smoke.ts'
 
@@ -19,7 +20,7 @@ function sleeper(): Deno.Command {
     })
 }
 
-Deno.test('abort() kills every live child', async () => {
+test('abort() kills every live child', async () => {
     const tracker = new ChildTracker()
     const child = tracker.spawn(sleeper())
     assert(child !== undefined)
@@ -29,13 +30,13 @@ Deno.test('abort() kills every live child', async () => {
     assertEquals(status.signal, 'SIGKILL')
 })
 
-Deno.test('an aborted tracker refuses to spawn', () => {
+test('an aborted tracker refuses to spawn', () => {
     const tracker = new ChildTracker()
     tracker.abort()
     assertEquals(tracker.spawn(sleeper()), undefined)
 })
 
-Deno.test('boots() returns even when a grandchild holds the pipes open', async () => {
+test('boots() returns even when a grandchild holds the pipes open', async () => {
     // The "server" leaves a grandchild that inherits its stdout and stderr,
     // then dies: the pipes reach EOF only when the grandchild exits.
     const dir = await Deno.makeTempDir()
@@ -66,7 +67,7 @@ Deno.exit(1)
     }
 })
 
-Deno.test('boots() starts no server once aborted', async () => {
+test('boots() starts no server once aborted', async () => {
     const tracker = new ChildTracker()
     tracker.abort()
     const dir = await Deno.makeTempDir()

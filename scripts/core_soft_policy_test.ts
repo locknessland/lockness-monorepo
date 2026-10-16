@@ -13,6 +13,7 @@
  * @module scripts/core_soft_policy_test
  */
 
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { parse } from '@std/jsonc'
 import { OPTIONAL_FEATURES } from '../packages/core/kernel/bootstrap/optional_packages.ts'
@@ -45,12 +46,12 @@ const LOADED = [
     ...DRIVER_PACKAGES,
 ].sort()
 
-Deno.test('core.soft - every package the loader can import is declared soft', async () => {
+test('core.soft - every package the loader can import is declared soft', async () => {
     const soft = await coreSoft()
     assertEquals(LOADED.filter((p) => !soft.includes(p)), [])
 })
 
-Deno.test('core.soft - every other entry is a named exemption', async () => {
+test('core.soft - every other entry is a named exemption', async () => {
     const soft = await coreSoft()
     assertEquals(
         soft.filter((p) => !LOADED.includes(p) && !(p in EXEMPT)),
@@ -59,6 +60,6 @@ Deno.test('core.soft - every other entry is a named exemption', async () => {
     )
 })
 
-Deno.test('core.soft - events is not soft: core imports it statically', async () => {
+test('core.soft - events is not soft: core imports it statically', async () => {
     assertEquals((await coreSoft()).includes('events'), false)
 })

@@ -3,6 +3,7 @@
  * Tests for @lockness/session - Drivers
  */
 
+import { test } from 'node:test'
 import { assertEquals, assertExists, assertThrows } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
 import type { Context } from 'hono'
@@ -71,7 +72,7 @@ function createMockContext(): Context {
 // Cookie Session Driver Tests
 // =============================================================================
 
-Deno.test('CookieSessionDriver - write and read session', async () => {
+test('CookieSessionDriver - write and read session', async () => {
     const ctx = createMockContext()
     const config = {
         driver: 'cookie' as const,
@@ -103,7 +104,7 @@ Deno.test('CookieSessionDriver - write and read session', async () => {
     assertEquals(retrieved, sessionData)
 })
 
-Deno.test('CookieSessionDriver - destroy session', async () => {
+test('CookieSessionDriver - destroy session', async () => {
     const ctx = createMockContext()
     const config = {
         driver: 'cookie' as const,
@@ -129,7 +130,7 @@ Deno.test('CookieSessionDriver - destroy session', async () => {
 // Memory Session Driver Tests
 // =============================================================================
 
-Deno.test('MemorySessionDriver - write and read session', async () => {
+test('MemorySessionDriver - write and read session', async () => {
     const driver = new MemorySessionDriver()
 
     const sessionData = { userId: 456, username: 'alice' }
@@ -139,7 +140,7 @@ Deno.test('MemorySessionDriver - write and read session', async () => {
     assertEquals(retrieved, sessionData)
 })
 
-Deno.test('MemorySessionDriver - session expiration', async () => {
+test('MemorySessionDriver - session expiration', async () => {
     using time = new FakeTime()
     const driver = new MemorySessionDriver()
 
@@ -150,7 +151,7 @@ Deno.test('MemorySessionDriver - session expiration', async () => {
     assertEquals(retrieved, null)
 })
 
-Deno.test('MemorySessionDriver - regenerate session', async () => {
+test('MemorySessionDriver - regenerate session', async () => {
     const driver = new MemorySessionDriver()
 
     const sessionData = { userId: 999 }
@@ -164,7 +165,7 @@ Deno.test('MemorySessionDriver - regenerate session', async () => {
     assertEquals(newRetrieved, sessionData)
 })
 
-Deno.test('MemorySessionDriver - garbage collection', async () => {
+test('MemorySessionDriver - garbage collection', async () => {
     using time = new FakeTime()
     const driver = new MemorySessionDriver()
 
@@ -185,7 +186,7 @@ Deno.test('MemorySessionDriver - garbage collection', async () => {
 // Deno KV Session Driver Tests
 // =============================================================================
 
-Deno.test('DenoKvSessionDriver - write and read session', async () => {
+test('DenoKvSessionDriver - write and read session', async () => {
     const driver = new DenoKvSessionDriver()
 
     const sessionData = { userId: 111, role: 'admin' }
@@ -198,7 +199,7 @@ Deno.test('DenoKvSessionDriver - write and read session', async () => {
     await driver.close()
 })
 
-Deno.test('DenoKvSessionDriver - destroy session', async () => {
+test('DenoKvSessionDriver - destroy session', async () => {
     const driver = new DenoKvSessionDriver()
 
     await driver.write('kv-session-2', { userId: 222 }, 3600)
@@ -210,7 +211,7 @@ Deno.test('DenoKvSessionDriver - destroy session', async () => {
     await driver.close()
 })
 
-Deno.test('DenoKvSessionDriver - regenerate session', async () => {
+test('DenoKvSessionDriver - regenerate session', async () => {
     const driver = new DenoKvSessionDriver()
 
     const sessionData = { userId: 333 }
@@ -231,7 +232,7 @@ Deno.test('DenoKvSessionDriver - regenerate session', async () => {
 // Redis Session Driver Tests (Mock)
 // =============================================================================
 
-Deno.test('RedisSessionDriver - can be instantiated', () => {
+test('RedisSessionDriver - can be instantiated', () => {
     const driver = new RedisSessionDriver({
         hostname: 'localhost',
         port: 6379,
@@ -240,7 +241,7 @@ Deno.test('RedisSessionDriver - can be instantiated', () => {
     assertExists(driver)
 })
 
-Deno.test('createDriver - an unrecognised driver name throws, naming it', () => {
+test('createDriver - an unrecognised driver name throws, naming it', () => {
     // It used to fall through to the cookie driver, which made "which drivers
     // need a secret" a second predicate over the same decision. The throw had no
     // test: `grep createDriver packages/session/tests/` found nothing.
@@ -260,7 +261,7 @@ Deno.test('createDriver - an unrecognised driver name throws, naming it', () => 
     assertEquals(error.message.includes('cookie'), true)
 })
 
-Deno.test('createDriver - each known driver builds without a secret except cookie', () => {
+test('createDriver - each known driver builds without a secret except cookie', () => {
     const context = createMockContext()
 
     assertEquals(

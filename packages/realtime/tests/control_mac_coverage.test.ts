@@ -24,6 +24,7 @@
  * @module @lockness/realtime/tests/control_mac_coverage
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { hmacSha256Hex } from '../../redis/mod.ts'
 import { RedisBroadcastDriver } from '../drivers/redis.ts'
@@ -85,7 +86,7 @@ async function publishAndCapture(
     return JSON.parse(payloads[0]) as Wire
 }
 
-Deno.test('FR-013: the driver signs EXACTLY the fields it publishes', async () => {
+test('FR-013: the driver signs EXACTLY the fields it publishes', async () => {
     const wire = await publishAndCapture({
         kind: 'presence-join',
         target: 'conn-1',
@@ -103,14 +104,14 @@ Deno.test('FR-013: the driver signs EXACTLY the fields it publishes', async () =
     )
 })
 
-Deno.test('FR-013: an evict frame (no channel, no member) is covered too', async () => {
+test('FR-013: an evict frame (no channel, no member) is covered too', async () => {
     // `JSON.stringify` omits undefined, so the two frame shapes canonicalise
     // differently. A covered-set bug could hide in whichever one is untested.
     const wire = await publishAndCapture({ kind: 'evict', target: 'conn-9' })
     assertEquals(hmacSha256Hex(KEY, canonical(wire)), wire.mac)
 })
 
-Deno.test('#337 a revoke-channel frame is covered, revocationId included', async () => {
+test('#337 a revoke-channel frame is covered, revocationId included', async () => {
     // The one kind carrying the field. Outside the MAC, anyone with bus access
     // could re-point a genuine frame at another record id — and the owner
     // would clear a revocation nobody applied.
@@ -138,7 +139,7 @@ Deno.test('#337 a revoke-channel frame is covered, revocationId included', async
     )
 })
 
-Deno.test('FR-013/SC-006: mutating ANY covered field changes the MAC', async () => {
+test('FR-013/SC-006: mutating ANY covered field changes the MAC', async () => {
     const wire = await publishAndCapture({
         kind: 'presence-join',
         target: 'conn-1',
@@ -174,7 +175,7 @@ Deno.test('FR-013/SC-006: mutating ANY covered field changes the MAC', async () 
     )
 })
 
-Deno.test('FR-013: the negative control — identical input, identical MAC', () => {
+test('FR-013: the negative control — identical input, identical MAC', () => {
     // Without this, a `hmacSha256Hex` that returned a fresh random value every
     // call would satisfy the mutation test above for entirely the wrong reason.
     const wire: Wire = {

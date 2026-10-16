@@ -4,6 +4,7 @@
  * @module @lockness/testing/tests/harness
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { Hono } from 'hono'
 import { actingAs, fakeUser } from '../acting_as.ts'
@@ -13,7 +14,7 @@ import type { Authenticatable } from '@lockness/auth'
 
 // ---- testClient -------------------------------------------------------------
 
-Deno.test('testClient - GET returns the response', async () => {
+test('testClient - GET returns the response', async () => {
     const app = new Hono()
     app.get('/ping', (c) => c.text('pong'))
     const res = await testClient(app).get('/ping')
@@ -21,7 +22,7 @@ Deno.test('testClient - GET returns the response', async () => {
     assertEquals(await res.text(), 'pong')
 })
 
-Deno.test('testClient - POST with json sets content-type and body', async () => {
+test('testClient - POST with json sets content-type and body', async () => {
     const app = new Hono()
     app.post('/echo', async (c) => c.json(await c.req.json()))
     const res = await testClient(app).post('/echo', { json: { a: 1 } })
@@ -29,7 +30,7 @@ Deno.test('testClient - POST with json sets content-type and body', async () => 
     assertEquals(await res.json(), { a: 1 })
 })
 
-Deno.test('testClient - custom headers are forwarded', async () => {
+test('testClient - custom headers are forwarded', async () => {
     const app = new Hono()
     app.get('/h', (c) => c.text(c.req.header('x-token') ?? 'none'))
     const res = await testClient(app).get('/h', { headers: { 'x-token': 't' } })
@@ -38,7 +39,7 @@ Deno.test('testClient - custom headers are forwarded', async () => {
 
 // ---- actingAs / fakeUser ----------------------------------------------------
 
-Deno.test('actingAs - authenticates the request as the given user', async () => {
+test('actingAs - authenticates the request as the given user', async () => {
     const app = new Hono<{ Variables: { auth: { user?: Authenticatable } } }>()
     app.use('*', actingAs(fakeUser({ id: 42, email: 'a@b.test' })))
     app.get('/me', (c) => c.json({ id: c.get('auth').user?.id }))
@@ -46,7 +47,7 @@ Deno.test('actingAs - authenticates the request as the given user', async () => 
     assertEquals(await res.json(), { id: 42 })
 })
 
-Deno.test('fakeUser - defaults plus overrides, synthetic only', () => {
+test('fakeUser - defaults plus overrides, synthetic only', () => {
     const u = fakeUser({ id: 7, isAdmin: true })
     assertEquals(u.id, 7)
     assertEquals(u.email, 'user@example.test')
@@ -55,7 +56,7 @@ Deno.test('fakeUser - defaults plus overrides, synthetic only', () => {
 
 // ---- FakeTable --------------------------------------------------------------
 
-Deno.test('FakeTable - assertHasRow / assertMissingRow / count', () => {
+test('FakeTable - assertHasRow / assertMissingRow / count', () => {
     const t = new FakeTable<{ id: number; email: string }>()
     t.insert({ id: 1, email: 'a@b.test' }).insert({ id: 2, email: 'c@d.test' })
     t.assertHasRow({ email: 'a@b.test' })
@@ -64,7 +65,7 @@ Deno.test('FakeTable - assertHasRow / assertMissingRow / count', () => {
     assert(t.rows.length === 2)
 })
 
-Deno.test('FakeTable - assertHasRow throws when absent', () => {
+test('FakeTable - assertHasRow throws when absent', () => {
     const t = new FakeTable()
     let threw = false
     try {
@@ -75,7 +76,7 @@ Deno.test('FakeTable - assertHasRow throws when absent', () => {
     assert(threw)
 })
 
-Deno.test('FakeTable - assertMissingRow throws when the row is present', () => {
+test('FakeTable - assertMissingRow throws when the row is present', () => {
     const t = new FakeTable<{ id: number }>()
     t.insert({ id: 1 })
     let threw = false
@@ -87,7 +88,7 @@ Deno.test('FakeTable - assertMissingRow throws when the row is present', () => {
     assert(threw, 'a present row must fail assertMissingRow')
 })
 
-Deno.test('FakeTable - assertRowCount throws on the wrong count', () => {
+test('FakeTable - assertRowCount throws on the wrong count', () => {
     const t = new FakeTable<{ id: number }>()
     t.insert({ id: 1 })
     let threw = false
@@ -99,7 +100,7 @@ Deno.test('FakeTable - assertRowCount throws on the wrong count', () => {
     assert(threw, 'a wrong count must fail assertRowCount')
 })
 
-Deno.test('actingAs - the last middleware wins, overwriting the identity', async () => {
+test('actingAs - the last middleware wins, overwriting the identity', async () => {
     const app = new Hono<{ Variables: { auth: { user?: Authenticatable } } }>()
     app.use('*', actingAs(fakeUser({ id: 1 })))
     app.use('*', actingAs(fakeUser({ id: 2 })))

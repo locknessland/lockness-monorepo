@@ -27,6 +27,7 @@
  * @module @lockness/realtime/tests/presence_snapshot_bound_339
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertThrows } from '@std/assert'
 import {
     ChannelManager,
@@ -127,7 +128,7 @@ function roomOf250() {
     }
 }
 
-Deno.test('#339 the default ceiling is pinned: 100 members, 409 701 bytes, self kept', async () => {
+test('#339 the default ceiling is pinned: 100 members, 409 701 bytes, self kept', async () => {
     assertEquals(
         MAX_PRESENCE_SNAPSHOT_MEMBERS,
         100,
@@ -178,7 +179,7 @@ Deno.test('#339 the default ceiling is pinned: 100 members, 409 701 bytes, self 
     )
 })
 
-Deno.test('#339 a configured bound is honoured: 10 members, 40 971 bytes', async () => {
+test('#339 a configured bound is honoured: 10 members, 40 971 bytes', async () => {
     // DRIVER ORDER: memory driver, joiner last — see the file header.
     const room = roomOf250()
     const m = new ChannelManager<User>({
@@ -208,7 +209,7 @@ Deno.test('#339 a configured bound is honoured: 10 members, 40 971 bytes', async
     )
 })
 
-Deno.test('#339 a room within the bound is returned whole, in driver order', async () => {
+test('#339 a room within the bound is returned whole, in driver order', async () => {
     const m = new ChannelManager<User>({
         driver: new MemoryBroadcastDriver(),
         authorize,
@@ -231,7 +232,7 @@ Deno.test('#339 a room within the bound is returned whole, in driver order', asy
     assertEquals(here.source, 'authoritative')
 })
 
-Deno.test("#339 a re-join over the bound has the first join's shape", async () => {
+test("#339 a re-join over the bound has the first join's shape", async () => {
     // DRIVER ORDER: memory driver, joiner last — see the file header.
     const room = roomOf250()
     const sent: string[] = []
@@ -255,7 +256,7 @@ Deno.test("#339 a re-join over the bound has the first join's shape", async () =
     assertEquals(sent.length, frames, 'and announces nothing (#327)')
 })
 
-Deno.test('#339 the local fallback is bounded by the same rule', async () => {
+test('#339 the local fallback is bounded by the same rule', async () => {
     // Every read rejects, so every join falls back to this instance's own
     // members — which is where a cut applied only to the authoritative branch
     // would let an unbounded list through.
@@ -354,7 +355,7 @@ function gatedRosterDriver() {
 
 const drain = () => new Promise((r) => setTimeout(r, 0))
 
-Deno.test('#339 joiners sharing one read each keep THEMSELVES, never each other', async () => {
+test('#339 joiners sharing one read each keep THEMSELVES, never each other', async () => {
     // DRIVER ORDER: this double lists in insertion order, like the memory
     // driver — three seeded members first, then A, B and C as they commit.
     const gate = gatedRosterDriver()
@@ -400,7 +401,7 @@ Deno.test('#339 joiners sharing one read each keep THEMSELVES, never each other'
     // gets its OWN array".
 })
 
-Deno.test('#339 a join overtaken by its own leave, above the bound, keeps no self', async () => {
+test('#339 a join overtaken by its own leave, above the bound, keeps no self', async () => {
     // FR-006. The join commits and its closing read is issued with the joiner
     // in the roster; the connection then unsubscribes before that read
     // settles. Self is looked up AFTER the await, so the settled snapshot has
@@ -431,7 +432,7 @@ Deno.test('#339 a join overtaken by its own leave, above the bound, keeps no sel
     )
 })
 
-Deno.test('#339 construction refuses a bound that is not a positive integer', () => {
+test('#339 construction refuses a bound that is not a positive integer', () => {
     for (const bad of [0, 1.5, NaN]) {
         assertThrows(
             () =>

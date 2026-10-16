@@ -8,6 +8,7 @@
  * literal.
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { renderError } from '../logging/sanitize.ts'
 
@@ -41,7 +42,7 @@ function frameLines(out: string): string[] {
     return out.split('\n').slice(1)
 }
 
-Deno.test('#488 no frames option renders one line, byte-identical to frames: 0', () => {
+test('#488 no frames option renders one line, byte-identical to frames: 0', () => {
     const error = withFrames(numbered(5))
     error.cause = withFrames(numbered(3))
     const plain = renderError(error)
@@ -50,7 +51,7 @@ Deno.test('#488 no frames option renders one line, byte-identical to frames: 0',
     assertEquals(renderError(error, { frames: 0 }), plain)
 })
 
-Deno.test('#488 frames: 2 on a 5-frame stack gives two indented frames and no header', () => {
+test('#488 frames: 2 on a 5-frame stack gives two indented frames and no header', () => {
     const out = renderError(withFrames(numbered(5)), { frames: 2 })
     assertEquals(
         out,
@@ -62,7 +63,7 @@ Deno.test('#488 frames: 2 on a 5-frame stack gives two indented frames and no he
     )
 })
 
-Deno.test('#488 frames follow the whole chain, and only the head error has frames', () => {
+test('#488 frames follow the whole chain, and only the head error has frames', () => {
     const error = withFrames(numbered(2))
     error.cause = withFrames(['    at causeOnly (file:///app/cause.ts:9:9)'])
     const out = renderError(error, { frames: 10 })
@@ -71,7 +72,7 @@ Deno.test('#488 frames follow the whole chain, and only the head error has frame
     assert(!out.includes('causeOnly'), out)
 })
 
-Deno.test('#488 userinfo and a credential pair in a frame are redacted', () => {
+test('#488 userinfo and a credential pair in a frame are redacted', () => {
     const user = marker('u')
     const pass = marker('p')
     const token = marker('t')
@@ -87,7 +88,7 @@ Deno.test('#488 userinfo and a credential pair in a frame are redacted', () => {
     assertStringIncludes(out, 'token=***')
 })
 
-Deno.test('#488 redaction runs before the frame cap, so a straddling URL cannot leak a prefix', () => {
+test('#488 redaction runs before the frame cap, so a straddling URL cannot leak a prefix', () => {
     const pass = marker('straddle')
     // `at ` + 280 + ` (` + `https://` + `u:` puts the password at code point
     // 295, so a cap applied first would keep its first five characters and cut
@@ -97,7 +98,7 @@ Deno.test('#488 redaction runs before the frame cap, so a straddling URL cannot 
     assertAbsent(out, pass.slice(0, 5))
 })
 
-Deno.test('#488 a data: URL frame collapses to data:… and keeps its position', () => {
+test('#488 a data: URL frame collapses to data:… and keeps its position', () => {
     const source = marker('src')
     const out = renderError(
         withFrames([
@@ -117,7 +118,7 @@ Deno.test('#488 a data: URL frame collapses to data:… and keeps its position',
     ])
 })
 
-Deno.test('#508 a data: URL collapses whatever characters its source holds', () => {
+test('#508 a data: URL collapses whatever characters its source holds', () => {
     const source = marker('chars')
     const out = renderError(
         withFrames([
@@ -153,7 +154,7 @@ async function throwFromDataModule(specifier: string): Promise<Error> {
     throw new Error(`the data: module did not throw: ${specifier}`)
 }
 
-Deno.test('#508 a real unencoded data: module with a space and a ) before the secret prints none of it', async () => {
+test('#508 a real unencoded data: module with a space and a ) before the secret prints none of it', async () => {
     const secret = marker('raw')
     const error = await throwFromDataModule(
         `data:application/javascript,const k = "(x) ${secret}"; ` +
@@ -169,7 +170,7 @@ Deno.test('#508 a real unencoded data: module with a space and a ) before the se
     assert(/^ {4}at data:…:\d+:\d+$/.test(frames[1]), out)
 })
 
-Deno.test('#508 a real percent-encoded data: module prints none of its source', async () => {
+test('#508 a real percent-encoded data: module prints none of its source', async () => {
     const secret = marker('enc')
     const error = await throwFromDataModule(
         'data:application/javascript,' + encodeURIComponent(
@@ -182,7 +183,7 @@ Deno.test('#508 a real percent-encoded data: module prints none of its source', 
     assert(/^ {4}at boom \(data:…:\d+:\d+\)$/.test(frameLines(out)[0]), out)
 })
 
-Deno.test('#488 ANSI escapes and a carriage return in a frame are encoded', () => {
+test('#488 ANSI escapes and a carriage return in a frame are encoded', () => {
     const out = renderError(
         withFrames(['    at \x1b[31mred\rforged (file:///app/x.ts:1:1)']),
         { frames: 1 },
@@ -194,7 +195,7 @@ Deno.test('#488 ANSI escapes and a carriage return in a frame are encoded', () =
     ])
 })
 
-Deno.test('#488 a throwing stack getter renders a sentinel, not a throw', () => {
+test('#488 a throwing stack getter renders a sentinel, not a throw', () => {
     const error = new Error('boom')
     Object.defineProperty(error, 'stack', {
         get() {
@@ -205,7 +206,7 @@ Deno.test('#488 a throwing stack getter renders a sentinel, not a throw', () => 
     assertEquals(out, 'Error: boom\n    [unreadable stack]')
 })
 
-Deno.test('#488 without frames the stack is never read', () => {
+test('#488 without frames the stack is never read', () => {
     let reads = 0
     const error = new Error('boom')
     Object.defineProperty(error, 'stack', {
@@ -219,7 +220,7 @@ Deno.test('#488 without frames the stack is never read', () => {
     assertEquals(reads, 0)
 })
 
-Deno.test('#488 a non-string stack or a non-Error head gets no frames', () => {
+test('#488 a non-string stack or a non-Error head gets no frames', () => {
     const numeric = new Error('boom')
     Object.defineProperty(numeric, 'stack', { value: 42 })
     assertEquals(renderError(numeric, { frames: 5 }), 'Error: boom')
@@ -238,20 +239,20 @@ Deno.test('#488 a non-string stack or a non-Error head gets no frames', () => {
 })
 
 for (const count of [-1, NaN, 1.5, Infinity, -Infinity]) {
-    Deno.test(`#488 a frame count of ${count} means none`, () => {
+    test(`#488 a frame count of ${count} means none`, () => {
         const error = withFrames(numbered(5))
         assertEquals(renderError(error, { frames: count }), 'Error: boom')
     })
 }
 
-Deno.test('#488 a huge frame count is clamped to 50', () => {
+test('#488 a huge frame count is clamped to 50', () => {
     const error = withFrames(numbered(60))
     assertEquals(frameLines(renderError(error, { frames: 1e6 })).length, 50)
     assertEquals(frameLines(renderError(error, { frames: 51 })).length, 50)
     assertEquals(frameLines(renderError(error, { frames: 50 })).length, 50)
 })
 
-Deno.test('#488 each frame is capped at 300 code points', () => {
+test('#488 each frame is capped at 300 code points', () => {
     // 297 astral code points after `at `, so the frame is exactly 300 code
     // points and survives whole, and one more tips it over the cap.
     const fits = `at ${'𝔣'.repeat(297)}`
@@ -260,7 +261,7 @@ Deno.test('#488 each frame is capped at 300 code points', () => {
     assertEquals(frameLines(out), [`    ${fits}`, `    ${fits}…`])
 })
 
-Deno.test('#488 only lines shaped like a frame are kept', () => {
+test('#488 only lines shaped like a frame are kept', () => {
     const error = new Error('boom')
     error.stack = [
         'Error: boom',
@@ -280,7 +281,7 @@ function realErrorWith(message: string): Error {
     return new Error(message)
 }
 
-Deno.test('#508 forged at-lines in the message are message text, not frames', () => {
+test('#508 forged at-lines in the message are message text, not frames', () => {
     const secret = marker('forged')
     const forged = Array.from(
         { length: 10 },
@@ -300,7 +301,7 @@ Deno.test('#508 forged at-lines in the message are message text, not frames', ()
     assertStringIncludes(frames[0], 'error_frames_488.test.ts')
 })
 
-Deno.test('#508 a header the stack does not start with is not skipped', () => {
+test('#508 a header the stack does not start with is not skipped', () => {
     // The stack was assigned from elsewhere, so the header cannot be located
     // by count: the frame filter alone decides, as before. The message has
     // three lines, so skipping by its count anyway would eat two frames.
@@ -309,7 +310,7 @@ Deno.test('#508 a header the stack does not start with is not skipped', () => {
     assertEquals(frameLines(renderError(error, { frames: 10 })), numbered(3))
 })
 
-Deno.test('#508 a header that cannot be built renders the stack as unreadable', () => {
+test('#508 a header that cannot be built renders the stack as unreadable', () => {
     const error = new Error('boom')
     error.stack = 'Error: boom\n    at kept (file:///app/x.ts:1:1)'
     Object.defineProperty(error, 'name', {

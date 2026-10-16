@@ -13,23 +13,24 @@
  * `deno.json` excludes it from publish.
  */
 
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { assertUsableSecret } from '@lockness/session'
 import { generateAppKey, withAppKey } from '../mod.ts'
 
-Deno.test("init - a scaffolded key satisfies the session package's validator", () => {
+test("init - a scaffolded key satisfies the session package's validator", () => {
     const bytes = assertUsableSecret(generateAppKey(), 'generated')
 
     assertEquals(bytes.byteLength, 32)
 })
 
-Deno.test('init - every scaffold gets a different key', () => {
+test('init - every scaffold gets a different key', () => {
     const seen = new Set(Array.from({ length: 32 }, () => generateAppKey()))
 
     assertEquals(seen.size, 32)
 })
 
-Deno.test('init - the key replaces the empty placeholder line, it is not appended', () => {
+test('init - the key replaces the empty placeholder line, it is not appended', () => {
     const example = 'APP_ENV=development\nAPP_KEY=\nPORT=8888\n'
     const written = withAppKey(example, 'base64:KEY')
 
@@ -38,7 +39,7 @@ Deno.test('init - the key replaces the empty placeholder line, it is not appende
     assertEquals(written.includes('PORT=8888'), true)
 })
 
-Deno.test('init - a file with no APP_KEY line gains exactly one, carrying the key', () => {
+test('init - a file with no APP_KEY line gains exactly one, carrying the key', () => {
     // The replace branch asserted the value and the surviving content; this one
     // asserted only the line count, so an append writing an empty value passed.
     const written = withAppKey('APP_ENV=development\nPORT=8888\n', 'base64:KEY')
@@ -49,7 +50,7 @@ Deno.test('init - a file with no APP_KEY line gains exactly one, carrying the ke
     assertEquals(written.includes('PORT=8888'), true)
 })
 
-Deno.test('init - no shipped .env example carries a key', async () => {
+test('init - no shipped .env example carries a key', async () => {
     // The stub is committed by whoever scaffolds. A key placed there is shared
     // by everybody who clones the project — the defect this feature removes,
     // wearing a different hat.

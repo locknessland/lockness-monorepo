@@ -12,6 +12,7 @@
  * @module @lockness/cli/tests/queue_commands
  */
 
+import { test } from 'node:test'
 import { assertEquals, assertThrows } from '@std/assert'
 import { configureQueue, getQueueConfig } from '@lockness/queue'
 import {
@@ -26,27 +27,27 @@ function readerFrom(
     return (key) => map[key]
 }
 
-Deno.test('resolveQueueConfigFromEnv - defaults to memory when QUEUE_DRIVER unset', () => {
+test('resolveQueueConfigFromEnv - defaults to memory when QUEUE_DRIVER unset', () => {
     assertEquals(resolveQueueConfigFromEnv(readerFrom({})), {
         driver: 'memory',
     })
 })
 
-Deno.test('resolveQueueConfigFromEnv - selects deno-kv', () => {
+test('resolveQueueConfigFromEnv - selects deno-kv', () => {
     assertEquals(
         resolveQueueConfigFromEnv(readerFrom({ QUEUE_DRIVER: 'deno-kv' })),
         { driver: 'deno-kv' },
     )
 })
 
-Deno.test('resolveQueueConfigFromEnv - unknown driver falls back to memory', () => {
+test('resolveQueueConfigFromEnv - unknown driver falls back to memory', () => {
     assertEquals(
         resolveQueueConfigFromEnv(readerFrom({ QUEUE_DRIVER: 'bogus' })),
         { driver: 'memory' },
     )
 })
 
-Deno.test('resolveQueueConfigFromEnv - redis reads full connection block', () => {
+test('resolveQueueConfigFromEnv - redis reads full connection block', () => {
     const config = resolveQueueConfigFromEnv(
         readerFrom({
             QUEUE_DRIVER: 'redis',
@@ -69,14 +70,14 @@ Deno.test('resolveQueueConfigFromEnv - redis reads full connection block', () =>
     })
 })
 
-Deno.test('resolveQueueConfigFromEnv - redis with only REDIS_HOST omits optional fields', () => {
+test('resolveQueueConfigFromEnv - redis with only REDIS_HOST omits optional fields', () => {
     const config = resolveQueueConfigFromEnv(
         readerFrom({ QUEUE_DRIVER: 'redis', REDIS_HOST: 'localhost' }),
     )
     assertEquals(config, { driver: 'redis', redis: { hostname: 'localhost' } })
 })
 
-Deno.test('resolveQueueConfigFromEnv - redis without REDIS_HOST throws a clear typed error', () => {
+test('resolveQueueConfigFromEnv - redis without REDIS_HOST throws a clear typed error', () => {
     const err = assertThrows(
         () => resolveQueueConfigFromEnv(readerFrom({ QUEUE_DRIVER: 'redis' })),
         RedisQueueConfigError,
@@ -86,7 +87,7 @@ Deno.test('resolveQueueConfigFromEnv - redis without REDIS_HOST throws a clear t
     assertEquals(err instanceof RedisQueueConfigError, true)
 })
 
-Deno.test('resolveQueueConfigFromEnv - redis with a non-numeric REDIS_PORT throws', () => {
+test('resolveQueueConfigFromEnv - redis with a non-numeric REDIS_PORT throws', () => {
     assertThrows(
         () =>
             resolveQueueConfigFromEnv(
@@ -101,7 +102,7 @@ Deno.test('resolveQueueConfigFromEnv - redis with a non-numeric REDIS_PORT throw
     )
 })
 
-Deno.test('resolveQueueConfigFromEnv - redis with a non-numeric REDIS_DB throws', () => {
+test('resolveQueueConfigFromEnv - redis with a non-numeric REDIS_DB throws', () => {
     assertThrows(
         () =>
             resolveQueueConfigFromEnv(
@@ -116,7 +117,7 @@ Deno.test('resolveQueueConfigFromEnv - redis with a non-numeric REDIS_DB throws'
     )
 })
 
-Deno.test('resolveQueueConfigFromEnv - REDIS_TLS accepts true/1 and false/0', () => {
+test('resolveQueueConfigFromEnv - REDIS_TLS accepts true/1 and false/0', () => {
     const on = ['true', 'TRUE', '1']
     const off = ['false', 'FALSE', '0']
     for (const v of on) {
@@ -141,7 +142,7 @@ Deno.test('resolveQueueConfigFromEnv - REDIS_TLS accepts true/1 and false/0', ()
     }
 })
 
-Deno.test('resolveQueueConfigFromEnv - reads real Deno.env and flows into configureQueue', () => {
+test('resolveQueueConfigFromEnv - reads real Deno.env and flows into configureQueue', () => {
     const keys = [
         'QUEUE_DRIVER',
         'REDIS_HOST',

@@ -5,10 +5,11 @@
  * @module
  */
 
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { isOffline } from './offline.ts'
 
-Deno.test('#450 isOffline: recognises a registry the machine cannot reach', () => {
+test('#450 isOffline: recognises a registry the machine cannot reach', () => {
     for (
         const output of [
             'error: error sending request for url (https://registry.npmjs.org/drizzle-kit)',
@@ -21,12 +22,12 @@ Deno.test('#450 isOffline: recognises a registry the machine cannot reach', () =
     ) assertEquals(isOffline(output), true, output)
 })
 
-Deno.test('#450 isOffline: any other failure is not offline', () => {
+test('#450 isOffline: any other failure is not offline', () => {
     assertEquals(isOffline('error: Uncaught TypeError: x is undefined'), false)
     assertEquals(isOffline(''), false)
 })
 
-Deno.test('#450 isOffline: a refused connection counts only when asked', () => {
+test('#450 isOffline: a refused connection counts only when asked', () => {
     // A suite that points its app at a closed loopback port expects a refusal
     // to mean a real fault, so the default must not swallow it.
     for (
@@ -40,7 +41,7 @@ Deno.test('#450 isOffline: a refused connection counts only when asked', () => {
     }
 })
 
-Deno.test('#450 isOffline: a refusal inside a failed fetch is offline regardless', () => {
+test('#450 isOffline: a refusal inside a failed fetch is offline regardless', () => {
     // `refused` gates only a BARE refusal. Deno's HTTP client wraps one in
     // "error sending request … tcp connect error", which is a registry the
     // machine cannot reach whatever the option says.

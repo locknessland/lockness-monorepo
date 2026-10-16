@@ -9,6 +9,7 @@
  * from a real message too.
  */
 
+import { test } from 'node:test'
 import {
     assert,
     assertEquals,
@@ -85,7 +86,7 @@ async function rawFailure(path: string): Promise<Error> {
     throw new Error(`${path} imported without failing`)
 }
 
-Deno.test('#478 renderError keeps only the kind and location of a compile failure', async () => {
+test('#478 renderError keeps only the kind and location of a compile failure', async () => {
     await withFiles(BROKEN, async (dir) => {
         for (const name of Object.keys(BROKEN)) {
             const error = await rawFailure(join(dir, name))
@@ -99,7 +100,7 @@ Deno.test('#478 renderError keeps only the kind and location of a compile failur
     })
 })
 
-Deno.test('#478 a parse failure keeps its outer name; a V8 SyntaxError collapses', async () => {
+test('#478 a parse failure keeps its outer name; a V8 SyntaxError collapses', async () => {
     await withFiles(BROKEN, async (dir) => {
         const parse = renderError(await rawFailure(join(dir, 'excerpt.ts')))
         assert(parse.startsWith('TypeError: SyntaxError at file://'), parse)
@@ -108,7 +109,7 @@ Deno.test('#478 a parse failure keeps its outer name; a V8 SyntaxError collapses
     })
 })
 
-Deno.test('#478 the recogniser reports the kind and location of every shape', async () => {
+test('#478 the recogniser reports the kind and location of every shape', async () => {
     await withFiles(BROKEN, async (dir) => {
         for (const name of Object.keys(BROKEN)) {
             const error = await rawFailure(join(dir, name))
@@ -124,7 +125,7 @@ Deno.test('#478 the recogniser reports the kind and location of every shape', as
     })
 })
 
-Deno.test('#478 an excerpt alone is recognised, should the location line ever go', async () => {
+test('#478 an excerpt alone is recognised, should the location line ever go', async () => {
     // Derived from a real message, not written by hand: the trailing location
     // is cut off, as a Deno format change might, and the gutter still fires.
     await withFiles(BROKEN, async (dir) => {
@@ -139,7 +140,7 @@ Deno.test('#478 an excerpt alone is recognised, should the location line ever go
     })
 })
 
-Deno.test('#478 failures that are not compile diagnostics are untouched', async () => {
+test('#478 failures that are not compile diagnostics are untouched', async () => {
     await withFiles({}, async (dir) => {
         const missing = await rawFailure(join(dir, 'missing.ts'))
         assertEquals(
@@ -162,7 +163,7 @@ Deno.test('#478 failures that are not compile diagnostics are untouched', async 
     assertEquals(readCompileDiagnostic(parsed.name, parsed.message), undefined)
 })
 
-Deno.test('#478 the gutter test is linear on a long line of spaces', () => {
+test('#478 the gutter test is linear on a long line of spaces', () => {
     const text = `x\n${' '.repeat(1 << 20)}y`
     const start = performance.now()
     assertEquals(readCompileDiagnostic('Error', text), undefined)
@@ -173,7 +174,7 @@ Deno.test('#478 the gutter test is linear on a long line of spaces', () => {
 // importAppFile translates the failure where the app root is known
 // ============================================================================
 
-Deno.test('#478 importAppFile throws AppFileCompileError with a root-relative file', async () => {
+test('#478 importAppFile throws AppFileCompileError with a root-relative file', async () => {
     await withFiles({
         'app/controller/broken.ts': BROKEN['excerpt.ts'],
     }, async (root) => {
@@ -200,7 +201,7 @@ Deno.test('#478 importAppFile throws AppFileCompileError with a root-relative fi
     })
 })
 
-Deno.test('#478 a broken dependency is located at the dependency', async () => {
+test('#478 a broken dependency is located at the dependency', async () => {
     await withFiles({
         'app/controller/home.ts':
             "import '../lib/broken.ts'\nexport const home = 1\n",
@@ -216,7 +217,7 @@ Deno.test('#478 a broken dependency is located at the dependency', async () => {
     })
 })
 
-Deno.test('#478 a link failure is translated too', async () => {
+test('#478 a link failure is translated too', async () => {
     await withFiles({ 'link.ts': BROKEN['link.ts'] }, async (root) => {
         const error = await assertRejects(
             () => importAppFile('link.ts', root),
@@ -227,7 +228,7 @@ Deno.test('#478 a link failure is translated too', async () => {
     })
 })
 
-Deno.test('#478 a file outside the root is shown absolute', async () => {
+test('#478 a file outside the root is shown absolute', async () => {
     await withFiles({ 'broken.ts': BROKEN['regex.ts'] }, async (dir) => {
         const elsewhere = await Deno.makeTempDir()
         try {
@@ -243,7 +244,7 @@ Deno.test('#478 a file outside the root is shown absolute', async () => {
     })
 })
 
-Deno.test('#478 a missing file rejects with the original error', async () => {
+test('#478 a missing file rejects with the original error', async () => {
     await withFiles({}, async (root) => {
         const error = await assertRejects(() =>
             importAppFile('missing.ts', root)
@@ -253,7 +254,7 @@ Deno.test('#478 a missing file rejects with the original error', async () => {
     })
 })
 
-Deno.test('#478 a hostile value thrown at evaluation is rethrown untouched', async () => {
+test('#478 a hostile value thrown at evaluation is rethrown untouched', async () => {
     await withFiles({
         'hostile.ts':
             'throw new Proxy({}, { getPrototypeOf() { throw new Error("trap") } })\nexport {}\n',
@@ -281,7 +282,7 @@ Deno.test('#478 a hostile value thrown at evaluation is rethrown untouched', asy
 // Review fold-in: the backstop's reach, the translation's strictness
 // ============================================================================
 
-Deno.test('#478 renderError withholds a V8 compile error wrapped in a plain Error', async () => {
+test('#478 renderError withholds a V8 compile error wrapped in a plain Error', async () => {
     await withFiles({ 'regex.ts': BROKEN['regex.ts'] }, async (dir) => {
         const raw = await rawFailure(join(dir, 'regex.ts'))
         const wrapped = new Error(`load failed: ${raw.message}`)
@@ -292,7 +293,7 @@ Deno.test('#478 renderError withholds a V8 compile error wrapped in a plain Erro
     })
 })
 
-Deno.test('#494 renderError withholds a wrapped link error by its V8 phrase', async () => {
+test('#494 renderError withholds a wrapped link error by its V8 phrase', async () => {
     // V8's link error carries no `SyntaxError: ` and no excerpt: only the
     // measured phrase recognises it once wrapped.
     await withFiles({ 'link.ts': BROKEN['link.ts'] }, async (dir) => {
@@ -304,7 +305,7 @@ Deno.test('#494 renderError withholds a wrapped link error by its V8 phrase', as
     })
 })
 
-Deno.test('#478 importAppFile rethrows a runtime throw that only looks like an excerpt', async () => {
+test('#478 importAppFile rethrows a runtime throw that only looks like an excerpt', async () => {
     await withFiles({
         'table.ts': 'throw new Error("table\\n  | row")\nexport {}\n',
     }, async (root) => {
@@ -314,7 +315,7 @@ Deno.test('#478 importAppFile rethrows a runtime throw that only looks like an e
     })
 })
 
-Deno.test('#478 a non-file location has its credential pairs redacted', async () => {
+test('#478 a non-file location has its credential pairs redacted', async () => {
     // Derived from a real parse failure: only the module URL is swapped for
     // a remote one carrying a credential, as a broken remote import would.
     await withFiles({ 'excerpt.ts': BROKEN['excerpt.ts'] }, async (root) => {
@@ -333,7 +334,7 @@ Deno.test('#478 a non-file location has its credential pairs redacted', async ()
     })
 })
 
-Deno.test('#478 an unusable file location falls back to the imported file', async () => {
+test('#478 an unusable file location falls back to the imported file', async () => {
     await withFiles({ 'excerpt.ts': BROKEN['excerpt.ts'] }, async (root) => {
         const raw = await rawFailure(join(root, 'excerpt.ts'))
         const message = raw.message.replace(
@@ -353,7 +354,7 @@ Deno.test('#478 an unusable file location falls back to the imported file', asyn
     })
 })
 
-Deno.test('#478 a missing import with a trailing location renders unchanged', async () => {
+test('#478 a missing import with a trailing location renders unchanged', async () => {
     await withFiles({
         'importer.ts': "import './nope.ts'\nexport const a = 1\n",
     }, async (dir) => {
@@ -371,7 +372,7 @@ Deno.test('#478 a missing import with a trailing location renders unchanged', as
     })
 })
 
-Deno.test('#494 a wrapped parse error with its newlines flattened is withheld', async () => {
+test('#494 a wrapped parse error with its newlines flattened is withheld', async () => {
     await withFiles(BROKEN, async (dir) => {
         for (const name of ['excerpt.ts', 'string_headline.ts']) {
             const raw = await rawFailure(join(dir, name))
@@ -390,7 +391,7 @@ Deno.test('#494 a wrapped parse error with its newlines flattened is withheld', 
     })
 })
 
-Deno.test('#494 a missing module still renders unchanged beside the SyntaxError signal', () => {
+test('#494 a missing module still renders unchanged beside the SyntaxError signal', () => {
     // Hand-written on purpose: the real-file shape is pinned above; this pins
     // that the `SyntaxError: ` signal does not reach a message without it.
     const message =
@@ -399,7 +400,7 @@ Deno.test('#494 a missing module still renders unchanged beside the SyntaxError 
     assertEquals(renderError(new TypeError(message)), `TypeError: ${message}`)
 })
 
-Deno.test('#478 a message that merely ends in a URL location is not withheld', () => {
+test('#478 a message that merely ends in a URL location is not withheld', () => {
     const error = new Error('request failed at http://a:1:1')
     assertEquals(renderError(error), 'Error: request failed at http://a:1:1')
 })

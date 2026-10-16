@@ -11,6 +11,7 @@
  * @module @lockness/redis/tests/memo
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertNotEquals } from '@std/assert'
 import { crypto as stdCrypto } from '@std/crypto'
 import { credentialFingerprint, redisMemoKey, sha256Hex } from '../mod.ts'
@@ -29,7 +30,7 @@ function plainSha256Hex(input: string): string {
     ).join('')
 }
 
-Deno.test('memo - credentialFingerprint is NOT a bare SHA-256 of the secret', () => {
+test('memo - credentialFingerprint is NOT a bare SHA-256 of the secret', () => {
     const secret = 's3cret'
     // A leaked fingerprint must not be reversible by hashing candidate
     // passwords: it is keyed, so it cannot equal the unsalted digest.
@@ -40,7 +41,7 @@ Deno.test('memo - credentialFingerprint is NOT a bare SHA-256 of the secret', ()
     )
 })
 
-Deno.test('memo - credentialFingerprint is a stable 64-hex within the process', () => {
+test('memo - credentialFingerprint is a stable 64-hex within the process', () => {
     const a = credentialFingerprint('alpha')
     const b = credentialFingerprint('alpha')
     assertEquals(
@@ -51,7 +52,7 @@ Deno.test('memo - credentialFingerprint is a stable 64-hex within the process', 
     assert(/^[0-9a-f]{64}$/.test(a), 'fingerprint is 64 lowercase hex chars')
 })
 
-Deno.test('memo - different secrets fold to different fingerprints', () => {
+test('memo - different secrets fold to different fingerprints', () => {
     assertNotEquals(
         credentialFingerprint('alpha'),
         credentialFingerprint('bravo'),
@@ -59,7 +60,7 @@ Deno.test('memo - different secrets fold to different fingerprints', () => {
     )
 })
 
-Deno.test('memo - redisMemoKey folds the password through the keyed HMAC, never cleartext or bare SHA-256', () => {
+test('memo - redisMemoKey folds the password through the keyed HMAC, never cleartext or bare SHA-256', () => {
     const key = redisMemoKey({
         hostname: 'h',
         port: 6379,
@@ -83,7 +84,7 @@ Deno.test('memo - redisMemoKey folds the password through the keyed HMAC, never 
     )
 })
 
-Deno.test('memo - hmacSha256Hex matches WebCrypto HMAC-SHA256 (construction is correct)', async () => {
+test('memo - hmacSha256Hex matches WebCrypto HMAC-SHA256 (construction is correct)', async () => {
     const key = new TextEncoder().encode('per-process-key-material')
     const message = new TextEncoder().encode('a redis password')
     const cryptoKey = await crypto.subtle.importKey(
@@ -104,7 +105,7 @@ Deno.test('memo - hmacSha256Hex matches WebCrypto HMAC-SHA256 (construction is c
     )
 })
 
-Deno.test('memo - hmacSha256Hex matches WebCrypto for a key longer than the block size', async () => {
+test('memo - hmacSha256Hex matches WebCrypto for a key longer than the block size', async () => {
     const key = new TextEncoder().encode('x'.repeat(100))
     const message = new TextEncoder().encode('payload')
     const cryptoKey = await crypto.subtle.importKey(
@@ -125,7 +126,7 @@ Deno.test('memo - hmacSha256Hex matches WebCrypto for a key longer than the bloc
     )
 })
 
-Deno.test('memo - sha256Hex remains the plain unkeyed digest', () => {
+test('memo - sha256Hex remains the plain unkeyed digest', () => {
     assertEquals(
         sha256Hex('s3cret'),
         plainSha256Hex('s3cret'),

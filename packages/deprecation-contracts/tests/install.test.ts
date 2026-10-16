@@ -10,6 +10,7 @@
  * @module @lockness/deprecation-contracts/tests/install
  */
 
+import { test } from 'node:test'
 import {
     assert,
     assertEquals,
@@ -50,7 +51,7 @@ async function inProject(
     }
 }
 
-Deno.test('install - outside a project it throws a one-line failure and leaves the exit code alone', async () => {
+test('install - outside a project it throws a one-line failure and leaves the exit code alone', async () => {
     const exitCode = await inProject(async () => {
         const failure = await assertRejects(
             () => install(),
@@ -65,7 +66,7 @@ Deno.test('install - outside a project it throws a one-line failure and leaves t
 /** A config with a comment and a trailing comma: valid JSONC, invalid JSON. */
 const COMMENTED_CONFIG = '{\n    // the app\'s own note\n    "tasks": {},\n}\n'
 
-Deno.test('#580 install - registers into a deno.json with comments', async () => {
+test('#580 install - registers into a deno.json with comments', async () => {
     await inProject(async (dir) => {
         await Deno.writeTextFile(join(dir, 'deno.json'), COMMENTED_CONFIG)
 
@@ -79,7 +80,7 @@ Deno.test('#580 install - registers into a deno.json with comments', async () =>
     })
 })
 
-Deno.test('#580 install - registers into a deno.jsonc with comments when there is no deno.json', async () => {
+test('#580 install - registers into a deno.jsonc with comments when there is no deno.json', async () => {
     await inProject(async (dir) => {
         await Deno.writeTextFile(join(dir, 'deno.jsonc'), COMMENTED_CONFIG)
 
@@ -96,7 +97,7 @@ Deno.test('#580 install - registers into a deno.jsonc with comments when there i
     })
 })
 
-Deno.test('#580 install - an already registered package leaves the config untouched', async () => {
+test('#580 install - an already registered package leaves the config untouched', async () => {
     await inProject(async (dir) => {
         const original = '{\n    "lockness": {\n        "packages": [\n' +
             '            "deprecation-contracts"\n        ]\n    }\n}\n'
@@ -111,7 +112,7 @@ Deno.test('#580 install - an already registered package leaves the config untouc
     })
 })
 
-Deno.test('install - a config that is not even JSONC fails with the error as cause', async () => {
+test('install - a config that is not even JSONC fails with the error as cause', async () => {
     await inProject(async (dir) => {
         await Deno.writeTextFile(join(dir, 'deno.json'), '{ "tasks": }\n')
 
@@ -124,7 +125,7 @@ Deno.test('install - a config that is not even JSONC fails with the error as cau
     })
 })
 
-Deno.test('install - an unreadable .env is not skipped silently', async () => {
+test('install - an unreadable .env is not skipped silently', async () => {
     await inProject(async (dir) => {
         await Deno.writeTextFile(join(dir, 'deno.json'), '{}\n')
         await Deno.mkdir(join(dir, '.env'))
@@ -134,7 +135,7 @@ Deno.test('install - an unreadable .env is not skipped silently', async () => {
     })
 })
 
-Deno.test('install - registers the package and adds the env configuration', async () => {
+test('install - registers the package and adds the env configuration', async () => {
     await inProject(async (dir) => {
         await Deno.writeTextFile(join(dir, 'deno.json'), '{}\n')
         await Deno.writeTextFile(join(dir, '.env'), 'APP_NAME=demo\n')
@@ -152,7 +153,7 @@ Deno.test('install - registers the package and adds the env configuration', asyn
     })
 })
 
-Deno.test('install - run as a subprocess outside a project, it exits non-zero with one ❌ line', async () => {
+test('install - run as a subprocess outside a project, it exits non-zero with one ❌ line', async () => {
     const dir = await Deno.makeTempDir({ prefix: 'lockness_dc_install_' })
     try {
         const entry = new URL('../install.ts', import.meta.url)

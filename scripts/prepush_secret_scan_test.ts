@@ -8,6 +8,7 @@
  * @module
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { join } from '@std/path'
 import { install as installGitleaks } from './install_gitleaks.ts'
@@ -90,7 +91,7 @@ function runPrepushScan(
     })
 }
 
-Deno.test('parseRefUpdates reads the four-field stdin lines', () => {
+test('parseRefUpdates reads the four-field stdin lines', () => {
     const updates = parseRefUpdates(
         `refs/heads/x abc123 refs/heads/x def456\n` +
             `refs/heads/y ${ZERO} refs/heads/y ${ZERO}\n\n`,
@@ -104,7 +105,7 @@ Deno.test('parseRefUpdates reads the four-field stdin lines', () => {
     })
 })
 
-Deno.test('parseRefUpdates rejects a malformed line', () => {
+test('parseRefUpdates rejects a malformed line', () => {
     let threw = false
     try {
         parseRefUpdates('refs/heads/x abc123\n')
@@ -115,7 +116,7 @@ Deno.test('parseRefUpdates rejects a malformed line', () => {
     assert(threw, 'accepted a malformed line')
 })
 
-Deno.test('isDelete is true only for an all-zero local sha', () => {
+test('isDelete is true only for an all-zero local sha', () => {
     const base: RefUpdate = {
         localRef: 'refs/heads/x',
         localSha: 'abc',
@@ -126,7 +127,7 @@ Deno.test('isDelete is true only for an all-zero local sha', () => {
     assertEquals(isDelete({ ...base, localSha: ZERO }), true)
 })
 
-Deno.test('resolveRange uses remote..local when the remote ref exists', async () => {
+test('resolveRange uses remote..local when the remote ref exists', async () => {
     const range = await resolveRange(
         {
             localRef: 'refs/heads/x',
@@ -139,7 +140,7 @@ Deno.test('resolveRange uses remote..local when the remote ref exists', async ()
     assertEquals(range, 'def..abc')
 })
 
-Deno.test('resolveRange falls back to full history with no merge-base', async () => {
+test('resolveRange falls back to full history with no merge-base', async () => {
     await withTempDir('prepush-range-', async (dir) => {
         await git(dir, 'init', '-q')
         await git(dir, 'commit', '-q', '--allow-empty', '-m', 'root')
@@ -158,7 +159,7 @@ Deno.test('resolveRange falls back to full history with no merge-base', async ()
     })
 })
 
-Deno.test('resolveRange scans against origin/main when it shares history', async () => {
+test('resolveRange scans against origin/main when it shares history', async () => {
     await withTempDir('prepush-range-origin-', async (dir) => {
         await git(dir, 'init', '-q')
         await git(dir, 'commit', '-q', '--allow-empty', '-m', 'root')
@@ -179,7 +180,7 @@ Deno.test('resolveRange scans against origin/main when it shares history', async
     })
 })
 
-Deno.test('commitCount matches git rev-list --count', async () => {
+test('commitCount matches git rev-list --count', async () => {
     await withTempDir('prepush-count-', async (dir) => {
         await git(dir, 'init', '-q')
         await git(dir, 'commit', '-q', '--allow-empty', '-m', 'one')
@@ -189,7 +190,7 @@ Deno.test('commitCount matches git rev-list --count', async () => {
     })
 })
 
-Deno.test('commitCount is null for a bad range, never 0 (#430 fails closed)', async () => {
+test('commitCount is null for a bad range, never 0 (#430 fails closed)', async () => {
     await withTempDir('prepush-count-bad-', async (dir) => {
         await git(dir, 'init', '-q')
         // "could not resolve" must never read as "nothing to scan".
@@ -231,7 +232,7 @@ exit ${opts.exitCode}
     return path
 }
 
-Deno.test('scanRange passes on a clean, non-empty report', async () => {
+test('scanRange passes on a clean, non-empty report', async () => {
     await withTempDir('prepush-scan-clean-', async (dir) => {
         const bin = await fakeGitleaks(dir, {
             log: 'INF 3 commits scanned\n',
@@ -248,7 +249,7 @@ Deno.test('scanRange passes on a clean, non-empty report', async () => {
     })
 })
 
-Deno.test('scanRange fails closed on an ERR log line even with exit 0', async () => {
+test('scanRange fails closed on an ERR log line even with exit 0', async () => {
     await withTempDir('prepush-scan-err-', async (dir) => {
         const bin = await fakeGitleaks(dir, {
             log: 'ERR something went sideways\n1 commits scanned\n',
@@ -266,7 +267,7 @@ Deno.test('scanRange fails closed on an ERR log line even with exit 0', async ()
     })
 })
 
-Deno.test('scanRange fails closed on "0 commits scanned" when commits exist', async () => {
+test('scanRange fails closed on "0 commits scanned" when commits exist', async () => {
     await withTempDir('prepush-scan-zero-', async (dir) => {
         const bin = await fakeGitleaks(dir, {
             log: 'INF 0 commits scanned\n',
@@ -284,7 +285,7 @@ Deno.test('scanRange fails closed on "0 commits scanned" when commits exist', as
     })
 })
 
-Deno.test('scanRange fails closed on leaks found but exit 0', async () => {
+test('scanRange fails closed on leaks found but exit 0', async () => {
     await withTempDir('prepush-scan-leak-', async (dir) => {
         const bin = await fakeGitleaks(dir, {
             log: '1 commits scanned\n',
@@ -302,7 +303,7 @@ Deno.test('scanRange fails closed on leaks found but exit 0', async () => {
     })
 })
 
-Deno.test('scanRange fails a real finding reported honestly (exit 1)', async () => {
+test('scanRange fails a real finding reported honestly (exit 1)', async () => {
     await withTempDir('prepush-scan-real-', async (dir) => {
         const bin = await fakeGitleaks(dir, {
             log: '1 commits scanned\n',
@@ -349,7 +350,7 @@ async function exists(path: string): Promise<boolean> {
     return await Deno.stat(path).then(() => true, () => false)
 }
 
-Deno.test('runPrepushScan refuses a remote sha missing from the local object store (#430)', async () => {
+test('runPrepushScan refuses a remote sha missing from the local object store (#430)', async () => {
     await withTempDir('prepush-missing-remote-', async (dir) => {
         await git(dir, 'init', '-q')
         await Deno.writeTextFile(join(dir, 'a.txt'), 'a\n')
@@ -376,7 +377,7 @@ Deno.test('runPrepushScan refuses a remote sha missing from the local object sto
     })
 })
 
-Deno.test('runPrepushScan refuses when .gitleaks.toml is present', async () => {
+test('runPrepushScan refuses when .gitleaks.toml is present', async () => {
     await withTempDir('prepush-toml-', async (dir) => {
         await Deno.writeTextFile(join(dir, '.gitleaks.toml'), '# nope\n')
         const result = await runPrepushScan(
@@ -388,7 +389,7 @@ Deno.test('runPrepushScan refuses when .gitleaks.toml is present', async () => {
     })
 })
 
-Deno.test('runPrepushScan skips deletes and empty ranges without invoking gitleaks', async () => {
+test('runPrepushScan skips deletes and empty ranges without invoking gitleaks', async () => {
     await withTempDir('prepush-skip-', async (dir) => {
         await git(dir, 'init', '-q')
         await Deno.writeTextFile(join(dir, 'a.txt'), 'a\n')
@@ -415,7 +416,7 @@ Deno.test('runPrepushScan skips deletes and empty ranges without invoking gitlea
     })
 })
 
-Deno.test('runPrepushScan refuses an option-shaped sha instead of passing it to git', async () => {
+test('runPrepushScan refuses an option-shaped sha instead of passing it to git', async () => {
     await withTempDir('prepush-option-sha-', async (dir) => {
         await git(dir, 'init', '-q')
         await Deno.writeTextFile(join(dir, 'a.txt'), 'a\n')
@@ -450,7 +451,7 @@ Deno.test('runPrepushScan refuses an option-shaped sha instead of passing it to 
     })
 })
 
-Deno.test('runPrepushScan runs git with the environment it is given, never the process one', async () => {
+test('runPrepushScan runs git with the environment it is given, never the process one', async () => {
     await withTempDir('prepush-env-', async (dir) => {
         const { m2 } = await publishedFixture(dir)
         const commit = await subtreeCommit(dir, m2)
@@ -485,7 +486,7 @@ Deno.test('runPrepushScan runs git with the environment it is given, never the p
     })
 })
 
-Deno.test('runPrepushScan: an inherited GIT_DIR cannot redirect git at another repository', async () => {
+test('runPrepushScan: an inherited GIT_DIR cannot redirect git at another repository', async () => {
     await withTempDir('prepush-git-dir-', async (root) => {
         const dir = join(root, 'repo')
         const decoy = join(root, 'decoy')
@@ -517,7 +518,7 @@ Deno.test('runPrepushScan: an inherited GIT_DIR cannot redirect git at another r
     })
 })
 
-Deno.test('resolveBase returns remoteSha for an existing branch', async () => {
+test('resolveBase returns remoteSha for an existing branch', async () => {
     const base = await resolveBase(
         {
             localRef: 'refs/heads/x',
@@ -530,7 +531,7 @@ Deno.test('resolveBase returns remoteSha for an existing branch', async () => {
     assertEquals(base, 'def')
 })
 
-Deno.test('resolveBase is null for a new branch with no merge-base', async () => {
+test('resolveBase is null for a new branch with no merge-base', async () => {
     await withTempDir('prepush-base-none-', async (dir) => {
         await git(dir, 'init', '-q')
         await git(dir, 'commit', '-q', '--allow-empty', '-m', 'root')
@@ -548,7 +549,7 @@ Deno.test('resolveBase is null for a new branch with no merge-base', async () =>
     })
 })
 
-Deno.test('readIgnoreAtBase reads .gitleaksignore as it stood at a given commit, not the tip', async () => {
+test('readIgnoreAtBase reads .gitleaksignore as it stood at a given commit, not the tip', async () => {
     await withTempDir('prepush-base-ignore-', async (dir) => {
         await git(dir, 'init', '-q')
         await Deno.writeTextFile(
@@ -576,7 +577,7 @@ Deno.test('readIgnoreAtBase reads .gitleaksignore as it stood at a given commit,
     })
 })
 
-Deno.test('readIgnoreAtBase is empty when the base predates .gitleaksignore', async () => {
+test('readIgnoreAtBase is empty when the base predates .gitleaksignore', async () => {
     await withTempDir('prepush-base-ignore-none-', async (dir) => {
         await git(dir, 'init', '-q')
         await git(
@@ -592,11 +593,11 @@ Deno.test('readIgnoreAtBase is empty when the base predates .gitleaksignore', as
     })
 })
 
-Deno.test('readIgnoreAtBase returns null (keep the tip) when there is no base', async () => {
+test('readIgnoreAtBase returns null (keep the tip) when there is no base', async () => {
     assertEquals(await readIgnoreAtBase(null, '.'), null)
 })
 
-Deno.test('createScanWorktree checks out local_sha in a disposable, detached worktree', async () => {
+test('createScanWorktree checks out local_sha in a disposable, detached worktree', async () => {
     await withTempDir('prepush-worktree-', async (dir) => {
         await git(dir, 'init', '-q')
         await git(dir, 'commit', '-q', '--allow-empty', '-m', 'root')
@@ -616,7 +617,7 @@ Deno.test('createScanWorktree checks out local_sha in a disposable, detached wor
     })
 })
 
-Deno.test('removeScanWorktree leaves no worktree registered, even when the scan throws mid-way', async () => {
+test('removeScanWorktree leaves no worktree registered, even when the scan throws mid-way', async () => {
     await withTempDir('prepush-worktree-throw-', async (dir) => {
         await git(dir, 'init', '-q')
         await git(dir, 'commit', '-q', '--allow-empty', '-m', 'root')
@@ -648,7 +649,7 @@ Deno.test('removeScanWorktree leaves no worktree registered, even when the scan 
     })
 })
 
-Deno.test('writeBaseIgnoreFile writes base content into the worktree, never the developer tree', async () => {
+test('writeBaseIgnoreFile writes base content into the worktree, never the developer tree', async () => {
     await withTempDir('prepush-write-ignore-', async (dir) => {
         await git(dir, 'init', '-q')
         await Deno.writeTextFile(join(dir, '.gitleaksignore'), 'tip\n')
@@ -674,7 +675,7 @@ Deno.test('writeBaseIgnoreFile writes base content into the worktree, never the 
     })
 })
 
-Deno.test('writeBaseIgnoreFile with null content leaves the worktree checkout (the tip) untouched', async () => {
+test('writeBaseIgnoreFile with null content leaves the worktree checkout (the tip) untouched', async () => {
     await withTempDir('prepush-write-ignore-null-', async (dir) => {
         await git(dir, 'init', '-q')
         await Deno.writeTextFile(join(dir, '.gitleaksignore'), 'tip\n')
@@ -719,7 +720,7 @@ async function writeFakeSecret(dir: string, file: string): Promise<void> {
 // hit, no network, once it has been fetched once in this environment): a
 // fake gitleaks binary cannot honour `.gitleaksignore` itself.
 
-Deno.test('runPrepushScan refuses a same-push .gitleaksignore self-suppression (#HIGH)', async () => {
+test('runPrepushScan refuses a same-push .gitleaksignore self-suppression (#HIGH)', async () => {
     await withTempDir('prepush-self-suppress-', async (dir) => {
         await git(dir, 'init', '-q')
         await git(dir, 'commit', '-q', '--allow-empty', '-m', 'root')
@@ -748,7 +749,7 @@ Deno.test('runPrepushScan refuses a same-push .gitleaksignore self-suppression (
     })
 })
 
-Deno.test('runPrepushScan honours a .gitleaksignore entry already present at the base', async () => {
+test('runPrepushScan honours a .gitleaksignore entry already present at the base', async () => {
     await withTempDir('prepush-base-suppress-', async (dir) => {
         await git(dir, 'init', '-q')
         await git(dir, 'commit', '-q', '--allow-empty', '-m', 'root')
@@ -803,7 +804,7 @@ Deno.test('runPrepushScan honours a .gitleaksignore entry already present at the
     })
 })
 
-Deno.test('runPrepushScan never mutates the developer real .gitleaksignore, including an uncommitted edit', async () => {
+test('runPrepushScan never mutates the developer real .gitleaksignore, including an uncommitted edit', async () => {
     await withTempDir('prepush-tree-untouched-', async (dir) => {
         await git(dir, 'init', '-q')
         await git(dir, 'commit', '-q', '--allow-empty', '-m', 'root')
@@ -867,7 +868,7 @@ Deno.test('runPrepushScan never mutates the developer real .gitleaksignore, incl
 
 const ADMITTED = 'publishes nothing origin/main has not already published'
 
-Deno.test('admission: an unparented subtree commit passes, and gitleaks is never invoked (realtime case)', async () => {
+test('admission: an unparented subtree commit passes, and gitleaks is never invoked (realtime case)', async () => {
     await withTempDir('prepush-admit-subtree-', async (dir) => {
         const { m2 } = await publishedFixture(dir)
         const commit = await subtreeCommit(dir, m2)
@@ -891,7 +892,7 @@ Deno.test('admission: an unparented subtree commit passes, and gitleaks is never
     })
 })
 
-Deno.test('admission: a release commit parented on the fetched mirror head passes (realtime branch push)', async () => {
+test('admission: a release commit parented on the fetched mirror head passes (realtime branch push)', async () => {
     await withTempDir('prepush-admit-parented-', async (dir) => {
         const { m1, m2 } = await publishedFixture(dir)
         const previous = await subtreeCommit(dir, m1)
@@ -909,7 +910,7 @@ Deno.test('admission: a release commit parented on the fetched mirror head passe
     })
 })
 
-Deno.test('admission: a chain from an older origin/main tree, pushed as a new ref, passes (mail-tag case)', async () => {
+test('admission: a chain from an older origin/main tree, pushed as a new ref, passes (mail-tag case)', async () => {
     await withTempDir('prepush-admit-chain-', async (dir) => {
         const { m1, m2 } = await publishedFixture(dir)
         const first = await subtreeCommit(dir, m1)
@@ -930,7 +931,7 @@ Deno.test('admission: a chain from an older origin/main tree, pushed as a new re
     })
 })
 
-Deno.test('admission: a replace ref cannot hide a new blob behind a published commit', async () => {
+test('admission: a replace ref cannot hide a new blob behind a published commit', async () => {
     await withTempDir('prepush-admit-replace-', async (dir) => {
         const { m2 } = await publishedFixture(dir)
         const side = await sideCommit(dir, m2, async () => {
@@ -952,7 +953,7 @@ Deno.test('admission: a replace ref cannot hide a new blob behind a published co
     })
 })
 
-Deno.test('admission: one new blob is not passed', async () => {
+test('admission: one new blob is not passed', async () => {
     await withTempDir('prepush-admit-new-blob-', async (dir) => {
         const { m2 } = await publishedFixture(dir)
         const side = await sideCommit(dir, m2, async () => {
@@ -974,7 +975,7 @@ Deno.test('admission: one new blob is not passed', async () => {
     })
 })
 
-Deno.test('admission: an older chain whose first tree never reached origin/main is not passed', async () => {
+test('admission: an older chain whose first tree never reached origin/main is not passed', async () => {
     await withTempDir('prepush-admit-chain-foreign-', async (dir) => {
         const { m1, m2 } = await publishedFixture(dir)
         const side = await sideCommit(dir, m1, async () => {
@@ -987,7 +988,7 @@ Deno.test('admission: an older chain whose first tree never reached origin/main 
     })
 })
 
-Deno.test('admission: a foreign push carrying a new flagged blob is refused', async () => {
+test('admission: a foreign push carrying a new flagged blob is refused', async () => {
     await withTempDir('prepush-admit-foreign-leak-', async (dir) => {
         const { m2 } = await publishedFixture(dir)
         const side = await sideCommit(
@@ -1009,7 +1010,7 @@ Deno.test('admission: a foreign push carrying a new flagged blob is refused', as
     })
 })
 
-Deno.test('admission: without origin/main nothing passes, not even an empty outgoing set', async () => {
+test('admission: without origin/main nothing passes, not even an empty outgoing set', async () => {
     await withTempDir('prepush-admit-no-origin-', async (dir) => {
         const { m2 } = await publishedFixture(dir)
         const commit = await subtreeCommit(dir, m2)
@@ -1038,7 +1039,7 @@ Deno.test('admission: without origin/main nothing passes, not even an empty outg
     })
 })
 
-Deno.test('admission: a rev-list failure is not passed', async () => {
+test('admission: a rev-list failure is not passed', async () => {
     await withTempDir('prepush-admit-revlist-fail-', async (dir) => {
         const { m2 } = await publishedFixture(dir)
         const pub = await published(dir)
@@ -1060,7 +1061,7 @@ Deno.test('admission: a rev-list failure is not passed', async () => {
     })
 })
 
-Deno.test('admission: a remote sha missing locally is refused even when everything is published', async () => {
+test('admission: a remote sha missing locally is refused even when everything is published', async () => {
     await withTempDir('prepush-admit-missing-remote-', async (dir) => {
         const { m2 } = await publishedFixture(dir)
         const missing = 'deadbeef'.repeat(5)
@@ -1081,7 +1082,7 @@ Deno.test('admission: a remote sha missing locally is refused even when everythi
     })
 })
 
-Deno.test('admission: outgoing leaves out commit ids but keeps trees and blobs', async () => {
+test('admission: outgoing leaves out commit ids but keeps trees and blobs', async () => {
     await withTempDir('prepush-admit-commit-ids-', async (dir) => {
         const { m1, m2 } = await publishedFixture(dir)
         const out = await outgoing({ localSha: m2, remoteSha: m1 }, dir)
@@ -1126,7 +1127,7 @@ async function clonedFixture(
     return { ...fixture, clone, origin }
 }
 
-Deno.test('admission: a shallow clone narrows the published set, never widens it', async () => {
+test('admission: a shallow clone narrows the published set, never widens it', async () => {
     await withTempDir('prepush-shallow-', async (root) => {
         const f = await clonedFixture(root, ['--depth', '1'])
         assertEquals(
@@ -1164,7 +1165,7 @@ Deno.test('admission: a shallow clone narrows the published set, never widens it
     })
 })
 
-Deno.test('admission: a blobless partial clone fetches what rev-list needs, or admits nothing', async () => {
+test('admission: a blobless partial clone fetches what rev-list needs, or admits nothing', async () => {
     await withTempDir('prepush-partial-', async (root) => {
         const f = await clonedFixture(root, ['--filter=blob:none'])
         assertEquals(

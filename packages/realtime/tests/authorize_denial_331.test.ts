@@ -26,6 +26,7 @@
  * @module @lockness/realtime/tests/authorize_denial_331
  */
 
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { ChannelManager } from '../manager.ts'
 import type { BroadcastDriver, BroadcastMessage } from '../driver.ts'
@@ -115,7 +116,7 @@ function revocable() {
     return { state, authorize }
 }
 
-Deno.test('#331 a denied re-subscribe leaves delivery, roster and membership intact', async () => {
+test('#331 a denied re-subscribe leaves delivery, roster and membership intact', async () => {
     const { driver, roster, commands } = recordingDriver()
     const { state, authorize } = revocable()
     const m = new ChannelManager<User>({ driver, authorize })
@@ -168,7 +169,7 @@ Deno.test('#331 a denied re-subscribe leaves delivery, roster and membership int
     )
 })
 
-Deno.test('#331 a denial on a PRIVATE channel revokes nothing either', async () => {
+test('#331 a denial on a PRIVATE channel revokes nothing either', async () => {
     // Private channels have no roster and no presence frames, so the only
     // observable is delivery — which is the one that matters.
     const { driver, commands } = recordingDriver()
@@ -195,7 +196,7 @@ Deno.test('#331 a denial on a PRIVATE channel revokes nothing either', async () 
     )
 })
 
-Deno.test('#331 unsubscribe is what actually revokes', async () => {
+test('#331 unsubscribe is what actually revokes', async () => {
     // The other half of the contract, and the reason the first half is safe:
     // a server that wants the connection gone has a verb for it, and that verb
     // does the whole job — delivery stops, the roster entry goes, the room is

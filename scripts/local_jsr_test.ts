@@ -7,6 +7,7 @@
  * @module
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertRejects, assertThrows } from '@std/assert'
 import { TarStream, type TarStreamInput } from '@std/tar/tar-stream'
 import {
@@ -94,7 +95,7 @@ async function publishCore(at: ReturnType<typeof harness>['at']) {
     )
 }
 
-Deno.test('isLoopbackHostname accepts loopback literals and refuses names', () => {
+test('isLoopbackHostname accepts loopback literals and refuses names', () => {
     for (const host of ['127.0.0.1', '127.1.2.3', '::1', '[::1]']) {
         assert(isLoopbackHostname(host), host)
     }
@@ -115,7 +116,7 @@ Deno.test('isLoopbackHostname accepts loopback literals and refuses names', () =
     }
 })
 
-Deno.test('assertLoopbackUrl takes loopback http and refuses the rest', () => {
+test('assertLoopbackUrl takes loopback http and refuses the rest', () => {
     assertEquals(assertLoopbackUrl('http://127.0.0.1:49152').port, '49152')
     assertEquals(assertLoopbackUrl('http://[::1]:49152/').hostname, '[::1]')
     for (
@@ -134,7 +135,7 @@ Deno.test('assertLoopbackUrl takes loopback http and refuses the rest', () => {
     }
 })
 
-Deno.test('parseRoute classifies every request the gate makes', () => {
+test('parseRoute classifies every request the gate makes', () => {
     const cases: [string, string, unknown][] = [
         ['POST', '/api/scopes/lockness/packages/core/versions/0.4.0', {
             kind: 'publish',
@@ -202,7 +203,7 @@ Deno.test('parseRoute classifies every request the gate makes', () => {
     }
 })
 
-Deno.test('normaliseTarPath roots a path and refuses traversal', () => {
+test('normaliseTarPath roots a path and refuses traversal', () => {
     assertEquals(normaliseTarPath('./mod.ts'), '/mod.ts')
     assertEquals(normaliseTarPath('package/a/b.ts'), '/a/b.ts')
     assertEquals(normaliseTarPath('/deno.json'), '/deno.json')
@@ -211,7 +212,7 @@ Deno.test('normaliseTarPath roots a path and refuses traversal', () => {
     }
 })
 
-Deno.test('readExports normalises the forms JSR accepts', () => {
+test('readExports normalises the forms JSR accepts', () => {
     assertEquals(readExports({ exports: './mod.ts' }), { '.': './mod.ts' })
     assertEquals(readExports({ exports: { '.': './mod.ts', './x': 3 } }), {
         '.': './mod.ts',
@@ -221,14 +222,14 @@ Deno.test('readExports normalises the forms JSR accepts', () => {
     assertEquals(readExports({ exports: ['./mod.ts'] }), {})
 })
 
-Deno.test('packageMeta names the highest SemVer as latest', () => {
+test('packageMeta names the highest SemVer as latest', () => {
     const meta = packageMeta('lockness', 'core', ['0.10.0', '0.4.1', '0.9.0'])
     assertEquals(meta.latest, '0.10.0')
     assertEquals(Object.keys(meta.versions), ['0.4.1', '0.9.0', '0.10.0'])
     assertEquals(packageMeta('lockness', 'core', []).latest, null)
 })
 
-Deno.test('versionMeta checksums every file as sha256-<hex>', async () => {
+test('versionMeta checksums every file as sha256-<hex>', async () => {
     const meta = await versionMeta({
         files: new Map([['/a.txt', encode('abc')]]),
         exports: { '.': './a.txt' },
@@ -241,7 +242,7 @@ Deno.test('versionMeta checksums every file as sha256-<hex>', async () => {
     assertEquals(meta.exports, { '.': './a.txt' })
 })
 
-Deno.test('readTarball gunzips and untars a bundle', async () => {
+test('readTarball gunzips and untars a bundle', async () => {
     const files = await readTarball(tarball(CORE))
     assertEquals([...files.keys()].sort(), ['/deno.json', '/jsx.ts', '/mod.ts'])
     assertEquals(
@@ -253,7 +254,7 @@ Deno.test('readTarball gunzips and untars a bundle', async () => {
 /** `count` zero bytes: gzip shrinks them to almost nothing, a tiny bomb. */
 const zeros = (count: number) => '\0'.repeat(count)
 
-Deno.test('readTarball stops a decompression bomb at the decompressed cap', async () => {
+test('readTarball stops a decompression bomb at the decompressed cap', async () => {
     // 256 KiB of zeros gzips to a few hundred bytes; the cap is 32 KiB.
     await assertRejects(
         () =>
@@ -267,7 +268,7 @@ Deno.test('readTarball stops a decompression bomb at the decompressed cap', asyn
     )
 })
 
-Deno.test('readTarball refuses a file over the per-file cap before buffering it', async () => {
+test('readTarball refuses a file over the per-file cap before buffering it', async () => {
     await assertRejects(
         () =>
             readTarball(tarball({ './big.ts': zeros(8 * 1024) }), {
@@ -280,7 +281,7 @@ Deno.test('readTarball refuses a file over the per-file cap before buffering it'
     )
 })
 
-Deno.test('readTarball refuses a body over the compressed cap', async () => {
+test('readTarball refuses a body over the compressed cap', async () => {
     const random = crypto.getRandomValues(new Uint8Array(32 * 1024))
     const body = ReadableStream.from([random])
     await assertRejects(
@@ -295,7 +296,7 @@ Deno.test('readTarball refuses a body over the compressed cap', async () => {
     )
 })
 
-Deno.test('a publish over a cap is a 413 and stores nothing', async () => {
+test('a publish over a cap is a 413 and stores nothing', async () => {
     const store = new LocalJsrStore()
     const handler = createLocalJsrHandler({
         store,
@@ -332,7 +333,7 @@ Deno.test('a publish over a cap is a 413 and stores nothing', async () => {
     assertEquals(store.names(), [])
 })
 
-Deno.test('readTarball refuses a traversal entry', async () => {
+test('readTarball refuses a traversal entry', async () => {
     await assertRejects(
         () => readTarball(tarball({ '../escape.ts': 'x' })),
         Error,
@@ -340,7 +341,7 @@ Deno.test('readTarball refuses a traversal entry', async () => {
     )
 })
 
-Deno.test('a published version is served back over the read protocol', async () => {
+test('a published version is served back over the read protocol', async () => {
     const { at, upstream } = harness()
 
     const published = await publishCore(at)
@@ -379,7 +380,7 @@ Deno.test('a published version is served back over the read protocol', async () 
     assertEquals(upstream, [], 'nothing of @lockness may come from jsr.io')
 })
 
-Deno.test('a @lockness package it never received is a 404, never jsr.io', async () => {
+test('a @lockness package it never received is a 404, never jsr.io', async () => {
     const { at, upstream } = harness()
     await publishCore(at)
 
@@ -403,7 +404,7 @@ Deno.test('a @lockness package it never received is a 404, never jsr.io', async 
     assertEquals(upstream, [])
 })
 
-Deno.test('every other scope is read from jsr.io, read-only', async () => {
+test('every other scope is read from jsr.io, read-only', async () => {
     const { at, upstream } = harness()
 
     const response = await at('/@std/path/meta.json?x=1')
@@ -417,7 +418,7 @@ Deno.test('every other scope is read from jsr.io, read-only', async () => {
     assertEquals(upstream.length, 1)
 })
 
-Deno.test('the passthrough reaches jsr.io only, and only for /@<scope>/ paths', async () => {
+test('the passthrough reaches jsr.io only, and only for /@<scope>/ paths', async () => {
     const { at, upstream } = harness()
     await publishCore(at)
     for (
@@ -453,7 +454,7 @@ Deno.test('the passthrough reaches jsr.io only, and only for /@<scope>/ paths', 
     assertEquals(upstream, ['https://jsr.io/@std/path/1.1.4/mod.ts'])
 })
 
-Deno.test('upstreamTarget keeps every path on the upstream origin (#475)', () => {
+test('upstreamTarget keeps every path on the upstream origin (#475)', () => {
     assertEquals(
         upstreamTarget('/@std/path/meta.json?x=1')?.href,
         'https://jsr.io/@std/path/meta.json?x=1',
@@ -484,7 +485,7 @@ Deno.test('upstreamTarget keeps every path on the upstream origin (#475)', () =>
     }
 })
 
-Deno.test('the passthrough never follows an upstream redirect (#475)', async () => {
+test('the passthrough never follows an upstream redirect (#475)', async () => {
     const inits: RequestInit[] = []
     const handler = createLocalJsrHandler({
         store: new LocalJsrStore(),
@@ -509,7 +510,7 @@ Deno.test('the passthrough never follows an upstream redirect (#475)', async () 
     assertEquals(inits.map((init) => init.redirect), ['manual'])
 })
 
-Deno.test('a later POST is refused once publishing is closed, token or not (#475)', async () => {
+test('a later POST is refused once publishing is closed, token or not (#475)', async () => {
     const { at, store } = harness()
     assertEquals((await publishCore(at)).status, 202)
     store.seal()
@@ -531,7 +532,7 @@ Deno.test('a later POST is refused once publishing is closed, token or not (#475
     )
 })
 
-Deno.test('uploads are refused outside the scope, twice, or without exports', async () => {
+test('uploads are refused outside the scope, twice, or without exports', async () => {
     const { at } = harness()
     const refused = async (path: string, files: Record<string, string>) => {
         const response = await at(path, {
@@ -564,7 +565,7 @@ Deno.test('uploads are refused outside the scope, twice, or without exports', as
     )
 })
 
-Deno.test('a request whose Host is not a loopback literal is refused', async () => {
+test('a request whose Host is not a loopback literal is refused', async () => {
     const { store } = harness()
     const handler = createLocalJsrHandler({
         store,
@@ -580,7 +581,7 @@ Deno.test('a request whose Host is not a loopback literal is refused', async () 
     }
 })
 
-Deno.test('a cross-site browser POST cannot publish (#470 review)', async () => {
+test('a cross-site browser POST cannot publish (#470 review)', async () => {
     const { at, store, upstream } = harness()
     const path = '/api/scopes/lockness/packages/cli/versions/0.4.9999'
     const attempts: [string, RequestInit][] = [
@@ -633,7 +634,7 @@ Deno.test('a cross-site browser POST cannot publish (#470 review)', async () => 
     assertEquals(store.versions('cli'), ['0.4.9999'])
 })
 
-Deno.test('any request carrying Origin or Sec-Fetch-Site is refused', async () => {
+test('any request carrying Origin or Sec-Fetch-Site is refused', async () => {
     const { at, upstream } = harness()
     await publishCore(at)
     for (
@@ -662,7 +663,7 @@ Deno.test('any request carrying Origin or Sec-Fetch-Site is refused', async () =
     assertEquals(upstream, [])
 })
 
-Deno.test('startLocalJsr hands out a fresh per-run token', async () => {
+test('startLocalJsr hands out a fresh per-run token', async () => {
     const a = startLocalJsr()
     const b = startLocalJsr()
     try {
@@ -674,7 +675,7 @@ Deno.test('startLocalJsr hands out a fresh per-run token', async () => {
     }
 })
 
-Deno.test('startLocalJsr closePublishing refuses a later POST over the socket (#475)', async () => {
+test('startLocalJsr closePublishing refuses a later POST over the socket (#475)', async () => {
     const jsr = startLocalJsr()
     try {
         jsr.closePublishing()
@@ -695,13 +696,13 @@ Deno.test('startLocalJsr closePublishing refuses a later POST over the socket (#
     }
 })
 
-Deno.test('startLocalJsr refuses a non-loopback bind address', () => {
+test('startLocalJsr refuses a non-loopback bind address', () => {
     for (const hostname of ['0.0.0.0', 'localhost', '192.168.1.10']) {
         assertThrows(() => startLocalJsr({ hostname }), Error, 'refusing')
     }
 })
 
-Deno.test('startLocalJsr serves on an ephemeral loopback port', async () => {
+test('startLocalJsr serves on an ephemeral loopback port', async () => {
     const jsr = startLocalJsr()
     try {
         const url = assertLoopbackUrl(jsr.url)

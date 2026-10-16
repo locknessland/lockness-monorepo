@@ -16,6 +16,7 @@
  * after #236 they had quietly gone back to being unreached.
  */
 
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
 import { generateAppKey } from '../secret.ts'
@@ -37,7 +38,7 @@ async function captureWarnings(fn: () => Promise<void>): Promise<string[]> {
     return lines
 }
 
-Deno.test('reporting - the first rejection warns immediately', async () => {
+test('reporting - the first rejection warns immediately', async () => {
     const reporter = new RejectionReporter()
 
     const lines = await captureWarnings(() => {
@@ -49,7 +50,7 @@ Deno.test('reporting - the first rejection warns immediately', async () => {
     assertEquals(lines[0].includes('bad-prefix'), true)
 })
 
-Deno.test('reporting - the rejected VALUE never reaches the log', async () => {
+test('reporting - the rejected VALUE never reaches the log', async () => {
     // The single most likely place for somebody to attach the offending cookie
     // "for debuggability". It is attacker-controlled and Hono has already
     // URL-decoded it, so CR/LF arrives raw. `openSealed` classifies it to a
@@ -69,7 +70,7 @@ Deno.test('reporting - the rejected VALUE never reaches the log', async () => {
     assertEquals(lines.join('\n').includes('FAKE LOG LINE'), false)
 })
 
-Deno.test('reporting - later rejections are counted, not logged one by one', async () => {
+test('reporting - later rejections are counted, not logged one by one', async () => {
     // The flooding vector: a line per rejection is output an attacker controls.
     const reporter = new RejectionReporter()
 
@@ -81,7 +82,7 @@ Deno.test('reporting - later rejections are counted, not logged one by one', asy
     assertEquals(lines.length, 1, '50 rejections produced more than one line')
 })
 
-Deno.test('reporting - every rejection class is reported distinctly', async () => {
+test('reporting - every rejection class is reported distinctly', async () => {
     // The classification of a value into a class is `openSealed`'s job; that the
     // reporter surfaces exactly the class it was handed is this one's.
     const cases: Array<[Rejection, string]> = [
@@ -100,7 +101,7 @@ Deno.test('reporting - every rejection class is reported distinctly', async () =
     }
 })
 
-Deno.test('reporting - reset clears the class, so a stale read cannot pass for a fresh one', () => {
+test('reporting - reset clears the class, so a stale read cannot pass for a fresh one', () => {
     // A fresh instance IS the reset: instance-owned state means one file's
     // rejections cannot bleed into the next (#236).
     const reporter = new RejectionReporter()
@@ -108,7 +109,7 @@ Deno.test('reporting - reset clears the class, so a stale read cannot pass for a
     assertEquals(reporter.lastRejection(), undefined)
 })
 
-Deno.test('reporting - the first rejection is warned, NOT also counted', async () => {
+test('reporting - the first rejection is warned, NOT also counted', async () => {
     // It was reported twice: once on its own line, and again inside the first
     // summary's total. A count that reports one event twice is worse than no
     // count, because somebody sizes an incident from it — and the defect was
@@ -124,7 +125,7 @@ Deno.test('reporting - the first rejection is warned, NOT also counted', async (
     assertEquals(reporter.pendingRejections(), {})
 })
 
-Deno.test('reporting - subsequent rejections accumulate per class', async () => {
+test('reporting - subsequent rejections accumulate per class', async () => {
     const reporter = new RejectionReporter()
 
     await captureWarnings(() => {
@@ -152,7 +153,7 @@ function listenToWarnings(): { lines: string[]; restore: () => void } {
     return { lines, restore: () => void (console.warn = warn) }
 }
 
-Deno.test('reporting - a burst followed by silence is summarised when the window closes', async () => {
+test('reporting - a burst followed by silence is summarised when the window closes', async () => {
     // The shape most worth seeing: a probe that fires a burst and gives up. The
     // summary is drained by the window's timer, not by the next rejection, so
     // the silence after the burst must not swallow it.
@@ -185,7 +186,7 @@ Deno.test('reporting - a burst followed by silence is summarised when the window
     }
 })
 
-Deno.test('reporting - a rejection after a summary opens a fresh window', async () => {
+test('reporting - a rejection after a summary opens a fresh window', async () => {
     // A sustained campaign must keep producing summaries, one per window,
     // each counting only its own interval.
     const time = new FakeTime(new Date('2026-03-01T10:00:00Z'))

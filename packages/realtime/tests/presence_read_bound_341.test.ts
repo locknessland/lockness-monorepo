@@ -34,6 +34,7 @@
  * @module @lockness/realtime/tests/presence_read_bound_341
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { ChannelManager, type SubscribeResult } from '../manager.ts'
 import { MemoryBroadcastDriver } from '../drivers/memory.ts'
@@ -185,7 +186,7 @@ async function ingestOfOneSubscribe(
     }
 }
 
-Deno.test('#341 a subscribe ingests the same bytes from a room of 1 000 as from 10 000 (SC-001)', async () => {
+test('#341 a subscribe ingests the same bytes from a room of 1 000 as from 10 000 (SC-001)', async () => {
     const small = await ingestOfOneSubscribe(1_000)
     const large = await ingestOfOneSubscribe(10_000)
 
@@ -210,7 +211,7 @@ Deno.test('#341 a subscribe ingests the same bytes from a room of 1 000 as from 
     )
 })
 
-Deno.test('#341 a configured K bounds the ingest to its own pinned count', async () => {
+test('#341 a configured K bounds the ingest to its own pinned count', async () => {
     const small = await ingestOfOneSubscribe(1_000, 10)
     const large = await ingestOfOneSubscribe(2_000, 10)
 
@@ -276,7 +277,7 @@ function gatedRosterDriver(seed: PresenceMember[]) {
 const idsOf = (here: PresenceSnapshot | undefined) =>
     (here?.members ?? []).map((m) => String(m.id))
 
-Deno.test('#341 B and C outside the window each keep their OWN self from one shared read', async () => {
+test('#341 B and C outside the window each keep their OWN self from one shared read', async () => {
     // K = 1 and a resident written first: the window is always the resident,
     // so a joiner can only be kept from `selves` — and a shared read that
     // carried one caller's id and not the other's would drop that caller.
@@ -319,7 +320,7 @@ Deno.test('#341 B and C outside the window each keep their OWN self from one sha
     assertEquals(gate.reads.length, 2, 'exactly two reads for three callers')
 })
 
-Deno.test('#341 an unsubscribe during the gated read drops self from the reply', async () => {
+test('#341 an unsubscribe during the gated read drops self from the reply', async () => {
     const gate = gatedRosterDriver([{ id: 'r' }])
     const m = new ChannelManager<User>({
         driver: gate.driver,
@@ -379,7 +380,7 @@ function gatedBarrier(maxSelfIds?: number) {
     }
 }
 
-Deno.test('#341 a late same-id caller does not ride a read that already started (H1)', async () => {
+test('#341 a late same-id caller does not ride a read that already started (H1)', async () => {
     const gate = gatedBarrier()
     const first = gate.barrier.snapshot(ROOM, 'x')
     const early = gate.barrier.snapshot(ROOM, 'b')
@@ -405,7 +406,7 @@ Deno.test('#341 a late same-id caller does not ride a read that already started 
     assertEquals(gate.barrier.size, 0)
 })
 
-Deno.test('#341 a batch opened past the cap waits for the batch AHEAD of it, not the running read (H2)', async () => {
+test('#341 a batch opened past the cap waits for the batch AHEAD of it, not the running read (H2)', async () => {
     const gate = gatedBarrier(2)
     const all = [
         gate.barrier.snapshot(ROOM),
@@ -434,7 +435,7 @@ Deno.test('#341 a batch opened past the cap waits for the batch AHEAD of it, not
     assertEquals(gate.barrier.size, 0)
 })
 
-Deno.test("#341 ids dedupe by String(id): 1 and '1' share one batch slot", async () => {
+test("#341 ids dedupe by String(id): 1 and '1' share one batch slot", async () => {
     const gate = gatedBarrier()
     const running = gate.barrier.snapshot(ROOM)
     const numeric = gate.barrier.snapshot(ROOM, 1)
@@ -445,7 +446,7 @@ Deno.test("#341 ids dedupe by String(id): 1 and '1' share one batch slot", async
     assertEquals(gate.reads, [[], ['1']], 'and the id is carried once')
 })
 
-Deno.test('#341 an id-less caller joins the OLDEST queued batch', async () => {
+test('#341 an id-less caller joins the OLDEST queued batch', async () => {
     const gate = gatedBarrier(1)
     const running = gate.barrier.snapshot(ROOM, 'r')
     const oldest = gate.barrier.snapshot(ROOM, 'a')
@@ -461,7 +462,7 @@ Deno.test('#341 an id-less caller joins the OLDEST queued batch', async () => {
     assertEquals(gate.reads, [['r'], ['a'], ['b']])
 })
 
-Deno.test('#341 5 000 frames from ONE member id cost two reads, not six (S1)', async () => {
+test('#341 5 000 frames from ONE member id cost two reads, not six (S1)', async () => {
     const gate = gatedBarrier()
     const all = [gate.barrier.snapshot(ROOM, 'u1')]
     for (let i = 0; i < 5_000; i++) all.push(gate.barrier.snapshot(ROOM, 'u1'))
@@ -477,7 +478,7 @@ Deno.test('#341 5 000 frames from ONE member id cost two reads, not six (S1)', a
     assertEquals(gate.barrier.size, 0, 'and nothing is retained once drained')
 })
 
-Deno.test('#341 past the cap a caller starts a NEW batch — FIFO, none over the cap', async () => {
+test('#341 past the cap a caller starts a NEW batch — FIFO, none over the cap', async () => {
     // The cap injected as 2 so the overflow is reachable in a unit. The first
     // read carries no id (a superseded join); then three distinct callers, one
     // of them repeated and one with no id at all.
@@ -540,7 +541,7 @@ async function joinInOrder(
 
 const ORDER_OF_FIVE = [1, 2, 3, 4, 5].map(idOf)
 
-Deno.test('#341 a room at or below K comes back whole, in join order, on the memory driver (SC-002)', async () => {
+test('#341 a room at or below K comes back whole, in join order, on the memory driver (SC-002)', async () => {
     const m = new ChannelManager<User>({
         driver: new MemoryBroadcastDriver(),
         authorize: plainAuthorize,
@@ -552,7 +553,7 @@ Deno.test('#341 a room at or below K comes back whole, in join order, on the mem
     assertEquals(here.total, 5)
 })
 
-Deno.test('#341 a room at or below K comes back whole, in hash order, on Redis (SC-002)', async () => {
+test('#341 a room at or below K comes back whole, in hash order, on Redis (SC-002)', async () => {
     const redis = new FakeRedis()
     for (let n = 1; n <= 4; n++) {
         const member = { id: idOf(n) }
@@ -596,7 +597,7 @@ Deno.test('#341 a room at or below K comes back whole, in hash order, on Redis (
     }
 })
 
-Deno.test("#341 the local fallback still answers a 'local' window of this instance's members", async () => {
+test("#341 the local fallback still answers a 'local' window of this instance's members", async () => {
     const m = new ChannelManager<User>({
         driver: {
             publish: () => {},
@@ -631,7 +632,7 @@ Deno.test("#341 the local fallback still answers a 'local' window of this instan
     )
 })
 
-Deno.test("#341 a roster-less driver still answers an 'authoritative' window of its members", async () => {
+test("#341 a roster-less driver still answers an 'authoritative' window of its members", async () => {
     const m = new ChannelManager<User>({
         driver: {
             publish: () => {},

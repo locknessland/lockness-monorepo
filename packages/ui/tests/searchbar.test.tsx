@@ -1,3 +1,4 @@
+import { test } from 'node:test'
 import { assertStringIncludes } from '@std/assert'
 import {
     SearchBar,
@@ -15,74 +16,74 @@ function renderToString(component: unknown): string {
     return result.toString()
 }
 
-Deno.test('SearchBar component', async (t) => {
-    await t.step('renders with default props', () => {
+test('SearchBar component', async (t) => {
+    await t.test('renders with default props', () => {
         const html = renderToString(<SearchBar />)
         assertStringIncludes(html, 'type="search"')
         assertStringIncludes(html, 'placeholder="Search..."')
         assertStringIncludes(html, 'autocomplete="off"')
     })
 
-    await t.step('renders with custom placeholder', () => {
+    await t.test('renders with custom placeholder', () => {
         const html = renderToString(
             <SearchBar placeholder='Find users...' />,
         )
         assertStringIncludes(html, 'placeholder="Find users..."')
     })
 
-    await t.step('renders default variant', () => {
+    await t.test('renders default variant', () => {
         const html = renderToString(<SearchBar variant='default' />)
         assertStringIncludes(html, 'border-(--searchbar-border-color)')
         assertStringIncludes(html, 'bg-(--searchbar-background)')
     })
 
-    await t.step('renders ghost variant', () => {
+    await t.test('renders ghost variant', () => {
         const html = renderToString(<SearchBar variant='ghost' />)
         assertStringIncludes(html, 'bg-transparent')
     })
 
-    await t.step('renders outline variant', () => {
+    await t.test('renders outline variant', () => {
         const html = renderToString(<SearchBar variant='outline' />)
         assertStringIncludes(html, 'border-2')
         assertStringIncludes(html, 'border-(--border)')
     })
 
-    await t.step('renders filled variant', () => {
+    await t.test('renders filled variant', () => {
         const html = renderToString(<SearchBar variant='filled' />)
         assertStringIncludes(html, 'bg-(--muted)')
     })
 
-    await t.step('renders small size', () => {
+    await t.test('renders small size', () => {
         const html = renderToString(<SearchBar size='sm' />)
         assertStringIncludes(html, 'h-8')
         assertStringIncludes(html, 'text-xs')
     })
 
-    await t.step('renders medium size (default)', () => {
+    await t.test('renders medium size (default)', () => {
         const html = renderToString(<SearchBar size='md' />)
         assertStringIncludes(html, 'h-(--searchbar-height)')
         assertStringIncludes(html, 'text-[length:--searchbar-font-size]')
     })
 
-    await t.step('renders large size', () => {
+    await t.test('renders large size', () => {
         const html = renderToString(<SearchBar size='lg' />)
         assertStringIncludes(html, 'h-12')
         assertStringIncludes(html, 'text-base')
     })
 
-    await t.step('renders extra large size', () => {
+    await t.test('renders extra large size', () => {
         const html = renderToString(<SearchBar size='xl' />)
         assertStringIncludes(html, 'h-14')
         assertStringIncludes(html, 'text-lg')
     })
 
-    await t.step('renders search icon by default', () => {
+    await t.test('renders search icon by default', () => {
         const html = renderToString(<SearchBar />)
         // Check for SVG path that represents the search icon
         assertStringIncludes(html, '<circle')
     })
 
-    await t.step('hides icon when showIcon is false', () => {
+    await t.test('hides icon when showIcon is false', () => {
         const html = renderToString(<SearchBar showIcon={false} />)
         // Should not have the icon span
         const hasIconSpan = html.includes(
@@ -93,20 +94,20 @@ Deno.test('SearchBar component', async (t) => {
         }
     })
 
-    await t.step('renders icon on right when iconPosition is right', () => {
+    await t.test('renders icon on right when iconPosition is right', () => {
         const html = renderToString(<SearchBar iconPosition='right' />)
         assertStringIncludes(html, 'type="search"')
         // Icon should still be present
         assertStringIncludes(html, '<circle')
     })
 
-    await t.step('renders clear button', () => {
+    await t.test('renders clear button', () => {
         const html = renderToString(<SearchBar showClear />)
         assertStringIncludes(html, 'Clear search')
         assertStringIncludes(html, 'aria-label="Clear search"')
     })
 
-    await t.step('renders keyboard shortcut badge', () => {
+    await t.test('renders keyboard shortcut badge', () => {
         const html = renderToString(
             <SearchBar shortcut='⌘K' showShortcut />,
         )
@@ -115,42 +116,42 @@ Deno.test('SearchBar component', async (t) => {
         assertStringIncludes(html, 'font-mono')
     })
 
-    await t.step('renders loading state with left icon', () => {
+    await t.test('renders loading state with left icon', () => {
         const html = renderToString(<SearchBar loading />)
         assertStringIncludes(html, 'animate-spin')
     })
 
-    await t.step('renders loading state with right icon', () => {
+    await t.test('renders loading state with right icon', () => {
         const html = renderToString(
             <SearchBar loading iconPosition='right' />,
         )
         assertStringIncludes(html, 'animate-spin')
     })
 
-    await t.step('handles disabled state', () => {
+    await t.test('handles disabled state', () => {
         const html = renderToString(<SearchBar disabled />)
         assertStringIncludes(html, 'disabled')
         assertStringIncludes(html, 'opacity-50')
     })
 
-    await t.step('renders full width', () => {
+    await t.test('renders full width', () => {
         const html = renderToString(<SearchBar fullWidth />)
         assertStringIncludes(html, 'w-full')
     })
 
-    await t.step('forwards custom class names', () => {
+    await t.test('forwards custom class names', () => {
         const html = renderToString(<SearchBar class='custom-input' />)
         assertStringIncludes(html, 'custom-input')
     })
 
-    await t.step('forwards container class names', () => {
+    await t.test('forwards container class names', () => {
         const html = renderToString(
             <SearchBar containerClass='custom-container' />,
         )
         assertStringIncludes(html, 'custom-container')
     })
 
-    await t.step('forwards HTML attributes', () => {
+    await t.test('forwards HTML attributes', () => {
         const html = renderToString(
             <SearchBar id='search-input' name='query' value='test' />,
         )
@@ -159,7 +160,7 @@ Deno.test('SearchBar component', async (t) => {
         assertStringIncludes(html, 'value="test"')
     })
 
-    await t.step('supports Unpoly directives', () => {
+    await t.test('supports Unpoly directives', () => {
         const html = renderToString(
             <SearchBar
                 up-autosubmit
@@ -173,7 +174,7 @@ Deno.test('SearchBar component', async (t) => {
         assertStringIncludes(html, 'up-target=".results"')
     })
 
-    await t.step('uses CSS variables for styling', () => {
+    await t.test('uses CSS variables for styling', () => {
         const html = renderToString(<SearchBar />)
         assertStringIncludes(html, 'rounded-(--searchbar-border-radius)')
         assertStringIncludes(html, '(--muted-foreground)')
@@ -181,8 +182,8 @@ Deno.test('SearchBar component', async (t) => {
     })
 })
 
-Deno.test('SearchBarGroup component', async (t) => {
-    await t.step('renders with children', () => {
+test('SearchBarGroup component', async (t) => {
+    await t.test('renders with children', () => {
         const html = renderToString(
             <SearchBarGroup>
                 <SearchBar placeholder='Search...' />
@@ -192,7 +193,7 @@ Deno.test('SearchBarGroup component', async (t) => {
         assertStringIncludes(html, 'inline-flex')
     })
 
-    await t.step('renders with custom class', () => {
+    await t.test('renders with custom class', () => {
         const html = renderToString(
             <SearchBarGroup class='custom-group'>
                 <SearchBar />
@@ -201,7 +202,7 @@ Deno.test('SearchBarGroup component', async (t) => {
         assertStringIncludes(html, 'custom-group')
     })
 
-    await t.step('renders with SearchBar and SearchBarFilter', () => {
+    await t.test('renders with SearchBar and SearchBarFilter', () => {
         const html = renderToString(
             <SearchBarGroup>
                 <SearchBar placeholder='Search...' />
@@ -215,8 +216,8 @@ Deno.test('SearchBarGroup component', async (t) => {
     })
 })
 
-Deno.test('SearchBarFilter component', async (t) => {
-    await t.step('renders select element', () => {
+test('SearchBarFilter component', async (t) => {
+    await t.test('renders select element', () => {
         const html = renderToString(
             <SearchBarFilter name='type'>
                 <option value='users'>Users</option>
@@ -227,7 +228,7 @@ Deno.test('SearchBarFilter component', async (t) => {
         assertStringIncludes(html, 'name="type"')
     })
 
-    await t.step('renders options', () => {
+    await t.test('renders options', () => {
         const html = renderToString(
             <SearchBarFilter name='category'>
                 <option value='all'>All Categories</option>
@@ -238,7 +239,7 @@ Deno.test('SearchBarFilter component', async (t) => {
         assertStringIncludes(html, 'Electronics')
     })
 
-    await t.step('forwards custom class names', () => {
+    await t.test('forwards custom class names', () => {
         const html = renderToString(
             <SearchBarFilter class='custom-filter' name='filter'>
                 <option value='1'>Option 1</option>
@@ -247,7 +248,7 @@ Deno.test('SearchBarFilter component', async (t) => {
         assertStringIncludes(html, 'custom-filter')
     })
 
-    await t.step('forwards HTML attributes', () => {
+    await t.test('forwards HTML attributes', () => {
         const html = renderToString(
             <SearchBarFilter name='status' id='status-filter'>
                 <option value='active'>Active</option>
@@ -258,8 +259,8 @@ Deno.test('SearchBarFilter component', async (t) => {
     })
 })
 
-Deno.test('SearchBar combined features', async (t) => {
-    await t.step('renders with all features enabled', () => {
+test('SearchBar combined features', async (t) => {
+    await t.test('renders with all features enabled', () => {
         const html = renderToString(
             <SearchBar
                 variant='filled'
@@ -279,7 +280,7 @@ Deno.test('SearchBar combined features', async (t) => {
         assertStringIncludes(html, '⌘K') // shortcut badge
     })
 
-    await t.step('renders outline variant with loading', () => {
+    await t.test('renders outline variant with loading', () => {
         const html = renderToString(
             <SearchBar variant='outline' loading />,
         )
@@ -287,7 +288,7 @@ Deno.test('SearchBar combined features', async (t) => {
         assertStringIncludes(html, 'animate-spin')
     })
 
-    await t.step('renders small ghost variant disabled', () => {
+    await t.test('renders small ghost variant disabled', () => {
         const html = renderToString(
             <SearchBar variant='ghost' size='sm' disabled />,
         )

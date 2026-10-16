@@ -10,6 +10,7 @@
  * @module @lockness/search/tests/cli_commands
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import { join } from '@std/path'
 import { Cli } from '@lockness/cli'
@@ -87,7 +88,7 @@ function assertCommandFailure(error: Error, fragment: string): void {
     )
 }
 
-Deno.test('make:searchable with no name throws a failure with exitCode 1 and prints nothing', async () => {
+test('make:searchable with no name throws a failure with exitCode 1 and prints nothing', async () => {
     const { result: error, errors } = await captureErrors(() =>
         assertRejects(() => handleMakeSearchable([]), Error)
     )
@@ -95,7 +96,7 @@ Deno.test('make:searchable with no name throws a failure with exitCode 1 and pri
     assertEquals(errors.length, 0, 'the dispatcher is the only printer')
 })
 
-Deno.test('make:searchable with a traversal name throws a failure with exitCode 1 and writes nothing', async () => {
+test('make:searchable with a traversal name throws a failure with exitCode 1 and writes nothing', async () => {
     const { result: error, written } = await inSandbox(() =>
         assertRejects(() => handleMakeSearchable(['../../x']), Error)
     )
@@ -103,7 +104,7 @@ Deno.test('make:searchable with a traversal name throws a failure with exitCode 
     assertEquals(written, [], 'nothing written, inside the sandbox or above it')
 })
 
-Deno.test('make:searchable through the real Cli.dispatch exits 1 with exactly one ❌ line', async () => {
+test('make:searchable through the real Cli.dispatch exits 1 with exactly one ❌ line', async () => {
     const cli = new Cli()
     registerSearchCommands(cli)
     const { result: { result: status, errors }, written } = await inSandbox(

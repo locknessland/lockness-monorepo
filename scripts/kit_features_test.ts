@@ -12,6 +12,7 @@
  * @module
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertThrows } from '@std/assert'
 import { type KitName, KITS } from '@lockness/init'
 import {
@@ -32,7 +33,7 @@ async function kitStub(kit: KitName, path: string): Promise<string> {
     }
 }
 
-Deno.test('kernelKeys - reads the top-level keys and skips comments', () => {
+test('kernelKeys - reads the top-level keys and skips comments', () => {
     assertEquals(
         kernelKeys(
             '/** @Kernel({ session: x }) */\n@Kernel({\n    /** c */\n    cache: config.cache,\n    // devtools: true,\n    compile: { a: 1 },\n})\nclass K {}',
@@ -41,7 +42,7 @@ Deno.test('kernelKeys - reads the top-level keys and skips comments', () => {
     )
 })
 
-Deno.test('kernelKeys - a source without @Kernel({ is an error, not "no keys"', () => {
+test('kernelKeys - a source without @Kernel({ is an error, not "no keys"', () => {
     assertThrows(
         () => kernelKeys('export class AppKernel {}'),
         Error,
@@ -50,7 +51,7 @@ Deno.test('kernelKeys - a source without @Kernel({ is an error, not "no keys"', 
 })
 
 for (const kit of Object.keys(KITS) as KitName[]) {
-    Deno.test(`#505 ${kit}: every optional feature its kernel sets is a declared package`, async () => {
+    test(`#505 ${kit}: every optional feature its kernel sets is a declared package`, async () => {
         const keys = kernelKeys(await kitStub(kit, 'app/kernel.ts.stub'))
         const config = JSON.parse(await kitStub(kit, 'deno.json.stub')) as {
             imports?: Record<string, string>

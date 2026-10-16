@@ -18,6 +18,7 @@
  * @module
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertMatch } from '@std/assert'
 import { readWorkflows, type Workflow } from './ci_workflows.ts'
 
@@ -51,14 +52,14 @@ function denoSetups(
     )
 }
 
-Deno.test('.dvmrc holds one exact x.y.z, never a range', async () => {
+test('.dvmrc holds one exact x.y.z, never a range', async () => {
     const text = await Deno.readTextFile(DENO_VERSION_FILE)
     // One line: setup-deno reads the whole file as the version unless it
     // finds a `.tool-versions`-style `deno <version>` line.
     assertMatch(text, /^\d+\.\d+\.\d+\n?$/)
 })
 
-Deno.test('every publish.yml job installs Deno from .dvmrc only', async () => {
+test('every publish.yml job installs Deno from .dvmrc only', async () => {
     const workflow = await workflowNamed('publish.yml')
     const steps = denoSetups(workflow)
     // Every job runs `deno`, so every job installs it, once.
@@ -88,7 +89,7 @@ Deno.test('every publish.yml job installs Deno from .dvmrc only', async () => {
     }
 })
 
-Deno.test("test.yml's pinned lane installs Deno from .dvmrc", async () => {
+test("test.yml's pinned lane installs Deno from .dvmrc", async () => {
     const workflow = await workflowNamed('test.yml')
     const job = workflow.jobs.find((j) => j.id === 'test')
     assert(job !== undefined, 'no `test` job in test.yml')

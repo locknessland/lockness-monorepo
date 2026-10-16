@@ -8,6 +8,7 @@
  * @module @lockness/drizzle/tests/make_model_dialect
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { processStub } from '../cli_commands.ts'
 import {
@@ -32,7 +33,7 @@ async function renderModel(
     })
 }
 
-Deno.test('resolveGeneratorDialect: --dialect flag > URL scheme > postgres', () => {
+test('resolveGeneratorDialect: --dialect flag > URL scheme > postgres', () => {
     // Explicit flag wins, and its spellings normalise.
     assertEquals(resolveGeneratorDialect('mysql', 'postgres://h/db'), 'mysql')
     assertEquals(
@@ -53,13 +54,13 @@ Deno.test('resolveGeneratorDialect: --dialect flag > URL scheme > postgres', () 
     assertEquals(resolveGeneratorDialect('nope', undefined), 'postgres')
 })
 
-Deno.test('DRIZZLE_KIT_DIALECT maps to the strings drizzle-kit expects', () => {
+test('DRIZZLE_KIT_DIALECT maps to the strings drizzle-kit expects', () => {
     assertEquals(DRIZZLE_KIT_DIALECT.postgres, 'postgresql')
     assertEquals(DRIZZLE_KIT_DIALECT.mysql, 'mysql')
     assertEquals(DRIZZLE_KIT_DIALECT.sqlite, 'sqlite')
 })
 
-Deno.test('make:model stub — postgres uses pgTable + serial + pg-core', async () => {
+test('make:model stub — postgres uses pgTable + serial + pg-core', async () => {
     const content = await renderModel('postgres')
     assertStringIncludes(content, "from 'drizzle-orm/pg-core'")
     assertStringIncludes(content, "export const posts = pgTable('posts', {")
@@ -70,7 +71,7 @@ Deno.test('make:model stub — postgres uses pgTable + serial + pg-core', async 
     assert(!content.includes('sqliteTable'))
 })
 
-Deno.test('make:model stub — mysql uses mysqlTable + int/autoincrement + mysql-core', async () => {
+test('make:model stub — mysql uses mysqlTable + int/autoincrement + mysql-core', async () => {
     const content = await renderModel('mysql')
     assertStringIncludes(content, "from 'drizzle-orm/mysql-core'")
     assertStringIncludes(content, "export const posts = mysqlTable('posts', {")
@@ -79,7 +80,7 @@ Deno.test('make:model stub — mysql uses mysqlTable + int/autoincrement + mysql
     assert(!content.includes('sqliteTable'))
 })
 
-Deno.test('make:model stub — sqlite uses sqliteTable + integer PK + sqlite-core', async () => {
+test('make:model stub — sqlite uses sqliteTable + integer PK + sqlite-core', async () => {
     const content = await renderModel('sqlite')
     assertStringIncludes(content, "from 'drizzle-orm/sqlite-core'")
     assertStringIncludes(content, "export const posts = sqliteTable('posts', {")
@@ -91,7 +92,7 @@ Deno.test('make:model stub — sqlite uses sqliteTable + integer PK + sqlite-cor
     assert(!content.includes('mysqlTable'))
 })
 
-Deno.test('make:model stub — leaves no unrendered placeholders', async () => {
+test('make:model stub — leaves no unrendered placeholders', async () => {
     for (const d of ['postgres', 'mysql', 'sqlite'] as const) {
         const content = await renderModel(d)
         assert(
@@ -101,7 +102,7 @@ Deno.test('make:model stub — leaves no unrendered placeholders', async () => {
     }
 })
 
-Deno.test('createDrizzleConfig carries the resolved drizzle-kit dialect', async () => {
+test('createDrizzleConfig carries the resolved drizzle-kit dialect', async () => {
     const cwd = Deno.cwd()
     const tmp = await Deno.makeTempDir()
     const prevUrl = Deno.env.get('DATABASE_URL')

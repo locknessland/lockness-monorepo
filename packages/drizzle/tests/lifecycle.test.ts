@@ -17,6 +17,7 @@
  * @module @lockness/drizzle/tests/lifecycle
  */
 
+import { test } from 'node:test'
 import { assertEquals, assertRejects } from '@std/assert'
 import { Database } from '../mod.ts'
 import type { DriverFactory, DriverHandle } from '../drivers.ts'
@@ -107,7 +108,7 @@ async function capturingConsole<T>(
     }
 }
 
-Deno.test('#427 T1 a second connect() throws, and the first client stays in use', async () => {
+test('#427 T1 a second connect() throws, and the first client stays in use', async () => {
     const { events, factory } = recordingFactory()
     const db = new Database()
     db.setDriverFactory('postgres', factory)
@@ -127,7 +128,7 @@ Deno.test('#427 T1 a second connect() throws, and the first client stays in use'
     await db.close()
 })
 
-Deno.test('#427 T2 a second connect() with a refused DSN throws and logs nothing', async () => {
+test('#427 T2 a second connect() with a refused DSN throws and logs nothing', async () => {
     const { events, factory } = recordingFactory()
     const db = new Database()
     db.setDriverFactory('postgres', factory)
@@ -143,7 +144,7 @@ Deno.test('#427 T2 a second connect() with a refused DSN throws and logs nothing
     await db.close()
 })
 
-Deno.test('#427 T3 a connect() racing another in flight throws, and one client is built', async () => {
+test('#427 T3 a connect() racing another in flight throws, and one client is built', async () => {
     const gate = deferred<void>()
     let built = 0
     const db = new Database()
@@ -170,7 +171,7 @@ Deno.test('#427 T3 a connect() racing another in flight throws, and one client i
     await db.close()
 })
 
-Deno.test('#427 T4 a factory failure leaves the Database free to connect again', async () => {
+test('#427 T4 a factory failure leaves the Database free to connect again', async () => {
     let attempt = 0
     const db = new Database()
     db.setDriverFactory('postgres', () => {
@@ -190,7 +191,7 @@ Deno.test('#427 T4 a factory failure leaves the Database free to connect again',
     await db.close()
 })
 
-Deno.test('#427 T5 a refused DSN leaves the Database free to connect again', async () => {
+test('#427 T5 a refused DSN leaves the Database free to connect again', async () => {
     const { events, factory } = recordingFactory()
     const db = new Database()
     db.setDriverFactory('postgres', factory)
@@ -202,7 +203,7 @@ Deno.test('#427 T5 a refused DSN leaves the Database free to connect again', asy
     await db.close()
 })
 
-Deno.test('#427 T6 close() then connect() builds a second client; the first closes once', async () => {
+test('#427 T6 close() then connect() builds a second client; the first closes once', async () => {
     const { events, factory } = recordingFactory()
     const db = new Database()
     db.setDriverFactory('postgres', factory)
@@ -217,7 +218,7 @@ Deno.test('#427 T6 close() then connect() builds a second client; the first clos
     assertEquals(events, ['build:1', 'close:1', 'build:2', 'close:2'])
 })
 
-Deno.test('#427 T7 db, maintenance and probe throw "not connected" before connect() and after close()', async () => {
+test('#427 T7 db, maintenance and probe throw "not connected" before connect() and after close()', async () => {
     const { events, factory } = recordingFactory()
     const db = new Database()
     db.setDriverFactory('postgres', factory)
@@ -259,7 +260,7 @@ Deno.test('#427 T7 db, maintenance and probe throw "not connected" before connec
     assertEquals(events, ['build:1', 'close:1'], 'a closed client was used')
 })
 
-Deno.test('#427 T8 a probe in flight when close() runs still withholds the password', async () => {
+test('#427 T8 a probe in flight when close() runs still withholds the password', async () => {
     // The security trap: the probe captured its handle before the await, so it
     // must have captured what is held with it. Read back from `this` after the
     // await, `close()` has already emptied it — the failure would render with
@@ -293,7 +294,7 @@ Deno.test('#427 T8 a probe in flight when close() runs still withholds the passw
     assertEquals(message.includes('Hx7Kq2Lw'), false, message)
 })
 
-Deno.test('#427 T9 close() during a configure waits for it, then closes the client', async () => {
+test('#427 T9 close() during a configure waits for it, then closes the client', async () => {
     const gate = deferred<void>()
     let closes = 0
     const db = new Database()
@@ -319,7 +320,7 @@ Deno.test('#427 T9 close() during a configure waits for it, then closes the clie
     assertEquals(closes, 1, 'the client was not closed exactly once')
 })
 
-Deno.test('#427 T10 silent silences every line connect() prints; the default prints one', async () => {
+test('#427 T10 silent silences every line connect() prints; the default prints one', async () => {
     const throwing: DriverFactory = () => Promise.reject(new Error('boom'))
     const cases: Array<[string, string, DriverFactory | undefined]> = [
         ['refused DSN', 'postgres://u:p@ss@h/db', undefined],

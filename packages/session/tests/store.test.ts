@@ -2,10 +2,11 @@
  * Tests for @lockness/session - SessionStore
  */
 
+import { test } from 'node:test'
 import { assertEquals, assertNotEquals } from '@std/assert'
 import { MemorySessionDriver, SessionStore } from '../mod.ts'
 
-Deno.test('SessionStore - get and set values', () => {
+test('SessionStore - get and set values', () => {
     const driver = new MemorySessionDriver()
     const config = {
         driver: 'memory' as const,
@@ -28,7 +29,7 @@ Deno.test('SessionStore - get and set values', () => {
     assertEquals(store.get('missing', 'default'), 'default')
 })
 
-Deno.test('SessionStore - has and forget', () => {
+test('SessionStore - has and forget', () => {
     const driver = new MemorySessionDriver()
     const config = {
         driver: 'memory' as const,
@@ -53,7 +54,7 @@ Deno.test('SessionStore - has and forget', () => {
     assertEquals(store.has('foo'), false)
 })
 
-Deno.test('SessionStore - flush all data', () => {
+test('SessionStore - flush all data', () => {
     const driver = new MemorySessionDriver()
     const config = {
         driver: 'memory' as const,
@@ -77,7 +78,7 @@ Deno.test('SessionStore - flush all data', () => {
     assertEquals(store.all(), {})
 })
 
-Deno.test('SessionStore - regenerate session ID', async () => {
+test('SessionStore - regenerate session ID', async () => {
     const driver = new MemorySessionDriver()
     const config = {
         driver: 'memory' as const,
@@ -102,7 +103,7 @@ Deno.test('SessionStore - regenerate session ID', async () => {
     assertNotEquals(oldId, newId)
 })
 
-Deno.test('SessionStore - flash data', () => {
+test('SessionStore - flash data', () => {
     const driver = new MemorySessionDriver()
     const config = {
         driver: 'memory' as const,
@@ -121,7 +122,7 @@ Deno.test('SessionStore - flash data', () => {
     assertEquals(store.get('_flash'), { message: 'Success!' })
 })
 
-Deno.test('SessionStore - isDirty flag', () => {
+test('SessionStore - isDirty flag', () => {
     const driver = new MemorySessionDriver()
     const config = {
         driver: 'memory' as const,

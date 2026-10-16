@@ -3,6 +3,7 @@
  * flags, the shapes that stay clean, and the file scoping.
  */
 
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import plugin, { inScope } from './env_signal.ts'
 import { REPO_ROOT } from './repo_path.ts'
@@ -28,7 +29,7 @@ const POSITIVES: ReadonlyArray<readonly [string, string]> = [
 ]
 
 for (const [label, source] of POSITIVES) {
-    Deno.test(`env-signal - flags ${label}`, () => {
+    test(`env-signal - flags ${label}`, () => {
         assertEquals(hits(source), 1)
     })
 }
@@ -42,19 +43,19 @@ const NEGATIVES: ReadonlyArray<readonly [string, string]> = [
 ]
 
 for (const [label, source] of NEGATIVES) {
-    Deno.test(`env-signal - leaves ${label} alone`, () => {
+    test(`env-signal - leaves ${label} alone`, () => {
         assertEquals(hits(source), 0)
     })
 }
 
-Deno.test('env-signal - reports in packages, app and config', () => {
+test('env-signal - reports in packages, app and config', () => {
     const source = "const e = Deno.env.get('APP_ENV')"
     assertEquals(hits(source, `${REPO_ROOT}app/service/x.ts`), 1)
     assertEquals(hits(source, `${REPO_ROOT}config/app.ts`), 1)
     assertEquals(hits(source, `${REPO_ROOT}app/view/pages/errors/h.tsx`), 1)
 })
 
-Deno.test('env-signal - reports nothing in tests, scripts, or the resolver itself', () => {
+test('env-signal - reports nothing in tests, scripts, or the resolver itself', () => {
     const source = "const e = Deno.env.get('DENO_ENV')"
     assertEquals(hits(source, `${REPO_ROOT}packages/x/tests/a.ts`), 0)
     assertEquals(hits(source, `${REPO_ROOT}packages/x/a.test.ts`), 0)
@@ -70,7 +71,7 @@ Deno.test('env-signal - reports nothing in tests, scripts, or the resolver itsel
     )
 })
 
-Deno.test('env-signal - inScope reads Windows separators', () => {
+test('env-signal - inScope reads Windows separators', () => {
     assertEquals(inScope('C:\\repo\\config\\app.ts', 'C:\\repo'), true)
     assertEquals(
         inScope('C:\\repo\\packages\\x\\tests\\a.ts', 'C:\\repo'),
@@ -78,7 +79,7 @@ Deno.test('env-signal - inScope reads Windows separators', () => {
     )
 })
 
-Deno.test('env-signal - inScope ignores where the checkout lives', () => {
+test('env-signal - inScope ignores where the checkout lives', () => {
     assertEquals(
         inScope('/home/tests/repo/config/app.ts', '/home/tests/repo'),
         true,

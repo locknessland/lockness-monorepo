@@ -4,6 +4,7 @@
 
 // deno-lint-ignore-file require-await
 
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { compose, composeMiddleware } from '../http/compose.ts'
 import { DeclareMiddleware } from '../routing/decorators.ts'
@@ -26,7 +27,7 @@ function createMockContext(): Context {
     } as unknown as Context & { _executionOrder: string[] }
 }
 
-Deno.test('compose - executes middlewares in order', async () => {
+test('compose - executes middlewares in order', async () => {
     const order: string[] = []
 
     const middleware1 = async (_c: Context, next: Next) => {
@@ -57,7 +58,7 @@ Deno.test('compose - executes middlewares in order', async () => {
     ])
 })
 
-Deno.test('compose - handles empty middleware array', async () => {
+test('compose - handles empty middleware array', async () => {
     const composed = compose([])
     const c = createMockContext()
     let handlerCalled = false
@@ -69,7 +70,7 @@ Deno.test('compose - handles empty middleware array', async () => {
     assertEquals(handlerCalled, true)
 })
 
-Deno.test('compose - handles single middleware', async () => {
+test('compose - handles single middleware', async () => {
     const order: string[] = []
 
     const middleware = async (_c: Context, next: Next) => {
@@ -87,7 +88,7 @@ Deno.test('compose - handles single middleware', async () => {
     assertEquals(order, ['middleware', 'handler'])
 })
 
-Deno.test('compose - resolves class middlewares', async () => {
+test('compose - resolves class middlewares', async () => {
     const order: string[] = []
 
     class TestMiddleware implements MiddlewareContract {
@@ -107,7 +108,7 @@ Deno.test('compose - resolves class middlewares', async () => {
     assertEquals(order, ['class-middleware', 'handler'])
 })
 
-Deno.test('compose - resolves named middlewares from registry', async () => {
+test('compose - resolves named middlewares from registry', async () => {
     const order: string[] = []
 
     @DeclareMiddleware('test-compose')
@@ -131,7 +132,7 @@ Deno.test('compose - resolves named middlewares from registry', async () => {
     assertEquals(order, ['named-middleware', 'handler'])
 })
 
-Deno.test('compose - mixes different middleware types', async () => {
+test('compose - mixes different middleware types', async () => {
     const order: string[] = []
 
     // Function middleware
@@ -158,7 +159,7 @@ Deno.test('compose - mixes different middleware types', async () => {
     assertEquals(order, ['function', 'class', 'handler'])
 })
 
-Deno.test('compose - middleware can short-circuit by returning Response', async () => {
+test('compose - middleware can short-circuit by returning Response', async () => {
     const order: string[] = []
 
     const middleware1 = async (c: Context, _next: Next) => {
@@ -183,7 +184,7 @@ Deno.test('compose - middleware can short-circuit by returning Response', async 
     assertEquals(response instanceof Response, true)
 })
 
-Deno.test('compose - skips unresolvable named middlewares with warning', async () => {
+test('compose - skips unresolvable named middlewares with warning', async () => {
     const order: string[] = []
     const originalWarn = console.warn
     let warnCalled = false
@@ -212,7 +213,7 @@ Deno.test('compose - skips unresolvable named middlewares with warning', async (
     assertEquals(warnCalled, true)
 })
 
-Deno.test('composeMiddleware - works with rest parameters', async () => {
+test('composeMiddleware - works with rest parameters', async () => {
     const order: string[] = []
 
     const m1 = async (_c: Context, next: Next) => {
@@ -235,7 +236,7 @@ Deno.test('composeMiddleware - works with rest parameters', async () => {
     assertEquals(order, ['m1', 'm2', 'handler'])
 })
 
-Deno.test('compose - nested compose works correctly', async () => {
+test('compose - nested compose works correctly', async () => {
     const order: string[] = []
 
     const m1 = async (_c: Context, next: Next) => {

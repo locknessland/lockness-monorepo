@@ -6,6 +6,7 @@
  * production lists only published posts; development includes drafts.
  */
 
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { PostService } from '../../app/service/post_service.ts'
 import type { PostRepository } from '../../app/repository/post_repository.ts'
@@ -58,7 +59,7 @@ function makeService(isProduction: boolean) {
     return { service, calls }
 }
 
-Deno.test('list - production returns published only via findAllPublished', async () => {
+test('list - production returns published only via findAllPublished', async () => {
     const { service, calls } = makeService(true)
     const posts = await service.list()
 
@@ -66,7 +67,7 @@ Deno.test('list - production returns published only via findAllPublished', async
     assertEquals(posts.map((p) => p.slug), ['published'])
 })
 
-Deno.test('list - development includes drafts via findAllIncludingDrafts', async () => {
+test('list - development includes drafts via findAllIncludingDrafts', async () => {
     const { service, calls } = makeService(false)
     const posts = await service.list()
 

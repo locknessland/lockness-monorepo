@@ -11,6 +11,7 @@
  * @module @lockness/openapi/tests/api_docs_controller_stub
  */
 
+import { test } from 'node:test'
 import { assert, assertStringIncludes } from '@std/assert'
 import { dirname, fromFileUrl, join } from '@std/path'
 import { Stub } from '@lockness/cli'
@@ -18,7 +19,7 @@ import { Stub } from '@lockness/cli'
 /** The stub directory `install.ts` renders from. */
 const STUBS_DIR = join(dirname(fromFileUrl(import.meta.url)), '..', 'stubs')
 
-Deno.test('api_docs_controller stub - imports no app file and delegates discovery', async () => {
+test('api_docs_controller stub - imports no app file and delegates discovery', async () => {
     const rendered = await Stub.renderFrom(
         STUBS_DIR,
         '',

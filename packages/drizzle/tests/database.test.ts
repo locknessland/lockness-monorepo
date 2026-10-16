@@ -26,6 +26,7 @@
  * @module @lockness/drizzle/tests/database
  */
 
+import { test } from 'node:test'
 import { assertEquals, assertRejects } from '@std/assert'
 import { renderError } from '@lockness/contract'
 import { Database } from '../mod.ts'
@@ -67,7 +68,7 @@ function messageOf(error: unknown): string {
     return error instanceof Error ? error.message : String(error)
 }
 
-Deno.test('#420 connect() makes zero round trips; probe() makes exactly one', async () => {
+test('#420 connect() makes zero round trips; probe() makes exactly one', async () => {
     const { counts, factory } = countingFactory()
     const db = new Database()
     db.setDriverFactory('postgres', factory)
@@ -84,7 +85,7 @@ Deno.test('#420 connect() makes zero round trips; probe() makes exactly one', as
     assertEquals(counts, { built: 1, probes: 1 })
 })
 
-Deno.test('#420 probe() rejects with "not connected" after close()', async () => {
+test('#420 probe() rejects with "not connected" after close()', async () => {
     const { counts, factory } = countingFactory()
     const db = new Database()
     db.setDriverFactory('postgres', factory)
@@ -97,11 +98,11 @@ Deno.test('#420 probe() rejects with "not connected" after close()', async () =>
     assertEquals(counts.probes, 0, 'a closed client must not be probed')
 })
 
-Deno.test('#420 probe() rejects with "not connected" before any connect()', async () => {
+test('#420 probe() rejects with "not connected" before any connect()', async () => {
     await assertRejects(() => new Database().probe(), Error, 'not connected')
 })
 
-Deno.test('#301 a password containing a slash never reaches the result', async () => {
+test('#301 a password containing a slash never reaches the result', async () => {
     // `/` in the userinfo is what makes `new URL()` throw AND what a pattern
     // redactor could not span — the same characters on both sides. The
     // assertion is on the PROPERTY, not on which mechanism got there first.
@@ -124,7 +125,7 @@ Deno.test('#301 a password containing a slash never reaches the result', async (
     assertEquals(counts.built, 0, 'the refused DSN reached the factory')
 })
 
-Deno.test('#301 no password shape reaches the returned error', async () => {
+test('#301 no password shape reaches the returned error', async () => {
     // The property, over the shapes that broke the pattern before #301.
     //
     // Since #425 all three are refused by the DSN check inside `connect()`,
@@ -167,7 +168,7 @@ function failingFactory(error: unknown): DriverFactory {
         })
 }
 
-Deno.test('#302 probe() re-throws a head-only render, never a cause chain', async () => {
+test('#302 probe() re-throws a head-only render, never a cause chain', async () => {
     // This is the only renderError call site in the repo whose result is
     // RETURNED (or re-thrown) rather than passed to console — an application
     // may put it in a response. Same distinction telemetry draws for a span.
@@ -191,7 +192,7 @@ Deno.test('#302 probe() re-throws a head-only render, never a cause chain', asyn
     assertEquals(messageOf(error), 'Error: connection refused')
 })
 
-Deno.test('#420 with no DSN held, the render is untouched and head-only', async () => {
+test('#420 with no DSN held, the render is untouched and head-only', async () => {
     // An empty URL is a real input (`DATABASE_URL=` set but blank). There is
     // then no DSN to remove, and `replaceAll('', marker)` would splice the
     // marker between every character of the message.
@@ -210,7 +211,7 @@ Deno.test('#420 with no DSN held, the render is untouched and head-only', async 
     assertEquals(messageOf(error), 'Error: connection refused')
 })
 
-Deno.test('#420 a driver message carrying the exact DSN is redacted by identity', async () => {
+test('#420 a driver message carrying the exact DSN is redacted by identity', async () => {
     // The identity leg, reached: a client that words its own failure with the
     // DSN in it. The marker proves the leg fired — the shared pattern alone
     // would leave `postgres://***:***@db.internal...`, not the marker. The
@@ -231,7 +232,7 @@ Deno.test('#420 a driver message carrying the exact DSN is redacted by identity'
     assertEquals(message, 'Error: could not reach <dsn redacted>')
 })
 
-Deno.test('#420 a slash then a raw @ in the password leaks no fragment of it', async () => {
+test('#420 a slash then a raw @ in the password leaks no fragment of it', async () => {
     // `/` makes the userinfo span what the shared pattern must stop at, and
     // the first raw `@` is where it stops — so pattern-first redaction left
     // the tail after it (`postgres://***:***@Wm4@db...`). Both surfaces are
@@ -267,7 +268,7 @@ Deno.test('#420 a slash then a raw @ in the password leaks no fragment of it', a
     assertNoFragment(messageOf(error), 'probe()')
 })
 
-Deno.test('#420 an unreadable driver error renders as a sentinel, not a throw', async () => {
+test('#420 an unreadable driver error renders as a sentinel, not a throw', async () => {
     // Removing the DSN reads the raw message, and a thrown value's `message`
     // can be a getter that throws. The render must stay total: the caller
     // gets the sentinel, never the getter's own error.
@@ -304,7 +305,7 @@ async function capturingErrors<T>(
     }
 }
 
-Deno.test('#425 the issue passwords reach neither the result nor the log, and no factory', async () => {
+test('#425 the issue passwords reach neither the result nor the log, and no factory', async () => {
     // Through the REAL default driver: before #425 postgres.js rewrote each
     // of these (a comma is a host separator to it) and echoed the rewrite,
     // which the exact-DSN removal could not match.
@@ -354,7 +355,7 @@ async function probeFailure(dsn: string, error: unknown): Promise<string> {
     return messageOf(await assertRejects(() => db.probe()))
 }
 
-Deno.test('#425 a short password is withheld, never replaced inside driver text', async () => {
+test('#425 a short password is withheld, never replaced inside driver text', async () => {
     // Replacing by value turns the replacement into a detector: `e` would
     // become `conn***ct … us***r`, and `5432` would mask the port. So the
     // text is shown verbatim or withheld whole — never edited.
@@ -369,7 +370,7 @@ Deno.test('#425 a short password is withheld, never replaced inside driver text'
     }
 })
 
-Deno.test('#425 the Docker default postgres:postgres is withheld, not masked', async () => {
+test('#425 the Docker default postgres:postgres is withheld, not masked', async () => {
     const message = await probeFailure(
         'postgres://postgres:postgres@localhost:5432/postgres',
         new Error('password authentication failed for user "postgres"'),
@@ -377,7 +378,7 @@ Deno.test('#425 the Docker default postgres:postgres is withheld, not masked', a
     assertEquals(message, probeWithheld('Error'))
 })
 
-Deno.test('#425 text holding no form of the password renders the same whatever the password', async () => {
+test('#425 text holding no form of the password renders the same whatever the password', async () => {
     // Output independence: the password must not influence a render it does
     // not occur in. A foreign DSN proves the shared pattern still runs.
     const text = 'could not reach postgres://other:Zz9Other@elsewhere/db'
@@ -392,7 +393,7 @@ Deno.test('#425 text holding no form of the password renders the same whatever t
     }
 })
 
-Deno.test('#425 every echo of a held password is withheld; the exact DSN is replaced whole', async () => {
+test('#425 every echo of a held password is withheld; the exact DSN is replaced whole', async () => {
     // Every form a driver may echo once the DSN has passed the check. The
     // exact DSN is replaced whole and the rest of the message kept; any other
     // form of the password — the WHATWG href, the multi-host list collapsed
@@ -418,7 +419,7 @@ Deno.test('#425 every echo of a held password is withheld; the exact DSN is repl
     }
 })
 
-Deno.test('#425 a password WHATWG re-encodes is withheld in its href', async () => {
+test('#425 a password WHATWG re-encodes is withheld in its href', async () => {
     // `;` and `=` are legal in the userinfo but WHATWG percent-encodes them
     // in `href`: only the URL-parser form of the password matches that echo.
     const dsn = 'postgres://app:Nq4;Vd8=Jp3@h1:5432,h2:5433/prod'
@@ -437,7 +438,7 @@ Deno.test('#425 a password WHATWG re-encodes is withheld in its href', async () 
     )
 })
 
-Deno.test('#425 an empty password does not splice a marker into the message', async () => {
+test('#425 an empty password does not splice a marker into the message', async () => {
     for (const dsn of ['postgres://app:@h/db', 'postgres://app@h/db']) {
         const db = new Database()
         db.setDriverFactory(
@@ -455,7 +456,7 @@ function throwingFactory(error: unknown): DriverFactory {
     return () => Promise.reject(error)
 }
 
-Deno.test('#425 a client that cannot be built reports its error name, never its message', async () => {
+test('#425 a client that cannot be built reports its error name, never its message', async () => {
     // The constructor's message may quote the DSN in any rewritten form, so
     // none of it is shown — only a name, and only an identifier-shaped one.
     const db = new Database()
@@ -479,7 +480,7 @@ Deno.test('#425 a client that cannot be built reports its error name, never its 
     assertEquals(logged.includes('boom'), false, logged)
 })
 
-Deno.test('#425 an error name that is not identifier-shaped is dropped', async () => {
+test('#425 an error name that is not identifier-shaped is dropped', async () => {
     const withheld = "The 'mysql' driver could not be configured; " +
         'its message is withheld because it may contain the DSN'
     const named = new Error('boom')
@@ -501,7 +502,7 @@ function configureWithheld(dialect: string, name?: string): string {
     }; its message is withheld because it may contain the DSN`
 }
 
-Deno.test('#425 an unreadable error name is marked in the one error line, with no warning', async () => {
+test('#425 an unreadable error name is marked in the one error line, with no warning', async () => {
     const hostile = new Error('boom')
     Object.defineProperty(hostile, 'name', {
         get(): never {
@@ -540,7 +541,7 @@ Deno.test('#425 an unreadable error name is marked in the one error line, with n
     }
 })
 
-Deno.test('#425 a throwing prototype lookup fails connect(), it does not reject', async () => {
+test('#425 a throwing prototype lookup fails connect(), it does not reject', async () => {
     // `instanceof` walks the prototype chain, and a Proxy can throw there.
     const hostile = new Proxy({}, {
         getPrototypeOf(): never {
@@ -561,7 +562,7 @@ Deno.test('#425 a throwing prototype lookup fails connect(), it does not reject'
     assertEquals(logged.includes('trap'), false, logged)
 })
 
-Deno.test('#425 the unreadable-name marker cannot be spoofed by a name', async () => {
+test('#425 the unreadable-name marker cannot be spoofed by a name', async () => {
     const cases: Array<[string, string]> = [
         ['unreadableName', configureWithheld('postgres', 'unreadableName')],
         ['x y', configureWithheld('postgres')],
@@ -579,7 +580,7 @@ Deno.test('#425 the unreadable-name marker cannot be spoofed by a name', async (
     }
 })
 
-Deno.test('#425 an identifier-shaped name holding the password is dropped', async () => {
+test('#425 an identifier-shaped name holding the password is dropped', async () => {
     const thrown = new Error('boom')
     thrown.name = 'Pw7FakeError'
     const db = new Database()
@@ -598,7 +599,7 @@ Deno.test('#425 an identifier-shaped name holding the password is dropped', asyn
     )
 })
 
-Deno.test('#425 an import error holding the password is withheld after the package sentence', async () => {
+test('#425 an import error holding the password is withheld after the package sentence', async () => {
     // The Docker default: the password is also the package name.
     const db = new Database()
     db.setDriverFactory(
@@ -623,7 +624,7 @@ Deno.test('#425 an import error holding the password is withheld after the packa
     })
 })
 
-Deno.test('#425 a missing client package is named, with the import error', async () => {
+test('#425 a missing client package is named, with the import error', async () => {
     const db = new Database()
     db.setDriverFactory(
         'sqlite',
@@ -644,7 +645,7 @@ Deno.test('#425 a missing client package is named, with the import error', async
     })
 })
 
-Deno.test('#425 loadClient wraps an import failure, and passes a load through', async () => {
+test('#425 loadClient wraps an import failure, and passes a load through', async () => {
     const cause = new Error('Cannot find module mysql2')
     const error = await assertRejects(
         () => loadClient('mysql', () => Promise.reject(cause)),
@@ -684,7 +685,7 @@ function assertNoFragment(text: string, surface: string): void {
     }
 }
 
-Deno.test('#426 a probe rejecting with a string that holds the password is withheld, with no name', async () => {
+test('#426 a probe rejecting with a string that holds the password is withheld, with no name', async () => {
     // `readHead`'s non-Error branch: a driver may reject with a bare string.
     // It must take the same check as an Error, and a string has no name to
     // show — so the sentence carries none, not a borrowed `(Error)`.
@@ -696,7 +697,7 @@ Deno.test('#426 a probe rejecting with a string that holds the password is withh
     assertNoFragment(message, 'probe()')
 })
 
-Deno.test('#426 a probe rejecting with a string that holds only the exact DSN shows it redacted by identity', async () => {
+test('#426 a probe rejecting with a string that holds only the exact DSN shows it redacted by identity', async () => {
     // The shown leg of the same branch: the exact DSN is replaced whole and
     // the string rendered as a string — no `Error:` prefix it never had, and
     // the marker rather than the shared pattern's `***:***`.
@@ -708,7 +709,7 @@ Deno.test('#426 a probe rejecting with a string that holds only the exact DSN sh
     assertNoFragment(message, 'probe()')
 })
 
-Deno.test('#426 an import error rejected as a string that holds the password never reaches ConnectionResult.error', async () => {
+test('#426 an import error rejected as a string that holds the password never reaches ConnectionResult.error', async () => {
     // The one `connect()` path that renders driver text: a missing client
     // package shows its import error. A loader may reject with a string, and
     // that string reaches `readHead`'s non-Error branch on its way to the
@@ -736,7 +737,7 @@ Deno.test('#426 an import error rejected as a string that holds the password nev
     assertNoFragment(`${result.error}\n${logged}`, 'connect()')
 })
 
-Deno.test('#426 an error name holding the password withholds the message, and is not shown', async () => {
+test('#426 an error name holding the password withholds the message, and is not shown', async () => {
     // The name is driver text like the message. Here it is not
     // identifier-shaped, so the shown-name rule would drop it anyway — the
     // check on the name is all that stands between it and the render, which
@@ -748,7 +749,7 @@ Deno.test('#426 an error name holding the password withholds the message, and is
     assertNoFragment(message, 'probe()')
 })
 
-Deno.test('#426 a non-string error name falls back to Error', async () => {
+test('#426 a non-string error name falls back to Error', async () => {
     // An application subclass can assign anything to `name`. It is read as
     // `Error`, the coercion `renderError` makes — never String()-ed into the
     // render, and never handed to the credential check as a non-string.

@@ -13,6 +13,7 @@
  * @module @lockness/drizzle/tests/query_credentials
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import { Database } from '../mod.ts'
 import type { Dialect, DriverFactory } from '../drivers.ts'
@@ -58,7 +59,7 @@ async function probeFailure(
     return rejected instanceof Error ? rejected.message : String(rejected)
 }
 
-Deno.test('#438 inspectDsn holds an authToken in every form a driver may echo', () => {
+test('#438 inspectDsn holds an authToken in every form a driver may echo', () => {
     // As written, percent-decoded, re-encoded by encodeURIComponent, decoded
     // the form way (`+` is a space), and as WHATWG serialises the query (`"`
     // becomes `%22`).
@@ -75,7 +76,7 @@ Deno.test('#438 inspectDsn holds an authToken in every form a driver may echo', 
     })
 })
 
-Deno.test('#438 a held form is matched whatever the case of its hex escapes', async () => {
+test('#438 a held form is matched whatever the case of its hex escapes', async () => {
     // A driver that re-encodes `+` may write `%2b` where the DSN had `%2B`.
     const out = await probeFailure(
         'sqlite',
@@ -86,21 +87,21 @@ Deno.test('#438 a held form is matched whatever the case of its hex escapes', as
     assertNoMarker(out)
 })
 
-Deno.test('#438 the userinfo password and query credentials are both held', () => {
+test('#438 the userinfo password and query credentials are both held', () => {
     const inspection = inspectDsn(
         `postgres://app:Pw7@db/app?sslpassword=Ssl8&sslmode=require`,
     )
     assertEquals(inspection, { ok: true, secrets: ['Pw7', 'Ssl8'] })
 })
 
-Deno.test('#438 every value of a repeated credential name is held', () => {
+test('#438 every value of a repeated credential name is held', () => {
     assertEquals(inspectDsn('libsql://h?authToken=One1&authToken=Two2'), {
         ok: true,
         secrets: ['One1', 'Two2'],
     })
 })
 
-Deno.test('#438 a name is matched whatever its case or encoding', () => {
+test('#438 a name is matched whatever its case or encoding', () => {
     for (const name of ['AUTHTOKEN', 'Password', 'api%5Fkey']) {
         assertEquals(
             inspectDsn(`libsql://h?${name}=Val9`),
@@ -110,7 +111,7 @@ Deno.test('#438 a name is matched whatever its case or encoding', () => {
     }
 })
 
-Deno.test('#438 an empty or absent value, or a plain parameter, holds nothing', () => {
+test('#438 an empty or absent value, or a plain parameter, holds nothing', () => {
     for (
         const dsn of [
             'libsql://h?authToken=',
@@ -124,7 +125,7 @@ Deno.test('#438 an empty or absent value, or a plain parameter, holds nothing', 
     }
 })
 
-Deno.test('#438 a probe error echoing the authToken alone is withheld', async () => {
+test('#438 a probe error echoing the authToken alone is withheld', async () => {
     const out = await probeFailure(
         'sqlite',
         `libsql://db.example.com?authToken=${M}`,
@@ -134,7 +135,7 @@ Deno.test('#438 a probe error echoing the authToken alone is withheld', async ()
     assertNoMarker(out)
 })
 
-Deno.test('#438 a probe error echoing the authToken in a rebuilt URL is withheld', async () => {
+test('#438 a probe error echoing the authToken in a rebuilt URL is withheld', async () => {
     // Not the exact DSN, so the identity replacement cannot find it.
     const out = await probeFailure(
         'sqlite',
@@ -145,7 +146,7 @@ Deno.test('#438 a probe error echoing the authToken in a rebuilt URL is withheld
     assertNoMarker(out)
 })
 
-Deno.test('#438 a probe error echoing the decoded form is withheld', async () => {
+test('#438 a probe error echoing the decoded form is withheld', async () => {
     const out = await probeFailure(
         'sqlite',
         `libsql://db.example.com?authToken=${M}%2Fx`,
@@ -155,7 +156,7 @@ Deno.test('#438 a probe error echoing the decoded form is withheld', async () =>
     assertNoMarker(out)
 })
 
-Deno.test('#438 a mysql ?password= echoed alone is withheld', async () => {
+test('#438 a mysql ?password= echoed alone is withheld', async () => {
     const out = await probeFailure(
         'mysql',
         `mysql://app@db/app?password=${M}`,
@@ -165,7 +166,7 @@ Deno.test('#438 a mysql ?password= echoed alone is withheld', async () => {
     assertNoMarker(out)
 })
 
-Deno.test('#438 an AUTHTOKEN in capitals is held too', async () => {
+test('#438 an AUTHTOKEN in capitals is held too', async () => {
     const out = await probeFailure(
         'sqlite',
         `libsql://db.example.com?AUTHTOKEN=${M}`,
@@ -175,7 +176,7 @@ Deno.test('#438 an AUTHTOKEN in capitals is held too', async () => {
     assertNoMarker(out)
 })
 
-Deno.test('#438 a probe error holding no credential is shown, not withheld', async () => {
+test('#438 a probe error holding no credential is shown, not withheld', async () => {
     const out = await probeFailure(
         'sqlite',
         `libsql://db.example.com?authToken=${M}`,
@@ -184,7 +185,7 @@ Deno.test('#438 a probe error holding no credential is shown, not withheld', asy
     assertEquals(out, 'Error: connection refused')
 })
 
-Deno.test('#497 a numeric PIN query value is held', async () => {
+test('#497 a numeric PIN query value is held', async () => {
     // `pin` is a contract stem, so drizzle holds it with no list of its own.
     const pin = '48' + '21'
     assertEquals(inspectDsn(`libsql://h?pin=${pin}&tls=1`), {

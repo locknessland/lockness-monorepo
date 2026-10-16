@@ -18,6 +18,7 @@
  * @module @lockness/realtime/tests/log_encoding_291
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { ChannelManager } from '../manager.ts'
 import { buildEvents } from '../websocket.ts'
@@ -127,7 +128,7 @@ function fakeConn(id: string): Connection<User> {
 const fakeSocket = () => ({ send() {}, close() {} })
 const tick = () => new Promise((r) => setTimeout(r, 0))
 
-Deno.test('#291 evict-teardown WARN renders the error and encodes the client id', async () => {
+test('#291 evict-teardown WARN renders the error and encodes the client id', async () => {
     // A roster whose releaseMember rejects makes disconnect() throw, which is
     // the only way into revokeLocal's catch.
     const driver: BroadcastDriver = {
@@ -175,7 +176,7 @@ Deno.test('#291 evict-teardown WARN renders the error and encodes the client id'
     assertStringIncludes(warn?.text ?? '', 'client-gnp.txt')
 })
 
-Deno.test('#291 durable-revocation WARN renders the error and stays a WARN', async () => {
+test('#291 durable-revocation WARN renders the error and stays a WARN', async () => {
     // ALL THREE revocation members, not just the failing one. They are
     // feature-detected as a SET (#332), so a double presenting `markRevocation`
     // alone is narrowed to "no revocation store at all" — the write is never
@@ -207,7 +208,7 @@ Deno.test('#291 durable-revocation WARN renders the error and stays a WARN', asy
     )
 })
 
-Deno.test('#291 the default onPublishError renders the error', async () => {
+test('#291 the default onPublishError renders the error', async () => {
     const driver: BroadcastDriver = {
         publish: () => Promise.reject(DSN_FAILURE()),
         onMessage: () => {},
@@ -226,7 +227,7 @@ Deno.test('#291 the default onPublishError renders the error', async () => {
     assertEquals(line?.sink, 'error', 'a lost broadcast is an ERROR')
 })
 
-Deno.test('#291 the default websocket error sink renders the error', async () => {
+test('#291 the default websocket error sink renders the error', async () => {
     // The fourth site, and the hottest: guard() routes every throw from the
     // application's onOpen/onMessage here whenever no hooks.onError is given.
     const events = buildEvents<User>(
@@ -257,7 +258,7 @@ Deno.test('#291 the default websocket error sink renders the error', async () =>
     )
 })
 
-Deno.test('#291 a client-controlled frame field cannot forge or reorder a log line', async () => {
+test('#291 a client-controlled frame field cannot forge or reorder a log line', async () => {
     // The source half of the same site: decodeClientMessage interpolates the
     // frame's own `type` into `unknown frame type: ...`. Encoding happens at
     // the SINK rather than at that throw, because the thrown message also goes
@@ -291,7 +292,7 @@ Deno.test('#291 a client-controlled frame field cannot forge or reorder a log li
     assertEquals(line.text.includes('‮'), false, 'a bidi override got through')
 })
 
-Deno.test('#291 a transport error keeps its detail, which renderError would drop', async () => {
+test('#291 a transport error keeps its detail, which renderError would drop', async () => {
     // renderError renders `name: message` and drops `cause` entirely, so an
     // error whose whole content is its cause renders to nothing useful. The
     // onError path deliberately attaches the transport event as a cause; the
@@ -316,7 +317,7 @@ Deno.test('#291 a transport error keeps its detail, which renderError would drop
     )
 })
 
-Deno.test('#291 the public-channel warning encodes the event and channel names', () => {
+test('#291 the public-channel warning encodes the event and channel names', () => {
     // Reached through the `warn` helper rather than a direct console.*, which
     // is why a grep of events_bridge.ts for `console.` does not find it.
     const lines: string[] = []
@@ -351,7 +352,7 @@ Deno.test('#291 the public-channel warning encodes the event and channel names',
     )
 })
 
-Deno.test('#291 events_bridge stays control flow, not a log line', async () => {
+test('#291 events_bridge stays control flow, not a log line', async () => {
     // THE ONE SITE THAT MUST NOT BE CONVERTED, and the only test here that
     // reads source rather than behaviour. That is deliberate and stated rather
     // than disguised: `loadDispatcher` is module-private and hardcodes its
@@ -409,7 +410,7 @@ Deno.test('#291 events_bridge stays control flow, not a log line', async () => {
     assertStringIncludes(region, 'CONTROL FLOW, NOT A LOG LINE')
 })
 
-Deno.test('#291 captureConsole restores both sinks on dispose', () => {
+test('#291 captureConsole restores both sinks on dispose', () => {
     // Nothing else in this file can observe a failed restore: each test
     // installs its own recorder and asserts on its own array. But Deno runs
     // test files in one process, so an unrestored recorder swallows console
@@ -430,7 +431,7 @@ Deno.test('#291 captureConsole restores both sinks on dispose', () => {
     assertEquals(console.error, realError, 'console.error was left patched')
 })
 
-Deno.test('#323 the presence WARNs name the channel and NOTHING from the member', async () => {
+test('#323 the presence WARNs name the channel and NOTHING from the member', async () => {
     // `manager.ts` states in a comment that these paths deliberately carry
     // nothing derived from the member — `info` is arbitrary application PII and
     // log stores are read more widely than the data they describe. A comment is

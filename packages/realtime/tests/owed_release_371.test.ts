@@ -26,6 +26,7 @@
  * @module @lockness/realtime/tests/owed_release_371
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import { ChannelManager, MAX_PENDING_ROSTER_RELEASES } from '../manager.ts'
 import type { BroadcastDriver } from '../driver.ts'
@@ -224,7 +225,7 @@ function faultyJoinReclaimDriver() {
     }
 }
 
-Deno.test(
+test(
     '#371 W1 (AC) a release that rejects once — disconnect still rejects, ' +
         'and after the next drain the roster no longer holds the member, ' +
         'exactly one left, no extra joined',
@@ -282,7 +283,7 @@ Deno.test(
     },
 )
 
-Deno.test(
+test(
     '#371 W2 (covers #373 residue) a join reclaim that itself fails is ' +
         'released by the drain, and the ORIGINAL roster error still wins',
     async () => {
@@ -326,7 +327,7 @@ Deno.test(
     },
 )
 
-Deno.test(
+test(
     '#371 W3 the drain itself fails once — succeeds on the following ' +
         'tick, still exactly one left, no duplicate',
     async () => {
@@ -386,7 +387,7 @@ Deno.test(
     },
 )
 
-Deno.test(
+test(
     '#371 W3c the drain issues releases sequentially, never concurrently',
     async () => {
         await watchingEscapes(async (escaped) => {
@@ -422,7 +423,7 @@ Deno.test(
     },
 )
 
-Deno.test(
+test(
     '#371 W4 a fresh join by the same member id, while its release is ' +
         'queued — the drain refreshes the hold, never releasing a member ' +
         'who is present',
@@ -467,7 +468,7 @@ Deno.test(
     },
 )
 
-Deno.test(
+test(
     '#371 W5 the cap: enqueue past MAX_PENDING_ROSTER_RELEASES is refused ' +
         'and logged with the ghost-sweep wording, never silently dropped',
     async () => {

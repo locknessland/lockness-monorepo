@@ -5,10 +5,11 @@
  * @module @lockness/contract/tests/resource_derive
  */
 
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { deriveJsonSchema } from '../resource/derive.ts'
 
-Deno.test('deriveJsonSchema - infers primitive property types', () => {
+test('deriveJsonSchema - infers primitive property types', () => {
     const schema = deriveJsonSchema({
         id: 1,
         ratio: 1.5,
@@ -26,7 +27,7 @@ Deno.test('deriveJsonSchema - infers primitive property types', () => {
     assertEquals(schema.required, ['id', 'ratio', 'name', 'active'])
 })
 
-Deno.test('deriveJsonSchema - infers array items from the first element', () => {
+test('deriveJsonSchema - infers array items from the first element', () => {
     const schema = deriveJsonSchema({ tags: ['a', 'b'], empty: [] })
 
     assertEquals(schema.properties?.tags, {
@@ -37,7 +38,7 @@ Deno.test('deriveJsonSchema - infers array items from the first element', () => 
     assertEquals(schema.properties?.empty, { type: 'array', items: {} })
 })
 
-Deno.test('deriveJsonSchema - recurses into nested objects', () => {
+test('deriveJsonSchema - recurses into nested objects', () => {
     const schema = deriveJsonSchema({
         author: { id: 7, name: 'grace' },
     })
@@ -49,7 +50,7 @@ Deno.test('deriveJsonSchema - recurses into nested objects', () => {
     })
 })
 
-Deno.test('deriveJsonSchema - null becomes an open schema and is optional', () => {
+test('deriveJsonSchema - null becomes an open schema and is optional', () => {
     const schema = deriveJsonSchema({ id: 1, deletedAt: null })
 
     assertEquals(schema.properties?.deletedAt, {})
@@ -57,7 +58,7 @@ Deno.test('deriveJsonSchema - null becomes an open schema and is optional', () =
     assertEquals(schema.required, ['id'])
 })
 
-Deno.test('deriveJsonSchema - undefined values are omitted entirely', () => {
+test('deriveJsonSchema - undefined values are omitted entirely', () => {
     const schema = deriveJsonSchema({
         id: 1,
         missing: undefined,
@@ -67,7 +68,7 @@ Deno.test('deriveJsonSchema - undefined values are omitted entirely', () => {
     assertEquals(schema.required, ['id'])
 })
 
-Deno.test('deriveJsonSchema - empty projection yields an empty object schema', () => {
+test('deriveJsonSchema - empty projection yields an empty object schema', () => {
     const schema = deriveJsonSchema({})
 
     assertEquals(schema, { type: 'object', properties: {} })

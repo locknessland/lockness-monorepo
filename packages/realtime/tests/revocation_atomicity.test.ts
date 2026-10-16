@@ -17,6 +17,7 @@
  * @module @lockness/realtime/tests/revocation_atomicity
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { RedisBroadcastDriver } from '../drivers/redis.ts'
 import { ChannelManager } from '../manager.ts'
@@ -50,7 +51,7 @@ function driverOn(
     })
 }
 
-Deno.test("#276 race 1: a re-eviction during another instance's reap survives", async () => {
+test("#276 race 1: a re-eviction during another instance's reap survives", async () => {
     const redis = new FakeRedis()
     redis.setTime(1_000)
     const a = driverOn(redis)
@@ -81,7 +82,7 @@ Deno.test("#276 race 1: a re-eviction during another instance's reap survives", 
     }
 })
 
-Deno.test('#276 race 2: recording a revocation has no window for a reap to step into', async () => {
+test('#276 race 2: recording a revocation has no window for a reap to step into', async () => {
     const redis = new FakeRedis()
     redis.setTime(2_000)
     // Count the commands `markRevoked` issues. The old shape issued SADD then
@@ -115,7 +116,7 @@ Deno.test('#276 race 2: recording a revocation has no window for a reap to step 
     }
 })
 
-Deno.test('#276 FR-011: a re-eviction extends a live revocation, never shortens it', async () => {
+test('#276 FR-011: a re-eviction extends a live revocation, never shortens it', async () => {
     const redis = new FakeRedis()
     redis.setTime(3_000)
     const a = driverOn(redis)
@@ -147,7 +148,7 @@ Deno.test('#276 FR-011: a re-eviction extends a live revocation, never shortens 
     }
 })
 
-Deno.test('#276 FR-012: two instances with different local clocks agree on what is live', async () => {
+test('#276 FR-012: two instances with different local clocks agree on what is live', async () => {
     const redis = new FakeRedis()
     redis.setTime(4_000)
     const a = driverOn(redis)
@@ -169,7 +170,7 @@ Deno.test('#276 FR-012: two instances with different local clocks agree on what 
     }
 })
 
-Deno.test('#276 FR-003: the reap releases storage, not merely the returned list', async () => {
+test('#276 FR-003: the reap releases storage, not merely the returned list', async () => {
     const redis = new FakeRedis()
     redis.setTime(5_000)
     const a = driverOn(redis)
@@ -188,7 +189,7 @@ Deno.test('#276 FR-003: the reap releases storage, not merely the returned list'
     }
 })
 
-Deno.test('#276 HIGH-1: a shorter-TTL instance cannot shrink the whole index key under live members', async () => {
+test('#276 HIGH-1: a shorter-TTL instance cannot shrink the whole index key under live members', async () => {
     const redis = new FakeRedis()
     redis.setTime(8_000)
     const long = driverOn(redis) // 300s
@@ -223,7 +224,7 @@ Deno.test('#276 HIGH-1: a shorter-TTL instance cannot shrink the whole index key
     }
 })
 
-Deno.test('#276 HIGH-2: a failed durability write still revokes locally, then reports', async () => {
+test('#276 HIGH-2: a failed durability write still revokes locally, then reports', async () => {
     const redis = new FakeRedis()
     redis.setTime(9_000)
     const failing = (...args: string[]): Promise<unknown> =>
@@ -270,7 +271,7 @@ Deno.test('#276 HIGH-2: a failed durability write still revokes locally, then re
     }
 })
 
-Deno.test('#276 the index key is actually bounded — it does not live forever', async () => {
+test('#276 the index key is actually bounded — it does not live forever', async () => {
     const redis = new FakeRedis()
     redis.setTime(10_000)
     const a = driverOn(redis) // ttl 300
@@ -294,7 +295,7 @@ Deno.test('#276 the index key is actually bounded — it does not live forever',
     }
 })
 
-Deno.test('#276 FR-004: concurrent reapers are idempotent and lose nothing', async () => {
+test('#276 FR-004: concurrent reapers are idempotent and lose nothing', async () => {
     const redis = new FakeRedis()
     redis.setTime(11_000)
     const a = driverOn(redis)
@@ -337,7 +338,7 @@ Deno.test('#276 FR-004: concurrent reapers are idempotent and lose nothing', asy
     }
 })
 
-Deno.test('#278/SC-001 (refined by #359): listRevocations costs one reap plus pages, never one command per member', async () => {
+test('#278/SC-001 (refined by #359): listRevocations costs one reap plus pages, never one command per member', async () => {
     // The dual read (#276's rollout shim) issued the EVAL, then an SMEMBERS on
     // the legacy index, then one EXISTS PER MEMBER. On a fleet with fifty
     // revoked connections that was fifty-two round trips on every reconcile

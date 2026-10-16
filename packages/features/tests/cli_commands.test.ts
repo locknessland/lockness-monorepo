@@ -10,6 +10,7 @@
  * @module @lockness/features/tests/cli_commands
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import { join } from '@std/path'
 import { Cli } from '@lockness/cli'
@@ -84,7 +85,7 @@ function assertCommandFailure(error: Error, fragment: string): void {
     )
 }
 
-Deno.test('make:flag with no name throws a failure with exitCode 1 and prints nothing', async () => {
+test('make:flag with no name throws a failure with exitCode 1 and prints nothing', async () => {
     const { result: error, errors } = await captureErrors(() =>
         assertRejects(() => handleMakeFlag([]), Error)
     )
@@ -92,7 +93,7 @@ Deno.test('make:flag with no name throws a failure with exitCode 1 and prints no
     assertEquals(errors.length, 0, 'the dispatcher is the only printer')
 })
 
-Deno.test('make:flag with a traversal name throws a failure with exitCode 1 and writes nothing', async () => {
+test('make:flag with a traversal name throws a failure with exitCode 1 and writes nothing', async () => {
     const { result: error, written } = await inSandbox(() =>
         assertRejects(() => handleMakeFlag(['../../etc/x']), Error)
     )
@@ -100,7 +101,7 @@ Deno.test('make:flag with a traversal name throws a failure with exitCode 1 and 
     assertEquals(written, [], 'nothing written, inside the sandbox or above it')
 })
 
-Deno.test('make:flag through the real Cli.dispatch exits 1 with exactly one ❌ line', async () => {
+test('make:flag through the real Cli.dispatch exits 1 with exactly one ❌ line', async () => {
     const cli = new Cli()
     registerFeaturesCommands(cli)
     const { result: { result: status, errors }, written } = await inSandbox(

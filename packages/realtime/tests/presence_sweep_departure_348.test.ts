@@ -26,6 +26,7 @@
  * @module @lockness/realtime/tests/presence_sweep_departure_348
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
 import { RedisBroadcastDriver } from '../drivers/redis.ts'
@@ -221,7 +222,7 @@ const notSummary = (line: string) => !line.includes('hold(s) of dead instance')
 
 // --- US1 / US2 / US3: the crash is announced exactly once ---------------------
 
-Deno.test('#348 W1 7 held only on A, A crashes, B sweeps — the observer on B receives exactly one left', async () => {
+test('#348 W1 7 held only on A, A crashes, B sweeps — the observer on B receives exactly one left', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-23T10:00:00Z'))
     const log: Published[] = []
@@ -269,7 +270,7 @@ Deno.test('#348 W1 7 held only on A, A crashes, B sweeps — the observer on B r
     }
 })
 
-Deno.test('#348 W2 7 held on A and B, A is swept — no left anywhere', async () => {
+test('#348 W2 7 held on A and B, A is swept — no left anywhere', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-23T10:00:00Z'))
     const log: Published[] = []
@@ -333,7 +334,7 @@ Deno.test('#348 W2 7 held on A and B, A is swept — no left anywhere', async ()
     }
 })
 
-Deno.test('#348 W3 B and C both sweep A — each observer receives exactly one left', async () => {
+test('#348 W3 B and C both sweep A — each observer receives exactly one left', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-23T10:00:00Z'))
     const log: Published[] = []
@@ -391,7 +392,7 @@ Deno.test('#348 W3 B and C both sweep A — each observer receives exactly one l
 
 // --- W4: the seam is optional ------------------------------------------------
 
-Deno.test('#348 W4 a driver without onRosterDeparture still builds, and its sweep stays silent', async () => {
+test('#348 W4 a driver without onRosterDeparture still builds, and its sweep stays silent', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-23T10:00:00Z'))
     const log: Published[] = []
@@ -428,7 +429,7 @@ Deno.test('#348 W4 a driver without onRosterDeparture still builds, and its swee
     }
 })
 
-Deno.test('#348 W4 a manager registers for departures only when its driver has a roster', () => {
+test('#348 W4 a manager registers for departures only when its driver has a roster', () => {
     let rosterless = 0
     new ChannelManager<User>({
         driver: {
@@ -458,7 +459,7 @@ Deno.test('#348 W4 a manager registers for departures only when its driver has a
 
 // --- US4: a lapsed-but-alive instance -----------------------------------------
 
-Deno.test('#348 W5 A lapses while alive — one left, then nothing on its release, then one joined on its next hold', async () => {
+test('#348 W5 A lapses while alive — one left, then nothing on its release, then one joined on its next hold', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-23T10:00:00Z'))
     const log: Published[] = []
@@ -519,7 +520,7 @@ Deno.test('#348 W5 A lapses while alive — one left, then nothing on its releas
 
 // --- W6: an ordinary leave never reaches the departure handler -----------------
 
-Deno.test('#348 W6 an ordinary leave announces one left and never calls the departure handler', async () => {
+test('#348 W6 an ordinary leave announces one left and never calls the departure handler', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-23T10:00:00Z'))
     const log: Published[] = []
@@ -640,7 +641,7 @@ const DROP_CASES: readonly DropCase[] = [
 ]
 
 for (const drop of DROP_CASES) {
-    Deno.test(`#348 W7 ${drop.label}: one WARN naming the channel only, no departure, the sweep goes on`, async () => {
+    test(`#348 W7 ${drop.label}: one WARN naming the channel only, no departure, the sweep goes on`, async () => {
         const redis = new FakeRedis()
         const time = new FakeTime(new Date('2026-09-23T10:00:00Z'))
         const b = redisDriver(redis)
@@ -709,7 +710,7 @@ for (const drop of DROP_CASES) {
     })
 }
 
-Deno.test('#348 S2 readRoster: a malformed entry is skipped with a WARN that never quotes its bytes', async () => {
+test('#348 S2 readRoster: a malformed entry is skipped with a WARN that never quotes its bytes', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-23T10:00:00Z'))
     const b = redisDriver(redis)
@@ -732,7 +733,7 @@ Deno.test('#348 S2 readRoster: a malformed entry is skipped with a WARN that nev
 
 // --- A6: the departure handler's lifecycle -------------------------------------
 
-Deno.test('#348 A6 the departure handler: a second registration replaces the first, and a closed driver reports no departure', async () => {
+test('#348 A6 the departure handler: a second registration replaces the first, and a closed driver reports no departure', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-23T10:00:00Z'))
     const b = redisDriver(redis)
@@ -770,7 +771,7 @@ Deno.test('#348 A6 the departure handler: a second registration replaces the fir
 
 // --- W8: `left` precedes a hold committed right behind the sweep (A1) ---------
 
-Deno.test('#348 W8 a hold committed right behind the sweep release — left, then joined, on the bus and locally', async () => {
+test('#348 W8 a hold committed right behind the sweep release — left, then joined, on the bus and locally', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-23T10:00:00Z'))
     const log: Published[] = []
@@ -846,7 +847,7 @@ Deno.test('#348 W8 a hold committed right behind the sweep release — left, the
 
 // --- S3: the manager checks what a driver reports -----------------------------
 
-Deno.test('#348 S3 a malformed departure from a driver is dropped by the manager: one WARN, no emit, no publish', async () => {
+test('#348 S3 a malformed departure from a driver is dropped by the manager: one WARN, no emit, no publish', async () => {
     let handler: ((d: RosterDeparture) => void | Promise<void>) | undefined
     const published: ControlMessage[] = []
     const roster = new Map<string, PresenceMember>()

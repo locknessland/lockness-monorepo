@@ -26,6 +26,7 @@
  * @module @lockness/realtime/tests/authorize_result_websocket_352
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertInstanceOf } from '@std/assert'
 import {
     type Authorizer,
@@ -148,7 +149,7 @@ async function assertStillServing(
 }
 
 for (const channel of [PRIVATE, PRESENCE]) {
-    Deno.test(`#352 ${channel}: an AuthorizeResultError from onMessage reaches onError exactly once, sends nothing and keeps the socket open`, async () => {
+    test(`#352 ${channel}: an AuthorizeResultError from onMessage reaches onError exactly once, sends nothing and keeps the socket open`, async () => {
         const manager = brokenManager()
         const errors: unknown[] = []
         const { ws, subscribe } = open(manager.handlerHooks({
@@ -178,7 +179,7 @@ for (const channel of [PRIVATE, PRESENCE]) {
         assertEquals(errors.length, 1, 'and the valid frame reports nothing')
     })
 
-    Deno.test(`#352 ${channel}: with no onError hook, exactly one console.error line names the AuthorizeResultError and the socket stays open`, async () => {
+    test(`#352 ${channel}: with no onError hook, exactly one console.error line names the AuthorizeResultError and the socket stays open`, async () => {
         const manager = brokenManager()
         const lines: string[] = []
         const originalConsoleError = console.error

@@ -7,6 +7,7 @@
  * @module @lockness/realtime/tests/presence
  */
 
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { ChannelManager } from '../manager.ts'
 import type { PresenceMember } from '../channel.ts'
@@ -37,7 +38,7 @@ const framesOf = (c: Connection<User>) =>
 const authorize = (id: User | null): PresenceMember | false =>
     id ? { id: id.id, info: { name: id.name } } : false
 
-Deno.test('SC-006: subscribing returns the here-roster; a join notifies existing members', async () => {
+test('SC-006: subscribing returns the here-roster; a join notifies existing members', async () => {
     const m = new ChannelManager<User>({ authorize })
     const a = fakeConn('a', { id: 1, name: 'Alice' })
     m.register(a)
@@ -56,7 +57,7 @@ Deno.test('SC-006: subscribing returns the here-roster; a join notifies existing
     assertEquals((aJoin?.member as PresenceMember)?.id, 2)
 })
 
-Deno.test('SC-006: a leave (unsubscribe) notifies remaining members', async () => {
+test('SC-006: a leave (unsubscribe) notifies remaining members', async () => {
     const m = new ChannelManager<User>({ authorize })
     const a = fakeConn('a', { id: 1, name: 'Alice' })
     m.register(a)
@@ -70,7 +71,7 @@ Deno.test('SC-006: a leave (unsubscribe) notifies remaining members', async () =
     assertEquals((aLeft?.member as PresenceMember)?.id, 2)
 })
 
-Deno.test('SC-006: a disconnect emits a presence leave (unclean disconnect cleanup)', async () => {
+test('SC-006: a disconnect emits a presence leave (unclean disconnect cleanup)', async () => {
     const m = new ChannelManager<User>({ authorize })
     const a = fakeConn('a', { id: 1, name: 'Alice' })
     m.register(a)
@@ -84,7 +85,7 @@ Deno.test('SC-006: a disconnect emits a presence leave (unclean disconnect clean
     assertEquals((aLeft?.member as PresenceMember)?.id, 2)
 })
 
-Deno.test('SC-006: a broadcast to a presence channel reaches its members', async () => {
+test('SC-006: a broadcast to a presence channel reaches its members', async () => {
     const m = new ChannelManager<User>({ authorize })
     const a = fakeConn('a', { id: 1, name: 'Alice' })
     m.register(a)

@@ -7,6 +7,7 @@
  * @module @lockness/drizzle/tests/settle_in_order
  */
 
+import { test } from 'node:test'
 import {
     assert,
     assertEquals,
@@ -47,7 +48,7 @@ function step(ran: string[], what: string, error?: unknown) {
     }
 }
 
-Deno.test('#447 settleInOrder runs every step in order and resolves when none fails', async () => {
+test('#447 settleInOrder runs every step in order and resolves when none fails', async () => {
     const ran: string[] = []
 
     const { lines, error } = await warnings(() =>
@@ -59,7 +60,7 @@ Deno.test('#447 settleInOrder runs every step in order and resolves when none fa
     assertEquals(lines, [])
 })
 
-Deno.test('#447 settleInOrder runs the later steps after a failure and throws the first failure as itself', async () => {
+test('#447 settleInOrder runs the later steps after a failure and throws the first failure as itself', async () => {
     const ran: string[] = []
     const first = new RefusedError('the first')
 
@@ -76,7 +77,7 @@ Deno.test('#447 settleInOrder runs the later steps after a failure and throws th
     assertEquals(lines, [])
 })
 
-Deno.test('#447 settleInOrder logs every later failure at WARN, rendered, never in place of the first', async () => {
+test('#447 settleInOrder logs every later failure at WARN, rendered, never in place of the first', async () => {
     const ran: string[] = []
     const first = new Error('connection close failed')
 
@@ -95,7 +96,7 @@ Deno.test('#447 settleInOrder logs every later failure at WARN, rendered, never 
     ])
 })
 
-Deno.test('#447 settleInOrder renders a later failure head-only, without its cause', async () => {
+test('#447 settleInOrder renders a later failure head-only, without its cause', async () => {
     const { lines } = await warnings(async () => {
         await assertRejects(() =>
             settleInOrder([
@@ -114,7 +115,7 @@ Deno.test('#447 settleInOrder renders a later failure head-only, without its cau
     assertEquals(lines[0].includes('inner detail'), false)
 })
 
-Deno.test('#447 rejectAfter runs the release steps, then throws the given failure, logging a release failure', async () => {
+test('#447 rejectAfter runs the release steps, then throws the given failure, logging a release failure', async () => {
     const ran: string[] = []
     const failure = new RefusedError('refused first')
 

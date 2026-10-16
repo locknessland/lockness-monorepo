@@ -11,6 +11,7 @@
  * @module @lockness/realtime/tests/roster_window_341
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertRejects, assertThrows } from '@std/assert'
 import { MemoryBroadcastDriver } from '../drivers/memory.ts'
 import { RedisBroadcastDriver } from '../drivers/redis.ts'
@@ -37,25 +38,25 @@ function memoryRoom(size: number): MemoryBroadcastDriver {
     return driver
 }
 
-Deno.test('#341 memory readRoster returns the first limit members in join order, and the total', () => {
+test('#341 memory readRoster returns the first limit members in join order, and the total', () => {
     const window = memoryRoom(5).readRoster(ROOM, 3, [])
     assertEquals(window.members.map((m) => m.id), [1, 2, 3])
     assertEquals(window.total, 5)
     assertEquals(window.selves, [])
 })
 
-Deno.test('#341 memory readRoster returns a room at or below limit whole', () => {
+test('#341 memory readRoster returns a room at or below limit whole', () => {
     const window = memoryRoom(3).readRoster(ROOM, 3, [])
     assertEquals(window.members.map((m) => m.id), [1, 2, 3])
     assertEquals(window.total, 3)
 })
 
-Deno.test('#341 memory readRoster finds selves by String(id) and skips absent ids', () => {
+test('#341 memory readRoster finds selves by String(id) and skips absent ids', () => {
     const window = memoryRoom(5).readRoster(ROOM, 2, ['5', 99, 4])
     assertEquals(window.selves, [member(5), member(4)])
 })
 
-Deno.test('#341 memory readRoster on an unknown channel is an empty window', () => {
+test('#341 memory readRoster on an unknown channel is an empty window', () => {
     assertEquals(new MemoryBroadcastDriver().readRoster('presence-x', 3, [1]), {
         members: [],
         total: 0,
@@ -63,14 +64,14 @@ Deno.test('#341 memory readRoster on an unknown channel is an empty window', () 
     })
 })
 
-Deno.test('#341 memory readRoster hands out a fresh array, never its store', () => {
+test('#341 memory readRoster hands out a fresh array, never its store', () => {
     const driver = memoryRoom(2)
     driver.readRoster(ROOM, 5, []).members.push(member(42))
     assertEquals(driver.readRoster(ROOM, 5, []).total, 2)
     assertEquals(driver.readRoster(ROOM, 5, []).members.length, 2)
 })
 
-Deno.test('#341 memory readRoster refuses a limit that is not a positive integer', () => {
+test('#341 memory readRoster refuses a limit that is not a positive integer', () => {
     const driver = memoryRoom(2)
     for (const limit of BAD_LIMITS) {
         assertThrows(
@@ -82,7 +83,7 @@ Deno.test('#341 memory readRoster refuses a limit that is not a positive integer
     }
 })
 
-Deno.test('#341 memory readRoster refuses more self ids than MAX_ROSTER_READ_SELF_IDS', () => {
+test('#341 memory readRoster refuses more self ids than MAX_ROSTER_READ_SELF_IDS', () => {
     const ids = Array.from(
         { length: MAX_ROSTER_READ_SELF_IDS + 1 },
         (_, i) => i,
@@ -132,7 +133,7 @@ async function seed(driver: RedisBroadcastDriver, size: number) {
     }
 }
 
-Deno.test('#341 redis readRoster is ONE EVAL returning limit members, the total and the selves', async () => {
+test('#341 redis readRoster is ONE EVAL returning limit members, the total and the selves', async () => {
     await withRedis(async (driver, _redis, log) => {
         await seed(driver, 5)
         log.length = 0
@@ -154,7 +155,7 @@ Deno.test('#341 redis readRoster is ONE EVAL returning limit members, the total 
     })
 })
 
-Deno.test('#341 redis readRoster returns a room at or below limit whole, in hash order', async () => {
+test('#341 redis readRoster returns a room at or below limit whole, in hash order', async () => {
     await withRedis(async (driver) => {
         await seed(driver, 3)
         const window = await driver.readRoster(ROOM, 3, [])
@@ -164,7 +165,7 @@ Deno.test('#341 redis readRoster returns a room at or below limit whole, in hash
     })
 })
 
-Deno.test('#341 redis readRoster with zero self ids still issues a valid HMGET (A1)', async () => {
+test('#341 redis readRoster with zero self ids still issues a valid HMGET (A1)', async () => {
     await withRedis(async (driver, redis) => {
         await seed(driver, 2)
         const window = await driver.readRoster(ROOM, 5, [])
@@ -175,7 +176,7 @@ Deno.test('#341 redis readRoster with zero self ids still issues a valid HMGET (
     })
 })
 
-Deno.test('#341 redis readRoster matches selves by parsed id, an absent id between two present ones (S3)', async () => {
+test('#341 redis readRoster matches selves by parsed id, an absent id between two present ones (S3)', async () => {
     await withRedis(async (driver) => {
         await seed(driver, 4)
         const window = await driver.readRoster(ROOM, 1, [2, 'absent', 3])
@@ -186,7 +187,7 @@ Deno.test('#341 redis readRoster matches selves by parsed id, an absent id betwe
     })
 })
 
-Deno.test('#341 redis readRoster drops a self entry whose stored id is not the id asked for (S3)', async () => {
+test('#341 redis readRoster drops a self entry whose stored id is not the id asked for (S3)', async () => {
     await withRedis(async (driver, redis) => {
         await seed(driver, 1)
         // A field whose stored member names somebody else: returning it as
@@ -202,7 +203,7 @@ Deno.test('#341 redis readRoster drops a self entry whose stored id is not the i
     })
 })
 
-Deno.test('#341 redis readRoster never returns the owner', async () => {
+test('#341 redis readRoster never returns the owner', async () => {
     await withRedis(async (driver) => {
         await seed(driver, 2)
         const window = await driver.readRoster(ROOM, 5, [1])
@@ -212,7 +213,7 @@ Deno.test('#341 redis readRoster never returns the owner', async () => {
     })
 })
 
-Deno.test('#341 redis readRoster skips an unparseable entry with a WARN', async () => {
+test('#341 redis readRoster skips an unparseable entry with a WARN', async () => {
     await withRedis(async (driver, redis) => {
         await seed(driver, 2)
         await redis.command('HSET', PRESENCE_KEY, 'bad', '{nope')
@@ -231,7 +232,7 @@ Deno.test('#341 redis readRoster skips an unparseable entry with a WARN', async 
     })
 })
 
-Deno.test('#341 redis readRoster refuses bad input before issuing any command (S2)', async () => {
+test('#341 redis readRoster refuses bad input before issuing any command (S2)', async () => {
     await withRedis(async (driver, _redis, log) => {
         for (const limit of BAD_LIMITS) {
             await assertRejects(
@@ -290,7 +291,7 @@ const CONTRACT_SUBJECTS: [string, () => ContractSubject][] = [
 ]
 
 for (const [name, make] of CONTRACT_SUBJECTS) {
-    Deno.test(`#341 readRoster contract — ${name}`, async () => {
+    test(`#341 readRoster contract — ${name}`, async () => {
         const driver = make()
         try {
             for (let id = 1; id <= 5; id++) {
@@ -353,7 +354,7 @@ for (const [name, make] of CONTRACT_SUBJECTS) {
     })
 }
 
-Deno.test("#341 redis readRoster refuses an entry under another requested id's field (FR-001, S3)", async () => {
+test("#341 redis readRoster refuses an entry under another requested id's field (FR-001, S3)", async () => {
     await withRedis(async (driver, redis) => {
         await seed(driver, 1)
         // Field `7` holds an entry naming `9`, and `9` has no field of its

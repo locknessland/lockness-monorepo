@@ -8,6 +8,7 @@
  * @module @lockness/drizzle/tests/install
  */
 
+import { test } from 'node:test'
 import {
     assert,
     assertEquals,
@@ -79,7 +80,7 @@ async function withTempCwd(fn: (dir: string) => Promise<void>): Promise<void> {
     }
 }
 
-Deno.test('#437 mapDrizzleKit - maps drizzle-kit to the pinned specifier in deno.json', async () => {
+test('#437 mapDrizzleKit - maps drizzle-kit to the pinned specifier in deno.json', async () => {
     await withTempCwd(async () => {
         await Deno.writeTextFile(
             './deno.json',
@@ -98,7 +99,7 @@ Deno.test('#437 mapDrizzleKit - maps drizzle-kit to the pinned specifier in deno
     })
 })
 
-Deno.test('#437 mapDrizzleKit - leaves an existing drizzle-kit mapping alone', async () => {
+test('#437 mapDrizzleKit - leaves an existing drizzle-kit mapping alone', async () => {
     await withTempCwd(async () => {
         await Deno.writeTextFile(
             './deno.json',
@@ -114,7 +115,7 @@ Deno.test('#437 mapDrizzleKit - leaves an existing drizzle-kit mapping alone', a
     })
 })
 
-Deno.test('#437 mapDrizzleKit - creates the imports map when there is none', async () => {
+test('#437 mapDrizzleKit - creates the imports map when there is none', async () => {
     await withTempCwd(async () => {
         await Deno.writeTextFile('./deno.json', JSON.stringify({ tasks: {} }))
 
@@ -126,7 +127,7 @@ Deno.test('#437 mapDrizzleKit - creates the imports map when there is none', asy
     })
 })
 
-Deno.test('#437 the specifier is exactly pinned, and the init kits and the repo map the same one', async () => {
+test('#437 the specifier is exactly pinned, and the init kits and the repo map the same one', async () => {
     assert(
         /^npm:drizzle-kit@\d+\.\d+\.\d+$/.test(DRIZZLE_KIT_SPECIFIER),
         DRIZZLE_KIT_SPECIFIER,
@@ -148,7 +149,7 @@ Deno.test('#437 the specifier is exactly pinned, and the init kits and the repo 
     }
 })
 
-Deno.test('createDirectories - creates the required project directories', async () => {
+test('createDirectories - creates the required project directories', async () => {
     await withTempCwd(async () => {
         await createDirectories()
         for (
@@ -165,7 +166,7 @@ Deno.test('createDirectories - creates the required project directories', async 
     })
 })
 
-Deno.test('updateSingleEnvFile - creates the file with DATABASE_URL when absent', async () => {
+test('updateSingleEnvFile - creates the file with DATABASE_URL when absent', async () => {
     await withTempCwd(async () => {
         await updateSingleEnvFile('./.env')
         const content = await Deno.readTextFile('./.env')
@@ -173,7 +174,7 @@ Deno.test('updateSingleEnvFile - creates the file with DATABASE_URL when absent'
     })
 })
 
-Deno.test('updateSingleEnvFile - appends DATABASE_URL to an existing file', async () => {
+test('updateSingleEnvFile - appends DATABASE_URL to an existing file', async () => {
     await withTempCwd(async () => {
         await Deno.writeTextFile('./.env', 'APP_KEY=synthetic\n')
         await updateSingleEnvFile('./.env')
@@ -183,7 +184,7 @@ Deno.test('updateSingleEnvFile - appends DATABASE_URL to an existing file', asyn
     })
 })
 
-Deno.test('updateSingleEnvFile - leaves an existing DATABASE_URL untouched', async () => {
+test('updateSingleEnvFile - leaves an existing DATABASE_URL untouched', async () => {
     await withTempCwd(async () => {
         const existing = 'DATABASE_URL=postgres://user:pass@localhost:5432/db\n'
         await Deno.writeTextFile('./.env', existing)
@@ -192,7 +193,7 @@ Deno.test('updateSingleEnvFile - leaves an existing DATABASE_URL untouched', asy
     })
 })
 
-Deno.test('createDrizzleConfig - creates then skips on second run', async () => {
+test('createDrizzleConfig - creates then skips on second run', async () => {
     await withTempCwd(async () => {
         assertEquals(await createDrizzleConfig(), true)
         assert((await Deno.stat('./drizzle.config.ts')).isFile)
@@ -201,7 +202,7 @@ Deno.test('createDrizzleConfig - creates then skips on second run', async () => 
     })
 })
 
-Deno.test('createDatabaseSeeder - creates then skips on second run', async () => {
+test('createDatabaseSeeder - creates then skips on second run', async () => {
     await withTempCwd(async () => {
         await Deno.mkdir('./database/seeders', { recursive: true })
         assertEquals(await createDatabaseSeeder(), true)
@@ -212,7 +213,7 @@ Deno.test('createDatabaseSeeder - creates then skips on second run', async () =>
     })
 })
 
-Deno.test('checkProjectStructure - passes when src/ and deno.json exist', async () => {
+test('checkProjectStructure - passes when src/ and deno.json exist', async () => {
     await withTempCwd(async () => {
         await Deno.mkdir('./src', { recursive: true })
         await Deno.writeTextFile('./deno.json', '{}')
@@ -221,7 +222,7 @@ Deno.test('checkProjectStructure - passes when src/ and deno.json exist', async 
     })
 })
 
-Deno.test('checkProjectStructure - throws a CommandFailedError and prints nothing itself', async () => {
+test('checkProjectStructure - throws a CommandFailedError and prints nothing itself', async () => {
     await withTempCwd(async () => {
         const errors: unknown[][] = []
         const muted = console.error
@@ -268,7 +269,7 @@ async function withoutDatabaseUrl(fn: () => Promise<void>): Promise<void> {
     }
 }
 
-Deno.test('#436 install - rejects outside a project with ProjectStructureError, writing nothing', async () => {
+test('#436 install - rejects outside a project with ProjectStructureError, writing nothing', async () => {
     await withTempCwd(async () => {
         await assertRejects(() => install(), ProjectStructureError)
         await assertRejects(
@@ -278,7 +279,7 @@ Deno.test('#436 install - rejects outside a project with ProjectStructureError, 
     })
 })
 
-Deno.test('#436 install - sets the project up and resolves', async () => {
+test('#436 install - sets the project up and resolves', async () => {
     await withoutDatabaseUrl(() =>
         withTempCwd(async () => {
             await arrangeProject()
@@ -299,7 +300,7 @@ Deno.test('#436 install - sets the project up and resolves', async () => {
     )
 })
 
-Deno.test('#436 install - finishes every step, then fails naming the directory it could not create', async () => {
+test('#436 install - finishes every step, then fails naming the directory it could not create', async () => {
     await withoutDatabaseUrl(() =>
         withTempCwd(async () => {
             await arrangeProject()
@@ -360,7 +361,7 @@ function assertOneFailureLine(stderr: string): string {
     return failures[0]
 }
 
-Deno.test('#436 install.ts run standalone outside a project exits 1 with one ❌ line', async () => {
+test('#436 install.ts run standalone outside a project exits 1 with one ❌ line', async () => {
     const dir = await Deno.makeTempDir({ prefix: 'lockness_drizzle_install_' })
     try {
         const { code, stderr } = await runInstaller(dir)
@@ -376,7 +377,7 @@ Deno.test('#436 install.ts run standalone outside a project exits 1 with one ❌
     }
 })
 
-Deno.test('#436 install.ts run standalone exits 1 when a step fails, after the others ran', async () => {
+test('#436 install.ts run standalone exits 1 when a step fails, after the others ran', async () => {
     const dir = await Deno.makeTempDir({ prefix: 'lockness_drizzle_install_' })
     try {
         await Deno.mkdir(join(dir, 'src'))
@@ -402,7 +403,7 @@ Deno.test('#436 install.ts run standalone exits 1 when a step fails, after the o
     }
 })
 
-Deno.test('testDatabaseConnection - returns early when DATABASE_URL is unset', async () => {
+test('testDatabaseConnection - returns early when DATABASE_URL is unset', async () => {
     const previous = Deno.env.get('DATABASE_URL')
     Deno.env.delete('DATABASE_URL')
     const restore = muteConsole()
@@ -415,17 +416,17 @@ Deno.test('testDatabaseConnection - returns early when DATABASE_URL is unset', a
     }
 })
 
-Deno.test('testDatabaseConnection - probes and always closes the client', async (t) => {
+test('testDatabaseConnection - probes and always closes the client', async (t) => {
     const previous = Deno.env.get('DATABASE_URL')
     Deno.env.set('DATABASE_URL', 'postgres://user:pass@localhost:5432/db')
     const restore = muteConsole()
     try {
-        await t.step('closes on a successful probe', async () => {
+        await t.test('closes on a successful probe', async () => {
             const fake = fakeConnector()
             await testDatabaseConnection(fake.connect)
             assert(fake.ended(), 'the client was closed')
         })
-        await t.step('closes even when the probe fails', async () => {
+        await t.test('closes even when the probe fails', async () => {
             const fake = fakeConnector({ fail: true })
             await testDatabaseConnection(fake.connect) // swallowed + logged
             assert(fake.ended(), 'the client was closed despite the failure')
@@ -444,11 +445,10 @@ Deno.test('testDatabaseConnection - probes and always closes the client', async 
  */
 const NO_UNREADABLE_FILE = Deno.build.os === 'windows' || Deno.uid() === 0
 
-Deno.test({
-    name:
-        'updateSingleEnvFile - an unreadable .env is left intact and the call fails',
-    ignore: NO_UNREADABLE_FILE,
-    fn: async () => {
+test(
+    'updateSingleEnvFile - an unreadable .env is left intact and the call fails',
+    { skip: NO_UNREADABLE_FILE },
+    async () => {
         await withTempCwd(async () => {
             const original = 'APP_KEY=synthetic\nOTHER=kept\n'
             await Deno.writeTextFile('./.env', original)
@@ -464,35 +464,32 @@ Deno.test({
             assertEquals(await Deno.readTextFile('./.env'), original)
         })
     },
+)
+
+test('#436 install - an unreadable .env fails the .env step and stays intact', {
+    skip: NO_UNREADABLE_FILE,
+}, async () => {
+    await withoutDatabaseUrl(() =>
+        withTempCwd(async () => {
+            await arrangeProject()
+            const original = 'APP_KEY=synthetic\n'
+            await Deno.writeTextFile('./.env', original)
+            await Deno.chmod('./.env', 0o200)
+            try {
+                await assertRejects(
+                    () => install(),
+                    CommandFailedError,
+                    '1 of 9 steps failed: .env files',
+                )
+            } finally {
+                await Deno.chmod('./.env', 0o600)
+            }
+            assertEquals(await Deno.readTextFile('./.env'), original)
+        })
+    )
 })
 
-Deno.test({
-    name:
-        '#436 install - an unreadable .env fails the .env step and stays intact',
-    ignore: NO_UNREADABLE_FILE,
-    fn: async () => {
-        await withoutDatabaseUrl(() =>
-            withTempCwd(async () => {
-                await arrangeProject()
-                const original = 'APP_KEY=synthetic\n'
-                await Deno.writeTextFile('./.env', original)
-                await Deno.chmod('./.env', 0o200)
-                try {
-                    await assertRejects(
-                        () => install(),
-                        CommandFailedError,
-                        '1 of 9 steps failed: .env files',
-                    )
-                } finally {
-                    await Deno.chmod('./.env', 0o600)
-                }
-                assertEquals(await Deno.readTextFile('./.env'), original)
-            })
-        )
-    },
-})
-
-Deno.test("checkProjectStructure - a path that cannot be stat'ed is not reported missing", async () => {
+test("checkProjectStructure - a path that cannot be stat'ed is not reported missing", async () => {
     await withTempCwd(async () => {
         // A symlink to itself: stat fails with ELOOP, not NotFound.
         await Deno.symlink('src', './src')
@@ -511,7 +508,7 @@ Deno.test("checkProjectStructure - a path that cannot be stat'ed is not reported
     })
 })
 
-Deno.test("createDrizzleConfig - a config that cannot be stat'ed is not overwritten", async () => {
+test("createDrizzleConfig - a config that cannot be stat'ed is not overwritten", async () => {
     await withTempCwd(async () => {
         await Deno.symlink('drizzle.config.ts', './drizzle.config.ts')
         // The stat error itself propagates — not a later write attempt.
@@ -523,7 +520,7 @@ Deno.test("createDrizzleConfig - a config that cannot be stat'ed is not overwrit
     })
 })
 
-Deno.test("createDatabaseSeeder - a seeder that cannot be stat'ed is not overwritten", async () => {
+test("createDatabaseSeeder - a seeder that cannot be stat'ed is not overwritten", async () => {
     await withTempCwd(async () => {
         await Deno.mkdir('./database/seeders', { recursive: true })
         const path = './database/seeders/database_seeder.ts'
@@ -536,7 +533,7 @@ Deno.test("createDatabaseSeeder - a seeder that cannot be stat'ed is not overwri
     })
 })
 
-Deno.test('testDatabaseConnection - the failure warning redacts a credential in the error', async () => {
+test('testDatabaseConnection - the failure warning redacts a credential in the error', async () => {
     // Assembled at run time: no credential-shaped literal in the source.
     const secret = ['s3', 'cr3t', 'Pw'].join('-')
     const dsn = `postgres://app:${secret}@db.invalid:5432/app`

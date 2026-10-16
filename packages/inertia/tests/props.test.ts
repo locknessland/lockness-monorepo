@@ -1,3 +1,4 @@
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { Hono } from 'hono'
 import { inertiaMiddleware } from '../middleware.ts'
@@ -8,7 +9,7 @@ import { always, defer, merge, once, optional } from '../props.ts'
 // Partial Reload Tests
 // ============================================================================
 
-Deno.test('Partial reload - only includes requested props', async () => {
+test('Partial reload - only includes requested props', async () => {
     const app = new Hono<{ Variables: InertiaContextVariables }>()
 
     app.use(inertiaMiddleware({ version: '1.0' }))
@@ -40,7 +41,7 @@ Deno.test('Partial reload - only includes requested props', async () => {
     assertEquals(typeof json.props.errors, 'object')
 })
 
-Deno.test('Partial reload - except excludes specified props', async () => {
+test('Partial reload - except excludes specified props', async () => {
     const app = new Hono<{ Variables: InertiaContextVariables }>()
 
     app.use(inertiaMiddleware({ version: '1.0' }))
@@ -70,7 +71,7 @@ Deno.test('Partial reload - except excludes specified props', async () => {
     assertEquals(json.props.logs, undefined)
 })
 
-Deno.test('Partial reload - ignores partial headers if component mismatch', async () => {
+test('Partial reload - ignores partial headers if component mismatch', async () => {
     const app = new Hono<{ Variables: InertiaContextVariables }>()
 
     app.use(inertiaMiddleware({ version: '1.0' }))
@@ -103,7 +104,7 @@ Deno.test('Partial reload - ignores partial headers if component mismatch', asyn
 // Optional Props Tests
 // ============================================================================
 
-Deno.test('optional() - not included in standard visits', async () => {
+test('optional() - not included in standard visits', async () => {
     const app = new Hono<{ Variables: InertiaContextVariables }>()
     let optionalCalled = false
 
@@ -134,7 +135,7 @@ Deno.test('optional() - not included in standard visits', async () => {
     assertEquals(optionalCalled, false) // Should not be called
 })
 
-Deno.test('optional() - included when explicitly requested', async () => {
+test('optional() - included when explicitly requested', async () => {
     const app = new Hono<{ Variables: InertiaContextVariables }>()
     let optionalCalled = false
 
@@ -170,7 +171,7 @@ Deno.test('optional() - included when explicitly requested', async () => {
 // Always Props Tests
 // ============================================================================
 
-Deno.test('always() - included in standard visits', async () => {
+test('always() - included in standard visits', async () => {
     const app = new Hono<{ Variables: InertiaContextVariables }>()
 
     app.use(inertiaMiddleware({ version: '1.0' }))
@@ -196,7 +197,7 @@ Deno.test('always() - included in standard visits', async () => {
     assertEquals(json.props.data, 'regular')
 })
 
-Deno.test('always() - included even when not in partial only list', async () => {
+test('always() - included even when not in partial only list', async () => {
     const app = new Hono<{ Variables: InertiaContextVariables }>()
 
     app.use(inertiaMiddleware({ version: '1.0' }))
@@ -230,7 +231,7 @@ Deno.test('always() - included even when not in partial only list', async () => 
 // Deferred Props Tests
 // ============================================================================
 
-Deno.test('defer() - not included in initial render, info in deferredProps', async () => {
+test('defer() - not included in initial render, info in deferredProps', async () => {
     const app = new Hono<{ Variables: InertiaContextVariables }>()
     let deferredCalled = false
 
@@ -262,7 +263,7 @@ Deno.test('defer() - not included in initial render, info in deferredProps', asy
     assertEquals(json.deferredProps?.default, ['analytics'])
 })
 
-Deno.test('defer() - groups deferred props', async () => {
+test('defer() - groups deferred props', async () => {
     const app = new Hono<{ Variables: InertiaContextVariables }>()
 
     app.use(inertiaMiddleware({ version: '1.0' }))
@@ -290,7 +291,7 @@ Deno.test('defer() - groups deferred props', async () => {
     assertEquals(json.deferredProps?.sidebar?.sort(), ['projects', 'teams'])
 })
 
-Deno.test('defer() - resolved when requested via partial reload', async () => {
+test('defer() - resolved when requested via partial reload', async () => {
     const app = new Hono<{ Variables: InertiaContextVariables }>()
 
     app.use(inertiaMiddleware({ version: '1.0' }))
@@ -321,7 +322,7 @@ Deno.test('defer() - resolved when requested via partial reload', async () => {
 // Merge Props Tests
 // ============================================================================
 
-Deno.test('merge() - includes mergeProps config in response', async () => {
+test('merge() - includes mergeProps config in response', async () => {
     const app = new Hono<{ Variables: InertiaContextVariables }>()
 
     app.use(inertiaMiddleware({ version: '1.0' }))
@@ -347,7 +348,7 @@ Deno.test('merge() - includes mergeProps config in response', async () => {
     assertEquals(json.mergeProps?.items?.deep, false)
 })
 
-Deno.test('merge().prepend() - sets prepend strategy', async () => {
+test('merge().prepend() - sets prepend strategy', async () => {
     const app = new Hono<{ Variables: InertiaContextVariables }>()
 
     app.use(inertiaMiddleware({ version: '1.0' }))
@@ -371,7 +372,7 @@ Deno.test('merge().prepend() - sets prepend strategy', async () => {
     assertEquals(json.mergeProps?.messages?.strategy, 'prepend')
 })
 
-Deno.test('merge().append() - targets specific paths', async () => {
+test('merge().append() - targets specific paths', async () => {
     const app = new Hono<{ Variables: InertiaContextVariables }>()
 
     app.use(inertiaMiddleware({ version: '1.0' }))
@@ -399,7 +400,7 @@ Deno.test('merge().append() - targets specific paths', async () => {
 // Once Props Tests
 // ============================================================================
 
-Deno.test('once() - includes prop value and onceProps config', async () => {
+test('once() - includes prop value and onceProps config', async () => {
     const app = new Hono<{ Variables: InertiaContextVariables }>()
 
     app.use(inertiaMiddleware({ version: '1.0' }))
@@ -424,7 +425,7 @@ Deno.test('once() - includes prop value and onceProps config', async () => {
     assertEquals(json.onceProps?.countries, 'countries') // Default key is prop key
 })
 
-Deno.test('once().as() - uses custom cache key', async () => {
+test('once().as() - uses custom cache key', async () => {
     const app = new Hono<{ Variables: InertiaContextVariables }>()
 
     app.use(inertiaMiddleware({ version: '1.0' }))
@@ -449,7 +450,7 @@ Deno.test('once().as() - uses custom cache key', async () => {
     assertEquals(json.onceProps?.memberRoles, 'roles') // Custom key
 })
 
-Deno.test('once() - resolves async functions', async () => {
+test('once() - resolves async functions', async () => {
     const app = new Hono<{ Variables: InertiaContextVariables }>()
 
     app.use(inertiaMiddleware({ version: '1.0' }))

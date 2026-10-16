@@ -1,3 +1,4 @@
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import {
     defaultRootView,
@@ -5,20 +6,20 @@ import {
     serializePageForHtml,
 } from '../helpers.ts'
 
-Deno.test('escapeHtml - escapes < and >', () => {
+test('escapeHtml - escapes < and >', () => {
     assertEquals(escapeHtml('<script>'), '&lt;script&gt;')
 })
 
-Deno.test('escapeHtml - escapes quotes', () => {
+test('escapeHtml - escapes quotes', () => {
     assertEquals(escapeHtml('"test"'), '&quot;test&quot;')
     assertEquals(escapeHtml("'test'"), '&#039;test&#039;')
 })
 
-Deno.test('escapeHtml - escapes ampersand', () => {
+test('escapeHtml - escapes ampersand', () => {
     assertEquals(escapeHtml('a & b'), 'a &amp; b')
 })
 
-Deno.test('serializePageForHtml - produces safe JSON', () => {
+test('serializePageForHtml - produces safe JSON', () => {
     const page = {
         component: 'Test',
         props: { message: '<script>alert("xss")</script>' },
@@ -30,7 +31,7 @@ Deno.test('serializePageForHtml - produces safe JSON', () => {
     assertEquals(result.includes('&lt;script&gt;'), true)
 })
 
-Deno.test('defaultRootView - returns valid HTML', () => {
+test('defaultRootView - returns valid HTML', () => {
     const page = {
         component: 'Test',
         props: { errors: {} },

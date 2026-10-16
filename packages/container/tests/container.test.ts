@@ -3,6 +3,7 @@
  * Tests for @lockness/container - Dependency Injection
  */
 
+import { test } from 'node:test'
 import { assertEquals, assertExists, assertStrictEquals } from '@std/assert'
 import {
     bind,
@@ -53,15 +54,15 @@ class DependentService {
     }
 }
 
-Deno.test('Container - Basic operations', async (t) => {
-    await t.step('container.set registers a service instance', () => {
+test('Container - Basic operations', async (t) => {
+    await t.test('container.set registers a service instance', () => {
         const instance = new TestService()
         container.set(TestService, instance)
 
         assertEquals(container.has(TestService), true)
     })
 
-    await t.step('container.get retrieves a service instance', () => {
+    await t.test('container.get retrieves a service instance', () => {
         const instance = container.get<TestService>(TestService)
 
         assertExists(instance)
@@ -69,7 +70,7 @@ Deno.test('Container - Basic operations', async (t) => {
         assertEquals(instance.getValue(), 'test-value')
     })
 
-    await t.step('container.get auto-creates singleton', () => {
+    await t.test('container.get auto-creates singleton', () => {
         // Clear first to ensure fresh instance
         container.delete(AnotherService)
 
@@ -82,12 +83,12 @@ Deno.test('Container - Basic operations', async (t) => {
         assertStrictEquals(instance1, instance2)
     })
 
-    await t.step('container.has checks service existence', () => {
+    await t.test('container.has checks service existence', () => {
         assertEquals(container.has(TestService), true)
         assertEquals(container.has(class NotRegistered {}), false)
     })
 
-    await t.step('container.delete removes a service', () => {
+    await t.test('container.delete removes a service', () => {
         const TestClass = class {}
         container.set(TestClass, new TestClass())
 
@@ -98,7 +99,7 @@ Deno.test('Container - Basic operations', async (t) => {
         assertEquals(container.has(TestClass), false)
     })
 
-    await t.step('container.size returns service count', () => {
+    await t.test('container.size returns service count', () => {
         const initialSize = container.size
         const TestClass = class {}
         container.set(TestClass, new TestClass())
@@ -110,15 +111,15 @@ Deno.test('Container - Basic operations', async (t) => {
     })
 })
 
-Deno.test('Container - Decorators', async (t) => {
-    await t.step('@Service decorator marks a class', () => {
+test('Container - Decorators', async (t) => {
+    await t.test('@Service decorator marks a class', () => {
         const instance = container.get<DecoratedService>(DecoratedService)
 
         assertExists(instance)
         assertEquals(instance.getName(), 'decorated')
     })
 
-    await t.step(
+    await t.test(
         '@Inject decorator injects dependencies (note: decorators may not work in test context)',
         () => {
             // Note: Property decorators in test files may not execute properly
@@ -138,7 +139,7 @@ Deno.test('Container - Decorators', async (t) => {
         },
     )
 
-    await t.step('@Inject creates lazy singleton', () => {
+    await t.test('@Inject creates lazy singleton', () => {
         container.delete(DependentService)
 
         const instance1 = container.get<DependentService>(DependentService)
@@ -150,8 +151,8 @@ Deno.test('Container - Decorators', async (t) => {
     })
 })
 
-Deno.test('Container - Helper functions', async (t) => {
-    await t.step('createContainer creates isolated instance', () => {
+test('Container - Helper functions', async (t) => {
+    await t.test('createContainer creates isolated instance', () => {
         const container1 = createContainer()
         const container2 = createContainer()
 
@@ -162,7 +163,7 @@ Deno.test('Container - Helper functions', async (t) => {
         assertEquals(container1, container1) // not equal to container2
     })
 
-    await t.step('bind() registers service', () => {
+    await t.test('bind() registers service', () => {
         const TestClass = class {
             value = 42
         }
@@ -174,7 +175,7 @@ Deno.test('Container - Helper functions', async (t) => {
         assertEquals(instance.value, 42)
     })
 
-    await t.step('bind() with instance registers pre-created service', () => {
+    await t.test('bind() with instance registers pre-created service', () => {
         const config = new ConfigService('secret-key')
         bind(ConfigService, config)
 
@@ -183,7 +184,7 @@ Deno.test('Container - Helper functions', async (t) => {
         assertEquals(instance, config)
     })
 
-    await t.step('resolve() gets service from container', () => {
+    await t.test('resolve() gets service from container', () => {
         const instance = resolve(DecoratedService)
 
         assertExists(instance)
@@ -191,8 +192,8 @@ Deno.test('Container - Helper functions', async (t) => {
     })
 })
 
-Deno.test('Container - Isolation', async (t) => {
-    await t.step('clear() removes all services', () => {
+test('Container - Isolation', async (t) => {
+    await t.test('clear() removes all services', () => {
         const testContainer = createContainer()
 
         testContainer.set(TestService, new TestService())
@@ -207,7 +208,7 @@ Deno.test('Container - Isolation', async (t) => {
         assertEquals(testContainer.has(AnotherService), false)
     })
 
-    await t.step('multiple containers are independent', () => {
+    await t.test('multiple containers are independent', () => {
         const container1 = createContainer()
         const container2 = createContainer()
 
@@ -228,8 +229,8 @@ Deno.test('Container - Isolation', async (t) => {
     })
 })
 
-Deno.test('Container - Constructor injection pattern', async (t) => {
-    await t.step(
+test('Container - Constructor injection pattern', async (t) => {
+    await t.test(
         'services can depend on other services via constructor',
         () => {
             class DatabaseService {
@@ -256,8 +257,8 @@ Deno.test('Container - Constructor injection pattern', async (t) => {
     )
 })
 
-Deno.test('Container - Real-world usage patterns', async (t) => {
-    await t.step('service layer pattern', () => {
+test('Container - Real-world usage patterns', async (t) => {
+    await t.test('service layer pattern', () => {
         @Service()
         class LoggerService {
             log(message: string): string {
@@ -285,7 +286,7 @@ Deno.test('Container - Real-world usage patterns', async (t) => {
         assertEquals(result, '[LOG] Creating user: John')
     })
 
-    await t.step('repository pattern', () => {
+    await t.test('repository pattern', () => {
         @Service()
         class Database {
             private users = ['Alice', 'Bob']

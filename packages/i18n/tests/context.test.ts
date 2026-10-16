@@ -4,6 +4,7 @@
  * @module @lockness/i18n/tests/context
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertThrows } from '@std/assert'
 import type { Context } from '@lockness/hono'
 import { configureI18n, getRegistry, resetI18n } from '../config.ts'
@@ -32,7 +33,7 @@ function setup() {
     })
 }
 
-Deno.test('getTranslator resolves + memoises on the context', () => {
+test('getTranslator resolves + memoises on the context', () => {
     setup()
     try {
         const c = fakeContext('fr-fr')
@@ -44,12 +45,12 @@ Deno.test('getTranslator resolves + memoises on the context', () => {
     }
 })
 
-Deno.test('getTranslator throws when i18n is unconfigured', () => {
+test('getTranslator throws when i18n is unconfigured', () => {
     resetI18n()
     assertThrows(() => getTranslator(fakeContext()), Error, 'not configured')
 })
 
-Deno.test('runWithLocale makes ambient t() resolve inside the scope', () => {
+test('runWithLocale makes ambient t() resolve inside the scope', () => {
     setup()
     try {
         const rendered = runWithLocale('fr-fr', () => {
@@ -62,7 +63,7 @@ Deno.test('runWithLocale makes ambient t() resolve inside the scope', () => {
     }
 })
 
-Deno.test('ambient t() throws outside a locale scope', () => {
+test('ambient t() throws outside a locale scope', () => {
     setup()
     try {
         assertThrows(() => t('hi'), Error, 'outside a locale scope')
@@ -71,7 +72,7 @@ Deno.test('ambient t() throws outside a locale scope', () => {
     }
 })
 
-Deno.test('localeMiddleware sets c.get(locale)/c.get(t) and runs next() inside the ALS scope', async () => {
+test('localeMiddleware sets c.get(locale)/c.get(t) and runs next() inside the ALS scope', async () => {
     setup()
     try {
         const c = fakeContext('fr-fr')
@@ -92,7 +93,7 @@ Deno.test('localeMiddleware sets c.get(locale)/c.get(t) and runs next() inside t
     }
 })
 
-Deno.test('A-L1: the pure Translator works with no ALS scope (never reads ALS)', () => {
+test('A-L1: the pure Translator works with no ALS scope (never reads ALS)', () => {
     setup()
     try {
         // Direct registry translator — no scope active — must still render.

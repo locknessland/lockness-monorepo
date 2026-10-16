@@ -2,10 +2,11 @@
  * Tests for DevtoolsCollector
  */
 
+import { test } from 'node:test'
 import { assertEquals, assertExists, assertStrictEquals } from '@std/assert'
 import { DevtoolsCollector } from '../collector.ts'
 
-Deno.test('DevtoolsCollector - Singleton instance', () => {
+test('DevtoolsCollector - Singleton instance', () => {
     const instance1 = DevtoolsCollector.getInstance()
     const instance2 = DevtoolsCollector.getInstance()
 
@@ -14,7 +15,7 @@ Deno.test('DevtoolsCollector - Singleton instance', () => {
     assertStrictEquals(instance1, instance2, 'Should return same instance')
 })
 
-Deno.test('DevtoolsCollector - Add and retrieve routes', () => {
+test('DevtoolsCollector - Add and retrieve routes', () => {
     const collector = DevtoolsCollector.getInstance()
     collector.clear()
 
@@ -32,7 +33,7 @@ Deno.test('DevtoolsCollector - Add and retrieve routes', () => {
     assertEquals(data.routes[0].path, '/users')
 })
 
-Deno.test('DevtoolsCollector - Add and retrieve logs', () => {
+test('DevtoolsCollector - Add and retrieve logs', () => {
     const collector = DevtoolsCollector.getInstance()
     collector.clear()
 
@@ -49,7 +50,7 @@ Deno.test('DevtoolsCollector - Add and retrieve logs', () => {
     assertEquals(data.logs[0].message, 'Test log message')
 })
 
-Deno.test('DevtoolsCollector - Add and retrieve SQL queries', () => {
+test('DevtoolsCollector - Add and retrieve SQL queries', () => {
     const collector = DevtoolsCollector.getInstance()
     collector.clear()
 
@@ -66,7 +67,7 @@ Deno.test('DevtoolsCollector - Add and retrieve SQL queries', () => {
     assertEquals(data.queries[0].duration, 42.5)
 })
 
-Deno.test('DevtoolsCollector - Add and update requests', () => {
+test('DevtoolsCollector - Add and update requests', () => {
     const collector = DevtoolsCollector.getInstance()
     collector.clear()
 
@@ -93,7 +94,7 @@ Deno.test('DevtoolsCollector - Add and update requests', () => {
     assertEquals(data.requests[0].statusCode, 201)
 })
 
-Deno.test('DevtoolsCollector - Respect max limits', () => {
+test('DevtoolsCollector - Respect max limits', () => {
     const collector = DevtoolsCollector.getInstance()
     collector.clear()
 
@@ -114,7 +115,7 @@ Deno.test('DevtoolsCollector - Respect max limits', () => {
     )
 })
 
-Deno.test('DevtoolsCollector - Add queue jobs', () => {
+test('DevtoolsCollector - Add queue jobs', () => {
     const collector = DevtoolsCollector.getInstance()
     collector.clear()
 
@@ -132,7 +133,7 @@ Deno.test('DevtoolsCollector - Add queue jobs', () => {
     assertEquals(data.queue[0].status, 'completed')
 })
 
-Deno.test('DevtoolsCollector - Add mail info', () => {
+test('DevtoolsCollector - Add mail info', () => {
     const collector = DevtoolsCollector.getInstance()
     collector.clear()
 
@@ -150,7 +151,7 @@ Deno.test('DevtoolsCollector - Add mail info', () => {
     assertEquals(data.mails[0].subject, 'Welcome!')
 })
 
-Deno.test('DevtoolsCollector - Add performance metrics', () => {
+test('DevtoolsCollector - Add performance metrics', () => {
     const collector = DevtoolsCollector.getInstance()
     collector.clear()
 
@@ -167,7 +168,7 @@ Deno.test('DevtoolsCollector - Add performance metrics', () => {
     assertEquals(data.performance[0].duration, 45.2)
 })
 
-Deno.test('DevtoolsCollector - Clear all data', () => {
+test('DevtoolsCollector - Clear all data', () => {
     const collector = DevtoolsCollector.getInstance()
 
     collector.addLog({

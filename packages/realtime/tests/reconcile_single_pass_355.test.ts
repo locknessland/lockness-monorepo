@@ -70,6 +70,7 @@
  * @module @lockness/realtime/tests/reconcile_single_pass_355
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
 import { RedisBroadcastDriver } from '../drivers/redis.ts'
@@ -227,7 +228,7 @@ function sweeper(redis: FakeRedis, command: CommandFn = redis.command) {
 
 // --- US1: one pass at a time --------------------------------------------------
 
-Deno.test('#355 W1 a slow broker gets one pass, not a pile-up: one owned-set read, no second pass, one departure and one line', async () => {
+test('#355 W1 a slow broker gets one pass, not a pile-up: one owned-set read, no second pass, one departure and one line', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-23T10:00:00Z'))
     const { serial, sent, command } = serialPort(redis)
@@ -271,7 +272,7 @@ Deno.test('#355 W1 a slow broker gets one pass, not a pile-up: one owned-set rea
 
 // --- US2: the log counts what was removed -------------------------------------
 
-Deno.test('#355 W2 the line counts emptied + kept, never absent — and an all-absent sweep logs nothing', async () => {
+test('#355 W2 the line counts emptied + kept, never absent — and an all-absent sweep logs nothing', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-23T10:00:00Z'))
     const { b, departures } = sweeper(redis)
@@ -307,7 +308,7 @@ Deno.test('#355 W2 the line counts emptied + kept, never absent — and an all-a
 
 // --- W3: a failed pass is followed by the next one (guard) ---------------------
 
-Deno.test('#355 W3 the instance-set read rejects: one WARN, and the next interval’s pass sweeps', async () => {
+test('#355 W3 the instance-set read rejects: one WARN, and the next interval’s pass sweeps', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-23T10:00:00Z'))
     let refused = 0
@@ -345,7 +346,7 @@ Deno.test('#355 W3 the instance-set read rejects: one WARN, and the next interva
 
 // --- US4: shutting down mid-sweep ---------------------------------------------
 
-Deno.test('#355 W4 (i) close() mid-release waits for it, announces its departure, and issues no further release', async () => {
+test('#355 W4 (i) close() mid-release waits for it, announces its departure, and issues no further release', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-23T10:00:00Z'))
     const { serial, sent, command } = serialPort(redis)
@@ -383,7 +384,7 @@ Deno.test('#355 W4 (i) close() mid-release waits for it, announces its departure
     }
 })
 
-Deno.test('#355 W4 (ii) close() during the last release: no deregistration', async () => {
+test('#355 W4 (ii) close() during the last release: no deregistration', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-23T10:00:00Z'))
     const { serial, command } = serialPort(redis)
@@ -412,7 +413,7 @@ Deno.test('#355 W4 (ii) close() during the last release: no deregistration', asy
     }
 })
 
-Deno.test('#355 W4 (iii) close() mid-sweep: a second dead instance is never read', async () => {
+test('#355 W4 (iii) close() mid-sweep: a second dead instance is never read', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-23T10:00:00Z'))
     const { serial, sent, command } = serialPort(redis)
@@ -445,7 +446,7 @@ Deno.test('#355 W4 (iii) close() mid-sweep: a second dead instance is never read
     }
 })
 
-Deno.test('#355 W4 (iv) once close() resolves, two intervals issue no command', async () => {
+test('#355 W4 (iv) once close() resolves, two intervals issue no command', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-23T10:00:00Z'))
     const { serial, sent, command } = serialPort(redis)
@@ -479,7 +480,7 @@ Deno.test('#355 W4 (iv) once close() resolves, two intervals issue no command', 
     }
 })
 
-Deno.test('#355 W4 (v) close() during the boot heartbeat: no heartbeat and no pass are armed after it', async () => {
+test('#355 W4 (v) close() during the boot heartbeat: no heartbeat and no pass are armed after it', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-23T10:00:00Z'))
     const { serial, sent, command } = serialPort(redis)
@@ -513,7 +514,7 @@ Deno.test('#355 W4 (v) close() during the boot heartbeat: no heartbeat and no pa
     }
 })
 
-Deno.test('#355 W4 (vi) a reconnect while close() awaits the pass runs no revocation handler and leaves no retry', async () => {
+test('#355 W4 (vi) a reconnect while close() awaits the pass runs no revocation handler and leaves no retry', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-23T10:00:00Z'))
     const { serial, command } = serialPort(redis)
@@ -561,7 +562,7 @@ Deno.test('#355 W4 (vi) a reconnect while close() awaits the pass runs no revoca
     }
 })
 
-Deno.test('#355 W4 (vii) a sweep cut short by close() still counts what it removed: one "released" line at N = 1, none at N = 0', async () => {
+test('#355 W4 (vii) a sweep cut short by close() still counts what it removed: one "released" line at N = 1, none at N = 0', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-23T10:00:00Z'))
     const { serial, command } = serialPort(redis)
@@ -654,7 +655,7 @@ Deno.test('#355 W4 (vii) a sweep cut short by close() still counts what it remov
     }
 })
 
-Deno.test('#355 WR a revocation reconcile already failing when close() starts arms no retry after it', async () => {
+test('#355 WR a revocation reconcile already failing when close() starts arms no retry after it', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-23T10:00:00Z'))
     const subscriber = redis.subscriberFor()
@@ -700,7 +701,7 @@ Deno.test('#355 WR a revocation reconcile already failing when close() starts ar
 
 // --- US3: a lapsed instance that renews stops being swept ---------------------
 
-Deno.test('#355 W5 a renewal mid-sweep refuses the next release: B stops, the slot stays, one left, one "renewed" line', async () => {
+test('#355 W5 a renewal mid-sweep refuses the next release: B stops, the slot stays, one left, one "renewed" line', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-23T10:00:00Z'))
     const { serial, sent, command } = serialPort(redis)
@@ -745,7 +746,7 @@ Deno.test('#355 W5 a renewal mid-sweep refuses the next release: B stops, the sl
     }
 })
 
-Deno.test('#355 W6 a renewal after the last release: the deregistration is refused, A stays registered', async () => {
+test('#355 W6 a renewal after the last release: the deregistration is refused, A stays registered', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-23T10:00:00Z'))
     const { serial, command } = serialPort(redis)
@@ -778,7 +779,7 @@ Deno.test('#355 W6 a renewal after the last release: the deregistration is refus
     }
 })
 
-Deno.test('#355 W6b a late hold of a still-lapsed A keeps it registered; the next pass releases it and deregisters A', async () => {
+test('#355 W6b a late hold of a still-lapsed A keeps it registered; the next pass releases it and deregisters A', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-23T10:00:00Z'))
     const { serial, command } = serialPort(redis)
@@ -818,7 +819,7 @@ Deno.test('#355 W6b a late hold of a still-lapsed A keeps it registered; the nex
 
 // --- US5: one bad instance does not starve the others -------------------------
 
-Deno.test('#355 W7 the first dead instance’s owned set cannot be read: one "failed" line, and the second is swept in the same pass', async () => {
+test('#355 W7 the first dead instance’s owned set cannot be read: one "failed" line, and the second is swept in the same pass', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-23T10:00:00Z'))
     let refused = 0
@@ -865,7 +866,7 @@ Deno.test('#355 W7 the first dead instance’s owned set cannot be read: one "fa
     }
 })
 
-Deno.test('#355 WF a sweep failing after one release: one "failed" line counting it, no further release and no deregistration', async () => {
+test('#355 WF a sweep failing after one release: one "failed" line counting it, no further release and no deregistration', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-23T10:00:00Z'))
     const sent: string[][] = []
@@ -919,7 +920,7 @@ Deno.test('#355 WF a sweep failing after one release: one "failed" line counting
 
 // --- the heartbeat -------------------------------------------------------------
 
-Deno.test('#355 W8 the heartbeat writes the liveness key before it registers, and registers even when that write failed', async () => {
+test('#355 W8 the heartbeat writes the liveness key before it registers, and registers even when that write failed', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-23T10:00:00Z'))
     const beat: string[] = []
@@ -960,7 +961,7 @@ Deno.test('#355 W8 the heartbeat writes the liveness key before it registers, an
     }
 })
 
-Deno.test('#355 W9 the heartbeat stays a plain setInterval: a beat stuck on the broker does not hold back the next one', async () => {
+test('#355 W9 the heartbeat stays a plain setInterval: a beat stuck on the broker does not hold back the next one', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-23T10:00:00Z'))
     const { serial, sent, command } = serialPort(redis)

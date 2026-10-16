@@ -20,6 +20,7 @@
  * @module @lockness/realtime/tests/join_reclaim_373
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { ChannelManager } from '../manager.ts'
 import type { BroadcastDriver } from '../driver.ts'
@@ -99,7 +100,7 @@ function warnCalls(): { readonly lines: string[] } & Disposable {
     }
 }
 
-Deno.test(
+test(
     '#373 the reclaim runs and the ORIGINAL roster error wins, even when ' +
         'the leave also fails',
     async () => {

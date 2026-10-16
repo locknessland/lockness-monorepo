@@ -2,6 +2,7 @@
  * Tests for App class fluent API methods
  */
 
+import { test } from 'node:test'
 import { assertEquals, assertExists } from '@std/assert'
 import { App } from '../app.ts'
 import type {
@@ -19,7 +20,7 @@ class MockMiddleware implements MiddlewareContract {
 
 const mockMiddleware = MockMiddleware
 
-Deno.test('App - isDevelopment checks environment', () => {
+test('App - isDevelopment checks environment', () => {
     // Save original value
     const originalEnv = Deno.env.get('APP_ENV')
 
@@ -45,7 +46,7 @@ Deno.test('App - isDevelopment checks environment', () => {
     }
 })
 
-Deno.test('App - useMiddleware returns app for chaining', () => {
+test('App - useMiddleware returns app for chaining', () => {
     const app = new App()
 
     const result = app.useMiddleware(mockMiddleware)
@@ -53,7 +54,7 @@ Deno.test('App - useMiddleware returns app for chaining', () => {
     assertEquals(result, app, 'Should return app instance for chaining')
 })
 
-Deno.test('App - useMiddleware accepts multiple middlewares', () => {
+test('App - useMiddleware accepts multiple middlewares', () => {
     const app = new App()
 
     const result = app.useMiddleware(mockMiddleware, mockMiddleware)
@@ -61,7 +62,7 @@ Deno.test('App - useMiddleware accepts multiple middlewares', () => {
     assertEquals(result, app)
 })
 
-Deno.test('App - useErrorHandler returns app for chaining', () => {
+test('App - useErrorHandler returns app for chaining', () => {
     const app = new App()
 
     const mockHandler = (_error: Error, _c: Context) => {
@@ -73,7 +74,7 @@ Deno.test('App - useErrorHandler returns app for chaining', () => {
     assertEquals(result, app, 'Should return app instance for chaining')
 })
 
-Deno.test('App - fluent API can be chained', () => {
+test('App - fluent API can be chained', () => {
     const app = new App()
 
     const mockHandler = (_error: Error, _c: Context) => {
@@ -88,7 +89,7 @@ Deno.test('App - fluent API can be chained', () => {
     assertEquals(result, app, 'Chained calls should return same app instance')
 })
 
-Deno.test('App - init merges fluent API middlewares with config', async () => {
+test('App - init merges fluent API middlewares with config', async () => {
     const app = new App()
 
     // Add middleware via fluent API
@@ -120,7 +121,7 @@ Deno.test('App - init merges fluent API middlewares with config', async () => {
     )
 })
 
-Deno.test('App - init uses fluent API error handler when provided', async () => {
+test('App - init uses fluent API error handler when provided', async () => {
     const app = new App()
 
     let _handlerCalled = false
@@ -144,7 +145,7 @@ Deno.test('App - init uses fluent API error handler when provided', async () => 
     assertExists(response, 'Should return a response')
 })
 
-Deno.test('App - init prefers fluent API error handler over config', async () => {
+test('App - init prefers fluent API error handler over config', async () => {
     const app = new App()
 
     let _fluentHandlerCalled = false

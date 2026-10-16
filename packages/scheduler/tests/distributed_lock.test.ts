@@ -5,6 +5,7 @@
  * @module @lockness/scheduler/tests/distributed_lock
  */
 
+import { test } from 'node:test'
 import {
     assert,
     assertEquals,
@@ -20,7 +21,7 @@ import type { SchedulerLock, SchedulerReporter } from '../types.ts'
 
 const quiet: SchedulerReporter = { warn: () => {}, error: () => {} }
 
-Deno.test('validateScheduleOptions - onOneServer must be a boolean', () => {
+test('validateScheduleOptions - onOneServer must be a boolean', () => {
     validateScheduleOptions({ onOneServer: true })
     validateScheduleOptions({ onOneServer: false })
     assertThrows(
@@ -32,7 +33,7 @@ Deno.test('validateScheduleOptions - onOneServer must be a boolean', () => {
     )
 })
 
-Deno.test('onOneServer - two replicas sharing a lock run the task once total', async () => {
+test('onOneServer - two replicas sharing a lock run the task once total', async () => {
     const time = new FakeTime(new Date('2026-03-01T10:00:00Z'))
     try {
         // One backing store, two adapters — two replicas on one Redis.
@@ -59,7 +60,7 @@ Deno.test('onOneServer - two replicas sharing a lock run the task once total', a
     }
 })
 
-Deno.test('onOneServer - without a lock installed the task runs in-process as usual', async () => {
+test('onOneServer - without a lock installed the task runs in-process as usual', async () => {
     const time = new FakeTime(new Date('2026-03-01T10:00:00Z'))
     try {
         const s = new Scheduler(quiet) // no lock
@@ -80,7 +81,7 @@ Deno.test('onOneServer - without a lock installed the task runs in-process as us
     }
 })
 
-Deno.test('MemorySchedulerLock - a second claim on a live key is refused', async () => {
+test('MemorySchedulerLock - a second claim on a live key is refused', async () => {
     const store = new Map()
     const a = new MemorySchedulerLock({ store })
     const b = new MemorySchedulerLock({ store })
@@ -89,7 +90,7 @@ Deno.test('MemorySchedulerLock - a second claim on a live key is refused', async
     assertEquals(await b.acquire('t', at), false, 'the live claim blocks b')
 })
 
-Deno.test('MemorySchedulerLock - release is owner-checked: a stale holder cannot delete a live claim', async () => {
+test('MemorySchedulerLock - release is owner-checked: a stale holder cannot delete a live claim', async () => {
     const time = new FakeTime(new Date('2026-03-01T10:00:00Z'))
     try {
         const store = new Map()
@@ -113,7 +114,7 @@ Deno.test('MemorySchedulerLock - release is owner-checked: a stale holder cannot
     }
 })
 
-Deno.test('MemorySchedulerLock - a claim is re-acquirable once its TTL expires', async () => {
+test('MemorySchedulerLock - a claim is re-acquirable once its TTL expires', async () => {
     const time = new FakeTime(new Date('2026-03-01T10:00:00Z'))
     try {
         const lock = new MemorySchedulerLock({ ttlMs: 1_000 })
@@ -144,7 +145,7 @@ function recordingReporter(): {
     }
 }
 
-Deno.test('onOneServer - an unreachable lock store skips the occurrence, and says so', async () => {
+test('onOneServer - an unreachable lock store skips the occurrence, and says so', async () => {
     // Skipping is the split-brain-safe answer; saying so is what keeps a
     // fleet-wide miss from reading as an ordinary lost race.
     const { reporter, warnings } = recordingReporter()
@@ -175,7 +176,7 @@ Deno.test('onOneServer - an unreachable lock store skips the occurrence, and say
     })
 })
 
-Deno.test('onOneServer - an unreachable store rejecting with a non-Error is flattened the same way', async () => {
+test('onOneServer - an unreachable store rejecting with a non-Error is flattened the same way', async () => {
     // Same shape as the release warning: `error` is a name, `message` the text.
     const { reporter, warnings } = recordingReporter()
     const s = new Scheduler(reporter, {
@@ -198,7 +199,7 @@ Deno.test('onOneServer - an unreachable store rejecting with a non-Error is flat
     })
 })
 
-Deno.test('onOneServer - a failed release does not mask the outcome, and is reported once', async () => {
+test('onOneServer - a failed release does not mask the outcome, and is reported once', async () => {
     // The release is best-effort (the lock's TTL is the backstop), so a release
     // that threw out of the run would turn a successful task into a rejected
     // one. Best-effort is not silent, though: a release that keeps failing
@@ -249,7 +250,7 @@ Deno.test('onOneServer - a failed release does not mask the outcome, and is repo
     }
 })
 
-Deno.test('onOneServer - a release rejecting with an unprintable value is still contained and reported once', async () => {
+test('onOneServer - a release rejecting with an unprintable value is still contained and reported once', async () => {
     // `String()` throws on a value with no usable `toString`. Unguarded, that
     // throw would leave the release catch — inside `finally` — and turn a
     // successful run into a rejected one.
@@ -308,13 +309,13 @@ function hostileRejections(): Array<[string, () => unknown]> {
     ]
 }
 
-Deno.test('onOneServer - a release rejecting with a hostile value is contained and reported once', async (t) => {
+test('onOneServer - a release rejecting with a hostile value is contained and reported once', async (t) => {
     // `normalizeError` (`errors.ts`, #398) runs in a catch inside the run's
     // `finally`, and on the cron path the run is `void`ed: a throw from it is
     // an unhandled rejection that kills the process. Every read of the
     // rejection value is hostile input.
     for (const [label, make] of hostileRejections()) {
-        await t.step(label, async () => {
+        await t.test(label, async () => {
             const { reporter, warnings } = recordingReporter()
             const s = new Scheduler(reporter, {
                 acquire: () => Promise.resolve(true),
@@ -341,7 +342,7 @@ Deno.test('onOneServer - a release rejecting with a hostile value is contained a
     }
 })
 
-Deno.test('onOneServer - a failed release with no reporter falls back to console.warn', async () => {
+test('onOneServer - a failed release with no reporter falls back to console.warn', async () => {
     // Without a reporter the scheduler used to say nothing at all — on this
     // path and on the three other warnings it emits. A rejection that is not
     // an Error is flattened, never passed through raw.
@@ -397,7 +398,7 @@ Deno.test('onOneServer - a failed release with no reporter falls back to console
     }
 })
 
-Deno.test('setLock - a lock installed after registration governs the tasks already registered', async () => {
+test('setLock - a lock installed after registration governs the tasks already registered', async () => {
     // `@lockness/core` installs the lock at boot, after `@Schedule` has
     // registered tasks — so the lock must apply to them, not only to later ones.
     // The clock sits mid-minute, so the occurrence key has to be FLOORED to be

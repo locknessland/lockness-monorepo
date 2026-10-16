@@ -7,6 +7,7 @@
  * neither half of the marker, nor the whole, reaches the rendered line.
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { renderError } from '../logging/sanitize.ts'
 import {
@@ -49,7 +50,7 @@ function assertScanUnder(label: string, text: string, limit = 1000): void {
     assert(best < limit, `${label}: ${best.toFixed(0)} ms`)
 }
 
-Deno.test('#478 every credential stem is redacted', () => {
+test('#478 every credential stem is redacted', () => {
     const names = [
         'token',
         'key',
@@ -78,7 +79,7 @@ Deno.test('#478 every credential stem is redacted', () => {
     }
 })
 
-Deno.test('#478 a credential name matches whatever its case', () => {
+test('#478 a credential name matches whatever its case', () => {
     for (const name of ['PASSWORD', 'AUTHTOKEN', 'Api_Key']) {
         const out = render(`fetch failed: /x?${name}=${M}`)
         assertNoMarker(out, name)
@@ -86,7 +87,7 @@ Deno.test('#478 a credential name matches whatever its case', () => {
     }
 })
 
-Deno.test('#478 an encoded name, value or equals sign is still redacted', () => {
+test('#478 an encoded name, value or equals sign is still redacted', () => {
     const cases: Record<string, string> = {
         'encoded name': `/x?api%5Fkey=${M}`,
         'encoded value': `/x?token=${M}%2B%2F%3D`,
@@ -98,7 +99,7 @@ Deno.test('#478 an encoded name, value or equals sign is still redacted', () => 
     }
 })
 
-Deno.test('#478 a credential nested in an encoded redirect is redacted', () => {
+test('#478 a credential nested in an encoded redirect is redacted', () => {
     // The walk stops at the encoded `?`, so the name is `token`, not
     // `cb%3Ftoken`; and `%26` does not end a value, which only eats more.
     const out = render(`/login?next=%2Fcb%3Ftoken%3D${M}%26x%3D1`)
@@ -106,7 +107,7 @@ Deno.test('#478 a credential nested in an encoded redirect is redacted', () => {
     assertStringIncludes(out, 'next=%2Fcb%3Ftoken%3D***')
 })
 
-Deno.test('#478 an encoded separator ends a name, so a nested `code` is found', () => {
+test('#478 an encoded separator ends a name, so a nested `code` is found', () => {
     // Crossing the encoded `?` would make the name `cb%3Fcode`, which is no
     // credential — the OAuth code would leak.
     const out = render(`/login?next=%2Fcb%3Fcode%3D${M}`)
@@ -114,7 +115,7 @@ Deno.test('#478 an encoded separator ends a name, so a nested `code` is found', 
     assertStringIncludes(out, 'code%3D***')
 })
 
-Deno.test('#478 a credential after `#` is redacted, and its neighbours survive', () => {
+test('#478 a credential after `#` is redacted, and its neighbours survive', () => {
     const out = render(
         `https://app.example.com/cb#access_token=${M}&token_type=bearer`,
     )
@@ -122,7 +123,7 @@ Deno.test('#478 a credential after `#` is redacted, and its neighbours survive',
     assertStringIncludes(out, '#access_token=***&token_type=bearer')
 })
 
-Deno.test('#478 any `name=value` matches, not only a URL query', () => {
+test('#478 any `name=value` matches, not only a URL query', () => {
     const cases: Record<string, [string, string]> = {
         libpq: [`host=db password=${M} dbname=x`, 'dbname=x'],
         odbc: [`Driver=x;Server=db;Pwd=${M};`, 'Pwd=***'],
@@ -136,7 +137,7 @@ Deno.test('#478 any `name=value` matches, not only a URL query', () => {
     }
 })
 
-Deno.test('#478 an empty credential value is left alone', () => {
+test('#478 an empty credential value is left alone', () => {
     assertEquals(render('/x?token=&page=1'), 'Error: /x?token=&page=1')
     assertEquals(redactQueryCredentials('?token=&page=1'), '?token=&page=1')
     assertEquals(redactQueryCredentials("token=''"), "token=''")
@@ -145,17 +146,17 @@ Deno.test('#478 an empty credential value is left alone', () => {
     assertEquals(redactQueryCredentials('token=&page=1'), 'token=***')
 })
 
-Deno.test('#478 names that only resemble a credential survive', () => {
+test('#478 names that only resemble a credential survive', () => {
     const message = '/x?tokenType=a&key_id=b&statuscode=c&page=d'
     assertEquals(render(message), `Error: ${message}`)
 })
 
-Deno.test('#478 the ends-with rule over-matches on purpose: monkey= is masked', () => {
+test('#478 the ends-with rule over-matches on purpose: monkey= is masked', () => {
     // Pinned so a future narrowing is a decision, not an accident.
     assertEquals(redactQueryCredentials('monkey=banana'), 'monkey=***')
 })
 
-Deno.test('#497 the pin stem over-matches on purpose: spin= is masked', () => {
+test('#497 the pin stem over-matches on purpose: spin= is masked', () => {
     // The `monkey=` trade, made again: an ends-with `pin` keeps `newpin`,
     // `cardpin` and `USERPIN` masked, and pays with these. Pinned so a future
     // narrowing is a decision, not an accident.
@@ -175,13 +176,13 @@ Deno.test('#497 the pin stem over-matches on purpose: spin= is masked', () => {
     assertEquals(redactQueryCredentials('spin=up'), 'spin=***')
 })
 
-Deno.test('#478 redaction runs before the cap: a straddling secret leaks no prefix', () => {
+test('#478 redaction runs before the cap: a straddling secret leaks no prefix', () => {
     // The secret starts a few code points before the 200 cap.
     const out = render(`${'a'.repeat(190)} token=${M}${M}`)
     assertNoMarker(out)
 })
 
-Deno.test('#478 redaction runs before the cap: the line keeps what the secret pushed out', () => {
+test('#478 redaction runs before the cap: the line keeps what the secret pushed out', () => {
     // Redacted first, the line fits under the cap and keeps its tail; capped
     // first, the long secret evicts the tail before anything is redacted.
     const out = render(`${'a'.repeat(150)} token=${M.repeat(20)} tail`)
@@ -189,7 +190,7 @@ Deno.test('#478 redaction runs before the cap: the line keeps what the secret pu
     assert(out.endsWith('token=*** tail'), out)
 })
 
-Deno.test('#478 userinfo and query credentials are both redacted', () => {
+test('#478 userinfo and query credentials are both redacted', () => {
     const out = render(
         `connect failed: postgres://app:${M}@db/app?password=${M}`,
     )
@@ -197,7 +198,7 @@ Deno.test('#478 userinfo and query credentials are both redacted', () => {
     assertStringIncludes(out, 'postgres://***:***@db/app?password=***')
 })
 
-Deno.test('#478 a credential in a cause is redacted', () => {
+test('#478 a credential in a cause is redacted', () => {
     const error = new Error('request failed', {
         cause: new TypeError(`fetch https://api.example.com/?api_key=${M}`),
     })
@@ -206,13 +207,13 @@ Deno.test('#478 a credential in a cause is redacted', () => {
     assertStringIncludes(out, 'caused by: TypeError:')
 })
 
-Deno.test('#478 a thrown non-Error value is redacted too', () => {
+test('#478 a thrown non-Error value is redacted too', () => {
     const out = renderError(`upstream said /x?secret=${M}`)
     assertNoMarker(out)
     assertStringIncludes(out, 'secret=***')
 })
 
-Deno.test('#478 the scan is linear: a 256 KB name run and 256 KB of pairs', () => {
+test('#478 the scan is linear: a 256 KB name run and 256 KB of pairs', () => {
     // 256 KB, not 1 MB: at 1 MB the name run's best of three reached 704 ms
     // with 16 copies of this suite running at once. The quadratic regex this
     // replaced took 2.4 s on 40k characters, so 256 KB still misses by far.
@@ -223,7 +224,7 @@ Deno.test('#478 the scan is linear: a 256 KB name run and 256 KB of pairs', () =
     }
 })
 
-Deno.test('#478 isCredentialParamName normalises before it matches', () => {
+test('#478 isCredentialParamName normalises before it matches', () => {
     assert(isCredentialParamName('X-Amz-Signature'))
     assert(isCredentialParamName('api%5Fkey'))
     assert(isCredentialParamName('CODE'))
@@ -238,7 +239,7 @@ Deno.test('#478 isCredentialParamName normalises before it matches', () => {
 // Review fold-in: quoted values, raw-value terminators, spacing, ANSI, names
 // ============================================================================
 
-Deno.test('#478 a quoted value is redacted up to its closing quote', () => {
+test('#478 a quoted value is redacted up to its closing quote', () => {
     const cases: Record<string, [string, string]> = {
         'single quotes': [`password='${M}' next=1`, "password='***' next=1"],
         'double quotes': [`password="${M}" next=1`, 'password="***" next=1'],
@@ -258,14 +259,14 @@ Deno.test('#478 a quoted value is redacted up to its closing quote', () => {
     }
 })
 
-Deno.test('#478 an unclosed quote redacts to the end of the text', () => {
+test('#478 an unclosed quote redacts to the end of the text', () => {
     assertEquals(
         redactQueryCredentials(`password="${M} and more`),
         'password="***',
     )
 })
 
-Deno.test('#478 outside a URL, a raw value ends only at whitespace or a quote', () => {
+test('#478 outside a URL, a raw value ends only at whitespace or a quote', () => {
     for (const separator of ['&', '#', '<', '>', ';']) {
         const text = `--password=ab${separator}${M} -v`
         assertEquals(
@@ -276,7 +277,7 @@ Deno.test('#478 outside a URL, a raw value ends only at whitespace or a quote', 
     }
 })
 
-Deno.test('#478 inside a URL query, `&` and `#` still end a value', () => {
+test('#478 inside a URL query, `&` and `#` still end a value', () => {
     assertEquals(
         redactQueryCredentials(`/x?token=${M}&page=2#top`),
         '/x?token=***&page=2#top',
@@ -287,11 +288,11 @@ Deno.test('#478 inside a URL query, `&` and `#` still end a value', () => {
     )
 })
 
-Deno.test('#478 a vertical tab does not end a value', () => {
+test('#478 a vertical tab does not end a value', () => {
     assertNoMarker(render(`--password=ab\v${M}`))
 })
 
-Deno.test('#478 spaces or tabs around `=` still mark a pair', () => {
+test('#478 spaces or tabs around `=` still mark a pair', () => {
     for (const text of [`token =${M}`, `password = ${M}`, `pwd\t=\t${M}`]) {
         assertNoMarker(render(text), JSON.stringify(text))
     }
@@ -301,17 +302,17 @@ Deno.test('#478 spaces or tabs around `=` still mark a pair', () => {
     )
 })
 
-Deno.test('#478 an ANSI escape inside a name does not hide the pair', () => {
+test('#478 an ANSI escape inside a name does not hide the pair', () => {
     const out = render(`\x1b[1mpassword\x1b[0m=${M}`)
     assertNoMarker(out)
     assertStringIncludes(out, 'password=***')
 })
 
-Deno.test('#478 an ANSI escape with no credential is still shown escaped', () => {
+test('#478 an ANSI escape with no credential is still shown escaped', () => {
     assertEquals(render('\x1b[31mred\x1b[0m'), 'Error: \\x1b[31mred\\x1b[0m')
 })
 
-Deno.test('#478 trailing digits, a confirmation suffix and a plural still match', () => {
+test('#478 trailing digits, a confirmation suffix and a plural still match', () => {
     for (
         const name of [
             'password2',
@@ -329,14 +330,14 @@ Deno.test('#478 trailing digits, a confirmation suffix and a plural still match'
     }
 })
 
-Deno.test('#478 tokenType and key_id still survive', () => {
+test('#478 tokenType and key_id still survive', () => {
     assertEquals(isCredentialParamName('tokenType'), false)
     assertEquals(isCredentialParamName('key_id'), false)
     assertEquals(isCredentialParamName('confirmation'), false)
     assertEquals(isCredentialParamName('2'), false)
 })
 
-Deno.test('#478 userinfo runs before the query pass: a `=` in a password cannot shield it', () => {
+test('#478 userinfo runs before the query pass: a `=` in a password cannot shield it', () => {
     // Query first would eat `M@h/db` as the value of `mytoken` and leave the
     // userinfo net nothing to find, leaking `u` and `mytoken`.
     assertEquals(
@@ -349,7 +350,7 @@ Deno.test('#478 userinfo runs before the query pass: a `=` in a password cannot 
 // Re-review fold-in: escaped quotes, and non-secrets left readable
 // ============================================================================
 
-Deno.test('#478 a backslash-escaped quote opens a value that closes at its escaped twin', () => {
+test('#478 a backslash-escaped quote opens a value that closes at its escaped twin', () => {
     // The shape JSON serialisation gives a quoted CLI argument.
     const text = `{"cmd":"tool --password=\\"${M}\\" -v"}`
     assertEquals(
@@ -359,13 +360,13 @@ Deno.test('#478 a backslash-escaped quote opens a value that closes at its escap
     assertNoMarker(render(text))
 })
 
-Deno.test('#478 an escaped quote inside a quoted value does not end it', () => {
+test('#478 an escaped quote inside a quoted value does not end it', () => {
     const text = `password="ab\\"${M}" next=1`
     assertEquals(redactQueryCredentials(text), 'password="***" next=1')
     assertNoMarker(render(text))
 })
 
-Deno.test('#478 a bare `code` outside a URL is a diagnostic, not an OAuth code', () => {
+test('#478 a bare `code` outside a URL is a diagnostic, not an OAuth code', () => {
     for (
         const text of [
             'status code=503',
@@ -382,7 +383,7 @@ Deno.test('#478 a bare `code` outside a URL is a diagnostic, not an OAuth code',
     )
 })
 
-Deno.test('#494 blanks after `=` are skipped even with none before it', () => {
+test('#494 blanks after `=` are skipped even with none before it', () => {
     // `util.format('k=', v)`, Python's `print('k=', v)`, Go's `fmt.Println`
     // and dotenv's `KEY= value` all put a blank after a bare `=`.
     for (
@@ -408,7 +409,7 @@ Deno.test('#494 blanks after `=` are skipped even with none before it', () => {
     )
 })
 
-Deno.test('#478 a known count name with an all-digit value is a count, not a secret', () => {
+test('#478 a known count name with an all-digit value is a count, not a secret', () => {
     for (const text of ['max_tokens=4096', 'prompt_tokens=9000 total=1']) {
         assertEquals(redactQueryCredentials(text), text)
     }
@@ -416,7 +417,7 @@ Deno.test('#478 a known count name with an all-digit value is a count, not a sec
     assertEquals(redactQueryCredentials('token=4096'), 'token=***')
 })
 
-Deno.test('#494 an escaped quote inside an escaped-quote value does not end it', () => {
+test('#494 an escaped quote inside an escaped-quote value does not end it', () => {
     // `--password="ab\"<secret>"` serialised: the inner `\"` becomes `\\\"`.
     const text = JSON.stringify(`--password="ab\\"${M}" --x`)
     assertEquals(redactQueryCredentials(text), '"--password=\\"***\\" --x"')
@@ -432,7 +433,7 @@ Deno.test('#494 an escaped quote inside an escaped-quote value does not end it',
     )
 })
 
-Deno.test('#494 an OAuth `code` after an HTML-escaped `&amp;` is in a query', () => {
+test('#494 an OAuth `code` after an HTML-escaped `&amp;` is in a query', () => {
     assertEquals(
         redactQueryCredentials(`<a href="/cb?state=1&amp;code=${M}">`),
         '<a href="/cb?state=1&amp;code=***">',
@@ -443,7 +444,7 @@ Deno.test('#494 an OAuth `code` after an HTML-escaped `&amp;` is in a query', ()
     )
 })
 
-Deno.test('#499 after `&amp;`, a credential other than `code` keeps the raw end', () => {
+test('#499 after `&amp;`, a credential other than `code` keeps the raw end', () => {
     // A credential put into a URL unencoded, then HTML-escaped, carries the
     // escape inside its value: only whitespace or a quote may end it.
     for (const name of ['password', 'api_key']) {
@@ -476,7 +477,7 @@ function assertRedacted(cases: Record<string, string>): void {
     }
 }
 
-Deno.test('#500 a credential pair after `&amp;` is masked by its own rule', () => {
+test('#500 a credential pair after `&amp;` is masked by its own rule', () => {
     // A raw value used to run through `&amp;<credential>=`, hiding the next
     // name from the scan, so its quoted or blank-separated value showed.
     assertRedacted({
@@ -491,7 +492,7 @@ Deno.test('#500 a credential pair after `&amp;` is masked by its own rule', () =
     })
 })
 
-Deno.test('#500 a credential pair after a raw `&` is masked by its own rule', () => {
+test('#500 a credential pair after a raw `&` is masked by its own rule', () => {
     assertRedacted({
         [`--password=${HEAD}&token="${TAIL}" -v`]:
             '--password=***&token="***" -v',
@@ -502,7 +503,7 @@ Deno.test('#500 a credential pair after a raw `&` is masked by its own rule', ()
     })
 })
 
-Deno.test('#500 a raw value runs on through `&` that starts no credential pair', () => {
+test('#500 a raw value runs on through `&` that starts no credential pair', () => {
     // Cutting there would show the rest of a CLI or HTML-escaped value.
     assertRedacted({
         [`password=${HEAD}&lt;${TAIL} end`]: 'password=*** end',
@@ -517,7 +518,7 @@ Deno.test('#500 a raw value runs on through `&` that starts no credential pair',
     assertEquals(redactQueryCredentials('--password=ab&cd'), '--password=***')
 })
 
-Deno.test('#525 a credential pair after `;` or `,` is masked by its own rule', () => {
+test('#525 a credential pair after `;` or `,` is masked by its own rule', () => {
     // A raw value used to run through `;<credential>=` and `,<credential>=`,
     // hiding the next name from the scan, so its quoted or blank-separated
     // value showed — the second secret of an ODBC connection string.
@@ -535,7 +536,7 @@ Deno.test('#525 a credential pair after `;` or `,` is masked by its own rule', (
     })
 })
 
-Deno.test('#525 a `;` or `,` inside a password cuts only before a credential `name=`', () => {
+test('#525 a `;` or `,` inside a password cuts only before a credential `name=`', () => {
     // Only `;<credential>=` cuts, so a password holding one shows that
     // fragment and none of its own characters.
     assertRedacted({
@@ -545,7 +546,7 @@ Deno.test('#525 a `;` or `,` inside a password cuts only before a credential `na
     })
 })
 
-Deno.test("#525 a count before a cut keeps the next pair's own rule", () => {
+test("#525 a count before a cut keeps the next pair's own rule", () => {
     // The count is not a masked value, so the pair after it is not a cut
     // inside one: `code=23505` stays a diagnostic and `prompt_tokens` a
     // count. The other rows pin what the wider cut leaves unchanged.
@@ -570,7 +571,7 @@ Deno.test("#525 a count before a cut keeps the next pair's own rule", () => {
     })
 })
 
-Deno.test('#524 a pair a cut starts keeps the raw end', () => {
+test('#524 a pair a cut starts keeps the raw end', () => {
     // Such a pair sits inside a masked value, so it never takes URL mode:
     // ending at the next `&`, `#`, `<` or `>` would show the rest of the
     // password.
@@ -583,7 +584,7 @@ Deno.test('#524 a pair a cut starts keeps the raw end', () => {
     })
 })
 
-Deno.test('#524 a pair a cut starts takes no exemption', () => {
+test('#524 a pair a cut starts takes no exemption', () => {
     // Neither a bare `code` nor a count is kept there: either would show a
     // password's characters as the value it keeps.
     assertRedacted({
@@ -595,7 +596,7 @@ Deno.test('#524 a pair a cut starts takes no exemption', () => {
     })
 })
 
-Deno.test('#524 #525 the accepted cost: a cut shows its separator and name', () => {
+test('#524 #525 the accepted cost: a cut shows its separator and name', () => {
     // A raw value that holds `&`, `;` or `,` before a credential `name=` is
     // cut there, so that fragment shows; a URL-mode value is never cut, and
     // a pair after a cut ends only where a raw value ends. Pinned here so a
@@ -615,7 +616,7 @@ Deno.test('#524 #525 the accepted cost: a cut shows its separator and name', () 
     }
 })
 
-Deno.test('#500 the scan stays linear on credential lookaheads', () => {
+test('#500 the scan stays linear on credential lookaheads', () => {
     // Nine shapes, 256 KB each: a cut at every `&amp;`, a lookahead that never
     // meets `=`, one long non-credential name, a run of non-credential pairs,
     // credential names followed by a blank and no `=`, an empty credential
@@ -647,7 +648,7 @@ Deno.test('#500 the scan stays linear on credential lookaheads', () => {
     }
 })
 
-Deno.test('#494 a `code` ending at `&` and another pair is a form body', () => {
+test('#494 a `code` ending at `&` and another pair is a form body', () => {
     assertEquals(
         redactQueryCredentials(
             `POST /token body code=${M}&grant_type=authorization_code`,
@@ -675,7 +676,7 @@ Deno.test('#494 a `code` ending at `&` and another pair is a form body', () => {
     }
 })
 
-Deno.test('#494 the scan stays linear on a run of bare `code=` pairs', () => {
+test('#494 the scan stays linear on a run of bare `code=` pairs', () => {
     // Sized so the linear scan takes milliseconds and a quadratic one takes
     // seconds: large enough to fail the threshold, small enough to finish,
     // since the mutation battery runs this suite with no timeout. A step
@@ -690,7 +691,7 @@ Deno.test('#494 the scan stays linear on a run of bare `code=` pairs', () => {
     }
 })
 
-Deno.test('#494 only a known count name keeps an all-digit value', () => {
+test('#494 only a known count name keeps an all-digit value', () => {
     // Counts: a `tokens` or `keys` plural named for a limit or a tally.
     for (
         const text of [
@@ -738,7 +739,7 @@ Deno.test('#494 only a known count name keeps an all-digit value', () => {
 /** A short all-digit secret, assembled at run time. */
 const PIN = '48' + '21'
 
-Deno.test('#497 a numeric-PIN name masks an all-digit value, quoted or not', () => {
+test('#497 a numeric-PIN name masks an all-digit value, quoted or not', () => {
     for (
         const name of [
             'pin',
@@ -799,7 +800,7 @@ Deno.test('#497 a numeric-PIN name masks an all-digit value, quoted or not', () 
     )
 })
 
-Deno.test('#497 a code qualified by a credential or a factor word is masked anywhere', () => {
+test('#497 a code qualified by a credential or a factor word is masked anywhere', () => {
     // One name per factor word that only that word qualifies, so deleting
     // any one of them fails here; then the credential-stem leftovers.
     for (
@@ -846,7 +847,7 @@ Deno.test('#497 a code qualified by a credential or a factor word is masked anyw
     )
 })
 
-Deno.test('#497 an unqualified code compound is still a diagnostic', () => {
+test('#497 an unqualified code compound is still a diagnostic', () => {
     for (
         const name of [
             'status_code',
@@ -893,7 +894,7 @@ Deno.test('#497 an unqualified code compound is still a diagnostic', () => {
     )
 })
 
-Deno.test('#497 a numeric-PIN name is never a count', () => {
+test('#497 a numeric-PIN name is never a count', () => {
     // `pins` is a credential plural, not a `tokens`/`keys` count, so a count
     // word in the name does not reopen the digit exemption.
     for (const name of ['max_pins', 'total_otps', 'max_cvvs']) {
@@ -905,7 +906,7 @@ Deno.test('#497 a numeric-PIN name is never a count', () => {
     }
 })
 
-Deno.test('#497 names that only contain the letters survive', () => {
+test('#497 names that only contain the letters survive', () => {
     for (
         const name of [
             'pinned',
@@ -943,7 +944,7 @@ Deno.test('#497 names that only contain the letters survive', () => {
 // #528: every cut passes the marker on, whatever the value it ends
 // ============================================================================
 
-Deno.test('#528 an empty pair a cut starts passes the marker on', () => {
+test('#528 an empty pair a cut starts passes the marker on', () => {
     // The empty pair sits inside the masked value before it, so the pair
     // after it does too: an exemption there would show the password's tail.
     assertRedacted({
@@ -961,7 +962,7 @@ Deno.test('#528 an empty pair a cut starts passes the marker on', () => {
     )
 })
 
-Deno.test('#528 an empty value a cut ends passes the marker on', () => {
+test('#528 an empty value a cut ends passes the marker on', () => {
     assertRedacted({
         [`--password=,code=${TAIL},retry=${MID}`]: '--password=,code=***',
         [`Pwd=;max_tokens=${PIN}`]: 'Pwd=;max_tokens=***',
@@ -977,7 +978,7 @@ Deno.test('#528 an empty value a cut ends passes the marker on', () => {
 // #526: bracketed form and query names (`card[cvc]`, `user[password]`)
 // ============================================================================
 
-Deno.test('#526 a bracketed name is classified by its field segment, raw or encoded', () => {
+test('#526 a bracketed name is classified by its field segment, raw or encoded', () => {
     // The field is the last bracket segment that holds a letter; an index
     // segment (`[]`, `[0]`) names a position, so it is skipped, and a name
     // whose segments are all indexes reads as its path.
@@ -1013,7 +1014,7 @@ Deno.test('#526 a bracketed name is classified by its field segment, raw or enco
     }
 })
 
-Deno.test('#526 a bracketed `code` field takes the bare `code` rule', () => {
+test('#526 a bracketed `code` field takes the bare `code` rule', () => {
     // A bracket container is structure, so the field is literally `code`: an
     // OAuth code in a URL, after `&amp;` or in a form body, a diagnostic
     // elsewhere.
@@ -1039,7 +1040,7 @@ Deno.test('#526 a bracketed `code` field takes the bare `code` rule', () => {
     }
 })
 
-Deno.test('#526 the path qualifies a field across the brackets', () => {
+test('#526 the path qualifies a field across the brackets', () => {
     // The whole path, read as a dotted name is, can only raise the field's
     // result to `stem`, never lower it.
     const digits = '12' + '3456'
@@ -1066,7 +1067,7 @@ Deno.test('#526 the path qualifies a field across the brackets', () => {
     })
 })
 
-Deno.test('#526 non-credential bracket names still render', () => {
+test('#526 non-credential bracket names still render', () => {
     for (
         const text of [
             'card[number]=4242',
@@ -1092,7 +1093,7 @@ Deno.test('#526 non-credential bracket names still render', () => {
     }
 })
 
-Deno.test('#526 a credential pair after a separator is found through its brackets', () => {
+test('#526 a credential pair after a separator is found through its brackets', () => {
     // The lookahead reads the bracketed name as the walk left does, so the
     // pair is cut and masked by its own rule.
     assertRedacted({
@@ -1115,7 +1116,7 @@ Deno.test('#526 a credential pair after a separator is found through its bracket
     )
 })
 
-Deno.test('#526 a bracket in a log prefix leaves the name after it classified', () => {
+test('#526 a bracket in a log prefix leaves the name after it classified', () => {
     // As on `main`, where the walk stopped at the bracket: a reading of the
     // path alone would lose these.
     const digits = '12' + '3456'
@@ -1129,7 +1130,7 @@ Deno.test('#526 a bracket in a log prefix leaves the name after it classified', 
     )
 })
 
-Deno.test('#526 the accepted cost: what a bracketed name still shows', () => {
+test('#526 the accepted cost: what a bracketed name still shows', () => {
     // Pinned so a change to any of these is a decision, not a drift.
     for (
         const [text, expected] of [
@@ -1170,7 +1171,7 @@ Deno.test('#526 the accepted cost: what a bracketed name still shows', () => {
     assertNoMarker(out)
 })
 
-Deno.test('#526 the scan stays linear on bracketed names', () => {
+test('#526 the scan stays linear on bracketed names', () => {
     // Eight shapes, about 256 KB each: one long bracket name, an index-only
     // name (sized smaller, so the quadratic mutant the battery runs still
     // finishes), `x]=` repeated, encoded brackets, `&a[` lookaheads, a cut

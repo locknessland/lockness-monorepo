@@ -7,6 +7,7 @@
  * @module @lockness/i18n/tests/resolver
  */
 
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import type { Context } from '@lockness/hono'
 import { configureI18n, resetI18n } from '../config.ts'
@@ -37,7 +38,7 @@ function setup() {
     })
 }
 
-Deno.test('SC-004: route wins over cookie over header', () => {
+test('SC-004: route wins over cookie over header', () => {
     setup()
     try {
         assertEquals(
@@ -53,7 +54,7 @@ Deno.test('SC-004: route wins over cookie over header', () => {
     }
 })
 
-Deno.test('SC-004: cookie wins over header when no route', () => {
+test('SC-004: cookie wins over header when no route', () => {
     setup()
     try {
         assertEquals(
@@ -72,7 +73,7 @@ Deno.test('SC-004: cookie wins over header when no route', () => {
     }
 })
 
-Deno.test('a language-only match resolves to a configured representative, not the raw tag', () => {
+test('a language-only match resolves to a configured representative, not the raw tag', () => {
     setup()
     try {
         // 'fr-ca' is not configured, but language 'fr' is (fr-fr) → representative.
@@ -85,7 +86,7 @@ Deno.test('a language-only match resolves to a configured representative, not th
     }
 })
 
-Deno.test('SC-005: only the first N Accept-Language ranges are parsed (range cap)', () => {
+test('SC-005: only the first N Accept-Language ranges are parsed (range cap)', () => {
     setup()
     try {
         // 30 short unknown ranges (well under the 256-byte cap) then 'fr' — the
@@ -101,7 +102,7 @@ Deno.test('SC-005: only the first N Accept-Language ranges are parsed (range cap
     }
 })
 
-Deno.test('SC-005: a hostile/unknown/over-cap value falls back to default, never selected raw', () => {
+test('SC-005: a hostile/unknown/over-cap value falls back to default, never selected raw', () => {
     setup()
     try {
         // Path-traversal-shaped, control-char, and over-cap all → default.
@@ -131,7 +132,7 @@ Deno.test('SC-005: a hostile/unknown/over-cap value falls back to default, never
     }
 })
 
-Deno.test('with no source present, resolves to the default', () => {
+test('with no source present, resolves to the default', () => {
     setup()
     try {
         assertEquals(resolveLocale(fakeContext({})), 'en-us')

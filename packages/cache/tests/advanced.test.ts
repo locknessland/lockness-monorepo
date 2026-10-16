@@ -1,3 +1,4 @@
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import {
     add,
@@ -25,8 +26,8 @@ function resetCache() {
     })
 }
 
-Deno.test('cache advanced operations', async (t) => {
-    await t.step('remember caches callback result', async () => {
+test('cache advanced operations', async (t) => {
+    await t.test('remember caches callback result', async () => {
         resetCache()
         let callCount = 0
 
@@ -45,7 +46,7 @@ Deno.test('cache advanced operations', async (t) => {
         assertEquals(callCount, 1)
     })
 
-    await t.step('remember supports async callbacks', async () => {
+    await t.test('remember supports async callbacks', async () => {
         resetCache()
         const result = await remember('async', async () => {
             await new Promise((resolve) => setTimeout(resolve, 10))
@@ -54,20 +55,20 @@ Deno.test('cache advanced operations', async (t) => {
         assertEquals(result, 'async value')
     })
 
-    await t.step('rememberForever caches without expiration', async () => {
+    await t.test('rememberForever caches without expiration', async () => {
         resetCache()
         const result = await rememberForever('forever', () => 'permanent')
         assertEquals(result, 'permanent')
         assertEquals(await get('forever'), 'permanent')
     })
 
-    await t.step('put is an alias for set', async () => {
+    await t.test('put is an alias for set', async () => {
         resetCache()
         await put('key', 'value')
         assertEquals(await get('key'), 'value')
     })
 
-    await t.step('pull gets and deletes', async () => {
+    await t.test('pull gets and deletes', async () => {
         resetCache()
         await set('key', 'value')
         const value = await pull('key')
@@ -75,7 +76,7 @@ Deno.test('cache advanced operations', async (t) => {
         assertEquals(await has('key'), false)
     })
 
-    await t.step('add only sets if key does not exist', async () => {
+    await t.test('add only sets if key does not exist', async () => {
         resetCache()
         const added1 = await add('key', 'value1')
         const added2 = await add('key', 'value2')
@@ -83,7 +84,7 @@ Deno.test('cache advanced operations', async (t) => {
         assertEquals(added2, false)
     })
 
-    await t.step('many gets multiple keys', async () => {
+    await t.test('many gets multiple keys', async () => {
         resetCache()
         await set('key1', 'value1')
         await set('key2', 'value2')
@@ -95,14 +96,14 @@ Deno.test('cache advanced operations', async (t) => {
         })
     })
 
-    await t.step('putMany sets multiple keys', async () => {
+    await t.test('putMany sets multiple keys', async () => {
         resetCache()
         await putMany({ key1: 'value1', key2: 'value2' })
         assertEquals(await get('key1'), 'value1')
         assertEquals(await get('key2'), 'value2')
     })
 
-    await t.step('increment and decrement', async () => {
+    await t.test('increment and decrement', async () => {
         resetCache()
         await set('counter', 5)
         assertEquals(await increment('counter'), 6)

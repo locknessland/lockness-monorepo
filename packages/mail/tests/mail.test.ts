@@ -2,6 +2,7 @@
  * Tests for Mail System
  */
 
+import { test } from 'node:test'
 import { assertEquals, assertStringIncludes } from '@std/assert'
 import {
     configureMail,
@@ -10,15 +11,15 @@ import {
     MemoryMailDriver,
 } from '../mod.ts'
 
-Deno.test('mail system', async (t) => {
-    await t.step('configureMail sets up mail config', () => {
+test('mail system', async (t) => {
+    await t.test('configureMail sets up mail config', () => {
         configureMail({
             driver: 'console',
             from: { email: 'test@example.com', name: 'Test' },
         })
     })
 
-    await t.step('mail() creates Mail instance', () => {
+    await t.test('mail() creates Mail instance', () => {
         const m = mail()
         assertEquals(typeof m.to, 'function')
         assertEquals(typeof m.subject, 'function')
@@ -26,7 +27,7 @@ Deno.test('mail system', async (t) => {
         assertEquals(typeof m.send, 'function')
     })
 
-    await t.step('Mail fluent API works', () => {
+    await t.test('Mail fluent API works', () => {
         const m = mail()
             .to('user@example.com')
             .subject('Test Subject')
@@ -35,7 +36,7 @@ Deno.test('mail system', async (t) => {
         assertEquals(typeof m.send, 'function')
     })
 
-    await t.step('ConsoleMailDriver send returns success', async () => {
+    await t.test('ConsoleMailDriver send returns success', async () => {
         const driver = new ConsoleMailDriver()
         const result = await driver.send({
             from: { email: 'from@example.com' },
@@ -48,7 +49,7 @@ Deno.test('mail system', async (t) => {
         assertStringIncludes(result.messageId!, 'console-')
     })
 
-    await t.step('MemoryMailDriver stores sent emails', async () => {
+    await t.test('MemoryMailDriver stores sent emails', async () => {
         const driver = new MemoryMailDriver()
 
         await driver.send({
@@ -67,7 +68,7 @@ Deno.test('mail system', async (t) => {
         assertEquals(emails.length >= 2, true)
     })
 
-    await t.step('Mail with multiple recipients', () => {
+    await t.test('Mail with multiple recipients', () => {
         const m = mail()
             .to('user1@example.com')
             .to({ email: 'user2@example.com', name: 'User 2' })
@@ -77,7 +78,7 @@ Deno.test('mail system', async (t) => {
         assertEquals(typeof m.send, 'function')
     })
 
-    await t.step('Mail with attachments', () => {
+    await t.test('Mail with attachments', () => {
         const m = mail()
             .to('user@example.com')
             .subject('With Attachment')

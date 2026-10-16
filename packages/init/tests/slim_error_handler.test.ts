@@ -7,6 +7,7 @@
  * @module @lockness/init/tests/slim_error_handler
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { dirname, fromFileUrl, join, toFileUrl } from '@std/path'
 
@@ -76,7 +77,7 @@ function withStatus(message: string, status?: unknown): Error {
     return Object.assign(new Error(message), { status })
 }
 
-Deno.test('slim error handler - a 4xx keeps its status and its reason phrase', async () => {
+test('slim error handler - a 4xx keeps its status and its reason phrase', async () => {
     await withHandler(async (handler) => {
         for (
             const [status, reason] of [
@@ -102,7 +103,7 @@ Deno.test('slim error handler - a 4xx keeps its status and its reason phrase', a
     })
 })
 
-Deno.test('slim error handler - a 5xx, an unknown or a missing status answers 500', async () => {
+test('slim error handler - a 5xx, an unknown or a missing status answers 500', async () => {
     await withHandler(async (handler) => {
         for (const status of [503, 500, 700, '422', undefined]) {
             const { response, body } = await answer(
@@ -115,7 +116,7 @@ Deno.test('slim error handler - a 5xx, an unknown or a missing status answers 50
     })
 })
 
-Deno.test('slim error handler - the message is shown only under explicit development', async () => {
+test('slim error handler - the message is shown only under explicit development', async () => {
     await withHandler(async (handler) => {
         for (const appEnv of [undefined, 'production', 'staging', '']) {
             const { body } = await answer(

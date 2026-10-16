@@ -9,10 +9,11 @@
  * bootstrap step, in `App.shutdown()` or in the sequence.
  */
 
+import { test } from 'node:test'
 import { assertEquals, assertStringIncludes } from '@std/assert'
 import { ShutdownRegistry } from '../kernel/shutdown_registry.ts'
 
-Deno.test('ShutdownRegistry - runs hooks in ASCENDING priority', async () => {
+test('ShutdownRegistry - runs hooks in ASCENDING priority', async () => {
     // The inverse of runBootHooks, which sorts descending. Registered out of
     // order on purpose: a registry that simply preserved insertion order would
     // pass an ascending-registered fixture by accident.
@@ -28,7 +29,7 @@ Deno.test('ShutdownRegistry - runs hooks in ASCENDING priority', async () => {
     assertEquals(order, ['notify', 'cache', 'database'])
 })
 
-Deno.test('ShutdownRegistry - equal priorities keep registration order', async () => {
+test('ShutdownRegistry - equal priorities keep registration order', async () => {
     const order: string[] = []
     const registry = new ShutdownRegistry()
 
@@ -41,7 +42,7 @@ Deno.test('ShutdownRegistry - equal priorities keep registration order', async (
     assertEquals(order, ['first', 'second', 'third', 'fourth'])
 })
 
-Deno.test('ShutdownRegistry - awaits an async hook before starting the next', async () => {
+test('ShutdownRegistry - awaits an async hook before starting the next', async () => {
     // Sequential, not concurrent. A teardown at priority 100 may depend on one
     // at 50 having finished — that is the entire point of ordering them.
     const order: string[] = []
@@ -58,7 +59,7 @@ Deno.test('ShutdownRegistry - awaits an async hook before starting the next', as
     assertEquals(order, ['slow', 'fast'])
 })
 
-Deno.test('ShutdownRegistry - priority defaults to 0', async () => {
+test('ShutdownRegistry - priority defaults to 0', async () => {
     const order: string[] = []
     const registry = new ShutdownRegistry()
 
@@ -70,7 +71,7 @@ Deno.test('ShutdownRegistry - priority defaults to 0', async () => {
     assertEquals(order, ['defaulted', 'explicit'])
 })
 
-Deno.test('ShutdownRegistry - reports how many ran', async () => {
+test('ShutdownRegistry - reports how many ran', async () => {
     const registry = new ShutdownRegistry()
     registry.register('a', () => {})
     registry.register('b', () => {})
@@ -81,14 +82,14 @@ Deno.test('ShutdownRegistry - reports how many ran', async () => {
     assertEquals(result.failed, [])
 })
 
-Deno.test('ShutdownRegistry - an empty registry runs cleanly', async () => {
+test('ShutdownRegistry - an empty registry runs cleanly', async () => {
     const result = await new ShutdownRegistry().run()
 
     assertEquals(result.ran, 0)
     assertEquals(result.failed, [])
 })
 
-Deno.test('ShutdownRegistry - is frozen once run() starts', async () => {
+test('ShutdownRegistry - is frozen once run() starts', async () => {
     // Invariant 2. A hook registered mid-sequence would silently never run —
     // the registry has already taken its snapshot — so it is refused loudly
     // instead of being accepted and dropped.
@@ -115,7 +116,7 @@ Deno.test('ShutdownRegistry - is frozen once run() starts', async () => {
     }
 })
 
-Deno.test('ShutdownRegistry - a late registration name is encoded in the warning', async () => {
+test('ShutdownRegistry - a late registration name is encoded in the warning', async () => {
     // Same rule as the failure path: anything caller-supplied that reaches a log
     // line goes through safeForLog first. `App.onShutdown(name, ...)` takes an
     // arbitrary string, so this is a real boundary and not a hypothetical one.
@@ -143,7 +144,7 @@ Deno.test('ShutdownRegistry - a late registration name is encoded in the warning
     }
 })
 
-Deno.test('ShutdownRegistry - runBand runs only the matching entries, and removes them', async () => {
+test('ShutdownRegistry - runBand runs only the matching entries, and removes them', async () => {
     // The pre-drain phase needs to run a subset BEFORE the server stops
     // accepting, and leave the rest for run(). Splitting by predicate keeps one
     // comparator and one failure policy — a second sorted list would be the
@@ -164,7 +165,7 @@ Deno.test('ShutdownRegistry - runBand runs only the matching entries, and remove
     assertEquals(order, ['predrain', 'service', 'store'])
 })
 
-Deno.test('ShutdownRegistry - runBand isolates a failure the same way run() does', async () => {
+test('ShutdownRegistry - runBand isolates a failure the same way run() does', async () => {
     const order: string[] = []
     const registry = new ShutdownRegistry()
 
@@ -181,7 +182,7 @@ Deno.test('ShutdownRegistry - runBand isolates a failure the same way run() does
     assertEquals(band.failed[0].hook, 'boom')
 })
 
-Deno.test('ShutdownRegistry - runBand matching nothing is a clean no-op', async () => {
+test('ShutdownRegistry - runBand matching nothing is a clean no-op', async () => {
     const registry = new ShutdownRegistry()
     registry.register('store', () => {}, 60)
 

@@ -12,6 +12,7 @@
  * @module @lockness/realtime/tests/eviction_durable
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
 import { ChannelManager } from '../manager.ts'
@@ -75,7 +76,7 @@ async function flushMicrotasks(times = 50): Promise<void> {
     for (let i = 0; i < times; i++) await Promise.resolve()
 }
 
-Deno.test('SC-007: an evict lost while the owning socket was disconnected still revokes on the next reconcile', async () => {
+test('SC-007: an evict lost while the owning socket was disconnected still revokes on the next reconcile', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-05T10:00:00Z'))
     const b = instance(redis)
@@ -120,7 +121,7 @@ Deno.test('SC-007: an evict lost while the owning socket was disconnected still 
     }
 })
 
-Deno.test('SC-007: a presence-free instance still reconciles a durable revocation (no presence member ever added)', async () => {
+test('SC-007: a presence-free instance still reconciles a durable revocation (no presence member ever added)', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-05T10:00:00Z'))
     const b = instance(redis)

@@ -12,6 +12,7 @@
  * @module @lockness/realtime/tests/eviction_control
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { ChannelManager } from '../manager.ts'
 import { RedisBroadcastDriver } from '../drivers/redis.ts'
@@ -82,7 +83,7 @@ async function flushMicrotasks(times = 50): Promise<void> {
     for (let i = 0; i < times; i++) await Promise.resolve()
 }
 
-Deno.test('SC-003: an evict on a non-owning instance revokes the owning socket cross-process', async () => {
+test('SC-003: an evict on a non-owning instance revokes the owning socket cross-process', async () => {
     const redis = new FakeRedis()
     const a = instance(redis)
     const b = instance(redis)

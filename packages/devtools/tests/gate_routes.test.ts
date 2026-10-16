@@ -10,6 +10,7 @@
  * @module @lockness/devtools/tests/gate_routes
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { Hono } from '@lockness/hono'
 import { collector } from '../collector.ts'
@@ -65,7 +66,7 @@ function appWith(cfg: DevtoolsConfig = {}): Hono {
 
 // --- US1: loopback keeps zero-config access (SC-002) -----------------------
 
-Deno.test('US1 - loopback, no credential: dashboard + data succeed', async () => {
+test('US1 - loopback, no credential: dashboard + data succeed', async () => {
     await withActiveDevtools(async () => {
         const app = appWith()
 
@@ -98,7 +99,7 @@ Deno.test('US1 - loopback, no credential: dashboard + data succeed', async () =>
 
 // --- US2: remote unauthenticated caller is denied (SC-001) -----------------
 
-Deno.test('US2 - remote, no credential: every route 401, no data, no wipe', async () => {
+test('US2 - remote, no credential: every route 401, no data, no wipe', async () => {
     await withActiveDevtools(async () => {
         const app = appWith()
 
@@ -119,7 +120,7 @@ Deno.test('US2 - remote, no credential: every route 401, no data, no wipe', asyn
 
 // --- US4: proxied host / DNS-rebinding is denied (SC-004) -------------------
 
-Deno.test('US4 - loopback + forwarding header, or foreign Host: 401', async () => {
+test('US4 - loopback + forwarding header, or foreign Host: 401', async () => {
     await withActiveDevtools(async () => {
         const app = appWith()
 
@@ -141,7 +142,7 @@ Deno.test('US4 - loopback + forwarding header, or foreign Host: 401', async () =
 
 // --- US3: operator opens remote access deliberately (SC-003/SC-005) ---------
 
-Deno.test('US3 - token: correct Bearer from remote allows, wrong/absent denies', async () => {
+test('US3 - token: correct Bearer from remote allows, wrong/absent denies', async () => {
     await withActiveDevtools(async () => {
         const app = appWith({ token: 'a-strong-token' })
 
@@ -164,7 +165,7 @@ Deno.test('US3 - token: correct Bearer from remote allows, wrong/absent denies',
     })
 })
 
-Deno.test('US3 - authorize: true allows, false denies, throwing denies', async () => {
+test('US3 - authorize: true allows, false denies, throwing denies', async () => {
     await withActiveDevtools(async () => {
         const allow = appWith({ authorize: () => true })
         assertEquals(

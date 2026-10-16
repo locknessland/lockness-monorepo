@@ -8,6 +8,7 @@
  * @module @lockness/notification/tests/manager
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import {
     ChannelManager,
@@ -49,7 +50,7 @@ class TwoChannel extends Notification {
     }
 }
 
-Deno.test('SC-001: a notification with two channels delivers to both', async () => {
+test('SC-001: a notification with two channels delivers to both', async () => {
     const mail = new RecordingChannel('mail')
     const sms = new RecordingChannel('sms')
     const manager = new ChannelManager()
@@ -65,7 +66,7 @@ Deno.test('SC-001: a notification with two channels delivers to both', async () 
     assertEquals(sms.deliveries[0].route, '+3312')
 })
 
-Deno.test('SC-001: a null route skips only that channel', async () => {
+test('SC-001: a null route skips only that channel', async () => {
     const mail = new RecordingChannel('mail')
     const sms = new RecordingChannel('sms')
     const manager = new ChannelManager()
@@ -80,7 +81,7 @@ Deno.test('SC-001: a null route skips only that channel', async () => {
     assertEquals(result.skipped, ['sms'])
 })
 
-Deno.test('SC-001: one channel throwing still delivers the others (isolation)', async () => {
+test('SC-001: one channel throwing still delivers the others (isolation)', async () => {
     const mail = new RecordingChannel('mail', () => {
         throw new Error('smtp down')
     })
@@ -98,7 +99,7 @@ Deno.test('SC-001: one channel throwing still delivers the others (isolation)', 
     assert(result.failures[0].error instanceof Error)
 })
 
-Deno.test('an unknown channel name fails clearly, naming the registered set', async () => {
+test('an unknown channel name fails clearly, naming the registered set', async () => {
     const manager = new ChannelManager()
     manager.register(new RecordingChannel('mail'))
 
@@ -146,7 +147,7 @@ class KeyedUser implements QueueableNotifiable {
     }
 }
 
-Deno.test('SC-004: a queued notification dispatches one identifiers-only job', async () => {
+test('SC-004: a queued notification dispatches one identifiers-only job', async () => {
     const jobs: QueuedNotificationJob[] = []
     const manager = new ChannelManager({
         queueDispatcher: (job) => {
@@ -170,7 +171,7 @@ Deno.test('SC-004: a queued notification dispatches one identifiers-only job', a
     assert(!serialised.includes('Invoice #7'))
 })
 
-Deno.test('a queued notification with no dispatcher configured fails clearly', async () => {
+test('a queued notification with no dispatcher configured fails clearly', async () => {
     const manager = new ChannelManager() // no queueDispatcher
     manager.register(new RecordingChannel('mail'))
     await assertRejects(
@@ -179,7 +180,7 @@ Deno.test('a queued notification with no dispatcher configured fails clearly', a
     )
 })
 
-Deno.test('a queued notifiable with no notifiableId fails clearly', async () => {
+test('a queued notifiable with no notifiableId fails clearly', async () => {
     const manager = new ChannelManager({ queueDispatcher: () => {} })
     manager.register(new RecordingChannel('mail'))
     // FakeUser has no notifiableId() → cannot be enqueued.

@@ -8,15 +8,16 @@
  * @module @lockness/crypto/tests/key
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertThrows } from '@std/assert'
 import { generateAppKey, KeyMaterialError, resolveAppKey } from '../mod.ts'
 import { HKDF_INFO } from '../key.ts'
 
-Deno.test('a valid explicit key resolves to 32 bytes', () => {
+test('a valid explicit key resolves to 32 bytes', () => {
     assertEquals(resolveAppKey(generateAppKey()).byteLength, 32)
 })
 
-Deno.test('SC-006: a known-placeholder key is rejected (non-dev env fails closed)', () => {
+test('SC-006: a known-placeholder key is rejected (non-dev env fails closed)', () => {
     // Pin a non-development environment so the ephemeral fallback is NOT taken;
     // restore afterwards so no other test is affected.
     const priorApp = Deno.env.get('APP_ENV')
@@ -33,7 +34,7 @@ Deno.test('SC-006: a known-placeholder key is rejected (non-dev env fails closed
     }
 })
 
-Deno.test('an explicit development env yields a stable 32-byte ephemeral key when APP_KEY is unset', () => {
+test('an explicit development env yields a stable 32-byte ephemeral key when APP_KEY is unset', () => {
     // Exercise the ephemeral dev-key branch: no APP_KEY set, environment
     // EXPLICITLY development. Save/restore both env vars so no leaked
     // state reaches sibling tests.
@@ -55,7 +56,7 @@ Deno.test('an explicit development env yields a stable 32-byte ephemeral key whe
     }
 })
 
-Deno.test('the HKDF info labels are distinct and not the session cookie label', () => {
+test('the HKDF info labels are distinct and not the session cookie label', () => {
     const labels = [HKDF_INFO.crypt as string, HKDF_INFO.sign as string]
     assertEquals(new Set(labels).size, labels.length) // no duplicates
     assert(!labels.includes('lockness/session/cookie/v1'))

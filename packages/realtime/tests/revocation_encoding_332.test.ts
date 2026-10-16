@@ -28,6 +28,7 @@
  * @module @lockness/realtime/tests/revocation_encoding_332
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { RedisBroadcastDriver } from '../drivers/redis.ts'
 import { FakeRedis } from './fake_redis.ts'
@@ -59,7 +60,7 @@ const plant = async (redis: FakeRedis, member: string) => {
     await redis.command('ZADD', INDEX, '9999999999', member)
 }
 
-Deno.test('#332 a bare member decodes to CONNECTION scope', async () => {
+test('#332 a bare member decodes to CONNECTION scope', async () => {
     const redis = new FakeRedis()
     redis.setTime(1_000)
     const driver = driverOn(redis)
@@ -71,7 +72,7 @@ Deno.test('#332 a bare member decodes to CONNECTION scope', async () => {
     }
 })
 
-Deno.test('#332 a composite member decodes to CHANNEL scope, round-trip', async () => {
+test('#332 a composite member decodes to CHANNEL scope, round-trip', async () => {
     const redis = new FakeRedis()
     redis.setTime(1_000)
     const driver = driverOn(redis)
@@ -100,7 +101,7 @@ Deno.test('#332 a composite member decodes to CHANNEL scope, round-trip', async 
     }
 })
 
-Deno.test('#332 an undecodable member is DROPPED, never widened', async () => {
+test('#332 an undecodable member is DROPPED, never widened', async () => {
     const redis = new FakeRedis()
     redis.setTime(1_000)
     const driver = driverOn(redis)
@@ -148,7 +149,7 @@ Deno.test('#332 an undecodable member is DROPPED, never widened', async () => {
     }
 })
 
-Deno.test('#332 a dropped member is not DELETED — the owner can still act on it', async () => {
+test('#332 a dropped member is not DELETED — the owner can still act on it', async () => {
     // The mixed-fleet property, from the index side. The reap is by SCORE only
     // (`ZREMRANGEBYSCORE`) and the charset filter is JS-side, so an instance
     // that cannot decode a member also cannot remove it. Make the reap drop
@@ -171,7 +172,7 @@ Deno.test('#332 a dropped member is not DELETED — the owner can still act on i
     }
 })
 
-Deno.test('#332 the driver REFUSES to write a record it could not decode back', async () => {
+test('#332 the driver REFUSES to write a record it could not decode back', async () => {
     // The write side of the same rule. The manager asserts both names before
     // it gets here, so this is the last point at which an undecodable member
     // can be prevented rather than merely detected later.
@@ -204,7 +205,7 @@ Deno.test('#332 the driver REFUSES to write a record it could not decode back', 
     }
 })
 
-Deno.test('#332 clearRevocation removes exactly its own record', async () => {
+test('#332 clearRevocation removes exactly its own record', async () => {
     const redis = new FakeRedis()
     redis.setTime(1_000)
     const driver = driverOn(redis)

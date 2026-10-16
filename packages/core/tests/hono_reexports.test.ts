@@ -4,7 +4,7 @@
  * This ensures the unified API works correctly and developers can import everything
  * from a single package.
  */
-import { describe, it } from '@std/testing/bdd'
+import { describe, it } from 'node:test'
 import { expect } from '@std/expect'
 
 describe('Hono Re-exports from @lockness/core', () => {

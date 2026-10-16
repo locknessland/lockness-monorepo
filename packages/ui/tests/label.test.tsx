@@ -1,3 +1,4 @@
+import { test } from 'node:test'
 import { assertStringIncludes } from '@std/assert'
 import { Label } from '../components/Label/mod.tsx'
 
@@ -9,33 +10,33 @@ function renderToString(component: unknown): string {
     return result.toString()
 }
 
-Deno.test('Label component', async (t) => {
-    await t.step('renders with default props', () => {
+test('Label component', async (t) => {
+    await t.test('renders with default props', () => {
         const html = renderToString(<Label>Email</Label>)
         assertStringIncludes(html, 'Email')
         assertStringIncludes(html, 'text-[length:--label-font-size]')
         assertStringIncludes(html, 'font-(--label-font-weight)')
     })
 
-    await t.step('renders with for attribute', () => {
+    await t.test('renders with for attribute', () => {
         const html = renderToString(<Label for='email'>Email</Label>)
         assertStringIncludes(html, 'for="email"')
         assertStringIncludes(html, 'Email')
     })
 
-    await t.step('forwards custom class names', () => {
+    await t.test('forwards custom class names', () => {
         const html = renderToString(
             <Label class='custom-class'>Custom</Label>,
         )
         assertStringIncludes(html, 'custom-class')
     })
 
-    await t.step('uses CSS variables', () => {
+    await t.test('uses CSS variables', () => {
         const html = renderToString(<Label>Test</Label>)
         assertStringIncludes(html, '(--foreground)')
     })
 
-    await t.step('forwards HTML attributes', () => {
+    await t.test('forwards HTML attributes', () => {
         const html = renderToString(
             <Label id='test-label' data-testid='label'>
                 Test

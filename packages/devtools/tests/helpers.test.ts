@@ -2,11 +2,12 @@
  * Tests for devtools helpers
  */
 
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { log, trackJob, trackMail, trackQuery } from '../mod.ts'
 import { collector } from '../collector.ts'
 
-Deno.test('log helper - adds log entry', () => {
+test('log helper - adds log entry', () => {
     collector.clear()
 
     log('info', 'Test message', { userId: 123 })
@@ -18,7 +19,7 @@ Deno.test('log helper - adds log entry', () => {
     assertEquals(data.logs[0].context?.userId, 123)
 })
 
-Deno.test('trackQuery helper - adds SQL query', () => {
+test('trackQuery helper - adds SQL query', () => {
     collector.clear()
 
     trackQuery('SELECT * FROM users WHERE id = ?', 25.5, [1])
@@ -30,7 +31,7 @@ Deno.test('trackQuery helper - adds SQL query', () => {
     assertEquals(data.queries[0].bindings, [1])
 })
 
-Deno.test('trackJob helper - adds queue job', () => {
+test('trackJob helper - adds queue job', () => {
     collector.clear()
 
     const jobInfo = {
@@ -49,7 +50,7 @@ Deno.test('trackJob helper - adds queue job', () => {
     assertEquals(data.queue[0].status, 'completed')
 })
 
-Deno.test('trackMail helper - adds mail info', () => {
+test('trackMail helper - adds mail info', () => {
     collector.clear()
 
     const mailInfo = {

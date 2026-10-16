@@ -23,6 +23,7 @@
  * @module @lockness/realtime/tests/driver_redis_live
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { ChannelManager } from '../manager.ts'
 import {
@@ -301,7 +302,7 @@ function fakeConn(id: string, identity: User | null): Connection<User> {
 const sentOf = (c: Connection<User>) =>
     (c as unknown as { _sent: string[] })._sent
 
-Deno.test("SC-001: a broadcast reaches an authorized subscriber on a second instance over a real pub/sub socket, re-bounded by B's local authorization (S6)", async () => {
+test("SC-001: a broadcast reaches an authorized subscriber on a second instance over a real pub/sub socket, re-bounded by B's local authorization (S6)", async () => {
     await withSuppressedFloorAnnounceRetry(async () => {
         const server = await startFakeServer()
         const config = { hostname: '127.0.0.1', port: server.port }
@@ -380,7 +381,7 @@ Deno.test("SC-001: a broadcast reaches an authorized subscriber on a second inst
     })
 })
 
-Deno.test('FR-019/SC-006: an oversized pushed payload is rejected by the bounded reader before fan-out, and delivery self-heals', async () => {
+test('FR-019/SC-006: an oversized pushed payload is rejected by the bounded reader before fan-out, and delivery self-heals', async () => {
     await withSuppressedFloorAnnounceRetry(async () => {
         const server = await startFakeServer()
         const config = { hostname: '127.0.0.1', port: server.port }
@@ -459,7 +460,7 @@ Deno.test('FR-019/SC-006: an oversized pushed payload is rejected by the bounded
     })
 })
 
-Deno.test('FR-007: on the fromConfig path, close() leaves nothing that a later socket fault could revive', async () => {
+test('FR-007: on the fromConfig path, close() leaves nothing that a later socket fault could revive', async () => {
     await withSuppressedFloorAnnounceRetry(async () => {
         const server = await startFakeServer()
         const config = { hostname: '127.0.0.1', port: server.port }
@@ -527,7 +528,7 @@ Deno.test('FR-007: on the fromConfig path, close() leaves nothing that a later s
     })
 })
 
-Deno.test(
+test(
     '#415: withSuppressedFloorAnnounceRetry passes through a non-floor-announce timer armed at FLOOR_ANNOUNCE_RETRY_MS — proof the narrowing is by handler, not delay alone',
     async () => {
         // A spy standing in for the REAL setTimeout: installed BEFORE the

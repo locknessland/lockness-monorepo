@@ -9,6 +9,7 @@
  * @module @lockness/notification/tests/channels/database
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import { DatabaseChannel, type InsertableDb } from '../../channels/database.ts'
 import { Notification } from '../../notification.ts'
@@ -42,7 +43,7 @@ class InvoicePaid extends Notification {
 
 const user: Notifiable = { routeNotificationFor: () => 'user-42' }
 
-Deno.test('S2: the persisted row carries the notifiable owner as a mandatory column', async () => {
+test('S2: the persisted row carries the notifiable owner as a mandatory column', async () => {
     const db = new FakeDb()
     const channel = new DatabaseChannel({
         resolveDb: () => Promise.resolve(db),
@@ -58,7 +59,7 @@ Deno.test('S2: the persisted row carries the notifiable owner as a mandatory col
     assert(db.row?.invoiceId === 7)
 })
 
-Deno.test('the database channel fails clearly when no table is configured', async () => {
+test('the database channel fails clearly when no table is configured', async () => {
     const db = new FakeDb()
     const channel = new DatabaseChannel({
         resolveDb: () => Promise.resolve(db),

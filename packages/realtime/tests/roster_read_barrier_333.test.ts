@@ -19,6 +19,7 @@
  * @module @lockness/realtime/tests/roster_read_barrier_333
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import { RosterReadBarrier } from '../roster_read_barrier.ts'
 import type { PresenceMember } from '../channel.ts'
@@ -76,7 +77,7 @@ function gatedRead() {
 /** Let every already-queued microtask run. */
 const drain = () => new Promise((r) => setTimeout(r, 0))
 
-Deno.test('#333 K concurrent callers on one channel cost exactly two reads', async () => {
+test('#333 K concurrent callers on one channel cost exactly two reads', async () => {
     const gate = gatedRead()
     const barrier = new RosterReadBarrier(gate.read)
 
@@ -105,7 +106,7 @@ Deno.test('#333 K concurrent callers on one channel cost exactly two reads', asy
     assertEquals(gate.calls, 2, 'nothing further was issued on drain')
 })
 
-Deno.test('#333 a caller that arrived during a read is answered by the NEXT one', async () => {
+test('#333 a caller that arrived during a read is answered by the NEXT one', async () => {
     // THE ROW THAT CHOOSES THE DESIGN. A leading-edge single-flight would hand
     // the second caller the first read's answer — and in the manager that means
     // a joiner whose own roster write committed after the read was issued
@@ -136,7 +137,7 @@ Deno.test('#333 a caller that arrived during a read is answered by the NEXT one'
     )
 })
 
-Deno.test('#333 sequential callers each get their own read', async () => {
+test('#333 sequential callers each get their own read', async () => {
     // The bound is "one in flight", not "one per interval". With nothing to
     // share, nothing is shared — which is why this change cannot make a
     // snapshot staler than it was.
@@ -156,7 +157,7 @@ Deno.test('#333 sequential callers each get their own read', async () => {
     assertEquals(gate.calls, 2, 'a later, unconcurrent ask is its own read')
 })
 
-Deno.test('#333 a rejection reaches every caller sharing the read', async () => {
+test('#333 a rejection reaches every caller sharing the read', async () => {
     const gate = gatedRead()
     const barrier = new RosterReadBarrier(gate.read)
 
@@ -187,7 +188,7 @@ Deno.test('#333 a rejection reaches every caller sharing the read', async () => 
     assertEquals(barrier.size, 0, 'two failures, and the channel is still free')
 })
 
-Deno.test('#333 a rejected read still releases the channel', async () => {
+test('#333 a rejected read still releases the channel', async () => {
     // THE TRAP. `next` is chained on the running read; a continuation attached
     // only to the fulfilment path never runs when the driver rejects, and every
     // queued caller waits forever on a promise nothing will settle — with the
@@ -217,7 +218,7 @@ Deno.test('#333 a rejected read still releases the channel', async () => {
     assertEquals(barrier.size, 0, 'and the channel was given back')
 })
 
-Deno.test('#333 the barrier retains NOTHING once a burst settles', async () => {
+test('#333 the barrier retains NOTHING once a burst settles', async () => {
     // The assertion the issue did not ask for, and the one that stops this
     // remedy from becoming #334 in a different map. The map is keyed by
     // channel and clients name channels; what bounds it is reads IN FLIGHT,
@@ -250,7 +251,7 @@ Deno.test('#333 the barrier retains NOTHING once a burst settles', async () => {
     )
 })
 
-Deno.test('#333 a synchronous read is normalised, and a synchronous throw rejects', async () => {
+test('#333 a synchronous read is normalised, and a synchronous throw rejects', async () => {
     // `MemoryBroadcastDriver.readRoster` answers synchronously. It must not
     // get a different rule — a type-level discriminator used as a cost signal
     // changes behaviour silently the day the type changes for another reason.
@@ -280,7 +281,7 @@ Deno.test('#333 a synchronous read is normalised, and a synchronous throw reject
     )
 })
 
-Deno.test('#333 channels do not share a barrier slot', async () => {
+test('#333 channels do not share a barrier slot', async () => {
     const gate = gatedRead()
     const barrier = new RosterReadBarrier(gate.read)
 
@@ -298,7 +299,7 @@ Deno.test('#333 channels do not share a barrier slot', async () => {
     assertEquals(barrier.size, 0)
 })
 
-Deno.test('#333 a sustained burst never runs two reads at once', async () => {
+test('#333 a sustained burst never runs two reads at once', async () => {
     // The bound stated as a property rather than a count: at every instant,
     // at most one read per channel is outstanding, however many callers pile
     // in and whenever they arrive.

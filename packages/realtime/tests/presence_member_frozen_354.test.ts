@@ -36,6 +36,7 @@
  * @module @lockness/realtime/tests/presence_member_frozen_354
  */
 
+import { test } from 'node:test'
 import {
     assert,
     assertEquals,
@@ -290,7 +291,7 @@ const SOURCES: readonly Source[] = [
 
 for (const src of SOURCES) {
     for (const write of WRITES) {
-        Deno.test(`#354 ${src.row} ${src.label}: ${write.label} on A's snapshot member leaves B's here and B's left for A unchanged`, async () => {
+        test(`#354 ${src.row} ${src.label}: ${write.label} on A's snapshot member leaves B's here and B's left for A unchanged`, async () => {
             const m = new ChannelManager<User>({
                 driver: src.driver(),
                 authorize,
@@ -331,7 +332,7 @@ for (const src of SOURCES) {
 
 // --- (b): the product default — a write throws ------------------------------
 
-Deno.test('#354 (b) memory: a direct write to a snapshot member throws TypeError — info.name, info.tags.push and id', async () => {
+test('#354 (b) memory: a direct write to a snapshot member throws TypeError — info.name, info.tags.push and id', async () => {
     const m = new ChannelManager<User>({
         driver: new MemoryBroadcastDriver(),
         authorize,
@@ -386,7 +387,7 @@ async function encodingRoom(tamper: (member: PresenceMember) => void) {
     }
 }
 
-Deno.test('#354 (e) custom encode: a Reflect.set on frame.member leaves the next here unchanged', async () => {
+test('#354 (e) custom encode: a Reflect.set on frame.member leaves the next here unchanged', async () => {
     const room = await encodingRoom((member) =>
         void Reflect.set(member.info ?? {}, 'name', 'X')
     )
@@ -400,7 +401,7 @@ Deno.test('#354 (e) custom encode: a Reflect.set on frame.member leaves the next
     assertEquals(memberOf(here, JOINER), ORIGINAL)
 })
 
-Deno.test("#354 (e) custom encode: a direct write to frame.member throws into #344's local WARN, and presence state is unchanged", async () => {
+test("#354 (e) custom encode: a direct write to frame.member throws into #344's local WARN, and presence state is unchanged", async () => {
     const room = await encodingRoom((member) => {
         ;(member.info as Record<string, unknown>).name = 'X'
     })
@@ -445,7 +446,7 @@ function redisDriver(redis: FakeRedis): RedisBroadcastDriver {
     )
 }
 
-Deno.test("#354 (f) Redis shared read: a Reflect.set on y's seed member leaves z's here unchanged", async () => {
+test("#354 (f) Redis shared read: a Reflect.set on y's seed member leaves z's here unchanged", async () => {
     const redis = new FakeRedis()
     const driver = redisDriver(redis)
     const m = new ChannelManager<User>({ driver, authorize })
@@ -479,7 +480,7 @@ Deno.test("#354 (f) Redis shared read: a Reflect.set on y's seed member leaves z
     }
 })
 
-Deno.test('#354 (f) Redis readRoster: every node of members and selves is frozen', async () => {
+test('#354 (f) Redis readRoster: every node of members and selves is frozen', async () => {
     const redis = new FakeRedis()
     const driver = redisDriver(redis)
     const m = new ChannelManager<User>({ driver, authorize })
@@ -502,7 +503,7 @@ Deno.test('#354 (f) Redis readRoster: every node of members and selves is frozen
     }
 })
 
-Deno.test("#354 (f) Redis sweep: the member a swept departure announces is deep-frozen (#348's path)", async () => {
+test("#354 (f) Redis sweep: the member a swept departure announces is deep-frozen (#348's path)", async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-23T10:00:00Z'))
     const departures: RosterDeparture[] = []
@@ -543,7 +544,7 @@ Deno.test("#354 (f) Redis sweep: the member a swept departure announces is deep-
     }
 })
 
-Deno.test("#354 (g) Redis ingest: a peer's presence-join member reaches encode with member and member.info frozen", async () => {
+test("#354 (g) Redis ingest: a peer's presence-join member reaches encode with member and member.info frozen", async () => {
     const redis = new FakeRedis()
     const [onA, onB] = [redisDriver(redis), redisDriver(redis)]
     const seen: PresenceMember[] = []
@@ -582,7 +583,7 @@ Deno.test("#354 (g) Redis ingest: a peer's presence-join member reaches encode w
 
 // --- (h): units -------------------------------------------------------------
 
-Deno.test('#354 (h) freezePresenceMember freezes every node of an object → array → object tree and returns the same reference', () => {
+test('#354 (h) freezePresenceMember freezes every node of an object → array → object tree and returns the same reference', () => {
     const leaf = { deep: { deeper: 1 } }
     const list = [leaf, 'x']
     const info = { list, flag: true }
@@ -594,7 +595,7 @@ Deno.test('#354 (h) freezePresenceMember freezes every node of an object → arr
     }
 })
 
-Deno.test('#354 (h) no isFrozen short-circuit: a frozen root with a frozen info and a writable info.tags ends with info.tags frozen', () => {
+test('#354 (h) no isFrozen short-circuit: a frozen root with a frozen info and a writable info.tags ends with info.tags frozen', () => {
     // The walk's precondition is a fresh JSON.parse tree, so it never needs
     // to ask whether a node is already frozen — and must not: `Object.freeze`
     // is shallow, so a frozen node says nothing about its children. A walk
@@ -609,13 +610,13 @@ Deno.test('#354 (h) no isFrozen short-circuit: a frozen root with a frozen info 
     assert(deepFrozen(member), 'and so is every other node')
 })
 
-Deno.test("#354 (h) admitPresenceMember's result is deep-frozen", () => {
+test("#354 (h) admitPresenceMember's result is deep-frozen", () => {
     const admitted = admitPresenceMember(original(), 4096)
     assertEquals(admitted, ORIGINAL)
     assert(deepFrozen(admitted), 'every node of the admitted member')
 })
 
-Deno.test('#354 (h) depth row: an info nested 50 000 levels deep is admitted and frozen without a RangeError', () => {
+test('#354 (h) depth row: an info nested 50 000 levels deep is admitted and frozen without a RangeError', () => {
     const DEPTH = 50_000
     let nested: unknown[] = []
     const innermost = nested
@@ -630,7 +631,7 @@ Deno.test('#354 (h) depth row: an info nested 50 000 levels deep is admitted and
 
 // --- (i): negative controls -------------------------------------------------
 
-Deno.test("#354 (i) here and here.members stay the caller's: not frozen, and sort and push work", async () => {
+test("#354 (i) here and here.members stay the caller's: not frozen, and sort and push work", async () => {
     const m = new ChannelManager<User>({
         driver: new MemoryBroadcastDriver(),
         authorize,
@@ -649,7 +650,7 @@ Deno.test("#354 (i) here and here.members stay the caller's: not frozen, and sor
     assertEquals(here.members.length, 3)
 })
 
-Deno.test('#354 (i) a copy of a frozen member is writable: structuredClone and copy-then-decorate', () => {
+test('#354 (i) a copy of a frozen member is writable: structuredClone and copy-then-decorate', () => {
     const member = admitPresenceMember(original(), 4096)
     const cloned = structuredClone(member)
     ;(cloned.info as Record<string, unknown>).name = 'X'
@@ -664,7 +665,7 @@ Deno.test('#354 (i) a copy of a frozen member is writable: structuredClone and c
     assertEquals(member, ORIGINAL, 'and the original is untouched')
 })
 
-Deno.test('#354 (i) freezing changes no byte: the subscribed and here frames encode exactly as before', async () => {
+test('#354 (i) freezing changes no byte: the subscribed and here frames encode exactly as before', async () => {
     const m = new ChannelManager<User>({
         driver: new MemoryBroadcastDriver(),
         authorize,
@@ -696,7 +697,7 @@ Deno.test('#354 (i) freezing changes no byte: the subscribed and here frames enc
 
 // --- (k): types -------------------------------------------------------------
 
-Deno.test('#354 (k) PresenceMember.id, .info and what info holds are readonly — the directives below fail as unused if any loses it', () => {
+test('#354 (k) PresenceMember.id, .info and what info holds are readonly — the directives below fail as unused if any loses it', () => {
     // Never called: it exists for the type checker. Each directive is an
     // error when the line under it compiles, so removing `readonly` from
     // `id`, from the `info` property, or the `Readonly<…>` around what `info`

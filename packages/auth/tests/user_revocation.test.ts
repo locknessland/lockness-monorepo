@@ -11,6 +11,7 @@
  * @module @lockness/auth/tests/user_revocation
  */
 
+import { test } from 'node:test'
 import { assertEquals, assertRejects } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
 import { Hono } from 'hono'
@@ -179,7 +180,7 @@ async function replay(
     return await driver.read('sid') as Record<string, unknown> | null
 }
 
-Deno.test('user revocation (guard) - logoutEverywhere evicts a remember-me session and drops the tokens (SC-006)', async () => {
+test('user revocation (guard) - logoutEverywhere evicts a remember-me session and drops the tokens (SC-006)', async () => {
     using time = new FakeTime(1_700_000_000_000)
     const store = sharedStore()
     const provider = new RememberProvider()
@@ -207,7 +208,7 @@ Deno.test('user revocation (guard) - logoutEverywhere evicts a remember-me sessi
     assertEquals(after, null, 'the remember-me session is evicted')
 })
 
-Deno.test('user revocation (guard) - logoutEverywhere kills the acting session in the SAME second (SC-003)', async () => {
+test('user revocation (guard) - logoutEverywhere kills the acting session in the SAME second (SC-003)', async () => {
     using _time = new FakeTime(1_700_000_000_000)
     const store = sharedStore()
     const provider = new RememberProvider()
@@ -229,7 +230,7 @@ Deno.test('user revocation (guard) - logoutEverywhere kills the acting session i
     assertEquals(after, null, 'the acting session dies even in the same second')
 })
 
-Deno.test('user revocation (guard) - a captured remember-me cookie cannot re-mint after eviction (SC-006)', async () => {
+test('user revocation (guard) - a captured remember-me cookie cannot re-mint after eviction (SC-006)', async () => {
     using _time = new FakeTime(1_700_000_000_000)
     const store = sharedStore()
     const provider = new RememberProvider()
@@ -255,7 +256,7 @@ Deno.test('user revocation (guard) - a captured remember-me cookie cannot re-min
     )
 })
 
-Deno.test('user revocation (guard) - logoutOthers spares the acting session, refuses older ones (SC-002)', async () => {
+test('user revocation (guard) - logoutOthers spares the acting session, refuses older ones (SC-002)', async () => {
     using time = new FakeTime(1_700_000_000_000)
     const store = sharedStore()
     const provider = new RememberProvider()
@@ -301,7 +302,7 @@ Deno.test('user revocation (guard) - logoutOthers spares the acting session, ref
     )
 })
 
-Deno.test('user revocation (guard) - recovery on device A evicts device B end-to-end (SC-006, ASVS 7.4.2)', async () => {
+test('user revocation (guard) - recovery on device A evicts device B end-to-end (SC-006, ASVS 7.4.2)', async () => {
     using time = new FakeTime(1_700_000_000_000)
     const store = sharedStore()
     const provider = new RememberProvider()
@@ -328,7 +329,7 @@ Deno.test('user revocation (guard) - recovery on device A evicts device B end-to
     assertEquals(provider.liveTokens.size, 0, 'device B remember token dropped')
 })
 
-Deno.test('user revocation (guard) - eviction throws when unauthenticated (security S3 / R7)', async () => {
+test('user revocation (guard) - eviction throws when unauthenticated (security S3 / R7)', async () => {
     const store = sharedStore()
     const provider = new MockSessionProvider()
     const { guard } = await device(undefined, store, provider)
@@ -347,7 +348,7 @@ Deno.test('user revocation (guard) - eviction throws when unauthenticated (secur
     )
 })
 
-Deno.test('user revocation - the public session surface exposes no raw subject-taking revoke (R7)', () => {
+test('user revocation - the public session surface exposes no raw subject-taking revoke (R7)', () => {
     const names = Object.keys(sessionSurface)
     assertEquals(
         names.includes('revokeUser'),
@@ -361,7 +362,7 @@ Deno.test('user revocation - the public session surface exposes no raw subject-t
     )
 })
 
-Deno.test('user revocation (guard) - login() sets an evictable sub (arch A5)', async () => {
+test('user revocation (guard) - login() sets an evictable sub (arch A5)', async () => {
     using time = new FakeTime(1_700_000_000_000)
     const store = sharedStore()
     const provider = new RememberProvider()

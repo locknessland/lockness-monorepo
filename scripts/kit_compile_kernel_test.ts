@@ -17,13 +17,14 @@
  * @module
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { type KitName, KITS } from '@lockness/init'
 import { resolveKernelFile } from '../packages/core/cli/kernel_file.ts'
 import { scaffoldKit } from './kit_smoke.ts'
 
 for (const kit of Object.keys(KITS) as KitName[]) {
-    Deno.test(`#485 ${kit}: compile's kernel lookup finds the scaffolded kernel`, async () => {
+    test(`#485 ${kit}: compile's kernel lookup finds the scaffolded kernel`, async () => {
         const workdir = await Deno.makeTempDir({ prefix: 'lockness-485-' })
         try {
             const scaffold = await scaffoldKit(kit, workdir, { local: false })

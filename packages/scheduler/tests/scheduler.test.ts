@@ -2,10 +2,11 @@
  * The Scheduler: identity, lifecycle, control and stats.
  *
  * Timing runs under FakeTime, so nothing here waits on real elapsed time. The
- * pending-timer assertions are explicit rather than delegated to Deno.test's
- * sanitizers, which do not fail on a leaked setTimeout.
+ * pending-timer assertions are explicit because the test runner (`Deno.test`
+ * or `node:test`) does not fail on a leaked setTimeout.
  */
 
+import { test } from 'node:test'
 import {
     assert,
     assertEquals,
@@ -37,7 +38,7 @@ const REAL_SET_TIMEOUT = globalThis.setTimeout
 // Identity and uniqueness
 // ============================================================================
 
-Deno.test('register - derives ClassName.methodName when no name is given', () => {
+test('register - derives ClassName.methodName when no name is given', () => {
     const s = new Scheduler(quiet)
     const name = s.register({
         expression: hourly,
@@ -48,7 +49,7 @@ Deno.test('register - derives ClassName.methodName when no name is given', () =>
     assertEquals(name, 'ReportService.monthly')
 })
 
-Deno.test('register - an explicit name wins', () => {
+test('register - an explicit name wins', () => {
     const s = new Scheduler(quiet)
     const name = s.register({
         expression: hourly,
@@ -60,7 +61,7 @@ Deno.test('register - an explicit name wins', () => {
     assertEquals(name, 'digest')
 })
 
-Deno.test('register - a duplicate name throws rather than replacing', () => {
+test('register - a duplicate name throws rather than replacing', () => {
     const s = new Scheduler(quiet)
     s.register({ expression: hourly, body: () => {}, options: { name: 'dup' } })
     assertThrows(
@@ -75,7 +76,7 @@ Deno.test('register - a duplicate name throws rather than replacing', () => {
     )
 })
 
-Deno.test('register - identity is resolved here, so an imperative caller cannot bypass it', () => {
+test('register - identity is resolved here, so an imperative caller cannot bypass it', () => {
     // The decorator derives nothing; this is the one gate both paths cross.
     const s = new Scheduler(quiet)
     const a = s.register({
@@ -97,7 +98,7 @@ Deno.test('register - identity is resolved here, so an imperative caller cannot 
 // Option validation — one decider
 // ============================================================================
 
-Deno.test('validateScheduleOptions - rejects a hot-loop retry policy', () => {
+test('validateScheduleOptions - rejects a hot-loop retry policy', () => {
     assertThrows(
         () => validateScheduleOptions({ retryDelay: 0 }),
         TypeError,
@@ -106,7 +107,7 @@ Deno.test('validateScheduleOptions - rejects a hot-loop retry policy', () => {
     assertThrows(() => validateScheduleOptions({ retryDelay: -1 }), TypeError)
 })
 
-Deno.test('validateScheduleOptions - bounds retries and timeout', () => {
+test('validateScheduleOptions - bounds retries and timeout', () => {
     assertThrows(
         () => validateScheduleOptions({ retries: -1 }),
         TypeError,
@@ -125,7 +126,7 @@ Deno.test('validateScheduleOptions - bounds retries and timeout', () => {
     validateScheduleOptions({ retries: MAX_RETRIES, timeout: 1, retryDelay: 1 })
 })
 
-Deno.test('validateScheduleOptions - bounds the name charset', () => {
+test('validateScheduleOptions - bounds the name charset', () => {
     assertThrows(
         () => validateScheduleOptions({ name: 'a b' }),
         TypeError,
@@ -143,7 +144,7 @@ Deno.test('validateScheduleOptions - bounds the name charset', () => {
 // Lifecycle
 // ============================================================================
 
-Deno.test('start - arms every enabled task and reports the count', () => {
+test('start - arms every enabled task and reports the count', () => {
     const time = new FakeTime(new Date('2026-03-01T10:00:00Z'))
     try {
         const s = new Scheduler(quiet)
@@ -175,7 +176,7 @@ Deno.test('start - arms every enabled task and reports the count', () => {
     }
 })
 
-Deno.test('a task fires on its schedule and re-arms', async () => {
+test('a task fires on its schedule and re-arms', async () => {
     const time = new FakeTime(new Date('2026-03-01T10:00:00Z'))
     try {
         const s = new Scheduler(quiet)
@@ -200,7 +201,7 @@ Deno.test('a task fires on its schedule and re-arms', async () => {
     }
 })
 
-Deno.test('stop - leaves no pending timer and is terminal', async () => {
+test('stop - leaves no pending timer and is terminal', async () => {
     const time = new FakeTime(new Date('2026-03-01T10:00:00Z'))
     try {
         const s = new Scheduler(quiet)
@@ -235,7 +236,7 @@ Deno.test('stop - leaves no pending timer and is terminal', async () => {
     }
 })
 
-Deno.test('runOnStart - fires at boot and never catches up', async () => {
+test('runOnStart - fires at boot and never catches up', async () => {
     // Booting at 10:07 with an hourly schedule: one immediate run, then 11:00.
     const time = new FakeTime(new Date('2026-03-01T10:07:00Z'))
     try {
@@ -269,7 +270,7 @@ Deno.test('runOnStart - fires at boot and never catches up', async () => {
 // Overlap
 // ============================================================================
 
-Deno.test('overlap skip - an occurrence during a run is skipped and counted', async () => {
+test('overlap skip - an occurrence during a run is skipped and counted', async () => {
     const time = new FakeTime(new Date('2026-03-01T10:00:00Z'))
     try {
         const s = new Scheduler(quiet)
@@ -303,7 +304,7 @@ Deno.test('overlap skip - an occurrence during a run is skipped and counted', as
     }
 })
 
-Deno.test('overlap allow - concurrent runs are permitted when asked for explicitly', async () => {
+test('overlap allow - concurrent runs are permitted when asked for explicitly', async () => {
     const time = new FakeTime(new Date('2026-03-01T10:00:00Z'))
     try {
         const s = new Scheduler(quiet)
@@ -335,7 +336,7 @@ Deno.test('overlap allow - concurrent runs are permitted when asked for explicit
 // Control
 // ============================================================================
 
-Deno.test('pause / resume - pausing clears the timer, resuming restores the cadence', async () => {
+test('pause / resume - pausing clears the timer, resuming restores the cadence', async () => {
     const time = new FakeTime(new Date('2026-03-01T10:00:00Z'))
     try {
         const s = new Scheduler(quiet)
@@ -364,7 +365,7 @@ Deno.test('pause / resume - pausing clears the timer, resuming restores the cade
     }
 })
 
-Deno.test('runNow - runs a paused task without resuming it', async () => {
+test('runNow - runs a paused task without resuming it', async () => {
     const time = new FakeTime(new Date('2026-03-01T10:00:00Z'))
     try {
         const s = new Scheduler(quiet)
@@ -389,7 +390,7 @@ Deno.test('runNow - runs a paused task without resuming it', async () => {
     }
 })
 
-Deno.test('resume - throws on a task declared enabled:false', () => {
+test('resume - throws on a task declared enabled:false', () => {
     const s = new Scheduler(quiet)
     s.register({
         expression: hourly,
@@ -399,7 +400,7 @@ Deno.test('resume - throws on a task declared enabled:false', () => {
     assertThrows(() => s.resume('off'), Error, 'terminal')
 })
 
-Deno.test('pause / resume / runNow - an unknown name throws WITHOUT enumerating the others', async () => {
+test('pause / resume / runNow - an unknown name throws WITHOUT enumerating the others', async () => {
     const s = new Scheduler(quiet)
     s.register({
         expression: hourly,
@@ -429,7 +430,7 @@ Deno.test('pause / resume / runNow - an unknown name throws WITHOUT enumerating 
     assertEquals(threw, true, 'a swallowed typo leaves a task paused forever')
 })
 
-Deno.test('pause / resume / runNow - a malformed name is rejected and not echoed back', () => {
+test('pause / resume / runNow - a malformed name is rejected and not echoed back', () => {
     // The lookup path is request-derived in practice, so an un-patterned string
     // must not reach an error message — that is how log injection gets in.
     const s = new Scheduler(quiet)
@@ -453,7 +454,7 @@ Deno.test('pause / resume / runNow - a malformed name is rejected and not echoed
 // Stats
 // ============================================================================
 
-Deno.test('getStats - never returns an Error instance', async () => {
+test('getStats - never returns an Error instance', async () => {
     const s = new Scheduler(quiet)
     s.register({
         expression: hourly,
@@ -479,7 +480,7 @@ Deno.test('getStats - never returns an Error instance', async () => {
     assertEquals(stats.failureCount, 1)
 })
 
-Deno.test('a failing task does not stop the others', async () => {
+test('a failing task does not stop the others', async () => {
     const time = new FakeTime(new Date('2026-03-01T10:00:00Z'))
     try {
         const s = new Scheduler(quiet)
@@ -521,7 +522,7 @@ Deno.test('a failing task does not stop the others', async () => {
     }
 })
 
-Deno.test('scheduler() - is a shared instance, replaceable for tests', () => {
+test('scheduler() - is a shared instance, replaceable for tests', () => {
     const custom = new Scheduler(quiet)
     setScheduler(custom)
     // STRICT. The line below already compares with `===`, so the two halves
@@ -536,7 +537,7 @@ Deno.test('scheduler() - is a shared instance, replaceable for tests', () => {
 // Timer ownership — invariant 3
 // ============================================================================
 
-Deno.test('stop - a retry backoff timer does not survive stop()', async () => {
+test('stop - a retry backoff timer does not survive stop()', async () => {
     // Invariant 3: every pending timer is in the scheduler's registry, so there
     // is no timer it cannot cancel. The retry backoff is the one that got away:
     // runTask's `sleep` parameter defaults to a raw setTimeout owned by nobody.
@@ -579,7 +580,7 @@ Deno.test('stop - a retry backoff timer does not survive stop()', async () => {
     }
 })
 
-Deno.test('stop - an in-flight run leaves nothing pending behind it', async () => {
+test('stop - an in-flight run leaves nothing pending behind it', async () => {
     const time = new FakeTime(new Date('2026-03-01T10:00:00Z'))
     try {
         const s = new Scheduler(quiet)
@@ -619,7 +620,7 @@ Deno.test('stop - an in-flight run leaves nothing pending behind it', async () =
     }
 })
 
-Deno.test('a yearly task arms a capped timer and does not fire early', async () => {
+test('a yearly task arms a capped timer and does not fire early', async () => {
     // The overflow path end to end, through the Scheduler rather than the
     // registry alone: deno turns a raw year-long delay into 1ms.
     const time = new FakeTime(new Date('2026-03-01T10:00:00Z'))
@@ -657,7 +658,7 @@ Deno.test('a yearly task arms a capped timer and does not fire early', async () 
     }
 })
 
-Deno.test('retryDelay is actually honoured, measured in elapsed time', async () => {
+test('retryDelay is actually honoured, measured in elapsed time', async () => {
     // The regression guard S1 needed and did not have. The previous tests
     // asserted a resolver flag and a final attempt count, both of which a
     // sleep() that resolved immediately still satisfied — so a backoff that had
@@ -706,7 +707,7 @@ Deno.test('retryDelay is actually honoured, measured in elapsed time', async () 
     }
 })
 
-Deno.test('a task named like a retry key does not cancel another task schedule', () => {
+test('a task named like a retry key does not cancel another task schedule', () => {
     // NAME_PATTERN permits ':', so un-namespaced timer keys would let a task
     // called "retry:foo" and the backoff of task "foo" share one registry slot.
     const time = new FakeTime(new Date('2026-03-01T10:00:00Z'))
@@ -735,7 +736,7 @@ Deno.test('a task named like a retry key does not cancel another task schedule',
 // A retry chain does not outlive its own occurrence — #132
 // ============================================================================
 
-Deno.test('a retry chain is abandoned when the next occurrence arrives', async () => {
+test('a retry chain is abandoned when the next occurrence arrives', async () => {
     // A backoff longer than the schedule's period used to let a retry chain
     // outlive the occurrence that started it and overlap the run it was meant
     // to precede. stop() abandoned it; the next occurrence did not.
@@ -806,7 +807,7 @@ Deno.test('a retry chain is abandoned when the next occurrence arrives', async (
     }
 })
 
-Deno.test('a retry chain within its own period is left alone', () => {
+test('a retry chain within its own period is left alone', () => {
     // The guard for the fix above: abandoning must key on the occurrence, not
     // simply on time passing.
     const s = new Scheduler(quiet)
@@ -827,7 +828,7 @@ Deno.test('a retry chain within its own period is left alone', () => {
 // The reporter is installable in place — #132
 // ============================================================================
 
-Deno.test('setReporter - installs a reporter without replacing the instance', () => {
+test('setReporter - installs a reporter without replacing the instance', () => {
     const s = new Scheduler()
     assertEquals(s.hasReporter, false, 'none by default')
 
@@ -848,7 +849,7 @@ Deno.test('setReporter - installs a reporter without replacing the instance', ()
     )
 })
 
-Deno.test('setReporter - a failure reaches the reporter installed after the fact', async () => {
+test('setReporter - a failure reaches the reporter installed after the fact', async () => {
     const s = new Scheduler()
     s.register({
         expression: hourly,
@@ -873,7 +874,7 @@ Deno.test('setReporter - a failure reaches the reporter installed after the fact
 // Coverage the review left open — #133
 // ============================================================================
 
-Deno.test('runNow - an out-of-band run on an ACTIVE task does not shift its next occurrence', async () => {
+test('runNow - an out-of-band run on an ACTIVE task does not shift its next occurrence', async () => {
     // The paused case was already pinned. This is the other half of the
     // contract: runNow never reschedules an active task.
     //
@@ -917,7 +918,7 @@ Deno.test('runNow - an out-of-band run on an ACTIVE task does not shift its next
     }
 })
 
-Deno.test('register - a task registered AFTER start() is armed immediately', async () => {
+test('register - a task registered AFTER start() is armed immediately', async () => {
     const time = new FakeTime(new Date('2026-03-01T10:00:00Z'))
     try {
         const s = new Scheduler(quiet)
@@ -948,7 +949,7 @@ Deno.test('register - a task registered AFTER start() is armed immediately', asy
     }
 })
 
-Deno.test('register - a task registered after start() with enabled:false is still not armed', () => {
+test('register - a task registered after start() with enabled:false is still not armed', () => {
     const s = new Scheduler(quiet)
     s.start()
     s.register({
@@ -961,7 +962,7 @@ Deno.test('register - a task registered after start() with enabled:false is stil
     s.stop()
 })
 
-Deno.test('getStats - every field is asserted, and a FAILED run still counts as a run', async () => {
+test('getStats - every field is asserted, and a FAILED run still counts as a run', async () => {
     const time = new FakeTime(new Date('2026-03-01T10:00:00Z'))
     try {
         const s = new Scheduler(quiet)
@@ -1032,7 +1033,7 @@ Deno.test('getStats - every field is asserted, and a FAILED run still counts as 
 // Reporter guard — #394
 // ============================================================================
 
-Deno.test('reporter guard - a throwing warn inside the run finally does not become an unhandled rejection', async () => {
+test('reporter guard - a throwing warn inside the run finally does not become an unhandled rejection', async () => {
     // The defect #394 fixed: `#warn` read `reporter ?? console` unguarded. The
     // lock-release warning fires from inside `#run`'s `finally`, and `#run` is
     // reached from `#arm`'s timer callback as `void this.#run(name)` — a throw

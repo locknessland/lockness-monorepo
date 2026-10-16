@@ -11,6 +11,7 @@
  * @module @lockness/drizzle/tests/migration_settings
  */
 
+import { test } from 'node:test'
 import { assertEquals, assertRejects, assertStringIncludes } from '@std/assert'
 import { join } from '@std/path'
 import {
@@ -47,7 +48,7 @@ const base = {
     dbCredentials: { url: 'postgres://u:p@h:5432/app' },
 }
 
-Deno.test('#435 DIALECT_FROM_KIT maps every kit dialect db:fresh supports', () => {
+test('#435 DIALECT_FROM_KIT maps every kit dialect db:fresh supports', () => {
     assertEquals(DIALECT_FROM_KIT, {
         postgresql: 'postgres',
         mysql: 'mysql',
@@ -56,7 +57,7 @@ Deno.test('#435 DIALECT_FROM_KIT maps every kit dialect db:fresh supports', () =
     })
 })
 
-Deno.test('#435 settings carry the defaults drizzle-kit uses', async () => {
+test('#435 settings carry the defaults drizzle-kit uses', async () => {
     const { folders, read } = reader([['A', 'B'], ['C']])
 
     const settings = await loadMigrationSettings(
@@ -81,7 +82,7 @@ Deno.test('#435 settings carry the defaults drizzle-kit uses', async () => {
     assertEquals(folders, ['./database/migrations'])
 })
 
-Deno.test('#442 MigrationSettings carries no schemaFilter: it is db:fresh’s reset scope', async () => {
+test('#442 MigrationSettings carries no schemaFilter: it is db:fresh’s reset scope', async () => {
     const settings = await loadMigrationSettings(
         () => Promise.resolve({ ...base, schemaFilter: ['app'] }),
         reader().read,
@@ -91,7 +92,7 @@ Deno.test('#442 MigrationSettings carries no schemaFilter: it is db:fresh’s re
     assertEquals(settings.schemaFilter, undefined)
 })
 
-Deno.test('#442 loadFreshSettings adds the reset scope, from one import of the config', async () => {
+test('#442 loadFreshSettings adds the reset scope, from one import of the config', async () => {
     let loads = 0
     const { folders, read } = reader([['A']])
     const settings = await loadFreshSettings(() => {
@@ -115,7 +116,7 @@ Deno.test('#442 loadFreshSettings adds the reset scope, from one import of the c
     })
 })
 
-Deno.test('#435 settings honour migrations.table and migrations.schema', async () => {
+test('#435 settings honour migrations.table and migrations.schema', async () => {
     const settings = await loadMigrationSettings(
         () =>
             Promise.resolve({
@@ -129,7 +130,7 @@ Deno.test('#435 settings honour migrations.table and migrations.schema', async (
     assertEquals(settings.schema, 'meta')
 })
 
-Deno.test('#435 schemaFilter defaults to public, and a single string is a one-schema scope', async () => {
+test('#435 schemaFilter defaults to public, and a single string is a one-schema scope', async () => {
     for (
         const [schemaFilter, expected] of [
             [undefined, ['public']],
@@ -144,7 +145,7 @@ Deno.test('#435 schemaFilter defaults to public, and a single string is a one-sc
     }
 })
 
-Deno.test('#435 a non-postgres scope ignores schemaFilter', async () => {
+test('#435 a non-postgres scope ignores schemaFilter', async () => {
     const settings = await loadFreshSettings(
         () =>
             Promise.resolve({
@@ -158,7 +159,7 @@ Deno.test('#435 a non-postgres scope ignores schemaFilter', async () => {
     assertEquals(settings.schemaFilter, ['public'])
 })
 
-Deno.test('#435 mysql and sqlite keep no bookkeeping schema', async () => {
+test('#435 mysql and sqlite keep no bookkeeping schema', async () => {
     for (
         const [dialect, url] of [
             ['mysql', 'mysql://u:p@h/app'],
@@ -203,7 +204,7 @@ async function assertRefused(
     assertEquals(folders, [], 'the migrations were read after a refusal')
 }
 
-Deno.test('#435 R2 refuses a drizzle.config.ts that cannot be imported, showing only the error name', async () => {
+test('#435 R2 refuses a drizzle.config.ts that cannot be imported, showing only the error name', async () => {
     await assertRefused(
         () => Promise.reject(new TypeError('Module not found "drizzle-kit"')),
         'drizzle.config.ts could not be imported (TypeError); its error is ' +
@@ -254,7 +255,7 @@ for (
         }],
     ] as const
 ) {
-    Deno.test(`#435 R2 withholds an import failure that may carry the DSN: ${label}`, async () => {
+    test(`#435 R2 withholds an import failure that may carry the DSN: ${label}`, async () => {
         const { folders, read } = reader()
         const error = await assertRejects(
             () => loadMigrationSettings(() => Promise.reject(thrown()), read),
@@ -272,11 +273,11 @@ for (
     })
 }
 
-Deno.test('#435 R2 refuses a config that is not an object', async () => {
+test('#435 R2 refuses a config that is not an object', async () => {
     await assertRefused(() => Promise.resolve(undefined), 'default export')
 })
 
-Deno.test('#435 R2 refuses a config without out', async () => {
+test('#435 R2 refuses a config without out', async () => {
     const { out: _out, ...config } = base
     await assertRefused(() => Promise.resolve(config), '`out`')
     await assertRefused(
@@ -319,7 +320,7 @@ for (
         ]],
     ] as const
 ) {
-    Deno.test(`#449 R2 names the dbCredentials fault: ${fault}`, async () => {
+    test(`#449 R2 names the dbCredentials fault: ${fault}`, async () => {
         for (const dbCredentials of cases) {
             const { folders, read } = reader()
             const error = await assertRejects(
@@ -344,12 +345,12 @@ for (
     })
 }
 
-Deno.test('#449 R2 gives each dbCredentials fault a distinct message', () => {
+test('#449 R2 gives each dbCredentials fault a distinct message', () => {
     const messages = Object.values(CREDENTIAL_FAULTS)
     assertEquals(new Set(messages).size, messages.length)
 })
 
-Deno.test('#449 R2 keeps a url with surrounding blanks as written', async () => {
+test('#449 R2 keeps a url with surrounding blanks as written', async () => {
     const url = ' postgres://u:p@h:5432/app '
     const settings = await loadMigrationSettings(
         () => Promise.resolve({ ...base, dbCredentials: { url } }),
@@ -476,7 +477,7 @@ const NAMES_A_DATABASE: readonly (readonly [string, readonly string[]])[] = [
 ]
 
 for (const [dialect, urls] of NAMES_NO_DATABASE) {
-    Deno.test(`#456 R2 refuses a ${dialect} url that names no database`, async () => {
+    test(`#456 R2 refuses a ${dialect} url that names no database`, async () => {
         for (const url of urls) {
             const { folders, read } = reader()
             const error = await assertRejects(
@@ -507,7 +508,7 @@ for (const [dialect, urls] of NAMES_NO_DATABASE) {
 }
 
 for (const [dialect, urls] of NAMES_A_DATABASE) {
-    Deno.test(`#456 R2 accepts a ${dialect} url that names its database`, async () => {
+    test(`#456 R2 accepts a ${dialect} url that names its database`, async () => {
         for (const url of urls) {
             const settings = await loadMigrationSettings(
                 () =>
@@ -523,7 +524,7 @@ for (const [dialect, urls] of NAMES_A_DATABASE) {
     })
 }
 
-Deno.test('#456 R2 gives a url that names no database its own message', () => {
+test('#456 R2 gives a url that names no database its own message', () => {
     const messages: readonly string[] = Object.values(CREDENTIAL_FAULTS)
     assertEquals(messages.includes(NO_DATABASE), false)
 })
@@ -711,7 +712,7 @@ const REFUSED_FORMS: readonly RefusedForm[] = [
 ]
 
 for (const form of REFUSED_FORMS) {
-    Deno.test(`#442 R2 recognises and refuses: ${form.label}`, async () => {
+    test(`#442 R2 recognises and refuses: ${form.label}`, async () => {
         const error = await refusalOf(form.config)
         assertEquals(
             error.reason.startsWith('drizzle.config.ts: '),
@@ -726,7 +727,7 @@ for (const form of REFUSED_FORMS) {
     })
 }
 
-Deno.test('#442 R2 names every recognised dbCredentials form in one refusal', async () => {
+test('#442 R2 names every recognised dbCredentials form in one refusal', async () => {
     const error = await refusalOf(withCredentials('postgresql', {
         host: SENTINEL,
         password: SENTINEL,
@@ -739,7 +740,7 @@ Deno.test('#442 R2 names every recognised dbCredentials form in one refusal', as
     assertEquals(error.kitOnly, true, 'a certificate makes it drizzle-kit only')
 })
 
-Deno.test('#442 R2 never names an unknown dialect value', async () => {
+test('#442 R2 never names an unknown dialect value', async () => {
     for (const dialect of [SENTINEL, undefined, 42]) {
         const error = await refusalOf({ ...base, dialect })
         assertStringIncludes(
@@ -750,7 +751,7 @@ Deno.test('#442 R2 never names an unknown dialect value', async () => {
     }
 })
 
-Deno.test('#442 R2 accepts the documented url alternatives verbatim', async () => {
+test('#442 R2 accepts the documented url alternatives verbatim', async () => {
     for (
         const [dialect, url] of [
             ['turso', 'libsql://app.example?authToken=<token>'],
@@ -772,7 +773,7 @@ Deno.test('#442 R2 accepts the documented url alternatives verbatim', async () =
     }
 })
 
-Deno.test('#435 R2 refuses a malformed migrations entry', async () => {
+test('#435 R2 refuses a malformed migrations entry', async () => {
     await assertRefused(
         () => Promise.resolve({ ...base, migrations: { table: '' } }),
         '`migrations.table`',
@@ -783,7 +784,7 @@ Deno.test('#435 R2 refuses a malformed migrations entry', async () => {
     )
 })
 
-Deno.test('#442 a malformed schemaFilter refuses db:fresh’s settings only, before the journal is read', async () => {
+test('#442 a malformed schemaFilter refuses db:fresh’s settings only, before the journal is read', async () => {
     for (const schemaFilter of [[], 42, ['public', 1]]) {
         const config = () => Promise.resolve({ ...base, schemaFilter })
         const { folders, read } = reader()
@@ -807,7 +808,7 @@ Deno.test('#442 a malformed schemaFilter refuses db:fresh’s settings only, bef
 // R3 — never wipe a database whose migrations cannot be read
 // -----------------------------------------------------------------------------
 
-Deno.test('#435 R3 refuses a migrations folder without a journal', async () => {
+test('#435 R3 refuses a migrations folder without a journal', async () => {
     const dir = await Deno.makeTempDir()
     try {
         await Deno.writeTextFile(join(dir, '0000_init.sql'), 'SELECT 1;')
@@ -824,7 +825,7 @@ Deno.test('#435 R3 refuses a migrations folder without a journal', async () => {
     }
 })
 
-Deno.test('#435 R3 refuses a journal that lists a missing file', async () => {
+test('#435 R3 refuses a journal that lists a missing file', async () => {
     const dir = await Deno.makeTempDir()
     try {
         await Deno.mkdir(join(dir, 'meta'))
@@ -847,7 +848,7 @@ Deno.test('#435 R3 refuses a journal that lists a missing file', async () => {
     }
 })
 
-Deno.test('#435 the default reader returns each migration’s statements', async () => {
+test('#435 the default reader returns each migration’s statements', async () => {
     const dir = await Deno.makeTempDir()
     try {
         await Deno.mkdir(join(dir, 'meta'))
@@ -905,7 +906,7 @@ async function writeFolder(
     }
 }
 
-Deno.test('#439 the default reader returns each entry’s tag, journal timestamp and file hash, in journal order', async () => {
+test('#439 the default reader returns each entry’s tag, journal timestamp and file hash, in journal order', async () => {
     const dir = await Deno.makeTempDir()
     try {
         const init = 'CREATE TABLE "users" ("id" integer);'
@@ -945,7 +946,7 @@ for (
         ['a missing', undefined],
     ] as const
 ) {
-    Deno.test(`#439 R3 refuses a journal entry with ${label} \`when\``, async () => {
+    test(`#439 R3 refuses a journal entry with ${label} \`when\``, async () => {
         const dir = await Deno.makeTempDir()
         try {
             await writeFolder(dir, [{ tag: '0000_init', when }], {

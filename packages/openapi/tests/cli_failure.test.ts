@@ -8,6 +8,7 @@
  * @module @lockness/openapi/tests/cli_failure
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertMatch, assertRejects } from '@std/assert'
 import { fromFileUrl, join } from '@std/path'
 import { Cli } from '@lockness/cli'
@@ -57,7 +58,7 @@ function failureLines(text: string): string[] {
     return text.split('\n').filter((line) => line.includes('❌'))
 }
 
-Deno.test('docs:generate - a controller scan that throws fails through Cli.dispatch with one line and its cause', async () => {
+test('docs:generate - a controller scan that throws fails through Cli.dispatch with one line and its cause', async () => {
     const { result: status, errors } = await inTempDir(empty, () => {
         const cli = new Cli()
         registerOpenAPICommands(cli)
@@ -71,7 +72,7 @@ Deno.test('docs:generate - a controller scan that throws fails through Cli.dispa
     )
 })
 
-Deno.test('install - outside a Lockness project throws a one-line failure without exiting', async () => {
+test('install - outside a Lockness project throws a one-line failure without exiting', async () => {
     const { result: error, errors } = await inTempDir(
         empty,
         () => assertRejects(() => install(), CommandFailedError),
@@ -85,7 +86,7 @@ Deno.test('install - outside a Lockness project throws a one-line failure withou
     assertEquals(errors, [])
 })
 
-Deno.test('install - a failed step does not stop the next, then fails naming it', async () => {
+test('install - a failed step does not stop the next, then fails naming it', async () => {
     const { result: error, errors, logs } = await inTempDir(
         async (dir) => {
             await Deno.mkdir(join(dir, 'app', 'controller'), {
@@ -116,7 +117,7 @@ Deno.test('install - a failed step does not stop the next, then fails naming it'
     assert(!logs.some((line) => line.includes('installed successfully')))
 })
 
-Deno.test('install entry (subprocess) - outside a Lockness project exits non-zero with one ❌ line and no uncaught error', async () => {
+test('install entry (subprocess) - outside a Lockness project exits non-zero with one ❌ line and no uncaught error', async () => {
     const dir = await Deno.makeTempDir({ prefix: 'lockness-openapi-entry-' })
     try {
         const { code, stdout, stderr } = await new Deno.Command(

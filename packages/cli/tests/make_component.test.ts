@@ -2,11 +2,12 @@
  * Tests for CLI make:component command
  */
 
+import { test } from 'node:test'
 import { assertStringIncludes } from '@std/assert'
 import { Stub } from '../stubs.ts'
 
-Deno.test('make:component', async (t) => {
-    await t.step('generates valid component from stub', async () => {
+test('make:component', async (t) => {
+    await t.test('generates valid component from stub', async () => {
         const content = await Stub.render('make', 'component', {
             className: 'Button',
             propsInterface: '{ children?: any }',
@@ -16,7 +17,7 @@ Deno.test('make:component', async (t) => {
         assertStringIncludes(content, '{ children?: any }')
     })
 
-    await t.step('includes props parameter', async () => {
+    await t.test('includes props parameter', async () => {
         const content = await Stub.render('make', 'component', {
             className: 'Card',
             propsInterface: '{ title: string; children?: any }',
@@ -26,7 +27,7 @@ Deno.test('make:component', async (t) => {
         assertStringIncludes(content, 'props.children')
     })
 
-    await t.step('includes JSX return', async () => {
+    await t.test('includes JSX return', async () => {
         const content = await Stub.render('make', 'component', {
             className: 'Modal',
             propsInterface: '{ children?: any }',

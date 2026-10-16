@@ -11,6 +11,7 @@
  * key intact and the new key absent.
  */
 
+import { test } from 'node:test'
 import { assertEquals, assertRejects } from '@std/assert'
 import type { SessionData } from '../types.ts'
 import { DenoKvSessionDriver, RedisSessionDriver } from '../drivers/mod.ts'
@@ -21,7 +22,7 @@ const OLD_ID = 'a'.repeat(64)
 const NEW_ID = 'b'.repeat(64)
 const DATA: SessionData = { userId: 7 }
 
-Deno.test('atomicity - redis: an EVAL fault leaves the old id, never both (SC-007)', async () => {
+test('atomicity - redis: an EVAL fault leaves the old id, never both (SC-007)', async () => {
     const redis = await startFakeRedis()
     try {
         const driver = new RedisSessionDriver({
@@ -49,7 +50,7 @@ Deno.test('atomicity - redis: an EVAL fault leaves the old id, never both (SC-00
     }
 })
 
-Deno.test('atomicity - deno-kv: a forced commit failure leaves the old id, never both (SC-007)', async () => {
+test('atomicity - deno-kv: a forced commit failure leaves the old id, never both (SC-007)', async () => {
     const fake = new FakeKv()
     const realOpenKv = Deno.openKv
     Object.defineProperty(Deno, 'openKv', {

@@ -9,6 +9,7 @@
  * installing signal handlers would turn a working Ctrl-C into a permanent hang.
  */
 
+import { test } from 'node:test'
 import { assertEquals, assertStrictEquals, assertThrows } from '@std/assert'
 import {
     DEFAULT_SHUTDOWN_DEADLINE_MS,
@@ -17,12 +18,12 @@ import {
 } from '../kernel/shutdown_sequence.ts'
 import { SHUTDOWN_PRIORITY } from '../kernel/shutdown_registry.ts'
 
-Deno.test('resolveDeadlineMs - defaults to 10 seconds when unset', () => {
+test('resolveDeadlineMs - defaults to 10 seconds when unset', () => {
     assertEquals(resolveDeadlineMs(undefined), 10_000)
     assertEquals(DEFAULT_SHUTDOWN_DEADLINE_MS, 10_000)
 })
 
-Deno.test('resolveDeadlineMs - rejects every value setTimeout would silently clamp', () => {
+test('resolveDeadlineMs - rejects every value setTimeout would silently clamp', () => {
     // Each of these is clamped to 1ms by setTimeout, with a warning nobody
     // reads. `Infinity` is the one that matters most: an author writes it to
     // mean "never time out" and gets the SHORTEST possible deadline — the exact
@@ -41,13 +42,13 @@ Deno.test('resolveDeadlineMs - rejects every value setTimeout would silently cla
     }
 })
 
-Deno.test('resolveDeadlineMs - accepts the boundaries', () => {
+test('resolveDeadlineMs - accepts the boundaries', () => {
     assertEquals(resolveDeadlineMs(1), 1)
     assertEquals(resolveDeadlineMs(2 ** 31 - 1), 2 ** 31 - 1)
     assertEquals(resolveDeadlineMs(20_000), 20_000)
 })
 
-Deno.test('ShutdownSequence - is idempotent, and every caller gets the SAME report', async () => {
+test('ShutdownSequence - is idempotent, and every caller gets the SAME report', async () => {
     let ran = 0
     const sequence = new ShutdownSequence()
     sequence.registry.register('once', () => void ran++)
@@ -65,7 +66,7 @@ Deno.test('ShutdownSequence - is idempotent, and every caller gets the SAME repo
     }
 })
 
-Deno.test('ShutdownSequence - isShuttingDown flips before the hooks run', async () => {
+test('ShutdownSequence - isShuttingDown flips before the hooks run', async () => {
     // FR-012's second signal reads this. It must be true from the moment the
     // sequence starts, not once it finishes, or the second signal would wait.
     const sequence = new ShutdownSequence()
@@ -82,7 +83,7 @@ Deno.test('ShutdownSequence - isShuttingDown flips before the hooks run', async 
     assertEquals(sequence.isShuttingDown, true)
 })
 
-Deno.test('ShutdownSequence - stops the server BEFORE any hook runs', async () => {
+test('ShutdownSequence - stops the server BEFORE any hook runs', async () => {
     const order: string[] = []
     const sequence = new ShutdownSequence()
 
@@ -101,7 +102,7 @@ Deno.test('ShutdownSequence - stops the server BEFORE any hook runs', async () =
     assertEquals(order, ['server', 'hook'])
 })
 
-Deno.test('ShutdownSequence - awaits a server handed over as a promise', async () => {
+test('ShutdownSequence - awaits a server handed over as a promise', async () => {
     // ServerListener.listen() returns `this.tryServe(...) as unknown as
     // Deno.HttpServer` over a `private async tryServe` — so what App holds is a
     // PROMISE wearing a server's type. Calling .shutdown() on it directly is
@@ -124,7 +125,7 @@ Deno.test('ShutdownSequence - awaits a server handed over as a promise', async (
     assertEquals(stopped, true)
 })
 
-Deno.test('ShutdownSequence - runs with no server at all', async () => {
+test('ShutdownSequence - runs with no server at all', async () => {
     // shutdown() before listen(), or an app used only through app.fetch.
     const sequence = new ShutdownSequence()
     let ran = false
@@ -136,7 +137,7 @@ Deno.test('ShutdownSequence - runs with no server at all', async () => {
     assertEquals(report.timedOut, false)
 })
 
-Deno.test('ShutdownSequence - a failing hook does not stop the ones after it', async () => {
+test('ShutdownSequence - a failing hook does not stop the ones after it', async () => {
     const order: string[] = []
     const sequence = new ShutdownSequence()
 
@@ -156,7 +157,7 @@ Deno.test('ShutdownSequence - a failing hook does not stop the ones after it', a
     assertEquals(report.failed[0].hook, 'second')
 })
 
-Deno.test('ShutdownSequence - a rejected async hook is caught too', async () => {
+test('ShutdownSequence - a rejected async hook is caught too', async () => {
     const sequence = new ShutdownSequence()
     sequence.registry.register(
         'rejects',
@@ -170,7 +171,7 @@ Deno.test('ShutdownSequence - a rejected async hook is caught too', async () => 
     assertEquals(report.failed.length, 1)
 })
 
-Deno.test('ShutdownSequence - the deadline bounds a hook that never resolves', async () => {
+test('ShutdownSequence - the deadline bounds a hook that never resolves', async () => {
     const sequence = new ShutdownSequence(60)
     sequence.registry.register('hangs', () => new Promise<void>(() => {}))
 
@@ -186,7 +187,7 @@ Deno.test('ShutdownSequence - the deadline bounds a hook that never resolves', a
     )
 })
 
-Deno.test('ShutdownSequence - the deadline bounds a server drain that never resolves', async () => {
+test('ShutdownSequence - the deadline bounds a server drain that never resolves', async () => {
     // The measured case: server.shutdown() does not resolve against an open
     // text/event-stream response. The deadline must cover the DRAIN, not only
     // the hooks — a bound that starts after the server would never fire here.
@@ -201,7 +202,7 @@ Deno.test('ShutdownSequence - the deadline bounds a server drain that never reso
     assertEquals(hookRan, false, 'the drain never finished, so no hook ran')
 })
 
-Deno.test('ShutdownSequence - a clean run does not report a timeout', async () => {
+test('ShutdownSequence - a clean run does not report a timeout', async () => {
     const sequence = new ShutdownSequence(5_000)
     sequence.registry.register('quick', () => {})
 
@@ -211,7 +212,7 @@ Deno.test('ShutdownSequence - a clean run does not report a timeout', async () =
     assertEquals(report.failed, [])
 })
 
-Deno.test('ShutdownSequence - framework priorities order the way the band promises', async () => {
+test('ShutdownSequence - framework priorities order the way the band promises', async () => {
     const order: string[] = []
     const sequence = new ShutdownSequence()
 
@@ -240,7 +241,7 @@ Deno.test('ShutdownSequence - framework priorities order the way the band promis
     assertEquals(order, ['notify', 'scheduler', 'db'])
 })
 
-Deno.test('ShutdownSequence - emits KernelTerminating, which nothing emitted before', async () => {
+test('ShutdownSequence - emits KernelTerminating, which nothing emitted before', async () => {
     // The event has shipped in @lockness/events since it was written, is
     // re-exported from @lockness/core, and is documented with a
     // `closeConnections` listener example — with zero emitters repo-wide. A
@@ -263,7 +264,7 @@ Deno.test('ShutdownSequence - emits KernelTerminating, which nothing emitted bef
     assertEquals(seen instanceof KernelTerminating, true)
 })
 
-Deno.test('ShutdownSequence - a throwing KernelTerminating listener does not strand the teardown', async () => {
+test('ShutdownSequence - a throwing KernelTerminating listener does not strand the teardown', async () => {
     const { dispatcher, KernelTerminating } = await import('@lockness/events')
 
     const off = dispatcher().on(KernelTerminating, () => {
@@ -284,7 +285,7 @@ Deno.test('ShutdownSequence - a throwing KernelTerminating listener does not str
     }
 })
 
-Deno.test('ShutdownSequence - a timed-out report still names what ran and what failed', async () => {
+test('ShutdownSequence - a timed-out report still names what ran and what failed', async () => {
     // It used to return `{ ran: 0, failed: [] }` on expiry — telling a caller
     // that nothing was attempted and nothing failed when three hooks had run
     // and one had thrown. The exit code was right via `timedOut`; the
@@ -313,7 +314,7 @@ Deno.test('ShutdownSequence - a timed-out report still names what ran and what f
     )
 })
 
-Deno.test('ShutdownSequence - a HANGING KernelTerminating listener does not starve the hooks', async () => {
+test('ShutdownSequence - a HANGING KernelTerminating listener does not starve the hooks', async () => {
     // The throwing case was covered; the hanging one was not, and it is worse.
     // `emit` awaits its listeners sequentially with no per-listener bound, so
     // one that never resolves consumed the ENTIRE deadline inside the announce
@@ -345,7 +346,7 @@ Deno.test('ShutdownSequence - a HANGING KernelTerminating listener does not star
     }
 })
 
-Deno.test('ShutdownSequence - a PREDRAIN disposable runs BEFORE the server stops', async () => {
+test('ShutdownSequence - a PREDRAIN disposable runs BEFORE the server stops', async () => {
     // The ordering SC-003 depends on. `server.shutdown()` does not resolve while
     // a streaming response is open, and an armed SSE heartbeat is what keeps it
     // open — so an SSE teardown behind the drain sits behind the very thing it
@@ -376,7 +377,7 @@ Deno.test('ShutdownSequence - a PREDRAIN disposable runs BEFORE the server stops
     assertEquals(order, ['predrain', 'server', 'ordinary'])
 })
 
-Deno.test('ShutdownSequence - an ordinary priority is NOT swept into the pre-drain', async () => {
+test('ShutdownSequence - an ordinary priority is NOT swept into the pre-drain', async () => {
     // register() defaults to 0 and @OnShutdown() means 0. A positive pre-drain
     // threshold would sweep every ordinary hook in with it and tear the whole
     // application down before the server stopped accepting. It did, on the first
@@ -406,7 +407,7 @@ Deno.test('ShutdownSequence - an ordinary priority is NOT swept into the pre-dra
     )
 })
 
-Deno.test('FR-004 - a failing disposable does not strand the ones behind it', async () => {
+test('FR-004 - a failing disposable does not strand the ones behind it', async () => {
     // The policy shutdown_registry states in as many words. The earlier
     // adoption test registered exactly ONE disposable, so an implementation
     // that collapsed the drain into a single entry — `register('disposables',
@@ -446,7 +447,7 @@ Deno.test('FR-004 - a failing disposable does not strand the ones behind it', as
     assertEquals(report.failed[0].hook, 'explodes')
 })
 
-Deno.test('FR-004 - an omitted priority sorts with the stores, not first', async () => {
+test('FR-004 - an omitted priority sorts with the stores, not first', async () => {
     // The HIGH the code review found. `Disposable.priority`'s JSDoc promises an
     // omitted value "sorts with the stores", but `register()` defaults to 0 —
     // first, ahead of NOTIFY and SERVICES. A third-party store following the

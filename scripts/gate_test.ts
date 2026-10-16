@@ -6,6 +6,7 @@
  * @module
  */
 
+import { test } from 'node:test'
 import {
     assertEquals,
     assertNotEquals,
@@ -20,7 +21,7 @@ import {
     runGate,
 } from './gate.ts'
 
-Deno.test('the gate runs the suite last, after every static check', () => {
+test('the gate runs the suite last, after every static check', () => {
     // Asserts each step's args, not only its label (#397): a step that kept
     // its label while running the wrong command used to pass this test.
     assertEquals(gateSteps(), [
@@ -38,7 +39,7 @@ Deno.test('the gate runs the suite last, after every static check', () => {
     ])
 })
 
-Deno.test('--leaks swaps only the suite for test:leaks', () => {
+test('--leaks swaps only the suite for test:leaks', () => {
     const plain = gateSteps()
     const leaks = gateSteps({ leaks: true })
     assertEquals(leaks.slice(0, -1), plain.slice(0, -1))
@@ -48,7 +49,7 @@ Deno.test('--leaks swaps only the suite for test:leaks', () => {
     })
 })
 
-Deno.test('--registry reaches publish:check and no other step', () => {
+test('--registry reaches publish:check and no other step', () => {
     const plain = gateSteps()
     const registry = gateSteps({ registry: true })
     const publishIndex = plain.findIndex((s) => s.label === 'publish:check')
@@ -64,7 +65,7 @@ Deno.test('--registry reaches publish:check and no other step', () => {
     })
 })
 
-Deno.test('--leaks and --registry combine without interfering', () => {
+test('--leaks and --registry combine without interfering', () => {
     const both = gateSteps({ leaks: true, registry: true })
     assertEquals(both.at(-1), {
         label: 'test:leaks',
@@ -79,7 +80,7 @@ Deno.test('--leaks and --registry combine without interfering', () => {
     )
 })
 
-Deno.test('an unknown argument is refused, not ignored', () => {
+test('an unknown argument is refused, not ignored', () => {
     assertEquals(parseGateArgs([]), {})
     assertEquals(parseGateArgs(['--leaks']), { leaks: true })
     assertEquals(parseGateArgs(['--registry']), { registry: true })
@@ -90,7 +91,7 @@ Deno.test('an unknown argument is refused, not ignored', () => {
     assertThrows(() => parseGateArgs(['--leak']), Error, '--leak')
 })
 
-Deno.test('the gate stops at the first failing step with its code', async () => {
+test('the gate stops at the first failing step with its code', async () => {
     const ran: string[] = []
     const outcome = await runGate(gateSteps(), (step: GateStep) => {
         ran.push(step.label)
@@ -102,12 +103,12 @@ Deno.test('the gate stops at the first failing step with its code', async () => 
     assertEquals(ran.includes('test'), false)
 })
 
-Deno.test('the gate passes only when every step exits 0', async () => {
+test('the gate passes only when every step exits 0', async () => {
     const outcome = await runGate(gateSteps(), () => Promise.resolve(0))
     assertEquals(outcome, { code: 0 })
 })
 
-Deno.test("main returns the failing step's code, never 0", async () => {
+test("main returns the failing step's code, never 0", async () => {
     const code = await main(
         [],
         (step) => Promise.resolve(step.label === 'lint' ? 5 : 0),
@@ -115,7 +116,7 @@ Deno.test("main returns the failing step's code, never 0", async () => {
     assertEquals(code, 5)
 })
 
-Deno.test('main returns 2 on an unknown argument without running a step', async () => {
+test('main returns 2 on an unknown argument without running a step', async () => {
     let ran = 0
     const code = await main(['--leak'], () => {
         ran++
@@ -125,11 +126,11 @@ Deno.test('main returns 2 on an unknown argument without running a step', async 
     assertEquals(ran, 0)
 })
 
-Deno.test('main returns 0 only when every step passes', async () => {
+test('main returns 0 only when every step passes', async () => {
     assertEquals(await main(['--leaks'], () => Promise.resolve(0)), 0)
 })
 
-Deno.test('main with --registry runs publish:check with --registry and no other step gets it', async () => {
+test('main with --registry runs publish:check with --registry and no other step gets it', async () => {
     const seen: Record<string, string[]> = {}
     const code = await main(['--registry'], (step) => {
         seen[step.label] = step.args
@@ -182,7 +183,7 @@ async function runGateProcess(
     }
 }
 
-Deno.test('the gate PROCESS exits non-zero when a step fails', async () => {
+test('the gate PROCESS exits non-zero when a step fails', async () => {
     // A directory whose only file is badly formatted: the first step,
     // `deno fmt --check`, fails for real, and nothing later runs.
     const dir = await Deno.makeTempDir({ prefix: 'gate-red-' })
@@ -198,7 +199,7 @@ Deno.test('the gate PROCESS exits non-zero when a step fails', async () => {
     }
 })
 
-Deno.test('the gate PROCESS exits 2 on an unknown flag', async () => {
+test('the gate PROCESS exits 2 on an unknown flag', async () => {
     const dir = await Deno.makeTempDir({ prefix: 'gate-flag-' })
     try {
         const { code, out } = await runGateProcess(dir, ['--leak'])

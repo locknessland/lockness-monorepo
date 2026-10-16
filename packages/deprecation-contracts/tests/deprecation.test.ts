@@ -1,13 +1,14 @@
+import { test } from 'node:test'
 import { assertThrows } from '@std/assert'
 import { triggerDeprecation } from '../mod.ts'
 
-Deno.test('Deprecation - should log warning by default', () => {
+test('Deprecation - should log warning by default', () => {
     // We can't easily assert console.warn without mocking,
     // but we can check if it doesn't throw.
     triggerDeprecation('lockness/core', '1.0.0', 'Test message')
 })
 
-Deno.test('Deprecation - should format message with %s', () => {
+test('Deprecation - should format message with %s', () => {
     // Again, tricky to test console output, but we can test logic if we refactor
     // or just assume it works for now.
     // Let's add a way to test the formatting specifically if needed,
@@ -21,7 +22,7 @@ Deno.test('Deprecation - should format message with %s', () => {
     )
 })
 
-Deno.test('Deprecation - should throw if STRICT_DEPRECATIONS is set', () => {
+test('Deprecation - should throw if STRICT_DEPRECATIONS is set', () => {
     Deno.env.set('STRICT_DEPRECATIONS', 'true')
     try {
         assertThrows(
@@ -36,7 +37,7 @@ Deno.test('Deprecation - should throw if STRICT_DEPRECATIONS is set', () => {
     }
 })
 
-Deno.test('Deprecation - should be ignored if IGNORE_DEPRECATIONS is set', () => {
+test('Deprecation - should be ignored if IGNORE_DEPRECATIONS is set', () => {
     Deno.env.set('IGNORE_DEPRECATIONS', 'true')
     Deno.env.set('STRICT_DEPRECATIONS', 'true') // This would throw if not ignored
     try {
@@ -50,7 +51,7 @@ Deno.test('Deprecation - should be ignored if IGNORE_DEPRECATIONS is set', () =>
 
 import { Deprecated } from '../mod.ts'
 
-Deno.test('Deprecated Decorator - should trigger on class instantiation', () => {
+test('Deprecated Decorator - should trigger on class instantiation', () => {
     Deno.env.set('STRICT_DEPRECATIONS', 'true')
 
     @Deprecated('1.0.0', 'Class is deprecated')
@@ -67,7 +68,7 @@ Deno.test('Deprecated Decorator - should trigger on class instantiation', () => 
     }
 })
 
-Deno.test('Deprecated Decorator - should trigger on method call', () => {
+test('Deprecated Decorator - should trigger on method call', () => {
     Deno.env.set('STRICT_DEPRECATIONS', 'true')
 
     class TestClass {
@@ -89,7 +90,7 @@ Deno.test('Deprecated Decorator - should trigger on method call', () => {
     }
 })
 
-Deno.test('Deprecated Decorator - should trigger on accessor access', () => {
+test('Deprecated Decorator - should trigger on accessor access', () => {
     Deno.env.set('STRICT_DEPRECATIONS', 'true')
 
     class TestClass {

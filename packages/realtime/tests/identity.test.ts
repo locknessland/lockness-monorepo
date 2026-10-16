@@ -7,6 +7,7 @@
  * @module @lockness/realtime/tests/identity
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { buildEvents } from '../websocket.ts'
 import type { Connection, WSContext } from '../types.ts'
@@ -21,7 +22,7 @@ interface User {
     id: number
 }
 
-Deno.test('SC-002a: Connection.identity is the upgrade-resolved identity', () => {
+test('SC-002a: Connection.identity is the upgrade-resolved identity', () => {
     let conn: Connection<User> | undefined
     const hooks: WebSocketHooks<User> = { onOpen: (c) => void (conn = c) }
     const events = buildEvents<User>(hooks, { id: 42 })
@@ -29,7 +30,7 @@ Deno.test('SC-002a: Connection.identity is the upgrade-resolved identity', () =>
     assertEquals(conn?.identity, { id: 42 })
 })
 
-Deno.test('SC-002a: a message carrying a forged user id does not change the identity', async () => {
+test('SC-002a: a message carrying a forged user id does not change the identity', async () => {
     let seen: User | null = null
     const hooks: WebSocketHooks<User> = {
         onMessage: (c) => {
@@ -46,7 +47,7 @@ Deno.test('SC-002a: a message carrying a forged user id does not change the iden
     assertEquals(seen, { id: 7 })
 })
 
-Deno.test('an unauthenticated upgrade yields identity null', () => {
+test('an unauthenticated upgrade yields identity null', () => {
     let conn: Connection | undefined
     const hooks: WebSocketHooks = { onOpen: (c) => void (conn = c) }
     const events = buildEvents(hooks, null)

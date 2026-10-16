@@ -18,6 +18,7 @@
  * @module @lockness/realtime/tests/control_refusal
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import { RedisBroadcastDriver } from '../drivers/redis.ts'
 import type { ControlRefusal } from '../driver.ts'
@@ -46,7 +47,7 @@ function driverWith(
     return { driver, seen }
 }
 
-Deno.test('#318 an OVERSIZE refusal reaches the seam, naming the channel and the numbers', async () => {
+test('#318 an OVERSIZE refusal reaches the seam, naming the channel and the numbers', async () => {
     // The reachable trigger, and it is not theoretical: `PresenceMember.info`
     // carries no bound, and applications are told to put "public info shown to
     // other members" in it — avatars, profile blobs.
@@ -85,7 +86,7 @@ Deno.test('#318 an OVERSIZE refusal reaches the seam, naming the channel and the
     )
 })
 
-Deno.test('#318 a NO-SECRET refusal is reported as a DIFFERENT reason', async () => {
+test('#318 a NO-SECRET refusal is reported as a DIFFERENT reason', async () => {
     // The two refusals have different fixes — shrink the member, or configure a
     // secret — so a single "publish failed" signal would leave the operator to
     // guess which. That is the whole argument for `reason` being an enum rather
@@ -112,7 +113,7 @@ Deno.test('#318 a NO-SECRET refusal is reported as a DIFFERENT reason', async ()
     )
 })
 
-Deno.test('#318 a CLEAN publish fires nothing — the control', async () => {
+test('#318 a CLEAN publish fires nothing — the control', async () => {
     // Without this the two tests above are satisfied by a seam that fires on
     // every publish, which would be worse than no signal: an alert that is
     // always on is an alert nobody reads.
@@ -127,7 +128,7 @@ Deno.test('#318 a CLEAN publish fires nothing — the control', async () => {
     assertEquals(seen, [], 'a published frame is not a refusal')
 })
 
-Deno.test('#318 a THROWING handler does not become the publisher’s problem', async () => {
+test('#318 a THROWING handler does not become the publisher’s problem', async () => {
     // The seam reports on a path whose whole point is that the failure is
     // already being swallowed. Letting an observability callback throw would
     // make publishing MORE fragile than it was before the seam existed — the

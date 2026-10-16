@@ -13,6 +13,7 @@
  * @module @lockness/drizzle/tests/migrate_libsql
  */
 
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { join } from '@std/path'
 import { container } from '@lockness/container'
@@ -84,7 +85,7 @@ async function migrate(config: Record<string, unknown>): Promise<string[]> {
     }
 }
 
-Deno.test('#442 db:migrate on a real libsql file: database applies once, then nothing', async () => {
+test('#442 db:migrate on a real libsql file: database applies once, then nothing', async () => {
     const dir = await Deno.makeTempDir()
     const folder = join(dir, 'migrations')
     const url = `file:${join(dir, 'app.db')}`

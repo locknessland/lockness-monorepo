@@ -9,6 +9,7 @@
  * @module @lockness/vite/tests/css
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import { resolve } from '@std/path'
 import {
@@ -27,7 +28,7 @@ const INTEGRATION = Deno.env.get('LOCKNESS_VITE_INTEGRATION') === '1'
 const failing: CssCompiler = () =>
     Promise.reject(new Error('@lockness/vite: Tailwind build failed: boom'))
 
-Deno.test('buildTailwindArgs - assembles the CLI vector; inputFile overrides cssInput', () => {
+test('buildTailwindArgs - assembles the CLI vector; inputFile overrides cssInput', () => {
     const args = buildTailwindArgs(DEFAULTS, { outFile: '/tmp/out.css' })
     assertEquals(args.slice(0, 4), ['deno', 'run', '-A', '@tailwindcss/cli'])
     assertEquals(args, [
@@ -48,11 +49,11 @@ Deno.test('buildTailwindArgs - assembles the CLI vector; inputFile overrides css
     assertEquals(abs[5], '/abs/root/app/view/assets/app.css')
 })
 
-Deno.test('createCssCollector - getCss is empty before the first rebuild', () => {
+test('createCssCollector - getCss is empty before the first rebuild', () => {
     assertEquals(createCssCollector().getCss(), '')
 })
 
-Deno.test('createCssCollector.rebuild - caches the compiled CSS (injected compiler, no subprocess)', async () => {
+test('createCssCollector.rebuild - caches the compiled CSS (injected compiler, no subprocess)', async () => {
     const collector = createCssCollector({
         compile: () => Promise.resolve('.ok{}'),
     })
@@ -60,7 +61,7 @@ Deno.test('createCssCollector.rebuild - caches the compiled CSS (injected compil
     assertEquals(collector.getCss(), '.ok{}')
 })
 
-Deno.test('createCssCollector.rebuild - swallows a failed run and logs (dev fallback, FR-004 dev side)', async () => {
+test('createCssCollector.rebuild - swallows a failed run and logs (dev fallback, FR-004 dev side)', async () => {
     // The build path throws; the DEV collector must keep the watcher alive — log
     // the failure and leave the last good CSS in place. Hermetic: the failure is
     // an injected rejection, no Tailwind subprocess is spawned (#157).
@@ -79,7 +80,7 @@ Deno.test('createCssCollector.rebuild - swallows a failed run and logs (dev fall
     assert(errors.length >= 1, 'the failed run is logged at ERROR')
 })
 
-Deno.test('cssPlugin - a css change rebuilds and reloads; a server-reload change is ignored here', async () => {
+test('cssPlugin - a css change rebuilds and reloads; a server-reload change is ignored here', async () => {
     let rebuilds = 0
     const collector = {
         getCss: () => '.x{}',
@@ -104,19 +105,19 @@ Deno.test('cssPlugin - a css change rebuilds and reloads; a server-reload change
     assertEquals(sent, ['full-reload'])
 })
 
-Deno.test('cssPlugin - is serve-only so the build path compiles Tailwind once', () => {
+test('cssPlugin - is serve-only so the build path compiles Tailwind once', () => {
     const plugin = cssPlugin({ collector: createCssCollector() })
     assertEquals(plugin.apply, 'serve')
 })
 
-Deno.test('buildCssPlugin - is build-only, pre-enforced, and named', () => {
+test('buildCssPlugin - is build-only, pre-enforced, and named', () => {
     const plugin = buildCssPlugin()
     assertEquals(plugin.name, 'lockness:build-css')
     assertEquals(plugin.apply, 'build')
     assertEquals(plugin.enforce, 'pre')
 })
 
-Deno.test('buildCssPlugin - load matches the ABSOLUTE-resolved cssInput and compiles with that same path (#156/#158)', async () => {
+test('buildCssPlugin - load matches the ABSOLUTE-resolved cssInput and compiles with that same path (#156/#158)', async () => {
     // Hermetic: inject a compiler that records the input path it is handed, so we
     // assert the match logic AND that the build resolves cssInput the same way it
     // matched it (no cwd-vs-root skew) without spawning Tailwind (#157/#158).
@@ -153,7 +154,7 @@ Deno.test('buildCssPlugin - load matches the ABSOLUTE-resolved cssInput and comp
     )
 })
 
-Deno.test('buildCssPlugin - load propagates a compile failure (build fails loudly, FR-004)', async () => {
+test('buildCssPlugin - load propagates a compile failure (build fails loudly, FR-004)', async () => {
     const root = '/some/project/root'
     const cssInput = 'app/view/assets/app.css'
     const plugin = buildCssPlugin({ config: { cssInput }, compile: failing })
@@ -170,11 +171,10 @@ Deno.test('buildCssPlugin - load propagates a compile failure (build fails loudl
     )
 })
 
-Deno.test({
-    name:
-        '[integration] compileCss - throws on a failed Tailwind run (real CLI, FR-004)',
-    ignore: !INTEGRATION,
-    async fn() {
+test(
+    '[integration] compileCss - throws on a failed Tailwind run (real CLI, FR-004)',
+    { skip: !INTEGRATION },
+    async function () {
         // Exercises the real @tailwindcss/cli subprocess; gated behind
         // LOCKNESS_VITE_INTEGRATION=1 so the default suite stays hermetic (#157).
         // A nonexistent cssInput makes the CLI exit non-zero → the seam throws.
@@ -188,4 +188,4 @@ Deno.test({
             'Tailwind build failed',
         )
     },
-})
+)

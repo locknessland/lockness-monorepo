@@ -1,3 +1,4 @@
+import { test } from 'node:test'
 import { assertStringIncludes } from '@std/assert'
 import { Video } from '../components/Video/mod.tsx'
 
@@ -9,15 +10,15 @@ function renderToString(component: unknown): string {
     return result.toString()
 }
 
-Deno.test('Video component', async (t) => {
-    await t.step('renders with basic src prop', () => {
+test('Video component', async (t) => {
+    await t.test('renders with basic src prop', () => {
         const html = renderToString(<Video src='/videos/demo.mp4' />)
         assertStringIncludes(html, '<video')
         assertStringIncludes(html, '/videos/demo.mp4')
         assertStringIncludes(html, 'controls')
     })
 
-    await t.step('renders without controls when controls=false', () => {
+    await t.test('renders without controls when controls=false', () => {
         const html = renderToString(
             <Video src='/videos/demo.mp4' controls={false} />,
         )
@@ -25,14 +26,14 @@ Deno.test('Video component', async (t) => {
         assertStringIncludes(html, '/videos/demo.mp4')
     })
 
-    await t.step('renders with poster image', () => {
+    await t.test('renders with poster image', () => {
         const html = renderToString(
             <Video src='/videos/demo.mp4' poster='/img/poster.jpg' />,
         )
         assertStringIncludes(html, 'poster="/img/poster.jpg"')
     })
 
-    await t.step('renders with multiple sources', () => {
+    await t.test('renders with multiple sources', () => {
         const html = renderToString(
             <Video
                 sources={[
@@ -47,7 +48,7 @@ Deno.test('Video component', async (t) => {
         assertStringIncludes(html, 'video/mp4')
     })
 
-    await t.step('renders with autoplay, muted, and loop', () => {
+    await t.test('renders with autoplay, muted, and loop', () => {
         const html = renderToString(
             <Video src='/videos/bg.mp4' autoplay muted loop />,
         )
@@ -56,21 +57,21 @@ Deno.test('Video component', async (t) => {
         assertStringIncludes(html, 'loop')
     })
 
-    await t.step('renders with playsinline attribute', () => {
+    await t.test('renders with playsinline attribute', () => {
         const html = renderToString(
             <Video src='/videos/demo.mp4' playsinline />,
         )
         assertStringIncludes(html, 'playsinline')
     })
 
-    await t.step('renders with preload attribute', () => {
+    await t.test('renders with preload attribute', () => {
         const html = renderToString(
             <Video src='/videos/demo.mp4' preload='auto' />,
         )
         assertStringIncludes(html, 'preload="auto"')
     })
 
-    await t.step('applies aspect ratio classes', () => {
+    await t.test('applies aspect ratio classes', () => {
         const html16by9 = renderToString(
             <Video src='/videos/demo.mp4' aspectRatio='16/9' />,
         )
@@ -87,7 +88,7 @@ Deno.test('Video component', async (t) => {
         assertStringIncludes(htmlSquare, 'aspect-square')
     })
 
-    await t.step('forwards custom class names', () => {
+    await t.test('forwards custom class names', () => {
         const html = renderToString(
             <Video
                 src='/videos/demo.mp4'
@@ -98,7 +99,7 @@ Deno.test('Video component', async (t) => {
         assertStringIncludes(html, 'shadow-lg')
     })
 
-    await t.step('renders with width and height attributes', () => {
+    await t.test('renders with width and height attributes', () => {
         const html = renderToString(
             <Video src='/videos/demo.mp4' width={640} height={360} />,
         )
@@ -106,7 +107,7 @@ Deno.test('Video component', async (t) => {
         assertStringIncludes(html, 'height="360"')
     })
 
-    await t.step('renders with aria-label for accessibility', () => {
+    await t.test('renders with aria-label for accessibility', () => {
         const html = renderToString(
             <Video
                 src='/videos/tutorial.mp4'
@@ -116,7 +117,7 @@ Deno.test('Video component', async (t) => {
         assertStringIncludes(html, 'aria-label="Product tutorial video"')
     })
 
-    await t.step('renders default fallback content', () => {
+    await t.test('renders default fallback content', () => {
         const html = renderToString(<Video src='/videos/demo.mp4' />)
         assertStringIncludes(
             html,
@@ -124,7 +125,7 @@ Deno.test('Video component', async (t) => {
         )
     })
 
-    await t.step('renders custom fallback content', () => {
+    await t.test('renders custom fallback content', () => {
         const html = renderToString(
             <Video src='/videos/demo.mp4'>
                 <p>Custom fallback message</p>
@@ -133,7 +134,7 @@ Deno.test('Video component', async (t) => {
         assertStringIncludes(html, 'Custom fallback message')
     })
 
-    await t.step('applies default bg-black and w-full classes', () => {
+    await t.test('applies default bg-black and w-full classes', () => {
         const html = renderToString(<Video src='/videos/demo.mp4' />)
         assertStringIncludes(html, 'bg-black')
         assertStringIncludes(html, 'w-full')

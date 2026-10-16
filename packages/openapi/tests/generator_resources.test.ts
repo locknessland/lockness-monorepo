@@ -7,6 +7,7 @@
  * @module @lockness/openapi/tests/generator_resources
  */
 
+import { test } from 'node:test'
 import { assertEquals, assertExists } from '@std/assert'
 import { Controller, Get } from '@lockness/core'
 import { ApiDoc, generateOpenAPISpec } from '../mod.ts'
@@ -85,7 +86,7 @@ function assertNoDanglingRefs(spec: OpenAPISpec): void {
     }
 }
 
-Deno.test('generator - populates components.schemas from registered resources', () => {
+test('generator - populates components.schemas from registered resources', () => {
     new UsersController()
     const spec = generateOpenAPISpec(asClasses(UsersController), {
         title: 'API',
@@ -97,7 +98,7 @@ Deno.test('generator - populates components.schemas from registered resources', 
     assertEquals(spec.components?.schemas?.UserResource, userSchema)
 })
 
-Deno.test('generator - a resource-backed response emits a $ref to the schema', () => {
+test('generator - a resource-backed response emits a $ref to the schema', () => {
     new UsersController()
     const spec = generateOpenAPISpec(asClasses(UsersController), {
         title: 'API',
@@ -115,7 +116,7 @@ Deno.test('generator - a resource-backed response emits a $ref to the schema', (
     })
 })
 
-Deno.test('generator - a collection response wraps the $ref in a data array', () => {
+test('generator - a collection response wraps the $ref in a data array', () => {
     new UsersController()
     const spec = generateOpenAPISpec(asClasses(UsersController), {
         title: 'API',
@@ -135,7 +136,7 @@ Deno.test('generator - a collection response wraps the $ref in a data array', ()
     })
 })
 
-Deno.test('generator - no dangling $ref remains for resource-backed responses', () => {
+test('generator - no dangling $ref remains for resource-backed responses', () => {
     new UsersController()
     const spec = generateOpenAPISpec(asClasses(UsersController), {
         title: 'API',
@@ -146,7 +147,7 @@ Deno.test('generator - no dangling $ref remains for resource-backed responses', 
     assertNoDanglingRefs(spec)
 })
 
-Deno.test('generator - an unregistered resource emits no $ref (never dangles)', () => {
+test('generator - an unregistered resource emits no $ref (never dangles)', () => {
     new UsersController()
     // No resources registered → no schema to reference.
     const spec = generateOpenAPISpec(asClasses(UsersController), {

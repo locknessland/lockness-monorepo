@@ -4,6 +4,7 @@
  * @module @lockness/auth/tests/authorize_decorator
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import { AuthorizationError, authorizeMiddleware, gate } from '../mod.ts'
 import type { Context } from 'hono'
@@ -25,7 +26,7 @@ function fakeCtx(opts: FakeCtxOptions): Context {
 
 const user = { id: 1, email: 'a@b.c' }
 
-Deno.test('authorizeMiddleware - calls next when the gate allows', async () => {
+test('authorizeMiddleware - calls next when the gate allows', async () => {
     gate.reset()
     gate.define('read', () => true)
     let nexted = false
@@ -40,7 +41,7 @@ Deno.test('authorizeMiddleware - calls next when the gate allows', async () => {
     gate.reset()
 })
 
-Deno.test('authorizeMiddleware - throws 403 and skips next when denied', async () => {
+test('authorizeMiddleware - throws 403 and skips next when denied', async () => {
     gate.reset()
     gate.define('read', () => false)
     let nexted = false
@@ -57,7 +58,7 @@ Deno.test('authorizeMiddleware - throws 403 and skips next when denied', async (
     gate.reset()
 })
 
-Deno.test('authorizeMiddleware - fails closed for an unauthenticated request', async () => {
+test('authorizeMiddleware - fails closed for an unauthenticated request', async () => {
     gate.reset()
     gate.define('read', () => true) // would allow — but there is no user
     await assertRejects(
@@ -67,7 +68,7 @@ Deno.test('authorizeMiddleware - fails closed for an unauthenticated request', a
     gate.reset()
 })
 
-Deno.test('authorizeMiddleware - forwards named route params to the ability', async () => {
+test('authorizeMiddleware - forwards named route params to the ability', async () => {
     gate.reset()
     gate.define('view-team', (_user, teamId) => teamId === '42')
     // Matching param is allowed.

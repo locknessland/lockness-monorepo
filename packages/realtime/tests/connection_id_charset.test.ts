@@ -20,6 +20,7 @@
  * @module @lockness/realtime/tests/connection_id_charset
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertThrows } from '@std/assert'
 import { ChannelManager, ConnectionIdError } from '../manager.ts'
 import { isValidName } from '../protocol.ts'
@@ -38,7 +39,7 @@ const conn = (id: string): Connection<User> => ({
     close: () => {},
 })
 
-Deno.test('#304 the framework-minted id is inside the charset', () => {
+test('#304 the framework-minted id is inside the charset', () => {
     // The filter must reject nothing the framework itself produces. 200 draws
     // rather than one, because `crypto.randomUUID()` is the thing being relied
     // on and a single sample proves nothing about its alphabet.
@@ -51,7 +52,7 @@ Deno.test('#304 the framework-minted id is inside the charset', () => {
     }
 })
 
-Deno.test('#304 registering a connection with an out-of-charset id throws', () => {
+test('#304 registering a connection with an out-of-charset id throws', () => {
     const m = new ChannelManager<User>()
 
     for (
@@ -75,7 +76,7 @@ Deno.test('#304 registering a connection with an out-of-charset id throws', () =
     }
 })
 
-Deno.test('#304 subscribing with an out-of-charset id throws too', async () => {
+test('#304 subscribing with an out-of-charset id throws too', async () => {
     // The second boundary. Since #370 `subscribe` no longer binds anything —
     // `register` is the only way in — but it still names the id defect FIRST,
     // ahead of the admission refusals, so a transport that skipped `register`
@@ -94,7 +95,7 @@ Deno.test('#304 subscribing with an out-of-charset id throws too', async () => {
     assertEquals(m.connectionCount, 0, 'the connection was tracked anyway')
 })
 
-Deno.test('#304 an ordinary id is accepted by both sites', async () => {
+test('#304 an ordinary id is accepted by both sites', async () => {
     const m = new ChannelManager<User>({ authorize: () => true })
     const good = conn(crypto.randomUUID())
 
@@ -110,7 +111,7 @@ Deno.test('#304 an ordinary id is accepted by both sites', async () => {
     assertEquals(m.connectionCount, 2)
 })
 
-Deno.test('#304 the message names the id and the rule', async () => {
+test('#304 the message names the id and the rule', async () => {
     const m = new ChannelManager<User>()
     const error = assertThrows(() => m.register(conn('bad id')))
 
@@ -133,7 +134,7 @@ Deno.test('#304 the message names the id and the rule', async () => {
     await Promise.resolve()
 })
 
-Deno.test('#304 evict() refuses an out-of-charset id rather than no-opping', async () => {
+test('#304 evict() refuses an out-of-charset id rather than no-opping', async () => {
     // The third boundary, and the one that matters most to a caller. `evict`
     // takes an arbitrary string, and an id outside the charset would publish a
     // control frame that every receiving instance drops on ingest — a
@@ -162,7 +163,7 @@ Deno.test('#304 evict() refuses an out-of-charset id rather than no-opping', asy
     await m.evict(crypto.randomUUID())
 })
 
-Deno.test('#304 reconcile drops a broker-injected id outside the charset', async () => {
+test('#304 reconcile drops a broker-injected id outside the charset', async () => {
     // The second, independent control. `listRevocations` is broker-sourced — a
     // writer with bus access can put anything in the index — and reconcile
     // hands what it finds straight to `revokeLocal`. The control-plane path has
@@ -235,7 +236,7 @@ Deno.test('#304 reconcile drops a broker-injected id outside the charset', async
     )
 })
 
-Deno.test('#304 subscribe rejects before the authorizer runs', async () => {
+test('#304 subscribe rejects before the authorizer runs', async () => {
     // The guard sat AFTER the awaited authorize, so an out-of-charset id on a
     // private channel returned `{ ok: false }` whenever the app denied — the
     // same id that throws on a public channel — and the authorizer ran on an id
@@ -265,7 +266,7 @@ Deno.test('#304 subscribe rejects before the authorizer runs', async () => {
     assertEquals(authorizerRan, false, 'the authorizer ran on an unusable id')
 })
 
-Deno.test('#304 a rejected id closes the socket instead of leaving it open', () => {
+test('#304 a rejected id closes the socket instead of leaving it open', () => {
     // `guard()` in websocket.ts catches whatever onOpen throws and only logs
     // it, so a bare throw left the socket OPEN and untracked: the app's own
     // onOpen was skipped, onMessage went on firing, and evict could not reclaim

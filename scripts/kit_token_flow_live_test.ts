@@ -22,6 +22,7 @@
  * @module
  */
 
+import { test } from 'node:test'
 import { assert } from '@std/assert'
 import { fromFileUrl, join } from '@std/path'
 import postgres from 'postgres'
@@ -43,11 +44,10 @@ const PROBE_IN_APP = 'tests/token_flow_probe_test.ts'
 /** An SGR colour escape, built from its code so no control byte is in a literal. */
 const ANSI_COLOUR = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g')
 
-Deno.test({
-    name:
-        '#452 live: a fresh api app issues a token that authenticates /auth/me, and expires and revokes it',
-    ignore: !LIVE_POSTGRES,
-    async fn() {
+test(
+    '#452 live: a fresh api app issues a token that authenticates /auth/me, and expires and revokes it',
+    { skip: !LIVE_POSTGRES },
+    async function () {
         const adminUrl = await liveUrl()
         const database = `lockness_kit_tokens_${
             crypto.randomUUID().replaceAll('-', '').slice(0, 12)
@@ -90,4 +90,4 @@ Deno.test({
             await releaseDatabase(admin, database, { workdir })
         }
     },
-})
+)

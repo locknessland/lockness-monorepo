@@ -9,6 +9,7 @@
  * @module @lockness/queue/tests/worker_seam
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import {
     configureQueue,
@@ -66,7 +67,7 @@ class RetryJob implements Job<JobPayload> {
     }
 }
 
-Deno.test('worker - a job that exhausts its attempts is dead-lettered and its failed() hook runs', async () => {
+test('worker - a job that exhausts its attempts is dead-lettered and its failed() hook runs', async () => {
     FailingJob.failedCalled = false
     configureQueue({
         driver: 'memory',
@@ -87,7 +88,7 @@ Deno.test('worker - a job that exhausts its attempts is dead-lettered and its fa
     assert(FailingJob.failedCalled, 'the failed() hook ran on exhaustion')
 })
 
-Deno.test('worker - a job with attempts remaining is re-enqueued, not dead-lettered', async () => {
+test('worker - a job with attempts remaining is re-enqueued, not dead-lettered', async () => {
     // A long retryDelay keeps the re-enqueued job in the queue (delayed) rather
     // than immediately re-popped, so we can observe it was NOT dead-lettered.
     configureQueue({
@@ -112,7 +113,7 @@ Deno.test('worker - a job with attempts remaining is re-enqueued, not dead-lette
     )
 })
 
-Deno.test('#299: a driver fault does not kill the worker', async () => {
+test('#299: a driver fault does not kill the worker', async () => {
     // `pop()` was awaited bare, so a rejection escaped `start()` and terminated
     // the loop. That was survivable while a Redis outage took ~30 seconds to
     // surface; once the client fails fast (#297) it happens in milliseconds,
@@ -163,7 +164,7 @@ Deno.test('#299: a driver fault does not kill the worker', async () => {
     }
 })
 
-Deno.test('#299: a persistent driver fault does not exit as "queue empty"', async () => {
+test('#299: a persistent driver fault does not exit as "queue empty"', async () => {
     // The review gate's finding, and it is worse than the crash it replaced.
     // `continue` leaves `processed` false, which a `stopWhenEmpty` worker reads
     // as "nothing to do" — so a broker outage or an auth failure printed

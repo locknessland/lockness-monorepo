@@ -1,9 +1,10 @@
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { Hono } from 'hono'
 import { inertiaMiddleware } from '../middleware.ts'
 import type { InertiaContextVariables } from '../types.ts'
 
-Deno.test('inertiaMiddleware - injects Inertia instance into context', async () => {
+test('inertiaMiddleware - injects Inertia instance into context', async () => {
     const app = new Hono<{ Variables: InertiaContextVariables }>()
     let hasInertia = false
 
@@ -17,7 +18,7 @@ Deno.test('inertiaMiddleware - injects Inertia instance into context', async () 
     assertEquals(hasInertia, true)
 })
 
-Deno.test('inertiaMiddleware - returns 409 on version mismatch', async () => {
+test('inertiaMiddleware - returns 409 on version mismatch', async () => {
     const app = new Hono()
 
     app.use(inertiaMiddleware({ version: '2.0' }))
@@ -36,7 +37,7 @@ Deno.test('inertiaMiddleware - returns 409 on version mismatch', async () => {
     assertEquals(res.headers.get('X-Inertia-Location'), 'http://localhost/test')
 })
 
-Deno.test('inertiaMiddleware - passes through when versions match', async () => {
+test('inertiaMiddleware - passes through when versions match', async () => {
     const app = new Hono()
 
     app.use(inertiaMiddleware({ version: '1.0' }))
@@ -54,7 +55,7 @@ Deno.test('inertiaMiddleware - passes through when versions match', async () => 
     assertEquals(res.status, 200)
 })
 
-Deno.test('inertiaMiddleware - converts 302 to 303 for PUT', async () => {
+test('inertiaMiddleware - converts 302 to 303 for PUT', async () => {
     const app = new Hono()
 
     app.use(inertiaMiddleware({ version: '1.0' }))
@@ -70,7 +71,7 @@ Deno.test('inertiaMiddleware - converts 302 to 303 for PUT', async () => {
     assertEquals(res.status, 303)
 })
 
-Deno.test('inertiaMiddleware - resolves version from function', async () => {
+test('inertiaMiddleware - resolves version from function', async () => {
     const app = new Hono()
     let versionCalled = false
 

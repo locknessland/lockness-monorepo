@@ -7,6 +7,7 @@
  * @module tests/bump_test
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { parse as parseJsonc } from '@std/jsonc'
 import * as semver from '@std/semver'
@@ -29,28 +30,28 @@ import {
 // getErrorMessage Tests
 // =============================================================================
 
-Deno.test('getErrorMessage - extracts message from Error instance', () => {
+test('getErrorMessage - extracts message from Error instance', () => {
     const error = new Error('Something went wrong')
     assertEquals(getErrorMessage(error), 'Something went wrong')
 })
 
-Deno.test('getErrorMessage - converts string to string', () => {
+test('getErrorMessage - converts string to string', () => {
     assertEquals(getErrorMessage('plain string error'), 'plain string error')
 })
 
-Deno.test('getErrorMessage - converts number to string', () => {
+test('getErrorMessage - converts number to string', () => {
     assertEquals(getErrorMessage(404), '404')
 })
 
-Deno.test('getErrorMessage - converts null to string', () => {
+test('getErrorMessage - converts null to string', () => {
     assertEquals(getErrorMessage(null), 'null')
 })
 
-Deno.test('getErrorMessage - converts undefined to string', () => {
+test('getErrorMessage - converts undefined to string', () => {
     assertEquals(getErrorMessage(undefined), 'undefined')
 })
 
-Deno.test('getErrorMessage - converts object to string', () => {
+test('getErrorMessage - converts object to string', () => {
     assertEquals(getErrorMessage({ code: 'ERR' }), '[object Object]')
 })
 
@@ -58,34 +59,34 @@ Deno.test('getErrorMessage - converts object to string', () => {
 // isLocknessImport Tests
 // =============================================================================
 
-Deno.test('isLocknessImport - returns true for @lockness/ key', () => {
+test('isLocknessImport - returns true for @lockness/ key', () => {
     assertEquals(
         isLocknessImport('@lockness/core', 'jsr:@lockness/core@^0.1.0'),
         true,
     )
 })
 
-Deno.test('isLocknessImport - returns true for jsr:@lockness/ value', () => {
+test('isLocknessImport - returns true for jsr:@lockness/ value', () => {
     assertEquals(
         isLocknessImport('core', 'jsr:@lockness/core@^0.1.0'),
         true,
     )
 })
 
-Deno.test('isLocknessImport - returns false for non-Lockness import', () => {
+test('isLocknessImport - returns false for non-Lockness import', () => {
     assertEquals(
         isLocknessImport('@std/assert', 'jsr:@std/assert@^1.0.0'),
         false,
     )
 })
 
-Deno.test('isLocknessImport - returns false for non-string value', () => {
+test('isLocknessImport - returns false for non-string value', () => {
     assertEquals(isLocknessImport('@lockness/core', null), false)
     assertEquals(isLocknessImport('@lockness/core', undefined), false)
     assertEquals(isLocknessImport('@lockness/core', 123), false)
 })
 
-Deno.test('isLocknessImport - returns false for empty strings', () => {
+test('isLocknessImport - returns false for empty strings', () => {
     assertEquals(isLocknessImport('', ''), false)
 })
 
@@ -93,17 +94,17 @@ Deno.test('isLocknessImport - returns false for empty strings', () => {
 // updateImportVersion Tests
 // =============================================================================
 
-Deno.test('updateImportVersion - updates caret version', () => {
+test('updateImportVersion - updates caret version', () => {
     const result = updateImportVersion('jsr:@lockness/core@^0.1.0', '0.2.0')
     assertEquals(result, 'jsr:@lockness/core@^0.2.0')
 })
 
-Deno.test('updateImportVersion - updates tilde version', () => {
+test('updateImportVersion - updates tilde version', () => {
     const result = updateImportVersion('jsr:@lockness/auth@~1.0.0', '1.1.0')
     assertEquals(result, 'jsr:@lockness/auth@~1.1.0')
 })
 
-Deno.test('updateImportVersion - preserves package path', () => {
+test('updateImportVersion - preserves package path', () => {
     const result = updateImportVersion(
         'jsr:@lockness/auth-provider@^0.1.0',
         '0.3.0',
@@ -111,17 +112,17 @@ Deno.test('updateImportVersion - preserves package path', () => {
     assertEquals(result, 'jsr:@lockness/auth-provider@^0.3.0')
 })
 
-Deno.test('updateImportVersion - returns null for non-matching import', () => {
+test('updateImportVersion - returns null for non-matching import', () => {
     const result = updateImportVersion('jsr:@std/assert@^1.0.0', '2.0.0')
     assertEquals(result, null)
 })
 
-Deno.test('updateImportVersion - returns null for invalid format', () => {
+test('updateImportVersion - returns null for invalid format', () => {
     const result = updateImportVersion('@lockness/core', '0.2.0')
     assertEquals(result, null)
 })
 
-Deno.test('updateImportVersion - handles complex versions', () => {
+test('updateImportVersion - handles complex versions', () => {
     const result = updateImportVersion(
         'jsr:@lockness/container@^10.20.30',
         '11.0.0',
@@ -129,7 +130,7 @@ Deno.test('updateImportVersion - handles complex versions', () => {
     assertEquals(result, 'jsr:@lockness/container@^11.0.0')
 })
 
-Deno.test('updateImportVersion - preserves a subpath after the version (regression #162)', () => {
+test('updateImportVersion - preserves a subpath after the version (regression #162)', () => {
     // A specifier whose value carries a subpath export (e.g. the JSX runtime)
     // must keep that subpath after the bump. Dropping it silently rewrites
     // `@lockness/hono/jsx-runtime` to the package's base export and breaks JSX
@@ -148,13 +149,13 @@ Deno.test('updateImportVersion - preserves a subpath after the version (regressi
 // SEMVER_PATTERN Tests
 // =============================================================================
 
-Deno.test('SEMVER_PATTERN - matches valid semver', () => {
+test('SEMVER_PATTERN - matches valid semver', () => {
     assertEquals(SEMVER_PATTERN.test('0.1.0'), true)
     assertEquals(SEMVER_PATTERN.test('1.0.0'), true)
     assertEquals(SEMVER_PATTERN.test('10.20.30'), true)
 })
 
-Deno.test('SEMVER_PATTERN - rejects invalid semver', () => {
+test('SEMVER_PATTERN - rejects invalid semver', () => {
     assertEquals(SEMVER_PATTERN.test('v0.1.0'), false)
     assertEquals(SEMVER_PATTERN.test('0.1'), false)
     assertEquals(SEMVER_PATTERN.test('0.1.0.0'), false)
@@ -162,7 +163,7 @@ Deno.test('SEMVER_PATTERN - rejects invalid semver', () => {
     assertEquals(SEMVER_PATTERN.test(''), false)
 })
 
-Deno.test('SEMVER_PATTERN - rejects semver with prerelease', () => {
+test('SEMVER_PATTERN - rejects semver with prerelease', () => {
     assertEquals(SEMVER_PATTERN.test('0.1.0-alpha'), false)
     assertEquals(SEMVER_PATTERN.test('1.0.0-beta.1'), false)
 })
@@ -171,7 +172,7 @@ Deno.test('SEMVER_PATTERN - rejects semver with prerelease', () => {
 // VERSION_EXTRACT_PATTERN Tests
 // =============================================================================
 
-Deno.test('VERSION_EXTRACT_PATTERN - extracts version parts', () => {
+test('VERSION_EXTRACT_PATTERN - extracts version parts', () => {
     const match = 'jsr:@lockness/core@^0.1.0'.match(VERSION_EXTRACT_PATTERN)
     assertEquals(match !== null, true)
     assertEquals(match![1], 'jsr:@lockness/core')
@@ -179,13 +180,13 @@ Deno.test('VERSION_EXTRACT_PATTERN - extracts version parts', () => {
     assertEquals(match![3], '0.1.0')
 })
 
-Deno.test('VERSION_EXTRACT_PATTERN - extracts tilde prefix', () => {
+test('VERSION_EXTRACT_PATTERN - extracts tilde prefix', () => {
     const match = 'jsr:@lockness/auth@~1.2.3'.match(VERSION_EXTRACT_PATTERN)
     assertEquals(match !== null, true)
     assertEquals(match![2], '~')
 })
 
-Deno.test('VERSION_EXTRACT_PATTERN - does not match non-Lockness', () => {
+test('VERSION_EXTRACT_PATTERN - does not match non-Lockness', () => {
     const match = 'jsr:@std/assert@^1.0.0'.match(VERSION_EXTRACT_PATTERN)
     assertEquals(match, null)
 })
@@ -194,7 +195,7 @@ Deno.test('VERSION_EXTRACT_PATTERN - does not match non-Lockness', () => {
 // LOCKNESS_VERSION_PATTERN Tests (global regex)
 // =============================================================================
 
-Deno.test('LOCKNESS_VERSION_PATTERN - matches multiple imports in content', () => {
+test('LOCKNESS_VERSION_PATTERN - matches multiple imports in content', () => {
     const content = `
 import { App } from "jsr:@lockness/core@^0.1.0"
 import { Auth } from "jsr:@lockness/auth@~0.1.0"
@@ -204,13 +205,13 @@ import { assert } from "jsr:@std/assert@^1.0.0"
     assertEquals(matches?.length, 2)
 })
 
-Deno.test('LOCKNESS_VERSION_PATTERN - can be used for replacement', () => {
+test('LOCKNESS_VERSION_PATTERN - can be used for replacement', () => {
     const content = 'jsr:@lockness/core@^0.1.0'
     const replaced = content.replace(LOCKNESS_VERSION_PATTERN, '$1@$20.2.0$4')
     assertEquals(replaced, 'jsr:@lockness/core@^0.2.0')
 })
 
-Deno.test('LOCKNESS_VERSION_PATTERN - replacement preserves a subpath (regression #162)', () => {
+test('LOCKNESS_VERSION_PATTERN - replacement preserves a subpath (regression #162)', () => {
     const content = 'import x from "jsr:@lockness/hono@^0.1.0/jsx-runtime"'
     const replaced = content.replace(LOCKNESS_VERSION_PATTERN, '$1@$20.2.0$4')
     assertEquals(
@@ -223,7 +224,7 @@ Deno.test('LOCKNESS_VERSION_PATTERN - replacement preserves a subpath (regressio
 // updateRootJsonc Tests — fixture-based comment-preservation
 // =============================================================================
 
-Deno.test(
+test(
     'updateRootJsonc - preserves comments and only bumps version + @lockness/* imports',
     async () => {
         const fixtureDir = new URL(
@@ -247,7 +248,7 @@ Deno.test(
     },
 )
 
-Deno.test(
+test(
     'updateRootJsonc - preserves comments when no imports section exists',
     async () => {
         const fixtureDir = new URL(
@@ -271,7 +272,7 @@ Deno.test(
     },
 )
 
-Deno.test('the root version is bumped in lockstep with its members', async () => {
+test('the root version is bumped in lockstep with its members', async () => {
     // The rail's break, and the reason it survived to a release attempt: `deno
     // task bump` routes to `scripts/bump-native.ts`, which delegates to `deno
     // bump-version --workspace`. That command rewrites every workspace MEMBER
@@ -322,7 +323,7 @@ Deno.test('the root version is bumped in lockstep with its members', async () =>
     )
 })
 
-Deno.test('no workspace member pins a @lockness/* specifier off-version', async () => {
+test('no workspace member pins a @lockness/* specifier off-version', async () => {
     // The second half of the same defect, and the more dangerous half.
     // `deno bump-version --workspace` skips a member with no `version` -- it
     // has nothing to bump -- and skips that member's IMPORTS with it. Those are
@@ -370,7 +371,7 @@ Deno.test('no workspace member pins a @lockness/* specifier off-version', async 
     )
 })
 
-Deno.test('the committed lockfile records the committed version', async () => {
+test('the committed lockfile records the committed version', async () => {
     // v0.4.0's first publish failed on this. The bump rewrote every manifest
     // but not `deno.lock`, which records each member's `@lockness/*` range, so
     // the release commit carried a lockfile naming 0.3. publish.yml runs the
@@ -441,13 +442,13 @@ function locknessRange(spec: string): string {
     return match[1] ?? '*'
 }
 
-Deno.test('locknessRange - reads the range, and * for an unversioned entry', () => {
+test('locknessRange - reads the range, and * for an unversioned entry', () => {
     assertEquals(locknessRange('jsr:@lockness/core@0.4'), '0.4')
     assertEquals(locknessRange('jsr:@lockness/core@^0.4.0'), '^0.4.0')
     assertEquals(locknessRange('jsr:@lockness/foo'), '*')
 })
 
-Deno.test('refreshLockfile - runs deno install and reports success', async () => {
+test('refreshLockfile - runs deno install and reports success', async () => {
     const calls: (readonly string[])[] = []
     const code = await refreshLockfile({
         run: (args) => {
@@ -460,7 +461,7 @@ Deno.test('refreshLockfile - runs deno install and reports success', async () =>
     assertEquals(LOCKFILE_REFRESH_ARGS, ['install'])
 })
 
-Deno.test('refreshLockfile - a dry run runs nothing', async () => {
+test('refreshLockfile - a dry run runs nothing', async () => {
     let ran = false
     const code = await refreshLockfile({
         dryRun: true,
@@ -473,7 +474,7 @@ Deno.test('refreshLockfile - a dry run runs nothing', async () => {
     assertEquals(ran, false)
 })
 
-Deno.test('refreshLockfile - a failure returns its code and says how to recover', async () => {
+test('refreshLockfile - a failure returns its code and says how to recover', async () => {
     const code = await refreshLockfile({ run: () => Promise.resolve(3) })
     assertEquals(code, 3)
     const message = lockfileRefreshFailure(3)
@@ -620,7 +621,7 @@ const BUMP_PATHS: readonly BumpPath[] = [
 ]
 
 for (const path of BUMP_PATHS) {
-    Deno.test(`deno task ${path.task} leaves a deno.lock that admits the new version`, async () => {
+    test(`deno task ${path.task} leaves a deno.lock that admits the new version`, async () => {
         // Every supported bump path must leave a tree `deno publish` accepts.
         // The HEAD-based test above sees a stale lockfile only once the
         // release commit and tag exist; this runs the bump itself.
@@ -668,7 +669,7 @@ for (const path of BUMP_PATHS) {
         }
     })
 
-    Deno.test(`deno task ${path.task} --dry-run writes nothing and names the lockfile refresh`, async () => {
+    test(`deno task ${path.task} --dry-run writes nothing and names the lockfile refresh`, async () => {
         const dir = await lockfileFixture()
         try {
             const files = [

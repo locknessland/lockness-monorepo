@@ -2,7 +2,7 @@
  * Tests for @lockness/socialite - System & Custom Drivers
  */
 
-import { afterEach, beforeEach, describe, it } from '@std/testing/bdd'
+import { afterEach, beforeEach, describe, it } from 'node:test'
 import { expect } from '@std/expect'
 import {
     BaseOAuth2Driver,

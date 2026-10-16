@@ -15,6 +15,7 @@
  * @module @lockness/realtime/tests/lapse_run_349
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { LapseRun } from '../drivers/lapse_run.ts'
 import { watchingEscapes } from './escape_watcher.ts'
@@ -51,7 +52,7 @@ function gatedHandler() {
 const RUN_FAILED = "re-asserting this instance's presence holds after a " +
     'liveness lapse failed — the next successful heartbeat retries'
 
-Deno.test('#349 W11 close() while a run is gated aborts its signal, waits for it, and no run starts afterwards', async () => {
+test('#349 W11 close() while a run is gated aborts its signal, waits for it, and no run starts afterwards', async () => {
     const run = new LapseRun(() => {})
     const gated = gatedHandler()
     run.register(gated.handler)
@@ -73,7 +74,7 @@ Deno.test('#349 W11 close() while a run is gated aborts its signal, waits for it
     assertEquals(gated.calls(), 1, 'no run starts after close()')
 })
 
-Deno.test('#349 W11 a lapse during the run is not run again once close() began', async () => {
+test('#349 W11 a lapse during the run is not run again once close() began', async () => {
     const run = new LapseRun(() => {})
     const gated = gatedHandler()
     run.register(gated.handler)
@@ -87,7 +88,7 @@ Deno.test('#349 W11 a lapse during the run is not run again once close() began',
     assertEquals(gated.calls(), 1, 'the trailing run was dropped by close()')
 })
 
-Deno.test('#349 W12 three lapses during a gated run give exactly one trailing run', async () => {
+test('#349 W12 three lapses during a gated run give exactly one trailing run', async () => {
     const run = new LapseRun(() => {})
     const gated = gatedHandler()
     run.register(gated.handler)
@@ -108,7 +109,7 @@ Deno.test('#349 W12 three lapses during a gated run give exactly one trailing ru
     await run.close()
 })
 
-Deno.test('#349 W14 trigger() after close() never calls the handler', async () => {
+test('#349 W14 trigger() after close() never calls the handler', async () => {
     const run = new LapseRun(() => {})
     let calls = 0
     run.register(() => void calls++)
@@ -123,7 +124,7 @@ Deno.test('#349 W14 trigger() after close() never calls the handler', async () =
     assertEquals(calls, 0)
 })
 
-Deno.test('#349 WS2 a handler that throws synchronously: one WARN, onFailure once, nothing escapes', async () => {
+test('#349 WS2 a handler that throws synchronously: one WARN, onFailure once, nothing escapes', async () => {
     await watchingEscapes(async (escaped) => {
         const warnings = captureWarnings()
         let failures = 0
@@ -156,7 +157,7 @@ Deno.test('#349 WS2 a handler that throws synchronously: one WARN, onFailure onc
     })
 })
 
-Deno.test('#349 a rejecting handler: one WARN and onFailure', async () => {
+test('#349 a rejecting handler: one WARN and onFailure', async () => {
     await watchingEscapes(async (escaped) => {
         const warnings = captureWarnings()
         let failures = 0
@@ -177,7 +178,7 @@ Deno.test('#349 a rejecting handler: one WARN and onFailure', async () => {
     })
 })
 
-Deno.test('#349 a successful run calls no onFailure and logs nothing', async () => {
+test('#349 a successful run calls no onFailure and logs nothing', async () => {
     const warnings = captureWarnings()
     let failures = 0
     try {
@@ -193,7 +194,7 @@ Deno.test('#349 a successful run calls no onFailure and logs nothing', async () 
     }
 })
 
-Deno.test('#349 register() replaces the handler, and trigger() with none registered starts nothing', async () => {
+test('#349 register() replaces the handler, and trigger() with none registered starts nothing', async () => {
     const run = new LapseRun(() => {})
     run.trigger()
     await settle()
@@ -207,7 +208,7 @@ Deno.test('#349 register() replaces the handler, and trigger() with none registe
     await run.close()
 })
 
-Deno.test('#349 close() with no run in flight resolves, and drops the handler', async () => {
+test('#349 close() with no run in flight resolves, and drops the handler', async () => {
     const run = new LapseRun(() => {})
     let calls = 0
     run.register(() => void calls++)

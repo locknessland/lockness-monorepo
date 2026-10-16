@@ -9,6 +9,7 @@
  * fake marker assembled at run time, so the secret scan never sees one.
  */
 
+import { test } from 'node:test'
 import {
     assert,
     assertEquals,
@@ -86,7 +87,7 @@ async function captured(body: () => Promise<unknown>): Promise<string> {
     return lines.join('\n')
 }
 
-Deno.test('#478 ControllerDiscovery logs a broken controller by location, never its source', async () => {
+test('#478 ControllerDiscovery logs a broken controller by location, never its source', async () => {
     await withDir(
         { 'broken_controller.ts': UNPARSEABLE },
         async ({ rel, abs }) => {
@@ -101,7 +102,7 @@ Deno.test('#478 ControllerDiscovery logs a broken controller by location, never 
     )
 })
 
-Deno.test('#478 ControllerDiscovery redacts a credential pair a controller throws', async () => {
+test('#478 ControllerDiscovery redacts a credential pair a controller throws', async () => {
     await withDir({ 'leaky_controller.ts': LEAKY }, async ({ rel }) => {
         const output = await captured(() =>
             new ControllerDiscovery().discover(rel)
@@ -111,7 +112,7 @@ Deno.test('#478 ControllerDiscovery redacts a credential pair a controller throw
     })
 })
 
-Deno.test('#478 loadControllers (ssg) wraps a compile failure with no source in message or inspect', async () => {
+test('#478 loadControllers (ssg) wraps a compile failure with no source in message or inspect', async () => {
     await withDir({ 'broken_controller.ts': UNPARSEABLE }, async ({ abs }) => {
         const error = await assertRejects(() => loadControllers(abs), Error)
         assertStringIncludes(
@@ -126,7 +127,7 @@ Deno.test('#478 loadControllers (ssg) wraps a compile failure with no source in 
     })
 })
 
-Deno.test('#478 loadControllers (ssg) renders a credential pair, never embeds it raw', async () => {
+test('#478 loadControllers (ssg) renders a credential pair, never embeds it raw', async () => {
     await withDir({ 'leaky_controller.ts': LEAKY }, async ({ abs }) => {
         const error = await assertRejects(() => loadControllers(abs), Error)
         assertNoMarker(error.message)
@@ -142,7 +143,7 @@ Deno.test('#478 loadControllers (ssg) renders a credential pair, never embeds it
 // what reaches the terminal is the refusal: its message, and the
 // `Deno.inspect` an uncaught boot error is printed through.
 
-Deno.test('#478 the listeners boot step refuses a broken listener rendered, never with its source', async () => {
+test('#478 the listeners boot step refuses a broken listener rendered, never with its source', async () => {
     await withDir({ 'broken_listener.ts': UNPARSEABLE }, async ({ rel }) => {
         const context = {
             config: { listenersDir: rel },
@@ -162,7 +163,7 @@ Deno.test('#478 the listeners boot step refuses a broken listener rendered, neve
     })
 })
 
-Deno.test('#478 the listeners boot step redacts a credential pair a listener throws', async () => {
+test('#478 the listeners boot step redacts a credential pair a listener throws', async () => {
     await withDir({ 'leaky_listener.ts': LEAKY }, async ({ rel }) => {
         const context = {
             config: { listenersDir: rel },
@@ -201,7 +202,7 @@ async function schedulerRefusal(schedulesDir: string): Promise<Error> {
     }
 }
 
-Deno.test('#521 the scheduler boot step refuses a broken schedule file rendered, never with its source', async () => {
+test('#521 the scheduler boot step refuses a broken schedule file rendered, never with its source', async () => {
     await withDir({ 'broken_schedule.ts': UNPARSEABLE }, async ({ rel }) => {
         const error = await schedulerRefusal(rel)
         assertStringIncludes(error.message, 'broken_schedule.ts')
@@ -212,7 +213,7 @@ Deno.test('#521 the scheduler boot step refuses a broken schedule file rendered,
     })
 })
 
-Deno.test('#521 the scheduler boot step redacts a credential pair a schedule file throws', async () => {
+test('#521 the scheduler boot step redacts a credential pair a schedule file throws', async () => {
     await withDir({ 'leaky_schedule.ts': LEAKY }, async ({ rel }) => {
         const error = await schedulerRefusal(rel)
         assertNoMarker(error.message)

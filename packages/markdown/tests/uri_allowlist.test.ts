@@ -11,6 +11,7 @@
  * @module @lockness/markdown/tests/uri_allowlist
  */
 
+import { test } from 'node:test'
 import { assertEquals, assertStringIncludes } from '@std/assert'
 import { renderMarkdown } from '../mod.tsx'
 import { parseHtmlToAst } from '../parser.ts'
@@ -55,8 +56,8 @@ function firstSrc(nodes: MarkdownNode[]): string | undefined {
     return undefined
 }
 
-Deno.test('URI-scheme allowlist — dangerous link (US1)', async (t) => {
-    await t.step(
+test('URI-scheme allowlist — dangerous link (US1)', async (t) => {
+    await t.test(
         'a javascript: link renders with an empty href, text preserved (end-to-end)',
         async () => {
             const html = await render('[click me](javascript:alert(1))')
@@ -67,7 +68,7 @@ Deno.test('URI-scheme allowlist — dangerous link (US1)', async (t) => {
         },
     )
 
-    await t.step(
+    await t.test(
         'obfuscation variants are all neutralised at the parser (AST)',
         () => {
             // Crafted HTML exercises sanitizeUrl directly, independent of the
@@ -95,7 +96,7 @@ Deno.test('URI-scheme allowlist — dangerous link (US1)', async (t) => {
         },
     )
 
-    await t.step(
+    await t.test(
         'a neutralised link stays inert through to the rendered DOM (SC-004)',
         () => {
             // The AST is the trust boundary, but assert the full render too: an
@@ -115,8 +116,8 @@ Deno.test('URI-scheme allowlist — dangerous link (US1)', async (t) => {
     )
 })
 
-Deno.test('URI-scheme allowlist — safe URLs untouched (US2)', async (t) => {
-    await t.step('allowed schemes and relative URIs pass through (AST)', () => {
+test('URI-scheme allowlist — safe URLs untouched (US2)', async (t) => {
+    await t.test('allowed schemes and relative URIs pass through (AST)', () => {
         const safe = [
             'https://example.com',
             'http://example.com',
@@ -137,7 +138,7 @@ Deno.test('URI-scheme allowlist — safe URLs untouched (US2)', async (t) => {
         }
     })
 
-    await t.step('a safe link renders unchanged end-to-end', async () => {
+    await t.test('a safe link renders unchanged end-to-end', async () => {
         const html = await render('[text](https://example.com "t")')
         assertStringIncludes(html, 'href="https://example.com"')
         assertStringIncludes(html, 'title="t"')
@@ -145,8 +146,8 @@ Deno.test('URI-scheme allowlist — safe URLs untouched (US2)', async (t) => {
     })
 })
 
-Deno.test('URI-scheme allowlist — dangerous image (US3)', async (t) => {
-    await t.step(
+test('URI-scheme allowlist — dangerous image (US3)', async (t) => {
+    await t.test(
         'a data: image renders with an empty src, alt preserved (end-to-end)',
         async () => {
             const html = await render(
@@ -158,7 +159,7 @@ Deno.test('URI-scheme allowlist — dangerous image (US3)', async (t) => {
         },
     )
 
-    await t.step(
+    await t.test(
         'dangerous image schemes are neutralised at the parser (AST)',
         () => {
             const vectors = [
@@ -176,7 +177,7 @@ Deno.test('URI-scheme allowlist — dangerous image (US3)', async (t) => {
         },
     )
 
-    await t.step('a safe image is untouched (AST)', () => {
+    await t.test('a safe image is untouched (AST)', () => {
         const html = '<p><img src="https://example.com/i.png" alt="ok"></p>'
         assertEquals(
             firstSrc(parseHtmlToAst(html)),
@@ -184,7 +185,7 @@ Deno.test('URI-scheme allowlist — dangerous image (US3)', async (t) => {
         )
     })
 
-    await t.step('a neutralised image stays inert in the rendered DOM', () => {
+    await t.test('a neutralised image stays inert in the rendered DOM', () => {
         const dom = renderAst(
             parseHtmlToAst('<p><img src="data:text/html,x" alt="a"></p>'),
         )
@@ -193,7 +194,7 @@ Deno.test('URI-scheme allowlist — dangerous image (US3)', async (t) => {
     })
 })
 
-Deno.test('URI-scheme allowlist — no scheme logic leaks into the renderer', () => {
+test('URI-scheme allowlist — no scheme logic leaks into the renderer', () => {
     // The renderer must forward whatever the AST holds (FR-006). A hand-built
     // AST with an already-empty href renders href="" and does not resurrect it.
     const nodes: MarkdownNode[] = [{

@@ -1,4 +1,5 @@
 // deno-lint-ignore-file no-explicit-any
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { Hono } from 'hono'
 import { withAuth } from '../middleware/auth_middleware.ts'
@@ -7,7 +8,7 @@ import { createMockContext, type Env, MockSessionProvider } from './mocks.ts'
 import type { Context } from 'hono'
 import { SessionGuard } from '../guards/session_guard.ts'
 
-Deno.test('AuthContext - c.auth.user is available', async () => {
+test('AuthContext - c.auth.user is available', async () => {
     const app = new Hono<Env>()
     const provider = new MockSessionProvider()
 
@@ -64,7 +65,7 @@ Deno.test('AuthContext - c.auth.user is available', async () => {
     assertEquals(data.guard, true)
 })
 
-Deno.test('AuthContext - c.auth.login() works', async () => {
+test('AuthContext - c.auth.login() works', async () => {
     const app = new Hono<Env>()
     const provider = new MockSessionProvider()
 
@@ -106,7 +107,7 @@ Deno.test('AuthContext - c.auth.login() works', async () => {
     assertEquals(data.name, 'Alice')
 })
 
-Deno.test('AuthContext - c.auth.logout() works', async () => {
+test('AuthContext - c.auth.logout() works', async () => {
     const app = new Hono<Env>()
     const provider = new MockSessionProvider()
 
@@ -171,7 +172,7 @@ Deno.test('AuthContext - c.auth.logout() works', async () => {
     assertEquals(dataMap.has('auth_web'), false)
 })
 
-Deno.test('AuthContext - c.auth.check() returns false when not authenticated', async () => {
+test('AuthContext - c.auth.check() returns false when not authenticated', async () => {
     const ctx = await createMockContext()
     const provider = new MockSessionProvider()
 
@@ -193,7 +194,7 @@ Deno.test('AuthContext - c.auth.check() returns false when not authenticated', a
     assertEquals(isAuthenticated, false)
 })
 
-Deno.test('AuthContext - c.auth.check() returns true when authenticated', async () => {
+test('AuthContext - c.auth.check() returns true when authenticated', async () => {
     const app = new Hono<Env>()
     const provider = new MockSessionProvider()
 

@@ -2,6 +2,7 @@
  * Tests for Queue System
  */
 
+import { test } from 'node:test'
 import { assertEquals, assertExists } from '@std/assert'
 import {
     clearQueue,
@@ -38,16 +39,16 @@ class TestJob implements Job<TestPayload> {
     }
 }
 
-Deno.test('queue system', async (t) => {
-    await t.step('configureQueue sets up memory driver', () => {
+test('queue system', async (t) => {
+    await t.test('configureQueue sets up memory driver', () => {
         configureQueue({ driver: 'memory' })
     })
 
-    await t.step('registerJob registers a job class', () => {
+    await t.test('registerJob registers a job class', () => {
         registerJob(TestJob)
     })
 
-    await t.step('dispatch adds job to queue', async () => {
+    await t.test('dispatch adds job to queue', async () => {
         configureQueue({ driver: 'memory' })
         registerJob(TestJob)
 
@@ -56,7 +57,7 @@ Deno.test('queue system', async (t) => {
         assertEquals(typeof jobId, 'string')
     })
 
-    await t.step('worker processes jobs', async () => {
+    await t.test('worker processes jobs', async () => {
         configureQueue({ driver: 'memory' })
         await clearQueue('default')
         registerJob(TestJob)
@@ -77,7 +78,7 @@ Deno.test('queue system', async (t) => {
         assertEquals(TestJob.executedPayloads[1].message, 'Test 2')
     })
 
-    await t.step('MemoryQueueDriver push and pop', async () => {
+    await t.test('MemoryQueueDriver push and pop', async () => {
         const driver = new MemoryQueueDriver()
 
         await driver.push({
@@ -97,7 +98,7 @@ Deno.test('queue system', async (t) => {
         assertEquals(job?.id, 'test-1')
     })
 
-    await t.step('MemoryQueueDriver size and clear', async () => {
+    await t.test('MemoryQueueDriver size and clear', async () => {
         const driver = new MemoryQueueDriver()
 
         await driver.push({

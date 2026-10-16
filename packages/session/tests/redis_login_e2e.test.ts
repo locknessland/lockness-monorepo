@@ -8,6 +8,7 @@
  * cycle completes: the new id carries the data, the old id is gone.
  */
 
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import type { SessionConfig, SessionData } from '../types.ts'
 import { RedisSessionDriver } from '../drivers/redis.ts'
@@ -18,7 +19,7 @@ import { startFakeRedis } from './fake_redis.ts'
 const OLD_ID = 'c'.repeat(64)
 const DATA: SessionData = { userId: 123, name: 'Renée' }
 
-Deno.test('redis login e2e - write → regenerate → read completes without a 500 (FR-009)', async () => {
+test('redis login e2e - write → regenerate → read completes without a 500 (FR-009)', async () => {
     const redis = await startFakeRedis()
     try {
         const config: SessionConfig = {

@@ -1,3 +1,4 @@
+import { test } from 'node:test'
 import { assertEquals, assertRejects, assertStrictEquals } from '@std/assert'
 import { join } from '@std/path'
 import { Upgrader } from '../upgrader.ts'
@@ -12,13 +13,13 @@ class TestVersionProvider implements VersionProvider {
     }
 }
 
-Deno.test('upgrader - extracts version correctly from import string', () => {
+test('upgrader - extracts version correctly from import string', () => {
     // This is tested indirectly through the full upgrade flow
     // The extraction logic is private, so we verify it through integration tests
     assertEquals(true, true)
 })
 
-Deno.test('upgrader - detects Lockness packages in deno.json', async () => {
+test('upgrader - detects Lockness packages in deno.json', async () => {
     const upgrader = new Upgrader(new TestVersionProvider())
     const fixtureDir = join(
         Deno.cwd(),
@@ -36,7 +37,7 @@ Deno.test('upgrader - detects Lockness packages in deno.json', async () => {
     assertEquals(result.upgrades.length, 5) // 5 @lockness packages in fixture
 })
 
-Deno.test('upgrader - dry run does not modify files', async () => {
+test('upgrader - dry run does not modify files', async () => {
     const upgrader = new Upgrader(new TestVersionProvider())
     const fixtureDir = join(
         Deno.cwd(),
@@ -59,7 +60,7 @@ Deno.test('upgrader - dry run does not modify files', async () => {
     assertEquals(originalContent, afterContent)
 })
 
-Deno.test('upgrader - identifies packages needing upgrade', async () => {
+test('upgrader - identifies packages needing upgrade', async () => {
     const upgrader = new Upgrader(new TestVersionProvider())
     const fixtureDir = join(
         Deno.cwd(),
@@ -83,7 +84,7 @@ Deno.test('upgrader - identifies packages needing upgrade', async () => {
     assertEquals(packageNames.includes('@lockness/auth'), true)
 })
 
-Deno.test('upgrader - extracts current version correctly', async () => {
+test('upgrader - extracts current version correctly', async () => {
     const upgrader = new Upgrader(new TestVersionProvider())
     const fixtureDir = join(
         Deno.cwd(),
@@ -103,7 +104,7 @@ Deno.test('upgrader - extracts current version correctly', async () => {
     }
 })
 
-Deno.test('upgrader - a missing deno.json throws instead of being stringified', async () => {
+test('upgrader - a missing deno.json throws instead of being stringified', async () => {
     const upgrader = new Upgrader(new TestVersionProvider())
 
     await assertRejects(
@@ -116,7 +117,7 @@ Deno.test('upgrader - a missing deno.json throws instead of being stringified', 
     )
 })
 
-Deno.test('upgrader - a version provider failure propagates unchanged', async () => {
+test('upgrader - a version provider failure propagates unchanged', async () => {
     const failure = new Error('Timeout fetching version for @lockness/core')
     const upgrader = new Upgrader({
         getLatestVersion: () => Promise.reject(failure),
@@ -139,7 +140,7 @@ Deno.test('upgrader - a version provider failure propagates unchanged', async ()
     }
 })
 
-Deno.test('upgrader - handles deno.json without imports', async () => {
+test('upgrader - handles deno.json without imports', async () => {
     const upgrader = new Upgrader(new TestVersionProvider())
 
     // Create a temporary file without imports
@@ -158,7 +159,7 @@ Deno.test('upgrader - handles deno.json without imports', async () => {
     assertEquals(result.error, 'No imports found in deno.json')
 })
 
-Deno.test('upgrader - handles deno.json without Lockness packages', async () => {
+test('upgrader - handles deno.json without Lockness packages', async () => {
     const upgrader = new Upgrader(new TestVersionProvider())
 
     // Create a temporary file with only non-Lockness imports
@@ -185,7 +186,7 @@ Deno.test('upgrader - handles deno.json without Lockness packages', async () => 
     assertEquals(result.error, 'No Lockness packages found in imports')
 })
 
-Deno.test('upgrader - actual file modification works', async () => {
+test('upgrader - actual file modification works', async () => {
     const upgrader = new Upgrader(new TestVersionProvider())
 
     // Create a temporary test file
@@ -224,7 +225,7 @@ Deno.test('upgrader - actual file modification works', async () => {
     assertEquals(modifiedJson.imports['@std/path'], 'jsr:@std/path@^1.0.0')
 })
 
-Deno.test('upgrader - no upgrades needed returns success', async () => {
+test('upgrader - no upgrades needed returns success', async () => {
     const upgrader = new Upgrader(new TestVersionProvider())
 
     // Create a temporary test file with latest version

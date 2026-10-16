@@ -11,6 +11,7 @@
  * @module @lockness/cli/tests/report
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { Cli, CommandFailedError } from '../mod.ts'
 import { reportThrown } from '../report.ts'
@@ -75,7 +76,7 @@ function withThrowingGetter(
     return failure
 }
 
-Deno.test('report - a credential in a failure message and in its cause never reaches stderr', async () => {
+test('report - a credential in a failure message and in its cause never reaches stderr', async () => {
     const [inMessage, inCause] = ['msg', 'cause'].map(fakeSecret)
     const failure = new CommandFailedError(
         `Cannot reach postgres://app:${inMessage}@db.test/app`,
@@ -95,7 +96,7 @@ Deno.test('report - a credential in a failure message and in its cause never rea
     )
 })
 
-Deno.test('report - a failure prints its message and rendered cause on one line, with no frames', async () => {
+test('report - a failure prints its message and rendered cause on one line, with no frames', async () => {
     const failure = new CommandFailedError('Route generation failed', {
         cause: new TypeError('x is undefined'),
         exitCode: 3,
@@ -112,7 +113,7 @@ Deno.test('report - a failure prints its message and rendered cause on one line,
     assert(!line.includes('\n'), line)
 })
 
-Deno.test('report - an escape character or a newline in a failure message is encoded', async () => {
+test('report - an escape character or a newline in a failure message is encoded', async () => {
     const failure = new CommandFailedError(
         'bad name \x1b[2J\n❌ forged line',
     )
@@ -125,7 +126,7 @@ Deno.test('report - an escape character or a newline in a failure message is enc
     assertEquals(line, '❌ bad name \\x1b[2J\\x0a❌ forged line')
 })
 
-Deno.test('report - an unknown command name is rendered, not printed raw', async () => {
+test('report - an unknown command name is rendered, not printed raw', async () => {
     const cli = new Cli()
     const { result, error } = await captureErrors(() =>
         cli.dispatch(['nope\x1b[31m'])
@@ -134,7 +135,7 @@ Deno.test('report - an unknown command name is rendered, not printed raw', async
     assertEquals(error, [['❌ Unknown command: nope\\x1b[31m']])
 })
 
-Deno.test('report - a throwing message getter does not escape the printer', async () => {
+test('report - a throwing message getter does not escape the printer', async () => {
     const { result, error } = await captureErrors(() =>
         cliThrowing(withThrowingGetter('message')).dispatch(['task'])
     )
@@ -145,7 +146,7 @@ Deno.test('report - a throwing message getter does not escape the printer', asyn
     )
 })
 
-Deno.test('report - a throwing cause getter does not escape the printer', async () => {
+test('report - a throwing cause getter does not escape the printer', async () => {
     const { result, error } = await captureErrors(() =>
         cliThrowing(withThrowingGetter('cause')).dispatch(['task'])
     )
@@ -156,7 +157,7 @@ Deno.test('report - a throwing cause getter does not escape the printer', async 
     )
 })
 
-Deno.test('report - a throwing exitCode getter prints one fallback line and exits 1', async () => {
+test('report - a throwing exitCode getter prints one fallback line and exits 1', async () => {
     const { result, error } = await captureErrors(() =>
         cliThrowing(withThrowingGetter('exitCode')).dispatch(['task'])
     )
@@ -164,7 +165,7 @@ Deno.test('report - a throwing exitCode getter prints one fallback line and exit
     assertEquals(onlyLine(error), '❌ task failed: [unreportable error]')
 })
 
-Deno.test('reportThrown - a non-failure prints the catch-all branch under the label and returns 1', async () => {
+test('reportThrown - a non-failure prints the catch-all branch under the label and returns 1', async () => {
     const original = Deno.env.get('LOCKNESS_CLI_RAW_ERRORS')
     Deno.env.delete('LOCKNESS_CLI_RAW_ERRORS')
     try {
@@ -185,7 +186,7 @@ Deno.test('reportThrown - a non-failure prints the catch-all branch under the la
     }
 })
 
-Deno.test('reportThrown - a failure without a cause prints its message alone', async () => {
+test('reportThrown - a failure without a cause prints its message alone', async () => {
     const { result, error } = await captureErrors(() =>
         reportThrown('tool', new CommandFailedError('No kit named "x"'))
     )
@@ -193,7 +194,7 @@ Deno.test('reportThrown - a failure without a cause prints its message alone', a
     assertEquals(onlyLine(error), '❌ No kit named "x"')
 })
 
-Deno.test('report - a credential in an unexpected error never reaches stderr', async () => {
+test('report - a credential in an unexpected error never reaches stderr', async () => {
     const [password, apiKey] = ['pw', 'key'].map(fakeSecret)
     const thrown = new TypeError(
         `connect postgres://app:${password}@db.test/app then ` +
@@ -210,7 +211,7 @@ Deno.test('report - a credential in an unexpected error never reaches stderr', a
     assert(!line.includes(apiKey), line)
 })
 
-Deno.test('reportThrown - the label is rendered on the catch-all branch', async () => {
+test('reportThrown - the label is rendered on the catch-all branch', async () => {
     const { error } = await withRawErrors(
         undefined,
         () =>
@@ -222,7 +223,7 @@ Deno.test('reportThrown - the label is rendered on the catch-all branch', async 
     assert(line.startsWith('❌ tool\\x1b[2J failed: '), line)
 })
 
-Deno.test('reportThrown - the label is rendered on the raw branch', async () => {
+test('reportThrown - the label is rendered on the raw branch', async () => {
     const { error } = await withRawErrors(
         '1',
         () =>
@@ -236,7 +237,7 @@ Deno.test('reportThrown - the label is rendered on the raw branch', async () => 
     assertStringIncludes(banner, '❌ tool\\x1b[2J failed:')
 })
 
-Deno.test('reportThrown - a broken stderr does not make it throw', () => {
+test('reportThrown - a broken stderr does not make it throw', () => {
     const original = console.error
     console.error = () => {
         throw new Error('stderr is closed')

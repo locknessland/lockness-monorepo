@@ -12,6 +12,13 @@
  * `(uncaught error)`, and the third would too, because the listener was
  * removed in the same turn as the body's last statement.
  *
+ * **Deno-only, so `Deno.test` and a `.deno.test.ts` name** (#590). The rows
+ * deliberately let a rejection escape to prove the watcher's web
+ * `unhandledrejection` listener records and prevents it. `node:test` under Deno
+ * fails the running test on that rejection through an internal hook no
+ * listener (web or `process`) can intercept, so these rows cannot run under it
+ * — and under it a witness's escape already fails its row by name.
+ *
  * @module @lockness/realtime/tests/escape_watcher_374
  */
 

@@ -18,6 +18,7 @@
  * @module @lockness/cli/tests/make_conformance
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { Cli } from '../mod.ts'
 import { registerCoreCommands } from '../core_commands.ts'
@@ -78,7 +79,7 @@ async function everyPackage(): Promise<{
     return { cli, byPackage }
 }
 
-Deno.test('every package registers its commands', async () => {
+test('every package registers its commands', async () => {
     const { byPackage } = await everyPackage()
     for (const [pkg, names] of byPackage) {
         assert(names.length > 0, `${pkg} registered no command`)
@@ -89,7 +90,7 @@ Deno.test('every package registers its commands', async () => {
     }
 })
 
-Deno.test('every make:* with no name exits non-zero, printed once', async (t) => {
+test('every make:* with no name exits non-zero, printed once', async (t) => {
     const { cli, byPackage } = await everyPackage()
     const makes = [...byPackage.values()].flat()
         .filter((name) => name.startsWith('make:'))
@@ -103,7 +104,7 @@ Deno.test('every make:* with no name exits non-zero, printed once', async (t) =>
     )
 
     for (const name of makes) {
-        await t.step(name, async () => {
+        await t.test(name, async () => {
             const { result, error } = await inTempDir(() =>
                 captureConsole(() => cli.dispatch([name]))
             )

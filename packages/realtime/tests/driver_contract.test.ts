@@ -10,6 +10,7 @@
  * @module @lockness/realtime/tests/driver_contract
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import type {
     BroadcastDriver,
@@ -81,7 +82,7 @@ class PresenceCapableFakeDriver implements BroadcastDriver {
     }
 }
 
-Deno.test('a presence-capable driver exposes the optional roster ops', () => {
+test('a presence-capable driver exposes the optional roster ops', () => {
     const driver = new PresenceCapableFakeDriver()
     const rosterReadsBefore = rosterReadCount()
     assertEquals(driver.readRoster('presence-lobby', 1_000, []).members, [])
@@ -99,7 +100,7 @@ Deno.test('a presence-capable driver exposes the optional roster ops', () => {
     }])
 })
 
-Deno.test('the optional ops are feature-detectable on a presence-capable driver', () => {
+test('the optional ops are feature-detectable on a presence-capable driver', () => {
     const driver: BroadcastDriver = new PresenceCapableFakeDriver()
     assert(typeof driver.holdMember === 'function')
     assert(typeof driver.releaseMember === 'function')
@@ -118,7 +119,7 @@ class BareDriver implements BroadcastDriver {
     }
 }
 
-Deno.test('a driver WITHOUT the optional ops still satisfies BroadcastDriver', () => {
+test('a driver WITHOUT the optional ops still satisfies BroadcastDriver', () => {
     const driver: BroadcastDriver = new BareDriver()
     // A driver that never grew the optional ops keeps single-process behaviour.
     assertEquals(driver.holdMember, undefined)
@@ -133,7 +134,7 @@ Deno.test('a driver WITHOUT the optional ops still satisfies BroadcastDriver', (
     assertEquals(got, [{ channel: 'c', event: 'e', data: 1 }])
 })
 
-Deno.test('the memory driver now owns an in-process roster (FR-005), no control plane', () => {
+test('the memory driver now owns an in-process roster (FR-005), no control plane', () => {
     const driver: BroadcastDriver = new MemoryBroadcastDriver()
     // It grew the presence-state ops (the in-process roster home)…
     assertEquals(typeof driver.holdMember, 'function')
@@ -144,7 +145,7 @@ Deno.test('the memory driver now owns an in-process roster (FR-005), no control 
     assertEquals(driver.publishControl, undefined)
 })
 
-Deno.test('the onControl seam is distinct from onMessage (A2): a control message never reaches onMessage', () => {
+test('the onControl seam is distinct from onMessage (A2): a control message never reaches onMessage', () => {
     const driver = new PresenceCapableFakeDriver()
     const events: BroadcastMessage[] = []
     const controls: ControlMessage[] = []
@@ -158,7 +159,7 @@ Deno.test('the onControl seam is distinct from onMessage (A2): a control message
     assertEquals(controls, [control])
 })
 
-Deno.test('a ControlMessage carries the optional FR-015 authenticity tag', () => {
+test('a ControlMessage carries the optional FR-015 authenticity tag', () => {
     const signed: ControlMessage = {
         kind: 'presence-leave',
         target: 'client-9',

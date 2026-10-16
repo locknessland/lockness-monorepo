@@ -2,6 +2,7 @@
  * Tests for bootstrap step helpers and infrastructure
  */
 
+import { test } from 'node:test'
 import { assertEquals, assertExists, assertRejects } from '@std/assert'
 import {
     getDatabaseUrl,
@@ -29,7 +30,7 @@ import type {
 // `tryImportOptionalPackage` returned null and warned for a missing package.
 // Its successor refuses instead (#505); these are the same two cases against
 // the real resolver.
-Deno.test('importRequiredPackage - successfully imports existing package', async () => {
+test('importRequiredPackage - successfully imports existing package', async () => {
     const result = await importRequiredPackage<{ assert: unknown }>(
         '@std/assert',
         'assert',
@@ -40,7 +41,7 @@ Deno.test('importRequiredPackage - successfully imports existing package', async
     assertExists(result.assert)
 })
 
-Deno.test('importRequiredPackage - refuses a non-existent package instead of returning null', async () => {
+test('importRequiredPackage - refuses a non-existent package instead of returning null', async () => {
     const error = await assertRejects(
         () =>
             importRequiredPackage(
@@ -54,7 +55,7 @@ Deno.test('importRequiredPackage - refuses a non-existent package instead of ret
     assertEquals(error.packageName, '@lockness/non-existent-package')
 })
 
-Deno.test('normalizeSessionConfig - handles boolean shorthand', () => {
+test('normalizeSessionConfig - handles boolean shorthand', () => {
     // APP_KEY is set explicitly rather than read back through the expression
     // under test. `assertEquals(config.secret, Deno.env.get('APP_KEY'))` is
     // undefined === undefined on any machine with APP_KEY unset — which is every
@@ -75,7 +76,7 @@ Deno.test('normalizeSessionConfig - handles boolean shorthand', () => {
     assertEquals(config.secret, 'base64:AAAA')
 })
 
-Deno.test('normalizeSessionConfig - merges object config with defaults', () => {
+test('normalizeSessionConfig - merges object config with defaults', () => {
     const saved = Deno.env.get('APP_KEY')
     Deno.env.set('APP_KEY', 'base64:AAAA')
     const config = normalizeSessionConfig({
@@ -90,7 +91,7 @@ Deno.test('normalizeSessionConfig - merges object config with defaults', () => {
     assertEquals(config.secret, 'base64:AAAA')
 })
 
-Deno.test('normalizeSessionConfig - passes secure through only when the app set it (#504)', () => {
+test('normalizeSessionConfig - passes secure through only when the app set it (#504)', () => {
     // Core used to supply `secure: isProduction()`, an explicit false whenever
     // APP_ENV was unset, which overrode @lockness/session's fail-closed
     // default. The default has one home now, and core leaves the key absent.
@@ -116,7 +117,7 @@ Deno.test('normalizeSessionConfig - passes secure through only when the app set 
     }
 })
 
-Deno.test('normalizeCacheConfig - handles boolean shorthand', () => {
+test('normalizeCacheConfig - handles boolean shorthand', () => {
     const config = normalizeCacheConfig(true)
 
     assertEquals(config.driver, 'memory')
@@ -124,7 +125,7 @@ Deno.test('normalizeCacheConfig - handles boolean shorthand', () => {
     assertEquals(config.prefix, 'lockness')
 })
 
-Deno.test('normalizeCacheConfig - merges object config with defaults', () => {
+test('normalizeCacheConfig - merges object config with defaults', () => {
     const config = normalizeCacheConfig({
         driver: 'deno-kv',
         ttl: 7200,
@@ -137,12 +138,12 @@ Deno.test('normalizeCacheConfig - merges object config with defaults', () => {
     assertEquals(config.kvPath, './data/kv')
 })
 
-Deno.test('getDatabaseUrl - extracts URL from object config', () => {
+test('getDatabaseUrl - extracts URL from object config', () => {
     const url = getDatabaseUrl({ url: 'postgres://localhost/test' })
     assertEquals(url, 'postgres://localhost/test')
 })
 
-Deno.test('getDatabaseUrl - reads from environment for boolean config', () => {
+test('getDatabaseUrl - reads from environment for boolean config', () => {
     const originalUrl = Deno.env.get('DATABASE_URL')
 
     try {
@@ -158,7 +159,7 @@ Deno.test('getDatabaseUrl - reads from environment for boolean config', () => {
     }
 })
 
-Deno.test('getDatabaseUrl - returns undefined if not configured', () => {
+test('getDatabaseUrl - returns undefined if not configured', () => {
     const originalUrl = Deno.env.get('DATABASE_URL')
 
     try {
@@ -176,7 +177,7 @@ Deno.test('getDatabaseUrl - returns undefined if not configured', () => {
 // Registry Tests
 // ============================================================================
 
-Deno.test('getDefaultSteps - returns array of bootstrap steps', () => {
+test('getDefaultSteps - returns array of bootstrap steps', () => {
     const steps = getDefaultSteps()
 
     assertExists(steps)
@@ -190,7 +191,7 @@ Deno.test('getDefaultSteps - returns array of bootstrap steps', () => {
     }
 })
 
-Deno.test('getDefaultSteps - steps are in correct order', () => {
+test('getDefaultSteps - steps are in correct order', () => {
     const steps = getDefaultSteps()
 
     // Verify steps are sorted by order
@@ -205,7 +206,7 @@ Deno.test('getDefaultSteps - steps are in correct order', () => {
     }
 })
 
-Deno.test('getDefaultSteps - includes expected core steps', () => {
+test('getDefaultSteps - includes expected core steps', () => {
     const steps = getDefaultSteps()
     const stepIds = steps.map((s) => s.id)
 
@@ -233,7 +234,7 @@ Deno.test('getDefaultSteps - includes expected core steps', () => {
     }
 })
 
-Deno.test('runBootstrapSteps - executes steps sequentially', async () => {
+test('runBootstrapSteps - executes steps sequentially', async () => {
     const executionOrder: string[] = []
 
     const mockSteps: BootstrapStep[] = [
@@ -273,7 +274,7 @@ Deno.test('runBootstrapSteps - executes steps sequentially', async () => {
     assertEquals(executionOrder, ['step1', 'step3', 'step2'])
 })
 
-Deno.test('runBootstrapSteps - handles async steps', async () => {
+test('runBootstrapSteps - handles async steps', async () => {
     let asyncCompleted = false
 
     const mockSteps: BootstrapStep[] = [
@@ -299,7 +300,7 @@ Deno.test('runBootstrapSteps - handles async steps', async () => {
     assertEquals(asyncCompleted, true)
 })
 
-Deno.test('runBootstrapSteps - passes context to all steps', async () => {
+test('runBootstrapSteps - passes context to all steps', async () => {
     const contexts: BootstrapContext[] = []
 
     const mockSteps: BootstrapStep[] = [
@@ -338,7 +339,7 @@ Deno.test('runBootstrapSteps - passes context to all steps', async () => {
 // Step Interface Tests
 // ============================================================================
 
-Deno.test('BootstrapStep - validates step structure', () => {
+test('BootstrapStep - validates step structure', () => {
     const validStep: BootstrapStep = {
         id: 'test',
         order: 100,
@@ -357,7 +358,7 @@ Deno.test('BootstrapStep - validates step structure', () => {
 // Integration-like Tests (without full kernel)
 // ============================================================================
 
-Deno.test('Bootstrap pipeline - creates app instance', async () => {
+test('Bootstrap pipeline - creates app instance', async () => {
     // Import app creation step
     const { appInitStep } = await import(
         '../kernel/bootstrap/steps/app_init.ts'
@@ -378,7 +379,7 @@ Deno.test('Bootstrap pipeline - creates app instance', async () => {
     assertEquals(typeof mockContext.app.getHono, 'function')
 })
 
-Deno.test('Bootstrap pipeline - middleware step reads from context', async () => {
+test('Bootstrap pipeline - middleware step reads from context', async () => {
     const { middlewareStep } = await import(
         '../kernel/bootstrap/steps/middleware.ts'
     )
@@ -420,7 +421,7 @@ Deno.test('Bootstrap pipeline - middleware step reads from context', async () =>
     assertEquals(middlewareCalled, true)
 })
 
-Deno.test('Bootstrap pipeline - boot hooks step executes hooks in priority order', async () => {
+test('Bootstrap pipeline - boot hooks step executes hooks in priority order', async () => {
     const { bootHooksStep } = await import(
         '../kernel/bootstrap/steps/boot_hooks.ts'
     )

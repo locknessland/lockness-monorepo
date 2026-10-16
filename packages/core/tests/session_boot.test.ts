@@ -16,6 +16,7 @@
  *   than a refusal to start.
  */
 
+import { test } from 'node:test'
 import { assertEquals, assertRejects, assertStringIncludes } from '@std/assert'
 import { runBootstrapSteps } from '../kernel/bootstrap/registry.ts'
 import { environmentStep } from '../kernel/bootstrap/steps/environment.ts'
@@ -64,7 +65,7 @@ async function withEnv(
     }
 }
 
-Deno.test('session boot - production with no APP_KEY refuses to start', async () => {
+test('session boot - production with no APP_KEY refuses to start', async () => {
     await withEnv({ APP_ENV: 'production', APP_KEY: undefined }, async () => {
         const error = await assertRejects(
             () => runBootstrapSteps(contextFor(true), [sessionStep]),
@@ -75,7 +76,7 @@ Deno.test('session boot - production with no APP_KEY refuses to start', async ()
     })
 })
 
-Deno.test('session boot - the refusal names APP_KEY and carries no key', async () => {
+test('session boot - the refusal names APP_KEY and carries no key', async () => {
     await withEnv({ APP_ENV: 'production', APP_KEY: undefined }, async () => {
         const error = await assertRejects(
             () => runBootstrapSteps(contextFor(true), [sessionStep]),
@@ -88,7 +89,7 @@ Deno.test('session boot - the refusal names APP_KEY and carries no key', async (
     })
 })
 
-Deno.test('session boot - production with a placeholder APP_KEY refuses to start', async () => {
+test('session boot - production with a placeholder APP_KEY refuses to start', async () => {
     await withEnv(
         { APP_ENV: 'production', APP_KEY: 'change-me-in-production' },
         async () => {
@@ -102,7 +103,7 @@ Deno.test('session boot - production with a placeholder APP_KEY refuses to start
     )
 })
 
-Deno.test('session boot - development with no APP_KEY boots on a process key', async () => {
+test('session boot - development with no APP_KEY boots on a process key', async () => {
     await withEnv({ APP_ENV: 'development', APP_KEY: undefined }, async () => {
         await runBootstrapSteps(contextFor(true), [sessionStep])
 
@@ -112,7 +113,7 @@ Deno.test('session boot - development with no APP_KEY boots on a process key', a
     })
 })
 
-Deno.test('session boot - the development key is one per PROCESS, not one per call', () => {
+test('session boot - the development key is one per PROCESS, not one per call', () => {
     // normalizeSessionConfig is pure and runs once per createApp plus four times
     // in this package's own suite. A key generated inside its body would be a
     // key per call: two applications in one process would hold different keys
@@ -132,7 +133,7 @@ Deno.test('session boot - the development key is one per PROCESS, not one per ca
     assertUsableSecret(first, 'generated')
 })
 
-Deno.test('session boot - a non-cookie driver needs no key at all', async () => {
+test('session boot - a non-cookie driver needs no key at all', async () => {
     // Memory, Deno KV and Redis put a random id in the cookie and the data in a
     // store. Requiring a secret there breaks working configurations to protect
     // nothing.
@@ -143,14 +144,14 @@ Deno.test('session boot - a non-cookie driver needs no key at all', async () => 
     })
 })
 
-Deno.test('session boot - normalizeSessionConfig never substitutes a literal', async () => {
+test('session boot - normalizeSessionConfig never substitutes a literal', async () => {
     await withEnv({ APP_KEY: undefined }, () => {
         assertEquals(normalizeSessionConfig(true).secret, undefined)
         return Promise.resolve()
     })
 })
 
-Deno.test('session boot - DENO_ENV=production alone is refused before the session step, naming APP_ENV', async () => {
+test('session boot - DENO_ENV=production alone is refused before the session step, naming APP_ENV', async () => {
     // Until v0.5.0 the framework read DENO_ENV first, and the generated image
     // set only DENO_ENV. Reading APP_ENV alone would silently move such a
     // deployment off production — no APP_KEY refusal, no Secure default — so
@@ -191,7 +192,7 @@ async function bootedSecure(
     return secure
 }
 
-Deno.test('session boot - the effective secure flag fails closed when APP_ENV is unset (#504)', async () => {
+test('session boot - the effective secure flag fails closed when APP_ENV is unset (#504)', async () => {
     // Core used to supply `secure: isProduction()`, which is false when the
     // environment is unset, and that explicit false overrode the session
     // package's fail-closed default. Core now passes `secure` through only when
@@ -202,7 +203,7 @@ Deno.test('session boot - the effective secure flag fails closed when APP_ENV is
     assertEquals(await bootedSecure({ APP_ENV: 'development' }), false)
 })
 
-Deno.test('session boot - an explicit secure in the kernel config wins (#504)', async () => {
+test('session boot - an explicit secure in the kernel config wins (#504)', async () => {
     assertEquals(
         await bootedSecure({ APP_ENV: 'production' }, { secure: false }),
         false,
@@ -229,7 +230,7 @@ async function secureWarnings(fn: () => Promise<unknown>): Promise<string[]> {
     return warnings
 }
 
-Deno.test('session boot - an explicit secure: false outside explicit development warns once (#504)', async () => {
+test('session boot - an explicit secure: false outside explicit development warns once (#504)', async () => {
     for (const appEnv of ['production', 'staging', undefined]) {
         const warnings = await secureWarnings(() =>
             bootedSecure({ APP_ENV: appEnv }, { secure: false })
@@ -239,7 +240,7 @@ Deno.test('session boot - an explicit secure: false outside explicit development
     }
 })
 
-Deno.test('session boot - no secure warning in explicit development, or when secure is left alone (#504)', async () => {
+test('session boot - no secure warning in explicit development, or when secure is left alone (#504)', async () => {
     assertEquals(
         await secureWarnings(() =>
             bootedSecure({ APP_ENV: 'development' }, { secure: false })
@@ -258,7 +259,7 @@ Deno.test('session boot - no secure warning in explicit development, or when sec
     )
 })
 
-Deno.test('session boot - production WITH a valid APP_KEY starts', async () => {
+test('session boot - production WITH a valid APP_KEY starts', async () => {
     // The positive control, and the gap the review named. Every other test here
     // proves the gate refuses something; none proved it lets a correct
     // configuration through. A gate mutated to refuse unconditionally in
@@ -275,7 +276,7 @@ Deno.test('session boot - production WITH a valid APP_KEY starts', async () => {
     })
 })
 
-Deno.test('session boot - a key given in kernel config beats APP_KEY, and starts', async () => {
+test('session boot - a key given in kernel config beats APP_KEY, and starts', async () => {
     const explicit = generateAppKey()
     await withEnv(
         { APP_ENV: 'production', APP_KEY: generateAppKey() },
@@ -290,7 +291,7 @@ Deno.test('session boot - a key given in kernel config beats APP_KEY, and starts
     )
 })
 
-Deno.test('session boot - absoluteLifetime threads through normalisation (SC-005)', () => {
+test('session boot - absoluteLifetime threads through normalisation (SC-005)', () => {
     // A configured cap reaches the normalised config verbatim (opt-in pass-through).
     assertEquals(
         normalizeSessionConfig({ absoluteLifetime: 604800 }).absoluteLifetime,
@@ -300,7 +301,7 @@ Deno.test('session boot - absoluteLifetime threads through normalisation (SC-005
     assertEquals(normalizeSessionConfig(true).absoluteLifetime, undefined)
 })
 
-Deno.test('session boot - a non-positive absoluteLifetime is refused, not treated as off (SC-005)', () => {
+test('session boot - a non-positive absoluteLifetime is refused, not treated as off (SC-005)', () => {
     // 0 and negatives are a configuration error (fail-closed), NOT a silent
     // disable of a cap the operator believed they had enabled.
     for (const bad of [0, -1]) {
@@ -314,7 +315,7 @@ Deno.test('session boot - a non-positive absoluteLifetime is refused, not treate
     }
 })
 
-Deno.test('session boot - revocation without absoluteLifetime is refused at boot (SC-008)', () => {
+test('session boot - revocation without absoluteLifetime is refused at boot (SC-008)', () => {
     let threw = false
     try {
         normalizeSessionConfig({ revocation: true })

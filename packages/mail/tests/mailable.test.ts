@@ -4,6 +4,7 @@
  * @module @lockness/mail/tests/mailable
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import { configureMail, MemoryMailDriver } from '../mod.ts'
 import { Mailable, type MailableContent } from '../mailable.ts'
@@ -19,7 +20,7 @@ class Welcome extends Mailable {
     }
 }
 
-Deno.test('SC-004: a markdown mailable renders markdown → HTML body via soft markdown', async () => {
+test('SC-004: a markdown mailable renders markdown → HTML body via soft markdown', async () => {
     configureMail({ driver: 'memory' })
     MemoryMailDriver.clear()
     // Fake @lockness/markdown module (renderMarkdown → JSX-like, stringified).
@@ -36,7 +37,7 @@ Deno.test('SC-004: a markdown mailable renders markdown → HTML body via soft m
     MemoryMailDriver.clear()
 })
 
-Deno.test('SC-004: a missing @lockness/markdown yields the install error, not a stack', async () => {
+test('SC-004: a missing @lockness/markdown yields the install error, not a stack', async () => {
     configureMail({ driver: 'memory' })
     const missing = () => {
         throw new TypeError(
@@ -50,7 +51,7 @@ Deno.test('SC-004: a missing @lockness/markdown yields the install error, not a 
     assert(err.message.includes('@lockness/markdown'))
 })
 
-Deno.test('a plain HTML mailable needs no markdown', async () => {
+test('a plain HTML mailable needs no markdown', async () => {
     configureMail({ driver: 'memory' })
     MemoryMailDriver.clear()
     class Plain extends Mailable {
@@ -63,7 +64,7 @@ Deno.test('a plain HTML mailable needs no markdown', async () => {
     MemoryMailDriver.clear()
 })
 
-Deno.test('make:mail scaffolds + rejects a traversal name', async () => {
+test('make:mail scaffolds + rejects a traversal name', async () => {
     const dir = await Deno.makeTempDir()
     const prev = Deno.cwd()
     Deno.chdir(dir)

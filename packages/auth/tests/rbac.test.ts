@@ -8,6 +8,7 @@
  * @module @lockness/auth/tests/rbac
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import {
     Gate,
@@ -40,21 +41,21 @@ function gateWithRoles(roles: Record<number, Role[]>): Gate<User> {
 // US1 — a role grants an ability
 // =============================================================================
 
-Deno.test('US1 - a role grants its permission as an ability', async () => {
+test('US1 - a role grants its permission as an ability', async () => {
     const gate = gateWithRoles({
         1: [{ name: 'editor', permissions: ['post.update'] }],
     })
     assert(await gate.can(alice, 'post.update'))
 })
 
-Deno.test('US1 - a user with no role is denied', async () => {
+test('US1 - a user with no role is denied', async () => {
     const gate = gateWithRoles({
         1: [{ name: 'editor', permissions: ['post.update'] }],
     })
     assertEquals(await gate.can(bob, 'post.update'), false)
 })
 
-Deno.test('US1 - effective permissions are the union across roles', async () => {
+test('US1 - effective permissions are the union across roles', async () => {
     const gate = gateWithRoles({
         1: [
             { name: 'editor', permissions: ['post.update'] },
@@ -70,18 +71,18 @@ Deno.test('US1 - effective permissions are the union across roles', async () => 
 // US2 — wildcard permissions (match grammar truth table)
 // =============================================================================
 
-Deno.test('US2 - exact match only: bare "post" does not grant "post.update"', async () => {
+test('US2 - exact match only: bare "post" does not grant "post.update"', async () => {
     const gate = gateWithRoles({ 1: [{ name: 'r', permissions: ['post'] }] })
     assert(await gate.can(alice, 'post'))
     assertEquals(await gate.can(alice, 'post.update'), false)
 })
 
-Deno.test('US2 - a prefix that is not a segment does not match', async () => {
+test('US2 - a prefix that is not a segment does not match', async () => {
     const gate = gateWithRoles({ 1: [{ name: 'r', permissions: ['post.up'] }] })
     assertEquals(await gate.can(alice, 'post.update'), false)
 })
 
-Deno.test('US2 - "post.*" grants one further segment, not a deeper one', async () => {
+test('US2 - "post.*" grants one further segment, not a deeper one', async () => {
     const gate = gateWithRoles({ 1: [{ name: 'r', permissions: ['post.*'] }] })
     assert(await gate.can(alice, 'post.update'))
     assert(await gate.can(alice, 'post.delete'))
@@ -89,13 +90,13 @@ Deno.test('US2 - "post.*" grants one further segment, not a deeper one', async (
     assertEquals(await gate.can(alice, 'comment.delete'), false)
 })
 
-Deno.test('US2 - "*" grants any ability (superadmin)', async () => {
+test('US2 - "*" grants any ability (superadmin)', async () => {
     const gate = gateWithRoles({ 1: [{ name: 'admin', permissions: ['*'] }] })
     assert(await gate.can(alice, 'post.update'))
     assert(await gate.can(alice, 'anything.at.all'))
 })
 
-Deno.test('US2 - a literal dot is not a wildcard (no regex)', async () => {
+test('US2 - a literal dot is not a wildcard (no regex)', async () => {
     const gate = gateWithRoles({
         1: [{ name: 'r', permissions: ['post.update'] }],
     })
@@ -106,7 +107,7 @@ Deno.test('US2 - a literal dot is not a wildcard (no regex)', async () => {
 // US3 — additive and safe: never override a policy, never swallow an error
 // =============================================================================
 
-Deno.test('US3 (SC-005) - a denying ownership policy is not widened by a role grant', async () => {
+test('US3 (SC-005) - a denying ownership policy is not widened by a role grant', async () => {
     const gate = new Gate<User>()
     // Ownership policy: only the author may update.
     gate.policy('post', {
@@ -123,7 +124,7 @@ Deno.test('US3 (SC-005) - a denying ownership policy is not widened by a role gr
     assert(await gate.can(alice, 'post.update', { authorId: 1 }))
 })
 
-Deno.test('US3 (FR-007) - a throwing repository rejects the check, never grants', async () => {
+test('US3 (FR-007) - a throwing repository rejects the check, never grants', async () => {
     const gate = new Gate<User>()
     const failing: RoleRepository = {
         rolesFor: () => Promise.reject(new Error('db down')),
@@ -136,18 +137,18 @@ Deno.test('US3 (FR-007) - a throwing repository rejects the check, never grants'
 // US4 — opt-in: an app that never wires RBAC is unchanged
 // =============================================================================
 
-Deno.test('US4 (SC-002) - a fresh gate grants nothing until useRbac is called', async () => {
+test('US4 (SC-002) - a fresh gate grants nothing until useRbac is called', async () => {
     const gate = new Gate<User>()
     // No RBAC wired: an ability with no rule is denied by default.
     assertEquals(await gate.can(alice, 'post.update'), false)
 })
 
-Deno.test('StaticRoleRepository - returns [] for an unknown user', async () => {
+test('StaticRoleRepository - returns [] for an unknown user', async () => {
     const repo = new StaticRoleRepository(new Map())
     assertEquals(await repo.rolesFor({ id: 999 }), [])
 })
 
-Deno.test('RoleRepository - receives the id only, never the full user record', async () => {
+test('RoleRepository - receives the id only, never the full user record', async () => {
     const gate = new Gate<User>()
     let receivedKeys: string[] = []
     const spy: RoleRepository = {

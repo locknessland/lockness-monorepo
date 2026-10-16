@@ -17,6 +17,7 @@
  * @module @lockness/drizzle/tests/dsn
  */
 
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { Database } from '../mod.ts'
 import type { DriverFactory } from '../drivers.ts'
@@ -210,12 +211,12 @@ async function connectThroughSpy(
     }
 }
 
-Deno.test('#425 inspectDsn accepts every form the drivers support', () => {
+test('#425 inspectDsn accepts every form the drivers support', () => {
     // Every refused form at once, so a failure names each of them.
     assertEquals(ACCEPTED.filter((dsn) => !inspectDsn(dsn).ok), [])
 })
 
-Deno.test('#425 inspectDsn rejects every misparsed DSN', () => {
+test('#425 inspectDsn rejects every misparsed DSN', () => {
     // Every bypass at once, so a failure names each of them.
     assertEquals(MISPARSED.filter((dsn) => inspectDsn(dsn).ok), [])
 })
@@ -248,12 +249,12 @@ const RULE_REFUSALS = [
 ]
 
 for (const { name, dsn } of RULE_REFUSALS) {
-    Deno.test(`#441 ${name}`, () => {
+    test(`#441 ${name}`, () => {
         assertEquals(inspectDsn(dsn()), { ok: false })
     })
 }
 
-Deno.test('#425 a misparsed DSN is refused before any factory is called', async () => {
+test('#425 a misparsed DSN is refused before any factory is called', async () => {
     for (const dsn of MISPARSED) {
         const result = await connectThroughSpy(dsn)
         assertEquals(result.success, false, dsn)
@@ -262,7 +263,7 @@ Deno.test('#425 a misparsed DSN is refused before any factory is called', async 
     }
 })
 
-Deno.test('#425 an accepted DSN reaches its factory unchanged', async () => {
+test('#425 an accepted DSN reaches its factory unchanged', async () => {
     for (const dsn of ACCEPTED) {
         const result = await connectThroughSpy(dsn)
         assertEquals(result.success, true, dsn)
@@ -270,7 +271,7 @@ Deno.test('#425 an accepted DSN reaches its factory unchanged', async () => {
     }
 })
 
-Deno.test('#425 the password allow-list is exactly the one the docs state', async () => {
+test('#425 the password allow-list is exactly the one the docs state', async () => {
     // Users encode their passwords from the doc, so the list is read FROM the
     // doc (#441): editing the doc, connect()'s JSDoc or the grammar alone turns
     // this red. Every other character must be percent-encoded. Walk every
@@ -315,7 +316,7 @@ Deno.test('#425 the password allow-list is exactly the one the docs state', asyn
     assertEquals(inspectDsn('postgres://u:100%25@h/db').ok, true)
 })
 
-Deno.test('#425 secrets are the password as written, decoded and as WHATWG re-encodes it', () => {
+test('#425 secrets are the password as written, decoded and as WHATWG re-encodes it', () => {
     assertEquals(inspectDsn('postgres://u:p%40ss%2C%3F@h/db'), {
         ok: true,
         secrets: ['p%40ss%2C%3F', 'p@ss,?'],
@@ -338,7 +339,7 @@ Deno.test('#425 secrets are the password as written, decoded and as WHATWG re-en
     })
 })
 
-Deno.test('#425 an empty or absent password holds no secret', () => {
+test('#425 an empty or absent password holds no secret', () => {
     // An empty needle would splice the marker between every character.
     for (
         const dsn of [
@@ -354,7 +355,7 @@ Deno.test('#425 an empty or absent password holds no secret', () => {
     }
 })
 
-Deno.test('#425 multi-host, IPv6 and percent-encoded-host DSNs configure the real postgres client', async () => {
+test('#425 multi-host, IPv6 and percent-encoded-host DSNs configure the real postgres client', async () => {
     // The real default factory, not a spy: the check must never reject what
     // postgres.js supports. The client is lazy, so building it sends nothing
     // and resolves no host — the op sanitizer fails this test if a lookup or
@@ -428,7 +429,7 @@ const CONSTRUCTOR_FAILURES = [
 ]
 
 for (const { dsn, error } of CONSTRUCTOR_FAILURES) {
-    Deno.test(`#425 a client the real factory cannot build withholds its message: ${dsn}`, async () => {
+    test(`#425 a client the real factory cannot build withholds its message: ${dsn}`, async () => {
         const { result, logged } = await connectCapturingLog(dsn)
         assertEquals(result, { success: false, error })
         assertEquals(logged, `❌ Database connection failed: ${error}`)

@@ -8,6 +8,7 @@
  * @module @lockness/session/tests/secure_default
  */
 
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { configureSession, getSessionConfig } from '../mod.ts'
 
@@ -30,28 +31,28 @@ function withEnv(
     }
 }
 
-Deno.test('secure defaults to true when the environment is not explicitly development (#167)', () => {
+test('secure defaults to true when the environment is not explicitly development (#167)', () => {
     withEnv({}, () => {
         configureSession({ driver: 'cookie' })
         assertEquals(getSessionConfig().secure, true)
     })
 })
 
-Deno.test('secure defaults to false only under an explicit development signal (#167)', () => {
+test('secure defaults to false only under an explicit development signal (#167)', () => {
     withEnv({ APP_ENV: 'development' }, () => {
         configureSession({ driver: 'cookie' })
         assertEquals(getSessionConfig().secure, false)
     })
 })
 
-Deno.test('a DENO_ENV alone is not a development signal (#504)', () => {
+test('a DENO_ENV alone is not a development signal (#504)', () => {
     withEnv({ DENO_ENV: 'development' }, () => {
         configureSession({ driver: 'cookie' })
         assertEquals(getSessionConfig().secure, true)
     })
 })
 
-Deno.test('an explicitly undefined secure takes the fail-closed default (#504)', () => {
+test('an explicitly undefined secure takes the fail-closed default (#504)', () => {
     withEnv({}, () => {
         configureSession({ driver: 'cookie', secure: undefined })
         assertEquals(getSessionConfig().secure, true)
@@ -62,14 +63,14 @@ Deno.test('an explicitly undefined secure takes the fail-closed default (#504)',
     })
 })
 
-Deno.test('secure defaults to true in production (#167)', () => {
+test('secure defaults to true in production (#167)', () => {
     withEnv({ APP_ENV: 'production' }, () => {
         configureSession({ driver: 'cookie' })
         assertEquals(getSessionConfig().secure, true)
     })
 })
 
-Deno.test('an explicit secure value always wins over the derived default (#167)', () => {
+test('an explicit secure value always wins over the derived default (#167)', () => {
     // Explicit false in production must be honoured...
     withEnv({ APP_ENV: 'production' }, () => {
         configureSession({ driver: 'cookie', secure: false })

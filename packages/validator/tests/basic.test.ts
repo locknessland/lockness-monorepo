@@ -2,6 +2,7 @@
  * Tests for @lockness/validator - Basic Validators
  */
 
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import {
     alpha,
@@ -21,8 +22,8 @@ import {
     validate,
 } from '../mod.ts'
 
-Deno.test('Validator - Basic validators', async (t) => {
-    await t.step('email validator', async () => {
+test('Validator - Basic validators', async (t) => {
+    await t.test('email validator', async () => {
         const result = await validate(
             { email: 'test@example.com' },
             { email: [email()] },
@@ -37,7 +38,7 @@ Deno.test('Validator - Basic validators', async (t) => {
         assertEquals(invalid.errors.email?.[0], 'Must be a valid email address')
     })
 
-    await t.step('url validator', async () => {
+    await t.test('url validator', async () => {
         const result = await validate(
             { website: 'https://example.com' },
             { website: [url()] },
@@ -51,7 +52,7 @@ Deno.test('Validator - Basic validators', async (t) => {
         assertEquals(invalid.valid, false)
     })
 
-    await t.step('uuid validator', async () => {
+    await t.test('uuid validator', async () => {
         const result = await validate(
             { id: '550e8400-e29b-41d4-a716-446655440000' },
             { id: [uuid()] },
@@ -65,7 +66,7 @@ Deno.test('Validator - Basic validators', async (t) => {
         assertEquals(invalid.valid, false)
     })
 
-    await t.step('minLength and maxLength', async () => {
+    await t.test('minLength and maxLength', async () => {
         const result = await validate(
             { password: 'secure123' },
             { password: [minLength(8), maxLength(20)] },
@@ -85,7 +86,7 @@ Deno.test('Validator - Basic validators', async (t) => {
         assertEquals(tooLong.valid, false)
     })
 
-    await t.step('min and max', async () => {
+    await t.test('min and max', async () => {
         const result = await validate(
             { age: 25 },
             { age: [min(18), max(100)] },
@@ -99,7 +100,7 @@ Deno.test('Validator - Basic validators', async (t) => {
         assertEquals(tooYoung.valid, false)
     })
 
-    await t.step('between', async () => {
+    await t.test('between', async () => {
         const result = await validate(
             { score: 75 },
             { score: [between(0, 100)] },
@@ -113,7 +114,7 @@ Deno.test('Validator - Basic validators', async (t) => {
         assertEquals(invalid.valid, false)
     })
 
-    await t.step('inArray and notIn', async () => {
+    await t.test('inArray and notIn', async () => {
         const result = await validate(
             { role: 'admin' },
             { role: [inArray(['admin', 'user', 'guest'])] },
@@ -133,7 +134,7 @@ Deno.test('Validator - Basic validators', async (t) => {
         assertEquals(notInResult.valid, true)
     })
 
-    await t.step('pattern, alphanumeric, alpha, numeric', async () => {
+    await t.test('pattern, alphanumeric, alpha, numeric', async () => {
         const alphanumericResult = await validate(
             { code: 'ABC123' },
             { code: [alphanumeric()] },

@@ -6,6 +6,7 @@
  * @module @lockness/telemetry/tests/attributes
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { buildAttributes, toRecordedException } from '../mod.ts'
 import type { Context } from '@lockness/hono'
@@ -16,7 +17,7 @@ function fakeCtx(routePath: string, path: string, method = 'GET'): Context {
     } as unknown as Context
 }
 
-Deno.test('SC-007: attributes carry the route PATTERN, never a resolved param value', () => {
+test('SC-007: attributes carry the route PATTERN, never a resolved param value', () => {
     const attrs = buildAttributes(
         fakeCtx('/verify/:id', '/verify/SUPER-SECRET-TOKEN'),
     )
@@ -29,12 +30,12 @@ Deno.test('SC-007: attributes carry the route PATTERN, never a resolved param va
     )
 })
 
-Deno.test('unmatched route falls back to a placeholder, not the resolved path', () => {
+test('unmatched route falls back to a placeholder, not the resolved path', () => {
     const attrs = buildAttributes(fakeCtx(undefined as unknown as string, '/x'))
     assertEquals(attrs['http.route'], '(unmatched)')
 })
 
-Deno.test('S4: toRecordedException redacts — name + message, no stack, no planted secret', () => {
+test('S4: toRecordedException redacts — name + message, no stack, no planted secret', () => {
     const err = new Error('connection failed') as Error & { cause?: unknown }
     err.stack =
         'Error: connection failed\n  at postgres://admin:STACKSECRET@db/app'
@@ -49,7 +50,7 @@ Deno.test('S4: toRecordedException redacts — name + message, no stack, no plan
     assert(!('stack' in recorded), 'no stack field')
 })
 
-Deno.test('S4: a span carries the head error only, never the cause chain', () => {
+test('S4: a span carries the head error only, never the cause chain', () => {
     // The carve-out, asserted rather than left to the option's default. #302
     // made renderError follow `error.cause` for console sinks; a span leaves
     // the process, so this one stays head-only. Without this test the carve-out

@@ -2,6 +2,7 @@
  * Tests for @lockness/storage - Storage Manager & Global Registry
  */
 
+import { test } from 'node:test'
 import { assertEquals, assertExists } from '@std/assert'
 import {
     configureStorage,
@@ -14,7 +15,7 @@ import {
 } from '../mod.ts'
 import { createMockStorage } from './support/mock_driver.ts'
 
-Deno.test('Storage - local driver integration', async () => {
+test('Storage - local driver integration', async () => {
     const driver = createMockStorage()
     const store = new Storage({
         driver: 'local',
@@ -28,7 +29,7 @@ Deno.test('Storage - local driver integration', async () => {
     assertEquals(content, 'Manager content')
 })
 
-Deno.test('Storage - putFile and download', async () => {
+test('Storage - putFile and download', async () => {
     const driver = createMockStorage()
     const store = new Storage({
         driver: 'local',
@@ -49,7 +50,7 @@ Deno.test('Storage - putFile and download', async () => {
     assertEquals(downloadedText, fileContent)
 })
 
-Deno.test('Storage - unknown driver throws error', () => {
+test('Storage - unknown driver throws error', () => {
     try {
         // @ts-ignore: Testing invalid driver
         new Storage({ driver: 'unknown' })
@@ -60,7 +61,7 @@ Deno.test('Storage - unknown driver throws error', () => {
     }
 })
 
-Deno.test('configureStorage - sets global storage', async () => {
+test('configureStorage - sets global storage', async () => {
     const driver = createMockStorage()
     configureStorage({
         driver: 'local',
@@ -84,7 +85,7 @@ Deno.test('configureStorage - sets global storage', async () => {
     assertEquals(await exists('global-test.txt'), false)
 })
 
-Deno.test('storage - returns global instance', () => {
+test('storage - returns global instance', () => {
     configureStorage({
         driver: 'local',
         root: './tmp/test-reset',
@@ -94,7 +95,7 @@ Deno.test('storage - returns global instance', () => {
     assertExists(store)
 })
 
-Deno.test('Storage - all CRUD operations', async () => {
+test('Storage - all CRUD operations', async () => {
     const driver = createMockStorage()
     const store = new Storage({
         driver: 'local',
@@ -120,7 +121,7 @@ Deno.test('Storage - all CRUD operations', async () => {
     assertEquals(await store.exists('crud.txt'), false)
 })
 
-Deno.test('Storage - copy and move operations', async () => {
+test('Storage - copy and move operations', async () => {
     const driver = createMockStorage()
     const store = new Storage({
         driver: 'local',

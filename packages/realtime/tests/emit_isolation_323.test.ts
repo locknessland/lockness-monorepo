@@ -19,6 +19,7 @@
  * @module @lockness/realtime/tests/emit_isolation_323
  */
 
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { ChannelManager } from '../manager.ts'
 import type { PresenceMember } from '../channel.ts'
@@ -56,7 +57,7 @@ const joinFrames = (c: { readonly received: string[] }) =>
         f.action === 'joined'
     )
 
-Deno.test('#323/FR-009 a throwing socket does not silence the subscribers after it', async () => {
+test('#323/FR-009 a throwing socket does not silence the subscribers after it', async () => {
     const m = new ChannelManager<User>({ authorize })
     const first = conn('c1', 1)
     m.register(first)
@@ -83,7 +84,7 @@ Deno.test('#323/FR-009 a throwing socket does not silence the subscribers after 
     )
 })
 
-Deno.test('#323/FR-009 a throwing socket does not fail the join it is announcing', async () => {
+test('#323/FR-009 a throwing socket does not fail the join it is announcing', async () => {
     const m = new ChannelManager<User>({ authorize })
     const deaf = conn('c1', 1, { deaf: true })
     m.register(deaf)

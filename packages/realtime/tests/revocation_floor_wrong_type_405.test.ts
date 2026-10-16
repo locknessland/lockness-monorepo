@@ -22,6 +22,7 @@
  * @module @lockness/realtime/tests/revocation_floor_wrong_type_405
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import {
     MAX_REVOCATION_TTL_SECONDS,
@@ -91,7 +92,7 @@ function wrongTypeRow(
     kind: string,
     corrupt: (redis: FakeRedis) => Promise<void>,
 ) {
-    Deno.test(
+    test(
         `#405 a ${kind}-typed revocation floor self-heals: the pass completes, one WARN names '${kind}', the floor is a zset, and a mark right after is not fail-closed`,
         async () => {
             const { redis, driver } = fixture()
@@ -189,7 +190,7 @@ wrongTypeRow('set', async (redis) => {
     await redis.command('SADD', FLOOR, 'member')
 })
 
-Deno.test(
+test(
     '#405 an absent or already-healthy floor never WARNs (kind is none/zset)',
     async () => {
         const { driver } = fixture()
@@ -218,11 +219,10 @@ function liveWrongTypeRow(
     kind: 'list' | 'stream',
     corrupt: (client: RedisClient, floor: string) => Promise<void>,
 ) {
-    Deno.test({
-        name:
-            `#405 (live) a ${kind}-typed revocation floor self-heals against a real broker`,
-        ignore: !LIVE_BROKER,
-        async fn() {
+    test(
+        `#405 (live) a ${kind}-typed revocation floor self-heals against a real broker`,
+        { skip: !LIVE_BROKER },
+        async function () {
             const config = brokerConfig()
             await preflight(config)
             const live = new RedisClient(config)
@@ -261,7 +261,7 @@ function liveWrongTypeRow(
                 await live.close()
             }
         },
-    })
+    )
 }
 
 liveWrongTypeRow('list', async (client, floor) => {

@@ -27,6 +27,7 @@
  * @module @lockness/realtime/tests/revocation_index_wrong_type_411
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import {
     RedisBroadcastDriver,
@@ -88,7 +89,7 @@ function wrongTypeRow(
     kind: string,
     corrupt: (redis: FakeRedis) => Promise<void>,
 ) {
-    Deno.test(
+    test(
         `#411 a ${kind}-typed revocation index self-heals on the ${path}: the pass completes and one WARN names '${kind}'`,
         async () => {
             const { redis, driver } = fixture()
@@ -167,7 +168,7 @@ for (const path of ['reap', 'mark'] as const) {
     })
 }
 
-Deno.test(
+test(
     '#411 an absent or already-healthy index never WARNs (kind is none/zset)',
     async () => {
         const { redis, driver } = fixture()
@@ -199,7 +200,7 @@ Deno.test(
 // silently skipping the heal check (#411 §2's `decodeAnnounceReply`).
 // ---------------------------------------------------------------------------
 
-Deno.test(
+test(
     '#411 the floor announce refuses a non-bulk reply instead of silently skipping the heal check, and lands in its existing WARN+retry catch',
     async () => {
         const redis = new FakeRedis()
@@ -250,11 +251,10 @@ function liveWrongTypeRow(
     kind: 'list' | 'stream',
     corrupt: (client: RedisClient, index: string) => Promise<void>,
 ) {
-    Deno.test({
-        name:
-            `#411 (live) a ${kind}-typed revocation index self-heals on the ${path} against a real broker`,
-        ignore: !LIVE_BROKER,
-        async fn() {
+    test(
+        `#411 (live) a ${kind}-typed revocation index self-heals on the ${path} against a real broker`,
+        { skip: !LIVE_BROKER },
+        async function () {
             const config = brokerConfig()
             await preflight(config)
             const live = new RedisClient(config)
@@ -298,7 +298,7 @@ function liveWrongTypeRow(
                 await live.close()
             }
         },
-    })
+    )
 }
 
 for (const path of ['reap', 'mark'] as const) {

@@ -4,17 +4,18 @@
  * @module @lockness/i18n/tests/translator
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { CatalogRegistry } from '../registry.ts'
 import { flattenMessages } from '../translator.ts'
 
-Deno.test('flattenMessages dot-keys a nested catalog', () => {
+test('flattenMessages dot-keys a nested catalog', () => {
     const flat = flattenMessages({ auth: { failed: 'Nope' }, hi: 'Hi' })
     assertEquals(flat.get('auth.failed'), 'Nope')
     assertEquals(flat.get('hi'), 'Hi')
 })
 
-Deno.test('SC-001: t() interpolates and applies plurals', () => {
+test('SC-001: t() interpolates and applies plurals', () => {
     const r = new CatalogRegistry({
         'en-us': {
             'cart.items': '{count, plural, one {# item} other {# items}}',
@@ -25,12 +26,12 @@ Deno.test('SC-001: t() interpolates and applies plurals', () => {
     assertEquals(t.t('cart.items', { count: 5 }), '5 items')
 })
 
-Deno.test('SC-001: a missing key returns the key string, never throws', () => {
+test('SC-001: a missing key returns the key string, never throws', () => {
     const r = new CatalogRegistry({ 'en-us': {} }, { defaultLocale: 'en-us' })
     assertEquals(r.translator('en-us').t('nope.missing'), 'nope.missing')
 })
 
-Deno.test('SC-003: per-key language cascade en-us → en → default', () => {
+test('SC-003: per-key language cascade en-us → en → default', () => {
     const r = new CatalogRegistry({
         'en-us': { hi: 'Hi (US)' }, // has hi, not bye
         'en': { bye: 'Bye (en)' }, // has bye
@@ -41,14 +42,14 @@ Deno.test('SC-003: per-key language cascade en-us → en → default', () => {
     assertEquals(t.t('bye'), 'Bye (en)') // cascaded to en
 })
 
-Deno.test('SC-003: an unknown locale falls back to the default catalog', () => {
+test('SC-003: an unknown locale falls back to the default catalog', () => {
     const r = new CatalogRegistry({
         'en-us': { hi: 'Hi' },
     }, { defaultLocale: 'en-us' })
     assertEquals(r.translator('de-de').t('hi'), 'Hi') // de-de → default en-us
 })
 
-Deno.test('SC-007: t() returns a plain string (not an HtmlEscapedString)', () => {
+test('SC-007: t() returns a plain string (not an HtmlEscapedString)', () => {
     const r = new CatalogRegistry({
         'en-us': { greet: 'Hi {name}' },
     }, { defaultLocale: 'en-us' })
@@ -59,7 +60,7 @@ Deno.test('SC-007: t() returns a plain string (not an HtmlEscapedString)', () =>
     assert(!(out as unknown as { isEscaped?: boolean }).isEscaped)
 })
 
-Deno.test('the registry memoises translators per locale', () => {
+test('the registry memoises translators per locale', () => {
     const r = new CatalogRegistry({ 'en-us': {} }, { defaultLocale: 'en-us' })
     assert(r.translator('en-us') === r.translator('en-us'))
 })

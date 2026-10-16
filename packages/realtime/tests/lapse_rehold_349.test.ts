@@ -43,6 +43,7 @@
  * @module @lockness/realtime/tests/lapse_rehold_349
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertThrows } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
 import { decodeBeatReply, RedisBroadcastDriver } from '../drivers/redis.ts'
@@ -358,7 +359,7 @@ const ONE_BEAT_MS = 600
 
 // --- US1: a lapsed instance puts its members back ----------------------------
 
-Deno.test('#349 W1 7 held only on A, A lapses and is swept — 7 is back in B’s roster and here within one heartbeat interval', async () => {
+test('#349 W1 7 held only on A, A lapses and is swept — 7 is back in B’s roster and here within one heartbeat interval', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(T0)
     const fa = faulty(redis.command)
@@ -402,7 +403,7 @@ Deno.test('#349 W1 7 held only on A, A lapses and is swept — 7 is back in B’
     }
 })
 
-Deno.test('#349 W1b a stalled loop — no beat fails, the next SET … GET answers nil, and 7 is back within one heartbeat interval', async () => {
+test('#349 W1b a stalled loop — no beat fails, the next SET … GET answers nil, and 7 is back within one heartbeat interval', async () => {
     // US1's other path, and the one W1 cannot reach: W1 lapses A by REFUSING
     // its liveness writes, so every beat fails, the lapse is suspected, and
     // the healed beat re-asserts on the suspicion alone. Here nothing fails.
@@ -465,7 +466,7 @@ Deno.test('#349 W1b a stalled loop — no beat fails, the next SET … GET answe
     }
 })
 
-Deno.test('#349 W2 observers on B and C each receive exactly left, then joined, for 7', async () => {
+test('#349 W2 observers on B and C each receive exactly left, then joined, for 7', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(T0)
     const fa = faulty(redis.command)
@@ -506,7 +507,7 @@ Deno.test('#349 W2 observers on B and C each receive exactly left, then joined, 
 
 // --- US2: a member never hears presence about itself -------------------------
 
-Deno.test('#349 W3 7’s own tab on A hears nothing about 7; 8’s tab on A hears left, then joined', async () => {
+test('#349 W3 7’s own tab on A hears nothing about 7; 8’s tab on A hears left, then joined', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(T0)
     const fa = faulty(redis.command)
@@ -551,7 +552,7 @@ Deno.test('#349 W3 7’s own tab on A hears nothing about 7; 8’s tab on A hear
     }
 })
 
-Deno.test('#349 W3b #348 W8’s race on the sweeper — 7’s new tab on B receives no left for 7', async () => {
+test('#349 W3b #348 W8’s race on the sweeper — 7’s new tab on B receives no left for 7', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(T0)
     // B runs one exchange at a time, as the production client does.
@@ -602,7 +603,7 @@ Deno.test('#349 W3b #348 W8’s race on the sweeper — 7’s new tab on B recei
     }
 })
 
-Deno.test('#349 W3c the exclusion is by member id, not by connection — 7’s second tab hears nothing about 7, 8’s tab hears both', async () => {
+test('#349 W3c the exclusion is by member id, not by connection — 7’s second tab hears nothing about 7, 8’s tab hears both', async () => {
     // W3 has one tab per member, where "the connection announced" and "every
     // connection of that member" exclude the same socket. Here 7 has two tabs
     // on A with two distinct entries: the re-assert's local `joined` for 7
@@ -659,7 +660,7 @@ Deno.test('#349 W3c the exclusion is by member id, not by connection — 7’s s
 
 // --- Guards: the re-assert writes through the slot, and announces nothing held
 
-Deno.test('#349 W4 8’s only tab closes while the re-assert is mid-flight — 8 stays absent, and no joined for 8', async () => {
+test('#349 W4 8’s only tab closes while the re-assert is mid-flight — 8 stays absent, and no joined for 8', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(T0)
     const fa = faulty(redis.command)
@@ -710,7 +711,7 @@ Deno.test('#349 W4 8’s only tab closes while the re-assert is mid-flight — 8
     }
 })
 
-Deno.test('#349 W4b joins during the re-assert — each announces itself once, and the re-assert writes only the slots it snapshotted', async () => {
+test('#349 W4b joins during the re-assert — each announces itself once, and the re-assert writes only the slots it snapshotted', async () => {
     // The plan's other edge case: a new tab's own join holds its slot. 8's
     // second tab joins a slot the re-assert has yet to reach, so the join's
     // write fills it (one `joined`) and the re-assert's, queued behind it on
@@ -787,7 +788,7 @@ Deno.test('#349 W4b joins during the re-assert — each announces itself once, a
     }
 })
 
-Deno.test('#349 W5 7 held on A and D; A swept → no frame; A re-asserts → A a holder again, still no frame', async () => {
+test('#349 W5 7 held on A and D; A swept → no frame; A re-asserts → A a holder again, still no frame', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(T0)
     const fa = faulty(redis.command)
@@ -834,7 +835,7 @@ Deno.test('#349 W5 7 held on A and D; A swept → no frame; A re-asserts → A a
     }
 })
 
-Deno.test('#349 W6 A lapses and nobody sweeps it — the re-assert re-holds each slot, and no frame goes out', async () => {
+test('#349 W6 A lapses and nobody sweeps it — the re-assert re-holds each slot, and no frame goes out', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(T0)
     const fa = faulty(redis.command)
@@ -871,7 +872,7 @@ Deno.test('#349 W6 A lapses and nobody sweeps it — the re-assert re-holds each
 
 // --- W7: a nil counts only once a hold was issued ----------------------------
 
-Deno.test('#349 W7 (i) the boot beat before any hold is not a lapse — one hold EVAL, no re-assert', async () => {
+test('#349 W7 (i) the boot beat before any hold is not a lapse — one hold EVAL, no re-assert', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(T0)
     const a = instance(redis)
@@ -888,7 +889,7 @@ Deno.test('#349 W7 (i) the boot beat before any hold is not a lapse — one hold
     }
 })
 
-Deno.test('#349 W7 (ii) a hold that commits before a gated boot SET, and is swept, is re-asserted', async () => {
+test('#349 W7 (ii) a hold that commits before a gated boot SET, and is swept, is re-asserted', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(T0)
     // NOT serializing: the boot SET is held back BEFORE it executes, and a
@@ -953,7 +954,7 @@ Deno.test('#349 W7 (ii) a hold that commits before a gated boot SET, and is swep
     }
 })
 
-Deno.test('#349 W7 (iii) two holds racing the boot beat on a serialized client — exactly one re-assert run, no frame', async () => {
+test('#349 W7 (iii) two holds racing the boot beat on a serialized client — exactly one re-assert run, no frame', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(T0)
     const serial = serializedCommands(redis.command)
@@ -1008,7 +1009,7 @@ Deno.test('#349 W7 (iii) two holds racing the boot beat on a serialized client �
 
 // --- Suspicion: a failed beat is a lapse the next successful beat repairs ----
 
-Deno.test('#349 W8 a beat whose reply is lost after it committed starts no run; the next successful beat re-asserts', async () => {
+test('#349 W8 a beat whose reply is lost after it committed starts no run; the next successful beat re-asserts', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(T0)
     const fa = faulty(redis.command)
@@ -1048,7 +1049,7 @@ Deno.test('#349 W8 a beat whose reply is lost after it committed starts no run; 
 const isInstancesSadd: CommandMatch = (args) =>
     args[0] === 'SADD' && args[1] === INSTANCES_KEY
 
-Deno.test('#349 W8b a failed SADD sets nothing — one WARN, and neither that beat nor the next starts a run', async () => {
+test('#349 W8b a failed SADD sets nothing — one WARN, and neither that beat nor the next starts a run', async () => {
     // FR-004: only the liveness write's outcome decides. The registration
     // failing says nothing about whether this instance's holds were swept —
     // its SET renewed a key that was there — so it must not make the lapse
@@ -1090,7 +1091,7 @@ Deno.test('#349 W8b a failed SADD sets nothing — one WARN, and neither that be
     }
 })
 
-Deno.test('#349 W8c the suspicion is cleared when the run is triggered — the beats after the repair start no run', async () => {
+test('#349 W8c the suspicion is cleared when the run is triggered — the beats after the repair start no run', async () => {
     // A failed beat makes the lapse suspected, and the next successful beat
     // re-asserts — once. Left set, the suspicion would re-assert every slot on
     // every beat after it, for good.
@@ -1126,7 +1127,7 @@ Deno.test('#349 W8c the suspicion is cleared when the run is triggered — the b
     }
 })
 
-Deno.test('#349 W9 one of three holds fails during a re-assert — the other two land, one WARN, and the next beat restores the third', async () => {
+test('#349 W9 one of three holds fails during a re-assert — the other two land, one WARN, and the next beat restores the third', async () => {
     // The failing member carries an id and an `info` no WARN could contain by
     // accident, so "names no member" is a check a leak would actually fail.
     const ID = 80_808_080
@@ -1193,7 +1194,7 @@ Deno.test('#349 W9 one of three holds fails during a re-assert — the other two
 
 // --- US6: shutting down during a re-assert -----------------------------------
 
-Deno.test('#349 W11b close() during a re-assert stops it before the next slot, and waits for the slot in flight', async () => {
+test('#349 W11b close() during a re-assert stops it before the next slot, and waits for the slot in flight', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(T0)
     const fa = faulty(redis.command)
@@ -1285,7 +1286,7 @@ function gated(inner: CommandFn) {
     }
 }
 
-Deno.test('#349 W11b (ii) close() while a sweep pass is in flight stops the re-assert at once — no slot is written during the wait', async () => {
+test('#349 W11b (ii) close() while a sweep pass is in flight stops the re-assert at once — no slot is written during the wait', async () => {
     // close() aborts the lapse run BEFORE it awaits the ghost-sweep pass, and
     // that order is the point: the pass can take a broker round trip or two,
     // and a re-assert still running meanwhile would issue a hold after
@@ -1357,7 +1358,7 @@ Deno.test('#349 W11b (ii) close() while a sweep pass is in flight stops the re-a
 
 // --- SC-005: the heartbeat never waits behind the whole re-assert ------------
 
-Deno.test('#349 W13 K = 5 on a serialized client — a beat fired during the first hold commits before the last', async () => {
+test('#349 W13 K = 5 on a serialized client — a beat fired during the first hold commits before the last', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(T0)
     const fa = faulty(redis.command)
@@ -1416,7 +1417,7 @@ Deno.test('#349 W13 K = 5 on a serialized client — a beat fired during the fir
 
 // --- US3: a revocation issued during the lapse stays enforced ----------------
 
-Deno.test('#349 W15 a revokeChannel lost during A’s partition is applied before A re-holds — no joined, 7 absent, c7 has left', async () => {
+test('#349 W15 a revokeChannel lost during A’s partition is applied before A re-holds — no joined, 7 absent, c7 has left', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(T0)
     const fa = faulty(redis.command)
@@ -1477,7 +1478,7 @@ Deno.test('#349 W15 a revokeChannel lost during A’s partition is applied befor
     }
 })
 
-Deno.test('#349 W15b the pre-re-assert revocation re-check fails once — one manager WARN, 8 still restored, no extra run', async () => {
+test('#349 W15b the pre-re-assert revocation re-check fails once — one manager WARN, 8 still restored, no extra run', async () => {
     // Sentinels a WARN could not contain by accident: the connection id (the
     // revocation's target), the member id and its `info`.
     const TARGET = 'conn-target-sentinel'
@@ -1571,7 +1572,7 @@ class HandRolledRevocationDriver implements RevocationStoreDriver {
     }
 }
 
-Deno.test('#349 W15c one revocation whose apply throws does not stop the ones after it — one WARN each, naming no target', async () => {
+test('#349 W15c one revocation whose apply throws does not stop the ones after it — one WARN each, naming no target', async () => {
     // The re-assert's precondition runs `reconcileRevocations` (A2 / S2), so a
     // revocation that cannot be applied must not starve every one behind it:
     // before the fix, the first throw ended the pass, and — the socket still
@@ -1632,7 +1633,7 @@ Deno.test('#349 W15c one revocation whose apply throws does not stop the ones af
 
 // --- S1: nothing escapes from a strict decode --------------------------------
 
-Deno.test('#349 WS1 a SET answered OK, then an integer — one WARN per beat, no run, nothing escapes', async () => {
+test('#349 WS1 a SET answered OK, then an integer — one WARN per beat, no run, nothing escapes', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(T0)
     const fa = faulty(redis.command)
@@ -1676,7 +1677,7 @@ Deno.test('#349 WS1 a SET answered OK, then an integer — one WARN per beat, no
     }
 })
 
-Deno.test('#349 WS1 a failed boot beat before any hold makes nothing suspected', async () => {
+test('#349 WS1 a failed boot beat before any hold makes nothing suspected', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(T0)
     const fa = faulty(redis.command)
@@ -1700,7 +1701,7 @@ Deno.test('#349 WS1 a failed boot beat before any hold makes nothing suspected',
 
 // --- WD: what a beat reply means ---------------------------------------------
 
-Deno.test('#349 WD decodeBeatReply: nil is lapsed, any bulk continuous, anything else a constant throw', () => {
+test('#349 WD decodeBeatReply: nil is lapsed, any bulk continuous, anything else a constant throw', () => {
     assertEquals(decodeBeatReply({ type: 'nil' }), 'lapsed')
     assertEquals(decodeBeatReply({ type: 'bulk', value: '1' }), 'continuous')
     assertEquals(decodeBeatReply({ type: 'bulk', value: '' }), 'continuous')
@@ -1724,7 +1725,7 @@ Deno.test('#349 WD decodeBeatReply: nil is lapsed, any bulk continuous, anything
 
 // --- WL: the hook's lifecycle on the Redis driver ----------------------------
 
-Deno.test('#349 WL onRosterLapse re-registration replaces; close() drops the lapse and the refusal handlers', async () => {
+test('#349 WL onRosterLapse re-registration replaces; close() drops the lapse and the refusal handlers', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(T0)
     const serial = serializedCommands(redis.command)
@@ -1837,7 +1838,7 @@ for (
         ['a hand-rolled roster driver', () => new HandRolledRosterDriver()],
     ] as const
 ) {
-    Deno.test(`#349 W10 ${label} without onRosterLapse builds, and a join/leave round is unchanged`, async () => {
+    test(`#349 W10 ${label} without onRosterLapse builds, and a join/leave round is unchanged`, async () => {
         const driver: BroadcastDriver = make()
         assertEquals('onRosterLapse' in driver, false, 'no hook')
         const manager = new ChannelManager<User>({ driver, authorize })

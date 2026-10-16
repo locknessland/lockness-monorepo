@@ -13,6 +13,7 @@
  * @module @lockness/redis/tests/live_subscribe_liveness
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { RedisClient } from '../client.ts'
 import { encodeCommand, readReply, writeFrame } from '../resp.ts'
@@ -25,325 +26,317 @@ import {
     waitFor,
 } from './live_broker.ts'
 
-Deno.test({
-    name: 'live: a real broker keeps an idle subscribe socket alive (#274)',
-    ignore: !LIVE_BROKER,
-    fn: async () => {
-        const config = brokerConfig()
-        await preflight(config)
-        const ns = runNamespace()
-        const pattern = `${ns}:*`
+test('live: a real broker keeps an idle subscribe socket alive (#274)', {
+    skip: !LIVE_BROKER,
+}, async () => {
+    const config = brokerConfig()
+    await preflight(config)
+    const ns = runNamespace()
+    const pattern = `${ns}:*`
 
-        // Real cadences, scaled down. The window is what a live broker's RTT and
-        // scheduling have to fit inside, so it is deliberately not sub-100ms
-        // here the way the fake-server tests can afford to be.
-        const sub = new RedisSubscribeConnection({
-            ...config,
-            keepaliveMs: 150,
-            livenessMs: 450,
+    // Real cadences, scaled down. The window is what a live broker's RTT and
+    // scheduling have to fit inside, so it is deliberately not sub-100ms
+    // here the way the fake-server tests can afford to be.
+    const sub = new RedisSubscribeConnection({
+        ...config,
+        keepaliveMs: 150,
+        livenessMs: 450,
+    })
+    const publisher = new RedisClient(config)
+    const got: string[] = []
+    let reconnects = 0
+    const warnings: string[] = []
+    const realWarn = console.warn
+    console.warn = (...args: unknown[]) => {
+        warnings.push(args.map((a) => String(a)).join(' '))
+    }
+    try {
+        // The reconnect seam is the honest witness here. A first draft of
+        // this test asserted only that a publish still arrived after the
+        // silence — and it PASSED with the keepalive removed, because the
+        // socket simply re-dialled six times and was subscribed again by the
+        // time the publish landed. Delivery survives churn; that is what
+        // made the defect invisible for so long. What must be asserted is
+        // the ABSENCE of churn.
+        sub.onReconnect(() => void reconnects++)
+        sub.psubscribe(pattern, (_topic, payload) => void got.push(payload))
+        // Let the subscription land before the silence starts.
+        await new Promise((r) => setTimeout(r, 300))
+
+        // Six liveness windows of real silence against a real broker.
+        await new Promise((r) => setTimeout(r, 450 * 6))
+
+        assertEquals(
+            reconnects,
+            0,
+            'the socket never faulted — a real broker answered the ' +
+                'keepalive inside every window',
+        )
+        assert(
+            !warnings.some((m) => m.includes('read fault')),
+            `no wire fault was reported, yet the log says: ${
+                warnings.join(' | ')
+            }`,
+        )
+
+        await publisher.command('PUBLISH', `${ns}:room`, 'still-here')
+        await waitFor(
+            () => got.length === 1,
+            'the socket that idled through six liveness windows still delivers',
+        )
+        assertEquals(got, ['still-here'])
+        assertEquals(
+            reconnects,
+            0,
+            'and still had not reconnected by the time it delivered',
+        )
+    } finally {
+        console.warn = realWarn
+        await sub.close()
+        await publisher.close()
+    }
+})
+
+test('live: real Redis answers PING in subscribe mode with ["pong", ""]', {
+    skip: !LIVE_BROKER,
+}, async () => {
+    // The claim `fake_server.ts` makes, checked against the thing it models.
+    // The idle test above cannot make it: it asserts the socket survives,
+    // which holds for ANY reply shape the dispatcher ignores. So the fake's
+    // model was asserted nowhere, in a file whose stated purpose was to
+    // assert it.
+    const config = brokerConfig()
+    await preflight(config)
+    const ns = runNamespace()
+
+    const conn = await Deno.connect({
+        hostname: config.hostname,
+        port: config.port ?? 6379,
+    })
+    try {
+        await writeFrame(conn, encodeCommand(['PSUBSCRIBE', `${ns}:*`]))
+        const confirmation = await readReply(conn, 5_000)
+        assertEquals(confirmation.type, 'array')
+
+        await writeFrame(conn, encodeCommand(['PING']))
+        const pong = await readReply(conn, 5_000)
+
+        // NOT the `+PONG` simple string a command-mode connection gets.
+        assertEquals(
+            pong.type,
+            'array',
+            'in subscribe mode Redis answers PING with a multi-bulk, not ' +
+                'the +PONG simple string — if this ever becomes `simple`, ' +
+                "the fake's model is right and this comment is wrong",
+        )
+        if (pong.type !== 'array') return
+        assertEquals(pong.value.length, 2)
+        assertEquals(pong.value[0], { type: 'bulk', value: 'pong' })
+        assertEquals(pong.value[1], { type: 'bulk', value: '' })
+
+        // The shape `#dispatch` filters on: a 4-element array is a pmessage,
+        // anything else is ignored. Two elements is why a pong is inert.
+        assert(
+            pong.value.length !== 4,
+            'a pong can never be mistaken for a pmessage',
+        )
+    } finally {
+        conn.close()
+    }
+})
+
+test('live: a throwing pmessage handler does not kill the process (#296)', {
+    skip: !LIVE_BROKER,
+}, async () => {
+    // Only a LIVE broker can show this. The failure mode is a process exit
+    // — `#dispatch` sat outside `#readLoop`'s try, so an exception from an
+    // application handler propagated out of a promise nothing awaited for
+    // rejection, and Deno terminated with code 1. An in-process double
+    // cannot reproduce a process exit, and a test that "passes" by killing
+    // the runner is not a test.
+    //
+    // One bug in one app broadcast handler took down the whole server, and
+    // every unrelated connection it was serving.
+    const config = brokerConfig()
+    await preflight(config)
+    const ns = runNamespace()
+    // THE FIRST PATTERN CARRIES THE HOSTILE BYTES, and the order is the
+    // assertion (#295/FR-014). The full handler-fault ERROR is emitted once
+    // per SOCKET GENERATION now, so only the FIRST faulting pattern reaches
+    // that line — a hostile name introduced second is suppressed, and the
+    // encoding check would then pass against a log line it never saw.
+    // Measured: with the hostile pattern second, mutating `safeForLog` out
+    // of `#reportHandlerFault` left this test GREEN.
+    //
+    // CR and ESC only. `\x1b[31m`'s `[31m` is a Redis glob CHARACTER CLASS,
+    // so a pattern built with it matches `\x1b3PAT…` and never the literal
+    // topic published below.
+    const pattern = `${ns}:\r\x1bPAT*`
+
+    const sub = new RedisSubscribeConnection(config)
+    const publisher = new RedisClient(config)
+    const seen: string[] = []
+    // Captured so the assertions below can read the containment line, and
+    // restored in the `finally` — a helper that hands back a `restore` the
+    // caller must remember is the defect #287 fixes one file over.
+    const realError = console.error
+    const errors: string[] = []
+    console.error = (...args: unknown[]) => {
+        errors.push(args.map((a) => String(a)).join(' '))
+    }
+    try {
+        sub.psubscribe(pattern, (_topic, payload) => {
+            seen.push(payload)
+            if (payload.includes('boom')) {
+                throw new Error('the application handler exploded')
+            }
         })
-        const publisher = new RedisClient(config)
-        const got: string[] = []
-        let reconnects = 0
+        await waitFor(
+            async () => {
+                await publisher.command(
+                    'PUBLISH',
+                    `${ns}:\r\x1bPATa`,
+                    'first',
+                )
+                return seen.includes('first')
+            },
+            'the subscription is live',
+        )
+
+        // The payload carries bytes an unencoded log line would forward: a
+        // CR to forge a second line, an ESC to drive a terminal, and a
+        // marker that must never appear because the payload must not be
+        // logged at all.
+        const hostile = 'boom\r\x1b[31mINJECTED\x1b[0m SECRET-MARKER-8891'
+        await publisher.command('PUBLISH', `${ns}:\r\x1bPATa`, hostile)
+        await waitFor(
+            () => errors.some((e) => /exploded/.test(e)),
+            'the throw was contained and logged, not propagated',
+        )
+        // THE PATTERN IS THE ONE PEER-ADJACENT VALUE THIS LINE PRINTS, so
+        // it is the one that has to be encoded — an application is free to
+        // build a pattern from a tenant name it did not choose.
+        const faultLine = errors.find((e) => /exploded/.test(e))!
+        assert(
+            !faultLine.includes('\r') && !faultLine.includes('\x1b'),
+            'the pattern reached the log line unencoded, so a peer-shaped ' +
+                `name can forge log entries: ${JSON.stringify(faultLine)}`,
+        )
+        assert(
+            /PAT/.test(faultLine),
+            'the pattern must still be identifiable after encoding: ' +
+                faultLine,
+        )
+
+        // THE POINT: delivery continues. Reaching this line at all also
+        // proves the process survived — the pre-fix code never got here.
+        await waitFor(
+            async () => {
+                await publisher.command(
+                    'PUBLISH',
+                    `${ns}:\r\x1bPATa`,
+                    'after',
+                )
+                return seen.includes('after')
+            },
+            'delivery continued after the handler threw',
+        )
+
+        // A pattern carrying the bytes a log line must not forward. The
+        // pattern is the ONE peer-adjacent value this line does print, so
+        // it is the one that has to be encoded — an application is free to
+        // build a pattern from a tenant name it did not choose.
+        // CR and ESC only. An earlier version used `\x1b[31m`, whose
+        // `[31m` is a Redis glob CHARACTER CLASS — so the pattern matched
+        // `\x1b3PAT…` and never the literal topic published below, and the
+        // test timed out proving nothing about encoding.
+        // An ORDINARY second pattern now: the hostile one is already the
+        // first, which is where the full report fires. This one's fault is
+        // suppressed by the per-generation throttle, and the tally at the
+        // discard is where it must still be accounted for.
+        const hostilePattern = `${ns}:second:*`
+        // WHERE THE SECOND FAULT IS ACCOUNTED FOR MOVED (#295/FR-014).
+        //
+        // The full ERROR is now emitted once per SOCKET GENERATION rather
+        // than once per pattern: under per-channel subscribe a single
+        // broken handler is registered against every hosted channel, and
+        // one stack trace per channel blocks stderr hard enough to
+        // back-pressure the read loop past its own liveness window — the
+        // containment becomes the outage. Suppression bounds the volume;
+        // the per-pattern TALLY at the discard keeps the attribution, and
+        // that tally is where a second pattern's name now appears.
+        //
+        // What this test is about is unchanged: the name is peer-adjacent,
+        // an application may build it from a tenant it did not choose, and
+        // it must reach the log encoded. Only the line it reaches moved.
+        let secondFired = 0
         const warnings: string[] = []
         const realWarn = console.warn
         console.warn = (...args: unknown[]) => {
             warnings.push(args.map((a) => String(a)).join(' '))
         }
-        try {
-            // The reconnect seam is the honest witness here. A first draft of
-            // this test asserted only that a publish still arrived after the
-            // silence — and it PASSED with the keepalive removed, because the
-            // socket simply re-dialled six times and was subscribed again by the
-            // time the publish landed. Delivery survives churn; that is what
-            // made the defect invisible for so long. What must be asserted is
-            // the ABSENCE of churn.
-            sub.onReconnect(() => void reconnects++)
-            sub.psubscribe(pattern, (_topic, payload) => void got.push(payload))
-            // Let the subscription land before the silence starts.
-            await new Promise((r) => setTimeout(r, 300))
-
-            // Six liveness windows of real silence against a real broker.
-            await new Promise((r) => setTimeout(r, 450 * 6))
-
-            assertEquals(
-                reconnects,
-                0,
-                'the socket never faulted — a real broker answered the ' +
-                    'keepalive inside every window',
-            )
-            assert(
-                !warnings.some((m) => m.includes('read fault')),
-                `no wire fault was reported, yet the log says: ${
-                    warnings.join(' | ')
-                }`,
-            )
-
-            await publisher.command('PUBLISH', `${ns}:room`, 'still-here')
-            await waitFor(
-                () => got.length === 1,
-                'the socket that idled through six liveness windows still delivers',
-            )
-            assertEquals(got, ['still-here'])
-            assertEquals(
-                reconnects,
-                0,
-                'and still had not reconnected by the time it delivered',
-            )
-        } finally {
-            console.warn = realWarn
-            await sub.close()
-            await publisher.close()
-        }
-    },
-})
-
-Deno.test({
-    name: 'live: real Redis answers PING in subscribe mode with ["pong", ""]',
-    ignore: !LIVE_BROKER,
-    fn: async () => {
-        // The claim `fake_server.ts` makes, checked against the thing it models.
-        // The idle test above cannot make it: it asserts the socket survives,
-        // which holds for ANY reply shape the dispatcher ignores. So the fake's
-        // model was asserted nowhere, in a file whose stated purpose was to
-        // assert it.
-        const config = brokerConfig()
-        await preflight(config)
-        const ns = runNamespace()
-
-        const conn = await Deno.connect({
-            hostname: config.hostname,
-            port: config.port ?? 6379,
+        sub.psubscribe(hostilePattern, () => {
+            secondFired++
+            throw new Error('the second handler exploded')
         })
-        try {
-            await writeFrame(conn, encodeCommand(['PSUBSCRIBE', `${ns}:*`]))
-            const confirmation = await readReply(conn, 5_000)
-            assertEquals(confirmation.type, 'array')
-
-            await writeFrame(conn, encodeCommand(['PING']))
-            const pong = await readReply(conn, 5_000)
-
-            // NOT the `+PONG` simple string a command-mode connection gets.
-            assertEquals(
-                pong.type,
-                'array',
-                'in subscribe mode Redis answers PING with a multi-bulk, not ' +
-                    'the +PONG simple string — if this ever becomes `simple`, ' +
-                    "the fake's model is right and this comment is wrong",
-            )
-            if (pong.type !== 'array') return
-            assertEquals(pong.value.length, 2)
-            assertEquals(pong.value[0], { type: 'bulk', value: 'pong' })
-            assertEquals(pong.value[1], { type: 'bulk', value: '' })
-
-            // The shape `#dispatch` filters on: a 4-element array is a pmessage,
-            // anything else is ignored. Two elements is why a pong is inert.
-            assert(
-                pong.value.length !== 4,
-                'a pong can never be mistaken for a pmessage',
-            )
-        } finally {
-            conn.close()
-        }
-    },
-})
-
-Deno.test({
-    name: 'live: a throwing pmessage handler does not kill the process (#296)',
-    ignore: !LIVE_BROKER,
-    fn: async () => {
-        // Only a LIVE broker can show this. The failure mode is a process exit
-        // — `#dispatch` sat outside `#readLoop`'s try, so an exception from an
-        // application handler propagated out of a promise nothing awaited for
-        // rejection, and Deno terminated with code 1. An in-process double
-        // cannot reproduce a process exit, and a test that "passes" by killing
-        // the runner is not a test.
-        //
-        // One bug in one app broadcast handler took down the whole server, and
-        // every unrelated connection it was serving.
-        const config = brokerConfig()
-        await preflight(config)
-        const ns = runNamespace()
-        // THE FIRST PATTERN CARRIES THE HOSTILE BYTES, and the order is the
-        // assertion (#295/FR-014). The full handler-fault ERROR is emitted once
-        // per SOCKET GENERATION now, so only the FIRST faulting pattern reaches
-        // that line — a hostile name introduced second is suppressed, and the
-        // encoding check would then pass against a log line it never saw.
-        // Measured: with the hostile pattern second, mutating `safeForLog` out
-        // of `#reportHandlerFault` left this test GREEN.
-        //
-        // CR and ESC only. `\x1b[31m`'s `[31m` is a Redis glob CHARACTER CLASS,
-        // so a pattern built with it matches `\x1b3PAT…` and never the literal
-        // topic published below.
-        const pattern = `${ns}:\r\x1bPAT*`
-
-        const sub = new RedisSubscribeConnection(config)
-        const publisher = new RedisClient(config)
-        const seen: string[] = []
-        // Captured so the assertions below can read the containment line, and
-        // restored in the `finally` — a helper that hands back a `restore` the
-        // caller must remember is the defect #287 fixes one file over.
-        const realError = console.error
-        const errors: string[] = []
-        console.error = (...args: unknown[]) => {
-            errors.push(args.map((a) => String(a)).join(' '))
-        }
-        try {
-            sub.psubscribe(pattern, (_topic, payload) => {
-                seen.push(payload)
-                if (payload.includes('boom')) {
-                    throw new Error('the application handler exploded')
-                }
-            })
-            await waitFor(
-                async () => {
-                    await publisher.command(
-                        'PUBLISH',
-                        `${ns}:\r\x1bPATa`,
-                        'first',
-                    )
-                    return seen.includes('first')
-                },
-                'the subscription is live',
-            )
-
-            // The payload carries bytes an unencoded log line would forward: a
-            // CR to forge a second line, an ESC to drive a terminal, and a
-            // marker that must never appear because the payload must not be
-            // logged at all.
-            const hostile = 'boom\r\x1b[31mINJECTED\x1b[0m SECRET-MARKER-8891'
-            await publisher.command('PUBLISH', `${ns}:\r\x1bPATa`, hostile)
-            await waitFor(
-                () => errors.some((e) => /exploded/.test(e)),
-                'the throw was contained and logged, not propagated',
-            )
-            // THE PATTERN IS THE ONE PEER-ADJACENT VALUE THIS LINE PRINTS, so
-            // it is the one that has to be encoded — an application is free to
-            // build a pattern from a tenant name it did not choose.
-            const faultLine = errors.find((e) => /exploded/.test(e))!
-            assert(
-                !faultLine.includes('\r') && !faultLine.includes('\x1b'),
-                'the pattern reached the log line unencoded, so a peer-shaped ' +
-                    `name can forge log entries: ${JSON.stringify(faultLine)}`,
-            )
-            assert(
-                /PAT/.test(faultLine),
-                'the pattern must still be identifiable after encoding: ' +
-                    faultLine,
-            )
-
-            // THE POINT: delivery continues. Reaching this line at all also
-            // proves the process survived — the pre-fix code never got here.
-            await waitFor(
-                async () => {
-                    await publisher.command(
-                        'PUBLISH',
-                        `${ns}:\r\x1bPATa`,
-                        'after',
-                    )
-                    return seen.includes('after')
-                },
-                'delivery continued after the handler threw',
-            )
-
-            // A pattern carrying the bytes a log line must not forward. The
-            // pattern is the ONE peer-adjacent value this line does print, so
-            // it is the one that has to be encoded — an application is free to
-            // build a pattern from a tenant name it did not choose.
-            // CR and ESC only. An earlier version used `\x1b[31m`, whose
-            // `[31m` is a Redis glob CHARACTER CLASS — so the pattern matched
-            // `\x1b3PAT…` and never the literal topic published below, and the
-            // test timed out proving nothing about encoding.
-            // An ORDINARY second pattern now: the hostile one is already the
-            // first, which is where the full report fires. This one's fault is
-            // suppressed by the per-generation throttle, and the tally at the
-            // discard is where it must still be accounted for.
-            const hostilePattern = `${ns}:second:*`
-            // WHERE THE SECOND FAULT IS ACCOUNTED FOR MOVED (#295/FR-014).
-            //
-            // The full ERROR is now emitted once per SOCKET GENERATION rather
-            // than once per pattern: under per-channel subscribe a single
-            // broken handler is registered against every hosted channel, and
-            // one stack trace per channel blocks stderr hard enough to
-            // back-pressure the read loop past its own liveness window — the
-            // containment becomes the outage. Suppression bounds the volume;
-            // the per-pattern TALLY at the discard keeps the attribution, and
-            // that tally is where a second pattern's name now appears.
-            //
-            // What this test is about is unchanged: the name is peer-adjacent,
-            // an application may build it from a tenant it did not choose, and
-            // it must reach the log encoded. Only the line it reaches moved.
-            let secondFired = 0
-            const warnings: string[] = []
-            const realWarn = console.warn
-            console.warn = (...args: unknown[]) => {
-                warnings.push(args.map((a) => String(a)).join(' '))
-            }
-            sub.psubscribe(hostilePattern, () => {
-                secondFired++
-                throw new Error('the second handler exploded')
-            })
-            await waitFor(
-                async () => {
-                    await publisher.command(
-                        'PUBLISH',
-                        `${ns}:second:x`,
-                        'x',
-                    )
-                    return secondFired > 0
-                },
-                'the second handler threw and was contained too',
-            )
-            // The discard is what emits the tally. `close()` again in the
-            // `finally` is a no-op.
-            await sub.close()
-            console.warn = realWarn
-            const patternLine = warnings.find((w) => w.includes('by pattern'))!
-            assert(
-                patternLine !== undefined,
-                'no tally was emitted on the discard, so the suppressed fault ' +
-                    'is unaccounted for — suppression that loses the answer is ' +
-                    'worse than the flood it prevents',
-            )
-            assert(
-                !patternLine.includes('\r') && !patternLine.includes('\x1b'),
-                'the pattern reached the log line unencoded, so a peer-shaped ' +
-                    `name can forge log entries: ${
-                        JSON.stringify(patternLine)
-                    }`,
-            )
-            assert(
-                /PAT/.test(patternLine),
-                'the pattern must still be identifiable after encoding: ' +
-                    patternLine,
-            )
-
-            const line = errors.find((e) => /exploded/.test(e))!
-            // NAMED, but named ENCODED. This used to assert the raw pattern
-            // appears verbatim, which held only because the first pattern was
-            // an ordinary one. It is the hostile one now — see the comment at
-            // its declaration — so the raw bytes are precisely what must NOT
-            // appear, and the two assertions would contradict each other. What
-            // an operator needs is that the line identifies the handler, which
-            // the encoded form does: `safeForLog` escapes the control bytes and
-            // leaves everything else legible.
-            assert(
-                line.includes(ns) && /PAT/.test(line),
-                `the line must name the pattern so an operator can find the ` +
-                    `handler: ${line}`,
-            )
-            for (const forbidden of ['SECRET-MARKER-8891', '\r', '\x1b']) {
-                assert(
-                    !line.includes(forbidden),
-                    'the payload must never reach the log line — on the ' +
-                        'realtime control topic it is a signed, replayable ' +
-                        `frame. Found ${JSON.stringify(forbidden)} in: ${line}`,
+        await waitFor(
+            async () => {
+                await publisher.command(
+                    'PUBLISH',
+                    `${ns}:second:x`,
+                    'x',
                 )
-            }
-        } finally {
-            console.error = realError
-            await sub.close()
-            await publisher.close()
+                return secondFired > 0
+            },
+            'the second handler threw and was contained too',
+        )
+        // The discard is what emits the tally. `close()` again in the
+        // `finally` is a no-op.
+        await sub.close()
+        console.warn = realWarn
+        const patternLine = warnings.find((w) => w.includes('by pattern'))!
+        assert(
+            patternLine !== undefined,
+            'no tally was emitted on the discard, so the suppressed fault ' +
+                'is unaccounted for — suppression that loses the answer is ' +
+                'worse than the flood it prevents',
+        )
+        assert(
+            !patternLine.includes('\r') && !patternLine.includes('\x1b'),
+            'the pattern reached the log line unencoded, so a peer-shaped ' +
+                `name can forge log entries: ${JSON.stringify(patternLine)}`,
+        )
+        assert(
+            /PAT/.test(patternLine),
+            'the pattern must still be identifiable after encoding: ' +
+                patternLine,
+        )
+
+        const line = errors.find((e) => /exploded/.test(e))!
+        // NAMED, but named ENCODED. This used to assert the raw pattern
+        // appears verbatim, which held only because the first pattern was
+        // an ordinary one. It is the hostile one now — see the comment at
+        // its declaration — so the raw bytes are precisely what must NOT
+        // appear, and the two assertions would contradict each other. What
+        // an operator needs is that the line identifies the handler, which
+        // the encoded form does: `safeForLog` escapes the control bytes and
+        // leaves everything else legible.
+        assert(
+            line.includes(ns) && /PAT/.test(line),
+            `the line must name the pattern so an operator can find the ` +
+                `handler: ${line}`,
+        )
+        for (const forbidden of ['SECRET-MARKER-8891', '\r', '\x1b']) {
+            assert(
+                !line.includes(forbidden),
+                'the payload must never reach the log line — on the ' +
+                    'realtime control topic it is a signed, replayable ' +
+                    `frame. Found ${JSON.stringify(forbidden)} in: ${line}`,
+            )
         }
-    },
+    } finally {
+        console.error = realError
+        await sub.close()
+        await publisher.close()
+    }
 })

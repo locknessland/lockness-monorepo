@@ -21,6 +21,7 @@
  * @module @lockness/realtime/tests/onclose_pairing_404
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertThrows } from '@std/assert'
 import { MemoryBroadcastDriver } from '../drivers/memory.ts'
 import {
@@ -93,7 +94,7 @@ function fixture(opens: () => void = () => {}) {
     return { manager, app, hooks: manager.handlerHooks(user) }
 }
 
-Deno.test("#404 W1 (i) an id-in-use socket's close runs no app hook — the counter holds and the live owner keeps its channel", async () => {
+test("#404 W1 (i) an id-in-use socket's close runs no app hook — the counter holds and the live owner keeps its channel", async () => {
     const { manager, app, hooks } = fixture()
     const a = conn('c1', { id: 1 })
     await hooks.onOpen?.(a)
@@ -114,7 +115,7 @@ Deno.test("#404 W1 (i) an id-in-use socket's close runs no app hook — the coun
     assertEquals(heard(a, 'still'), 1, 'A still receives')
 })
 
-Deno.test('#404 W1 (ii) a socket refused for an unusable id runs no app hook on close', async () => {
+test('#404 W1 (ii) a socket refused for an unusable id runs no app hook on close', async () => {
     const { app, hooks } = fixture()
     const bad = conn('not a usable id', { id: 3 })
     assertThrows(() => hooks.onOpen?.(bad), ConnectionIdError)
@@ -124,7 +125,7 @@ Deno.test('#404 W1 (ii) a socket refused for an unusable id runs no app hook on 
     assertEquals(app.n, 0, 'CONTROL: its onOpen never ran either')
 })
 
-Deno.test('#404 W1 (iii) a socket refused as disconnected runs no app hook on its later close', async () => {
+test('#404 W1 (iii) a socket refused as disconnected runs no app hook on its later close', async () => {
     // A opens and closes, which retires it; the same object presented again
     // is refused with ConnectionDisconnectedError and must not count as opened.
     const { app, hooks } = fixture()
@@ -140,7 +141,7 @@ Deno.test('#404 W1 (iii) a socket refused as disconnected runs no app hook on it
     assertEquals(app.n, 0)
 })
 
-Deno.test("#404 W2 an evicted socket's close still runs the app hook, once", async () => {
+test("#404 W2 an evicted socket's close still runs the app hook, once", async () => {
     const { manager, app, hooks } = fixture()
     const a = conn('c1', { id: 1 })
     await hooks.onOpen?.(a)
@@ -152,7 +153,7 @@ Deno.test("#404 W2 an evicted socket's close still runs the app hook, once", asy
     assertEquals(app.n, 0)
 })
 
-Deno.test('#404 W3 a second close of the same socket runs the app hook no more', async () => {
+test('#404 W3 a second close of the same socket runs the app hook no more', async () => {
     const { app, hooks } = fixture()
     const a = conn('c1', { id: 1 })
     await hooks.onOpen?.(a)
@@ -164,7 +165,7 @@ Deno.test('#404 W3 a second close of the same socket runs the app hook no more',
     assertEquals(app.n, 0)
 })
 
-Deno.test('#404 W4 an app onOpen that throws still gets its onClose, once', async () => {
+test('#404 W4 an app onOpen that throws still gets its onClose, once', async () => {
     // The socket was admitted: `register` succeeded before the app's hook
     // threw, so the pairing is already recorded and the close must run the
     // hook — which is what lets a counter incremented first in onOpen balance.

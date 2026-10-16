@@ -7,6 +7,7 @@
  * `Deno.open`.
  */
 
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import {
     disposableCount,
@@ -14,14 +15,14 @@ import {
 } from '@lockness/contract/lifecycle/internal'
 import { configureLogger, logger } from '../mod.ts'
 
-Deno.test('logger - the global logger announces itself', () => {
+test('logger - the global logger announces itself', () => {
     drainDisposables()
     configureLogger({})
 
     assertEquals(disposableCount(), 1)
 })
 
-Deno.test('logger - reconfiguring does not leave a stale entry', () => {
+test('logger - reconfiguring does not leave a stale entry', () => {
     drainDisposables()
     configureLogger({})
     configureLogger({})
@@ -34,7 +35,7 @@ Deno.test('logger - reconfiguring does not leave a stale entry', () => {
     )
 })
 
-Deno.test('logger - closes after the things that write to it', () => {
+test('logger - closes after the things that write to it', () => {
     drainDisposables()
     configureLogger({})
     const [entry] = drainDisposables()
@@ -43,7 +44,7 @@ Deno.test('logger - closes after the things that write to it', () => {
     assertEquals(entry.priority, 60)
 })
 
-Deno.test('logger - disposing closes a file transport it OWNS', async () => {
+test('logger - disposing closes a file transport it OWNS', async () => {
     // FR-015 put this package in scope for a `Deno.FsFile`. Every earlier test
     // here used configureLogger({}), which builds a console transport and opens
     // no file at all — so the resource the requirement is about was never
@@ -73,7 +74,7 @@ Deno.test('logger - disposing closes a file transport it OWNS', async () => {
     }
 })
 
-Deno.test('logger - a transport the APPLICATION supplied is not closed', async () => {
+test('logger - a transport the APPLICATION supplied is not closed', async () => {
     // `ownsTransports: false` — the app keeps its own reference and uses the
     // transport elsewhere, so closing it from a framework teardown would throw
     // BadResource on their next write. The DEFAULT is owned: see the config
@@ -94,7 +95,7 @@ Deno.test('logger - a transport the APPLICATION supplied is not closed', async (
     assertEquals(closed, false, 'a borrowed transport is left alone')
 })
 
-Deno.test('logger - the accessor rebuilds after a teardown', async () => {
+test('logger - the accessor rebuilds after a teardown', async () => {
     drainDisposables()
     configureLogger({})
     assertEquals(disposableCount(), 1)

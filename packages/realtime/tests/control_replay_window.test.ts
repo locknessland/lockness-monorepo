@@ -8,6 +8,7 @@
  * @module @lockness/realtime/tests/control_replay_window
  */
 
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { ControlReplayWindow } from '../control_replay_window.ts'
 
@@ -30,36 +31,36 @@ function windowAt(start = 1_000_000, maxEntries?: number) {
     }
 }
 
-Deno.test('FR-002: a frame inside the window is admitted', () => {
+test('FR-002: a frame inside the window is admitted', () => {
     const { seen, now } = windowAt()
     assertEquals(seen.admit('a', 'n1', now), 'ok')
 })
 
-Deno.test('FR-002: a frame older than the window is stale', () => {
+test('FR-002: a frame older than the window is stale', () => {
     const { seen, now } = windowAt()
     assertEquals(seen.admit('a', 'n1', now - WINDOW - 1), 'stale')
 })
 
-Deno.test('FR-002: a FUTURE-dated frame is stale too', () => {
+test('FR-002: a FUTURE-dated frame is stale too', () => {
     const { seen, now } = windowAt()
     // A one-sided check would let anyone who can push a clock forward extend
     // their own replay window without limit.
     assertEquals(seen.admit('a', 'n1', now + WINDOW + 1), 'stale')
 })
 
-Deno.test('FR-002: the window boundary is inclusive on both sides', () => {
+test('FR-002: the window boundary is inclusive on both sides', () => {
     const { seen, now } = windowAt()
     assertEquals(seen.admit('a', 'past', now - WINDOW), 'ok')
     assertEquals(seen.admit('a', 'future', now + WINDOW), 'ok')
 })
 
-Deno.test('FR-003: the same (origin, nonce) twice is a duplicate', () => {
+test('FR-003: the same (origin, nonce) twice is a duplicate', () => {
     const { seen, now } = windowAt()
     assertEquals(seen.admit('a', 'n1', now), 'ok')
     assertEquals(seen.admit('a', 'n1', now), 'duplicate')
 })
 
-Deno.test('FR-001/S1: two origins may use the SAME nonce value', () => {
+test('FR-001/S1: two origins may use the SAME nonce value', () => {
     // The regression that would silently break legitimate traffic. Keyed on the
     // nonce alone, instance B's first frame is dropped as A's duplicate — and
     // publishing is fire-and-forget, so the loss is silent and permanent.
@@ -73,7 +74,7 @@ Deno.test('FR-001/S1: two origins may use the SAME nonce value', () => {
     )
 })
 
-Deno.test('FR-004: an entry past the window is pruned, so its nonce is admissible again', () => {
+test('FR-004: an entry past the window is pruned, so its nonce is admissible again', () => {
     const w = windowAt()
     assertEquals(w.seen.admit('a', 'n1', w.now), 'ok')
     assertEquals(w.seen.size, 1)
@@ -90,7 +91,7 @@ Deno.test('FR-004: an entry past the window is pruned, so its nonce is admissibl
     )
 })
 
-Deno.test('FR-004: pruning is driven by admit, not by a timer', () => {
+test('FR-004: pruning is driven by admit, not by a timer', () => {
     const w = windowAt()
     assertEquals(w.seen.admit('a', 'n1', w.now), 'ok')
     w.advance(WINDOW + 1)
@@ -102,7 +103,7 @@ Deno.test('FR-004: pruning is driven by admit, not by a timer', () => {
     assertEquals(w.seen.size, 1, 'the stale entry went only when admit ran')
 })
 
-Deno.test('FR-004/SC-005: the store never exceeds its entry cap', () => {
+test('FR-004/SC-005: the store never exceeds its entry cap', () => {
     const { seen, now } = windowAt(1_000_000, 4)
     const realWarn = console.warn
     const warnings: string[] = []
@@ -121,7 +122,7 @@ Deno.test('FR-004/SC-005: the store never exceeds its entry cap', () => {
     }
 })
 
-Deno.test('FR-004: at the cap it is the OLDEST entry that goes, not the newest', () => {
+test('FR-004: at the cap it is the OLDEST entry that goes, not the newest', () => {
     const { seen, now } = windowAt(1_000_000, 2)
     const realWarn = console.warn
     console.warn = () => {}
@@ -232,7 +233,7 @@ function capturingWarn<T>(body: (lines: string[]) => T): T {
     }
 }
 
-Deno.test('#283: a noisy origin cannot crowd a quiet one out of the store', () => {
+test('#283: a noisy origin cannot crowd a quiet one out of the store', () => {
     // The whole point of a per-origin rule. Under drop-globally-oldest the
     // quiet origins are evicted FIRST — their entries are the oldest, and the
     // noisy origin's are the majority — so a single busy instance silently
@@ -256,7 +257,7 @@ Deno.test('#283: a noisy origin cannot crowd a quiet one out of the store', () =
     })
 })
 
-Deno.test('#283: drop-oldest is unchanged WITHIN the evicted origin', () => {
+test('#283: drop-oldest is unchanged WITHIN the evicted origin', () => {
     // The per-origin rule changes WHOSE entry goes, never which of that
     // origin's. Refuse-new would fail the control plane closed, which #272's
     // risk table rates as worse than one forgotten in-window nonce.
@@ -279,7 +280,7 @@ Deno.test('#283: drop-oldest is unchanged WITHIN the evicted origin', () => {
     })
 })
 
-Deno.test('#283: with every origin equal, eviction falls to the globally oldest', () => {
+test('#283: with every origin equal, eviction falls to the globally oldest', () => {
     // The degenerate case must behave exactly as it did before this change —
     // a new rule that alters the uncontended path is a regression wearing a
     // feature's clothes.
@@ -298,7 +299,7 @@ Deno.test('#283: with every origin equal, eviction falls to the globally oldest'
     })
 })
 
-Deno.test('#283: the per-origin ledger survives pruning, not just eviction', () => {
+test('#283: the per-origin ledger survives pruning, not just eviction', () => {
     // The defect this guards: `#prune` removes entries on the window boundary,
     // and if it did not decrement the ledger the counts would claim entries
     // that no longer exist. Eviction would then hunt for an entry belonging to
@@ -324,7 +325,7 @@ Deno.test('#283: the per-origin ledger survives pruning, not just eviction', () 
     })
 })
 
-Deno.test('#283: the at-cap warning re-arms instead of firing once per process', () => {
+test('#283: the at-cap warning re-arms instead of firing once per process', () => {
     // A boolean latch made "we were at the cap for ten seconds during a deploy"
     // and "we have been at the cap for a week" produce the same single line.
     const w = windowAt(1_000_000, 2)
@@ -350,7 +351,7 @@ Deno.test('#283: the at-cap warning re-arms instead of firing once per process',
     })
 })
 
-Deno.test('#283: a pruned origin must leave the ledger, or it skews the floor', () => {
+test('#283: a pruned origin must leave the ledger, or it skews the floor', () => {
     // The narrow half of the ledger invariant, and the one a coarser test
     // misses: `#prune` deleting from `#seen` WITHOUT going through `#forget`.
     //
@@ -389,7 +390,7 @@ Deno.test('#283: a pruned origin must leave the ledger, or it skews the floor', 
     })
 })
 
-Deno.test('#283: the shipped default cap is 10 000', () => {
+test('#283: the shipped default cap is 10 000', () => {
     // Pinned because it is the number the docs quote to operators sizing a
     // fleet, and nothing else in the suite would notice it changing.
     const { seen, now } = windowAt()
@@ -399,7 +400,7 @@ Deno.test('#283: the shipped default cap is 10 000', () => {
     assertEquals(seen.size, 10_000, 'and the ten-thousand-and-first evicts')
 })
 
-Deno.test('#283: the at-cap warning does NOT re-arm before its interval', () => {
+test('#283: the at-cap warning does NOT re-arm before its interval', () => {
     // The other half of the re-arm test. Without this, shortening the interval
     // to nothing — restoring the per-admission spam on the hot path — goes
     // unnoticed.
@@ -419,7 +420,7 @@ Deno.test('#283: the at-cap warning does NOT re-arm before its interval', () => 
     })
 })
 
-Deno.test('#283: at a REALISTIC cap, sustained load from one origin starves nobody', () => {
+test('#283: at a REALISTIC cap, sustained load from one origin starves nobody', () => {
     // Every other cap test here runs at `maxEntries <= 10`, which is small
     // enough that the arithmetic degenerates and a whole class of defect hides
     // below it. This one runs at the shipped default with a fleet-sized origin
@@ -479,7 +480,7 @@ Deno.test('#283: at a REALISTIC cap, sustained load from one origin starves nobo
     })
 })
 
-Deno.test('#283: the victim is the OLDEST over-share origin, not the biggest', () => {
+test('#283: the victim is the OLDEST over-share origin, not the biggest', () => {
     // The probe that separates the shipped rule from the one withdrawn before
     // it. Both evict "an origin that is over its share"; they disagree only
     // when MORE THAN ONE origin is over share and the heaviest is not the
@@ -517,7 +518,7 @@ Deno.test('#283: the victim is the OLDEST over-share origin, not the biggest', (
     })
 })
 
-Deno.test('#283: eviction orders by ARRIVAL, not by the frame’s own timestamp', () => {
+test('#283: eviction orders by ARRIVAL, not by the frame’s own timestamp', () => {
     // `seq` exists for exactly this, and nothing else tested it. The freshness
     // gate admits any `ts` within ±windowMs, so timestamps are NOT monotonic
     // across origins — two instances with skewed clocks produce frames whose
@@ -552,7 +553,7 @@ Deno.test('#283: eviction orders by ARRIVAL, not by the frame’s own timestamp'
     })
 })
 
-Deno.test('#283: heads are COMPARED, not taken in origin-discovery order', () => {
+test('#283: heads are COMPARED, not taken in origin-discovery order', () => {
     // The remaining way to get the victim wrong: iterate `#byOrigin` and take
     // the first origin found over its share. That agrees with comparing heads
     // in almost every arrangement, because origin-discovery order and head age
@@ -610,7 +611,7 @@ Deno.test('#283: heads are COMPARED, not taken in origin-discovery order', () =>
     })
 })
 
-Deno.test('#283: when every origin is exactly at its share, the NEWCOMER pays', () => {
+test('#283: when every origin is exactly at its share, the NEWCOMER pays', () => {
     // The one remaining path by which an origin under its share could lose an
     // entry to another's traffic. When the cap divides evenly and nobody is
     // over their share, there is no over-user to charge — and dropping the

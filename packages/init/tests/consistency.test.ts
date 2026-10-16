@@ -1,9 +1,10 @@
+import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { join, relative } from '@std/path'
 import { walk } from '@std/fs'
 import { BINARY_FILES, INIT_STUB_FILES } from '../mod.ts'
 
-Deno.test('Init Package - INIT_STUB_FILES should be complete', async () => {
+test('Init Package - INIT_STUB_FILES should be complete', async () => {
     const stubsDir = join(Deno.cwd(), 'packages/init/stubs/init')
     const foundFiles: string[] = []
 

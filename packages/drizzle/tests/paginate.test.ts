@@ -8,6 +8,7 @@
  * @module @lockness/drizzle/tests/paginate
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertThrows } from '@std/assert'
 import { eq, type SQL } from 'drizzle-orm'
 import { integer, pgTable, text } from 'drizzle-orm/pg-core'
@@ -92,7 +93,7 @@ function whereContains(node: unknown, target: unknown): boolean {
     return chunks.some((c) => whereContains(c, target))
 }
 
-Deno.test('encodeCursor/decodeCursor round-trip', () => {
+test('encodeCursor/decodeCursor round-trip', () => {
     assertEquals(decodeCursor(encodeCursor('id', 42)), {
         column: 'id',
         value: 42,
@@ -103,12 +104,12 @@ Deno.test('encodeCursor/decodeCursor round-trip', () => {
     })
 })
 
-Deno.test('decodeCursor rejects a malformed token', () => {
+test('decodeCursor rejects a malformed token', () => {
     assertThrows(() => decodeCursor('!!!not-base64!!!'))
     assertThrows(() => decodeCursor(btoa(JSON.stringify({ nope: 1 }))))
 })
 
-Deno.test('decodeCursor surfaces a typed 400 error, not an uncaught throw', () => {
+test('decodeCursor surfaces a typed 400 error, not an uncaught throw', () => {
     // A client-supplied garbage cursor is a 400, not a 500: the thrown error
     // is the framework-mapped MalformedCursorError carrying `status = 400`,
     // which the default error handler renders as a Bad Request.
@@ -125,7 +126,7 @@ Deno.test('decodeCursor surfaces a typed 400 error, not an uncaught throw', () =
     assertEquals(wrongShape.status, 400)
 })
 
-Deno.test('decodeCursor rejects a token minted for a different column', () => {
+test('decodeCursor rejects a token minted for a different column', () => {
     // A token forged/minted against another column must not be honoured when
     // the caller pages a different column (AC-1).
     const foreign = encodeCursor('email', 'a@b.co')
@@ -136,14 +137,14 @@ Deno.test('decodeCursor rejects a token minted for a different column', () => {
     assertEquals(err.status, 400)
 })
 
-Deno.test('decodeCursor accepts a token whose column matches the caller', () => {
+test('decodeCursor accepts a token whose column matches the caller', () => {
     assertEquals(decodeCursor(encodeCursor('id', 42), 'id'), {
         column: 'id',
         value: 42,
     })
 })
 
-Deno.test('offset paginate issues count + windowed query and shapes the envelope', async () => {
+test('offset paginate issues count + windowed query and shapes the envelope', async () => {
     const rows = [{ id: 16, owner: 'me', name: 'a' }, {
         id: 17,
         owner: 'me',
@@ -168,7 +169,7 @@ Deno.test('offset paginate issues count + windowed query and shapes the envelope
     assertEquals(records[1].offset, 15)
 })
 
-Deno.test('SC-005 offset — the caller filter reaches BOTH count and window', async () => {
+test('SC-005 offset — the caller filter reaches BOTH count and window', async () => {
     const filter = eq(users.owner, 'me')
     const { db, records } = fakeDb([[{ total: 3 }], []])
 
@@ -185,7 +186,7 @@ Deno.test('SC-005 offset — the caller filter reaches BOTH count and window', a
     assertEquals(records[1].where, filter, 'window must use the caller filter')
 })
 
-Deno.test('SC-005 cursor — cursor predicate is AND-composed with the caller filter, never replacing it', async () => {
+test('SC-005 cursor — cursor predicate is AND-composed with the caller filter, never replacing it', async () => {
     const filter = eq(users.owner, 'me')
     const cursor = encodeCursor('id', 30)
     const { db, records } = fakeDb([[]])
@@ -219,7 +220,7 @@ Deno.test('SC-005 cursor — cursor predicate is AND-composed with the caller fi
     assertEquals(records[0].limit, 11) // perPage + 1 to detect hasMore
 })
 
-Deno.test('cursor paginate — hasMore, opaque nextCursor, trimmed data', async () => {
+test('cursor paginate — hasMore, opaque nextCursor, trimmed data', async () => {
     // 3 rows for perPage 2 → hasMore, trimmed to 2, nextCursor from row 2.
     const fetched = [{ id: 1, owner: 'me', name: 'a' }, {
         id: 2,
@@ -248,7 +249,7 @@ Deno.test('cursor paginate — hasMore, opaque nextCursor, trimmed data', async 
     assertEquals(env.meta.nextCursor !== '2', true)
 })
 
-Deno.test('cursor paginate — first page has no incoming cursor, so no prev query and prevCursor is null (#252)', async () => {
+test('cursor paginate — first page has no incoming cursor, so no prev query and prevCursor is null (#252)', async () => {
     // The first page is reached without a cursor: there is no page before it,
     // and the driver must NOT waste a reverse-order query establishing that.
     const fetched = [{ id: 1, owner: 'me', name: 'a' }, {
@@ -276,7 +277,7 @@ Deno.test('cursor paginate — first page has no incoming cursor, so no prev que
     assertEquals(records.length, 1)
 })
 
-Deno.test('cursor paginate (asc) — prevCursor is a GENUINE previous page from a reverse query, not the incoming token (#252)', async () => {
+test('cursor paginate (asc) — prevCursor is a GENUINE previous page from a reverse query, not the incoming token (#252)', async () => {
     // Page 3 of an ascending feed, reached with the cursor minted on page 2.
     const cursor = encodeCursor('id', 20)
     // Forward page (perPage + 1 → hasMore): ids 21,22,(23).
@@ -315,7 +316,7 @@ Deno.test('cursor paginate (asc) — prevCursor is a GENUINE previous page from 
     assertEquals(records[1].limit, 3) // perPage + 1
 })
 
-Deno.test('cursor paginate — navigating backward from page N returns page N-1 rows in the correct (caller) order (#252)', async () => {
+test('cursor paginate — navigating backward from page N returns page N-1 rows in the correct (caller) order (#252)', async () => {
     // Page 3 first, to obtain its prevCursor.
     const page3Forward = [{ id: 21 }, { id: 22 }, { id: 23 }]
     const page3Reverse = [{ id: 20 }, { id: 19 }, { id: 18 }]
@@ -349,7 +350,7 @@ Deno.test('cursor paginate — navigating backward from page N returns page N-1 
     assertEquals(page2.data, [{ id: 19 }, { id: 20 }])
 })
 
-Deno.test('cursor paginate (desc) — reverse-order prev query mints a genuine descending previous page (#252)', async () => {
+test('cursor paginate (desc) — reverse-order prev query mints a genuine descending previous page (#252)', async () => {
     // Descending feed, page reached with cursor id 80.
     const cursor = encodeCursor('id', 80)
     // Forward DESC page (`id < 80`): 79,78,(77) → data 79,78.
@@ -380,7 +381,7 @@ Deno.test('cursor paginate (desc) — reverse-order prev query mints a genuine d
     assertEquals(records.length, 2)
 })
 
-Deno.test('cursor paginate — start edge: a short reverse page yields prevCursor null (#252)', async () => {
+test('cursor paginate — start edge: a short reverse page yields prevCursor null (#252)', async () => {
     // Page 2 with cursor id 10. The reverse query bounded by first row id 11
     // (`id < 11` DESC, perPage + 1) returns FEWER than perPage + 1 rows — the
     // previous page reaches the very start — so there is no boundary token and

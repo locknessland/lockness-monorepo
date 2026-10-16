@@ -39,6 +39,7 @@
  * @module @lockness/realtime/tests/presence_member_id_type_346
  */
 
+import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import { ChannelManager, type SubscribeResult } from '../manager.ts'
 import { PresenceMemberIdError } from '../presence_member.ts'
@@ -275,7 +276,7 @@ const CAROL = 3
 
 for (const [pathName, makePath] of PATHS) {
     for (const [idName, id, fragment] of COLLAPSING) {
-        Deno.test(`#346 (a) ${pathName}: two people with a ${idName} member id are each refused, and writes(), presence, connections, roster and frames stay empty`, async () => {
+        test(`#346 (a) ${pathName}: two people with a ${idName} member id are each refused, and writes(), presence, connections, roster and frames stay empty`, async () => {
             const path = makePath(
                 ((identity: User | null) => ({
                     id: identity?.id === CAROL ? 'carol' : id(),
@@ -357,7 +358,7 @@ const ACCEPTED: ReadonlyArray<readonly [string, string | number]> = [
 ]
 
 for (const [name, id] of ACCEPTED) {
-    Deno.test(`#346 (b) ${name} member id joins`, async () => {
+    test(`#346 (b) ${name} member id joins`, async () => {
         const driver = new MemoryBroadcastDriver()
         const m = new ChannelManager<User>({
             driver,
@@ -375,7 +376,7 @@ for (const [name, id] of ACCEPTED) {
     })
 }
 
-Deno.test('#346 (b) the framework path — authorize() returning true — joins as the connection id', async () => {
+test('#346 (b) the framework path — authorize() returning true — joins as the connection id', async () => {
     const driver = new MemoryBroadcastDriver()
     const m = new ChannelManager<User>({ driver, authorize: () => true })
     const c1 = conn('c1', 1)
@@ -387,7 +388,7 @@ Deno.test('#346 (b) the framework path — authorize() returning true — joins 
     )
 })
 
-Deno.test('#346 (b) -0 and 0 are one member, as String(id) keys them', async () => {
+test('#346 (b) -0 and 0 are one member, as String(id) keys them', async () => {
     const driver = new MemoryBroadcastDriver()
     const ids = [-0, 0]
     const m = new ChannelManager<User>({
@@ -437,7 +438,7 @@ const REFUSED: ReadonlyArray<readonly [string, () => unknown, string]> = [
 ]
 
 for (const [name, id, fragment] of REFUSED) {
-    Deno.test(`#346 (b) ${name} member id is refused with PresenceMemberIdError`, async () => {
+    test(`#346 (b) ${name} member id is refused with PresenceMemberIdError`, async () => {
         const driver = new MemoryBroadcastDriver()
         const m = new ChannelManager<User>({
             driver,
@@ -479,7 +480,7 @@ function twoInstances() {
     }
 }
 
-Deno.test('#346 (c) frame ingest: a numeric id joined on one instance is announced on the other', async () => {
+test('#346 (c) frame ingest: a numeric id joined on one instance is announced on the other', async () => {
     const { a, b, close } = twoInstances()
     try {
         const authorize: Authorizer<User> = (identity) => ({
@@ -507,7 +508,7 @@ Deno.test('#346 (c) frame ingest: a numeric id joined on one instance is announc
     }
 })
 
-Deno.test('#346 (c) roster read: a numeric id written by one instance is read by the other', async () => {
+test('#346 (c) roster read: a numeric id written by one instance is read by the other', async () => {
     const { a, b, close } = twoInstances()
     try {
         const authorize: Authorizer<User> = (identity) => ({
@@ -555,7 +556,7 @@ const WIRE_VALUES: ReadonlyArray<readonly [string, unknown]> = [
     ['a nested object', { id: 'u1' }],
 ]
 
-Deno.test('#346 (c) the join boundary, the frame ingest and the roster read accept exactly one set', async () => {
+test('#346 (c) the join boundary, the frame ingest and the roster read accept exactly one set', async () => {
     const { a, b, close } = twoInstances()
     try {
         const ingested: ControlMessage[] = []
@@ -604,7 +605,7 @@ Deno.test('#346 (c) the join boundary, the frame ingest and the roster read acce
 
 // --- (d) no echo -------------------------------------------------------------
 
-Deno.test('#346 (d) the message names an object id by type and never echoes it', async () => {
+test('#346 (d) the message names an object id by type and never echoes it', async () => {
     const m = new ChannelManager<User>({
         driver: new MemoryBroadcastDriver(),
         authorize: returningId(() => ({ email: 'sentinel-346@example.com' })),

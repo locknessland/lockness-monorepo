@@ -17,6 +17,7 @@
  * @module @lockness/markdown/tests/codeblock_html_allowlist
  */
 
+import { test } from 'node:test'
 import { assertEquals, assertStringIncludes } from '@std/assert'
 import { Renderer } from '@libs/markdown'
 import gfm from '@libs/markdown/plugins/gfm'
@@ -69,7 +70,7 @@ function codeBlock(inner: string, lang = 'js'): string {
     return `<pre><code class="hljs language-${lang}">${inner}</code></pre>`
 }
 
-Deno.test('CodeBlock html allowlist — dangerous markup neutralised at AST (US1)', () => {
+test('CodeBlock html allowlist — dangerous markup neutralised at AST (US1)', () => {
     const vectors: Array<[string, string]> = [
         ['raw script tag', '<script>alert(1)</script>'],
         ['img onerror', '<img src=x onerror=alert(1)>'],
@@ -100,7 +101,7 @@ Deno.test('CodeBlock html allowlist — dangerous markup neutralised at AST (US1
     }
 })
 
-Deno.test('CodeBlock html allowlist — no element reaches the sink DOM (US1, SC-001)', () => {
+test('CodeBlock html allowlist — no element reaches the sink DOM (US1, SC-001)', () => {
     for (
         const inner of [
             '<script>alert(1)</script>',
@@ -121,7 +122,7 @@ Deno.test('CodeBlock html allowlist — no element reaches the sink DOM (US1, SC
     }
 })
 
-Deno.test('CodeBlock html allowlist — highlighter structure preserved (US2, SC-002)', () => {
+test('CodeBlock html allowlist — highlighter structure preserved (US2, SC-002)', () => {
     // Pure hljs output with no literal angle brackets in text → byte-identical.
     const pure = '<span class="hljs-title function_">alert</span>(' +
         '<span class="hljs-number">1</span>)'
@@ -148,7 +149,7 @@ Deno.test('CodeBlock html allowlist — highlighter structure preserved (US2, SC
     )
 })
 
-Deno.test('CodeBlock html allowlist — guarantee holds at the public parse entry (US3, SC-003)', () => {
+test('CodeBlock html allowlist — guarantee holds at the public parse entry (US3, SC-003)', () => {
     // A hand-crafted string fed straight to the public parseHtmlToAst, bypassing
     // @libs/markdown entirely: raw, unescaped disallowed markup must still be
     // neutralised (defense-in-depth, independent of the engine).
@@ -172,7 +173,7 @@ Deno.test('CodeBlock html allowlist — guarantee holds at the public parse entr
     }
 })
 
-Deno.test('CodeBlock html allowlist — existing entities are never double-escaped (FR-003)', () => {
+test('CodeBlock html allowlist — existing entities are never double-escaped (FR-003)', () => {
     // The sanitiser touches only literal `<`/`>`; it must leave `&…;` alone, so
     // engine-escaped content round-trips unchanged. A regression that escaped
     // `&` would corrupt every highlighted block — this is the witness for it.
@@ -183,7 +184,7 @@ Deno.test('CodeBlock html allowlist — existing entities are never double-escap
     )
 })
 
-Deno.test('CodeBlock html allowlist — obfuscation near-misses neutralised (US1, exact output)', () => {
+test('CodeBlock html allowlist — obfuscation near-misses neutralised (US1, exact output)', () => {
     // Whitespace/quote variants that a loose matcher might re-admit. Each opening
     // `<` is escaped; a WELL-FORMED trailing `</span>` is still allowlisted.
     // Assertions are exact strings (not just a lookahead) to pin the behaviour.
@@ -213,12 +214,12 @@ Deno.test('CodeBlock html allowlist — obfuscation near-misses neutralised (US1
     )
 })
 
-Deno.test('CodeBlock html allowlist — empty and whitespace-only blocks pass through (edge cases)', () => {
+test('CodeBlock html allowlist — empty and whitespace-only blocks pass through (edge cases)', () => {
     assertEquals(firstCodeBlockHtml(parseHtmlToAst(codeBlock(''))), '')
     assertEquals(firstCodeBlockHtml(parseHtmlToAst(codeBlock('   '))), '   ')
 })
 
-Deno.test('CodeBlock html allowlist — real multiline highlighter output preserved (US2, SC-002)', async () => {
+test('CodeBlock html allowlist — real multiline highlighter output preserved (US2, SC-002)', async () => {
     // The most faithful fidelity check: run the ACTUAL @libs/markdown engine over
     // a multiline block, then assert the highlighter spans survive the parser's
     // sanitiser intact and no non-span `<` reaches the field.

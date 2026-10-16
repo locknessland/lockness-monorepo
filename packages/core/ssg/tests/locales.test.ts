@@ -12,6 +12,7 @@
  * @module @lockness/core/ssg/tests/locales
  */
 
+import { test } from 'node:test'
 import { assertEquals, assertThrows } from '@std/assert'
 import { resolve } from '@std/path'
 import { expandTargetsForLocales } from '../locales.ts'
@@ -31,13 +32,13 @@ const t = (url: string): RenderTarget => ({
     action: 'a',
 })
 
-Deno.test('locales - no ssg.locales configured returns targets unchanged (root-only)', () => {
+test('locales - no ssg.locales configured returns targets unchanged (root-only)', () => {
     const cfg: KernelConfig = {}
     const targets = [t('/'), t('/docs')]
     assertEquals(expandTargetsForLocales(targets, cfg, DIST), targets)
 })
 
-Deno.test('locales - emits root + one variant per curated locale', () => {
+test('locales - emits root + one variant per curated locale', () => {
     const cfg: KernelConfig = {
         mountPoint: { pattern: MOUNT },
         ssg: { locales: ['en-us', 'fr-ca'] },
@@ -50,7 +51,7 @@ Deno.test('locales - emits root + one variant per curated locale', () => {
     ])
 })
 
-Deno.test('locales - the root target localizes without a trailing slash', () => {
+test('locales - the root target localizes without a trailing slash', () => {
     const cfg: KernelConfig = {
         mountPoint: { pattern: MOUNT },
         ssg: { locales: ['en-us'] },
@@ -59,7 +60,7 @@ Deno.test('locales - the root target localizes without a trailing slash', () => 
     assertEquals(out.map((x) => x.url).sort(), ['/', '/en/us'])
 })
 
-Deno.test('locales - a two-entry list yields 3 files for one route, never the 25-product (SC-004)', () => {
+test('locales - a two-entry list yields 3 files for one route, never the 25-product (SC-004)', () => {
     const cfg: KernelConfig = {
         mountPoint: { pattern: MOUNT },
         ssg: { locales: ['en-us', 'fr-ca'] },
@@ -68,7 +69,7 @@ Deno.test('locales - a two-entry list yields 3 files for one route, never the 25
     assertEquals(out.length, 3)
 })
 
-Deno.test('locales - a locale the mount constraint rejects aborts', () => {
+test('locales - a locale the mount constraint rejects aborts', () => {
     const cfg: KernelConfig = {
         mountPoint: { pattern: MOUNT },
         ssg: { locales: ['xx-zz'] },
@@ -80,7 +81,7 @@ Deno.test('locales - a locale the mount constraint rejects aborts', () => {
     )
 })
 
-Deno.test('locales - a locale with the wrong segment count aborts', () => {
+test('locales - a locale with the wrong segment count aborts', () => {
     const cfg: KernelConfig = {
         mountPoint: { pattern: MOUNT },
         ssg: { locales: ['en'] },
@@ -88,7 +89,7 @@ Deno.test('locales - a locale with the wrong segment count aborts', () => {
     assertThrows(() => expandTargetsForLocales([t('/docs')], cfg, DIST), Error)
 })
 
-Deno.test('locales - locales configured but no mountPoint aborts', () => {
+test('locales - locales configured but no mountPoint aborts', () => {
     const cfg: KernelConfig = { ssg: { locales: ['en-us'] } }
     assertThrows(
         () => expandTargetsForLocales([t('/docs')], cfg, DIST),

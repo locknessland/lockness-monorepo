@@ -1,3 +1,4 @@
+import { test } from 'node:test'
 import { assertStringIncludes } from '@std/assert'
 import { Modal, ModalClose, ModalTrigger } from '../components/Modal/mod.tsx'
 
@@ -6,8 +7,8 @@ function renderToString(component: unknown): string {
     return (component as { toString: () => string }).toString()
 }
 
-Deno.test('Modal', async (t) => {
-    await t.step(
+test('Modal', async (t) => {
+    await t.test(
         'renders a <dialog> that self-dismisses on backdrop click',
         () => {
             const html = renderToString(<Modal id='my-modal'>Body</Modal>)
@@ -18,7 +19,7 @@ Deno.test('Modal', async (t) => {
         },
     )
 
-    await t.step(
+    await t.test(
         'native ModalTrigger wires showModal() to the target id',
         () => {
             const html = renderToString(
@@ -31,7 +32,7 @@ Deno.test('Modal', async (t) => {
         },
     )
 
-    await t.step('href ModalTrigger switches to an Unpoly layer', () => {
+    await t.test('href ModalTrigger switches to an Unpoly layer', () => {
         const html = renderToString(
             <ModalTrigger href='/modal-content'>Open</ModalTrigger>,
         )
@@ -40,7 +41,7 @@ Deno.test('Modal', async (t) => {
         assertStringIncludes(html, 'href="/modal-content"')
     })
 
-    await t.step('ModalClose closes the nearest dialog', () => {
+    await t.test('ModalClose closes the nearest dialog', () => {
         const html = renderToString(<ModalClose>Done</ModalClose>)
         assertStringIncludes(html, 'this.closest(') // dialog selector is HTML-escaped
         assertStringIncludes(html, '.close()')
