@@ -312,6 +312,11 @@ user-facing doc.
   `@Service`, `@Inject`, lifetimes. Injection is lazy, so services may hold each
   other; only a constructor cycle is a fault, and it raises
   `CircularDependencyError`.
+- [`@lockness/runtime`](packages/runtime/AGENTS.md) — What differs between Deno,
+  Bun and Node, decided once: the one runtime detector, the argv that runs a
+  script or an npm bin on a runtime (no shell), and the shutdown-signal
+  primitive. It never imports `contract`, which reaches its detector subpath
+  only (a recorded exception to contract's type-only rule).
 
 **Framework**
 
