@@ -168,7 +168,9 @@ first. "Asks" names a caller that consults the decision without making it.
 | Process exit | existing owners `packages/core/kernel/signals.ts`, `packages/core/http/server.ts`, `packages/cli/report.ts` | `process.exit` / `process.exitCode` elsewhere |
 | Binary compiler per runtime (Deno, Bun; Node refuses) | `packages/core/cli/compilers/{deno,bun,node}.ts`, reached only through core's registered `compile` command | a second `deno compile` / `bun build --compile`; any `@lockness/core` import from `packages/cli` |
 | `--force` port release reaches the server as config, not argv | `ServerListenerConfig.forceReleasePort` in `packages/core/http/server.ts` | `process.argv.includes('--force')` in a library class |
-| Safe env read (no throw, no permission prompt; asks the detector, then Deno's permission query before reading) | `packages/contract/environment_read.ts` | `cli/raw_errors.ts:79` `readEnvWithoutPrompt` (absorbed); try/catch around `process.env`; a runtime test inside contract |
+| Safe env read: never throws on a missing permission, never prompts, and keeps *unreadable* distinct from *unset* (`EnvRead = { readable: true, value } \| { readable: false }`; `NotCapable` after a granted query is unreadable). Asks the detector (C13), then Deno's permission query before reading; on Bun/Node every variable is readable. `readEnvVar` is the lossy projection (unreadable reads as unset) for opt-in switches that are off when unreadable (`LOCKNESS_CLI_RAW_ERRORS`, `LOCKNESS_DEVTOOLS`); `readAppEnv` is the one normalised `APP_ENV` read | `packages/contract/environment_read.ts` | `cli/raw_errors.ts:79` `readEnvWithoutPrompt` (absorbed); `devtools/gate.ts:43` `Deno.env.get('LOCKNESS_DEVTOOLS')` (absorbed, #624); try/catch around `process.env`; a runtime test inside contract; an `isEnvReadable(name)` second permission query; `readEnvVar` used for a value whose unreadable state must fail closed |
+| An unreadable `APP_ENV` is a production risk; an unset one is not (absence is never production). The framework guards that protect production fail closed on it: drizzle's `assertNotProduction` (overridden by `--allow-production` only, after the `DENO_ENV` tripwire), the cookie-session no-secret boot refusal, the mail-preview block. `isProduction()` / `isExplicitlyDevelopment()` / `resolveEnvName()` keep their meaning (unreadable reads as absent) | `packages/contract/environment_guard.ts` (`productionRisk()`, `UNREADABLE_APP_ENV`; entry `./environment/guard/internal`), asked by `drizzle/production_guard.ts`, `core/kernel/bootstrap/steps/session.ts`, `mail/preview.ts`, `core/kernel/bootstrap/steps/environment.ts` | `isProduction()` as a production guard in framework code; `\|\| !isEnvReadable('APP_ENV')` composed at a guard; `isProduction()` made true on an unreadable `APP_ENV`; the rule exported from contract's root (it reaches apps through core's `export *`) |
+| One boot warning when `APP_ENV` is unreadable, none when it is readable (set or unset), printed before the `DENO_ENV` tripwire acts | `packages/core/kernel/bootstrap/steps/environment.ts` (order 1; text from `UNREADABLE_APP_ENV`) | a second warning in the session step, drizzle, mail or devtools; a warning at contract import time |
 | "Optional module is missing" classifier — duck-typed on `code === 'ERR_MODULE_NOT_FOUND'` and the specifier in `message`, never `instanceof` | new internal module in `packages/contract/` | `core/kernel/bootstrap/optional_packages.ts:144`, `mail/optional.ts:54`, `notification/optional.ts:110`, `realtime/events_bridge.ts:76` (all four replaced) |
 | Sorted recursive file listing | `packages/contract/fs/list_files.ts` | hand-written `readdir` recursion in core, devtools or ui; any unsorted walk |
 | Published runtime code uses no `@std/*` (`@std/path` → `node:path` + `node:url` for `fromFileUrl`/`toFileUrl`; `globToRegExp` reimplemented in `list_files.ts`; `@std/jsonc` → one parser in `packages/cli/manifest/`; `@std/cli` → `node:util` `parseArgs`; `@std/crypto`/`@std/encoding` → `node:crypto` / web standards); `lockness.jsr` lists exactly the runtime JSR imports this row has not yet removed, and the change that empties it workspace-wide deletes the field from `scripts/manifests.ts`. Checked on every non-private package whose `engines` names bun or node (row 201), each with an empty `lockness.jsr`; packages outside it keep only the imports their `lockness.jsr` lists and add none (hard rule #2, transition paragraph). | `scripts/npm_check.ts` (closure rule) | an `@std/fs` ban in the lint as well; per-package exceptions (a package in that set exempted by name, or a list of packages excused from the check) |
@@ -332,7 +334,9 @@ key) and #585 (lockness.land off Deno Deploy) stay separate items; #586 uses `ru
   API across runtimes); *lane* (one runtime's CI test job); *proven runtime* (a runtime listed in a
   package's `engines`); *invocation* (the argv that runs a script or bin on a runtime); *toolchain*
   (per-runtime package-manager commands); *project manifest* (`deno.json` or `package.json` of an
-  app); *command contribution* (a package's typed `commands` entry).
+  app); *command contribution* (a package's typed `commands` entry); *unreadable* (the runtime
+  refuses to show a variable: Deno without the env grant; never on Bun/Node), distinct from
+  *unset*.
 - **Entities**: *Package* — identified by its name; owns its manifest, its `engines` and its version
   (lockstep). *App project* — identified by its root directory; owns one selected manifest.
 - **Value objects**: `RuntimeId`, `Invocation`, `EnginesSet`, `KvKey` (encoded tuple), `KvEntry`
@@ -346,6 +350,8 @@ key) and #585 (lockness.land off Deno Deploy) stay separate items; #586 uses `ru
   - Every `@lockness/*` in development resolves to a workspace member.
   - A KV read never returns an expired entry; KV key encoding is injective.
   - id-token permission exists only in the publish jobs.
+  - A guard that protects production treats an unreadable `APP_ENV` as possibly production; a
+    dev-only surface treats it as not development.
 - **Out of scope**: Cloudflare Workers as a target; Windows CI; Node single-file binaries (Q3,
   follow-up item); moving the monorepo toolchain off Deno before the B4 trigger.
 
@@ -520,6 +526,7 @@ serve-static advisories on Bun/Node; npm trusted publishing before a first versi
 | Q2 | Hard rule #2 rewording (§7 complexity tracking): accept the proposed text? | **Accepted** as written; AGENTS.md and the constitution mirror change in P1, before the first npm dependency lands. | 2026-10-16 |
 | Q3 | Node single-file binaries: refuse in this epic and track Node SEA as a gated follow-up, or bring experimental Node SEA into the epic? | **Out of the epic**: Node refuses with a clear error; Node SEA is a follow-up item gated on SEA's stability. | 2026-10-16 |
 | Q4 | Rename `@lockness/init` to `@lockness/create`, so apps start with `npm create @lockness` / `bun create @lockness` / `deno run -A jsr:@lockness/create`? | **Yes**, `@lockness/create`. | 2026-10-16 |
+| Q5 | Public fail-closed production predicate for apps? | **No**, `productionRisk()` stays internal (`./environment/guard/internal`); apps keep `isProduction()` plus the boot warning. Decided 2026-10-16. | 2026-10-16 |
 
 ### Already settled by the maintainer (2026-10-16)
 
