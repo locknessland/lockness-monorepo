@@ -1,8 +1,8 @@
 import { Factory } from '@lockness/drizzle'
 // The framework's Factory base is faker-agnostic — faker is your app's
 // dependency, imported here. `@faker-js/faker` is npm because no maintained
-// JSR faker exists (the jsr:@faker-js/faker slot is an empty placeholder);
-// this is the justified hard-rule-#2 exception. Add it with:
+// JSR faker exists (the jsr:@faker-js/faker slot is an empty placeholder).
+// Add it with:
 //   deno add npm:@faker-js/faker
 import { faker } from '@faker-js/faker'
 // TODO: import your model's table + insert type, e.g.

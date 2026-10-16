@@ -5,8 +5,8 @@
  * Optional and soft-loaded by `@lockness/core` (like devtools). The app opts in
  * at runtime with `OTEL_DENO=1` and points `OTEL_EXPORTER_OTLP_ENDPOINT` at its
  * backend; the framework ships **no exporter and no SDK** — only
- * `@opentelemetry/api` (a hard-rule-#2 exception: there is no JSR equivalent of
- * the vendor-neutral OTel API). With `OTEL_DENO` unset the middleware no-ops.
+ * `@opentelemetry/api`, from npm: there is no JSR equivalent of the
+ * vendor-neutral OTel API. With `OTEL_DENO` unset the middleware no-ops.
  *
  * @module @lockness/telemetry
  *

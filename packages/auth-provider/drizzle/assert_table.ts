@@ -11,7 +11,7 @@
  * @internal
  */
 
-// Hard-rule-#2 exception: drizzle-orm is not published on JSR. The range
+// From npm: drizzle-orm is not published on JSR. The range
 // matches `@lockness/drizzle` and the kits, so an app resolves one copy.
 import { type AnyColumn, Column, is, Table } from 'drizzle-orm'
 

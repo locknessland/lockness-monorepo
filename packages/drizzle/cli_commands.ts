@@ -164,8 +164,8 @@ type SeederConstructor = new () => { run(): Promise<void> }
 
 /**
  * Drizzle Kit CLI command base, as a person types it: the fallback a kit-only
- * `db:migrate` refusal names. The `npm:` specifier is a hard-rule-2 exception,
- * pinned exactly — see {@link DRIZZLE_KIT_SPECIFIER} (#437).
+ * `db:migrate` refusal names. drizzle-kit comes from npm (it has no JSR
+ * build), pinned exactly — see {@link DRIZZLE_KIT_SPECIFIER} (#437).
  */
 const DRIZZLE_KIT_ARGS = ['run', '-A', DRIZZLE_KIT_SPECIFIER] as const
 

@@ -15,8 +15,8 @@
 
 import { test } from 'node:test'
 import { assertEquals, assertStrictEquals } from '@std/assert'
-// A hard-rule-#2 exception, the same one `meter.ts` documents: there is no
-// JSR mirror of the OpenTelemetry API, and `createNoopMeter` is the one way
+// From npm, as `meter.ts` documents: there is no JSR mirror of the
+// OpenTelemetry API, and `createNoopMeter` is the one way
 // to name the singleton `getMeter` falls back to.
 import { createNoopMeter } from '@opentelemetry/api'
 import { getMeter } from '../mod.ts'
