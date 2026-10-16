@@ -178,7 +178,11 @@ async function inventory(
         for await (const entry of Deno.readDir(dir)) {
             const path = join(dir, entry.name)
             if (entry.isDirectory) {
-                if (entry.name === 'node_modules' || entry.name === 'docs') {
+                // dist/ is the gitignored npm build output (#595), never source.
+                if (
+                    entry.name === 'node_modules' || entry.name === 'docs' ||
+                    entry.name === 'dist'
+                ) {
                     continue
                 }
                 await walk(path)
