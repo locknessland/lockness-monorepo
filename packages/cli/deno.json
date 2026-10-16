@@ -34,6 +34,7 @@
         "@lockness/mail": "jsr:@lockness/mail@^0.4.0",
         "@lockness/notification": "jsr:@lockness/notification@^0.4.0",
         "@lockness/openapi": "jsr:@lockness/openapi@^0.4.0",
+        "@lockness/queue": "jsr:@lockness/queue@^0.4.0",
         "@lockness/search": "jsr:@lockness/search@^0.4.0"
     }
 }

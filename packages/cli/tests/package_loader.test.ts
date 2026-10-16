@@ -1,11 +1,19 @@
 /**
- * @fileoverview Tests for `addPackage` and `removePackage`, which record a
+ * @fileoverview Tests for the package loader: `addPackage` and `removePackage`,
+ * which record a
  * package in, and drop it from, the project's `lockness.packages` list.
  */
 
 import { test } from 'node:test'
 import { assertEquals, assertInstanceOf, assertRejects } from '@std/assert'
-import { addPackage, packagesToLoad, removePackage } from '../package_loader.ts'
+import * as queueRoot from '@lockness/queue'
+import {
+    addPackage,
+    findRegisterFunction,
+    loadFailureSource,
+    packagesToLoad,
+    removePackage,
+} from '../package_loader.ts'
 import { inTempDir } from './helpers.ts'
 
 async function inProject<T>(
@@ -84,7 +92,7 @@ test('packagesToLoad - core first, then the packages lockness.packages lists', (
     assertEquals(packagesToLoad({}), ['core'])
 })
 
-test('packagesToLoad - an app that maps @lockness/queue gets the queue:* commands (#592)', () => {
+test('packagesToLoad - adds queue to the load list when the app maps @lockness/queue (#592)', () => {
     // The adapter that keeps queue:work where it was when the commands moved
     // out of @lockness/cli; config/packages.ts replaces it (plan 274, C19).
     assertEquals(
@@ -112,4 +120,44 @@ test('packagesToLoad - queue is never loaded twice, nor without the mapping', ()
     assertEquals(packagesToLoad({ imports: { '@lockness/cache': 'x' } }), [
         'core',
     ])
+})
+
+test("findRegisterFunction - picks registerQueueCommands from @lockness/queue's root (#592)", () => {
+    // The other half of the queue adapter: once queue is in the load list,
+    // the name scan must find its commands on the package root.
+    assertEquals(typeof queueRoot.registerQueueCommands, 'function')
+    assertEquals(
+        findRegisterFunction(queueRoot),
+        queueRoot.registerQueueCommands,
+    )
+})
+
+test('findRegisterFunction - only a function with a register…Command(s) name', () => {
+    const registerThings = () => {}
+    const registerDemoCommands = () => {}
+    assertEquals(findRegisterFunction({ registerThings }), undefined)
+    assertEquals(
+        findRegisterFunction({ registerDemoCommands: 'not a function' }),
+        undefined,
+    )
+    assertEquals(
+        findRegisterFunction({ registerThings, registerDemoCommands }),
+        registerDemoCommands,
+    )
+})
+
+test('loadFailureSource - names where the loader found the package', () => {
+    const imports = { '@lockness/queue': 'jsr:@lockness/queue@^0.4.0' }
+    const listed = loadFailureSource('drizzle', {
+        lockness: { packages: ['drizzle'] },
+    })
+    assertEquals(listed.reason.includes('"lockness.packages"'), true)
+    assertEquals(listed.fix.includes('package:remove drizzle'), true)
+
+    const mapped = loadFailureSource('queue', { imports })
+    assertEquals(mapped.reason.includes('mapped in "imports"'), true)
+    assertEquals(mapped.fix.includes('"@lockness/queue"'), true)
+
+    const core = loadFailureSource('core', {})
+    assertEquals(core.reason.includes('always loaded'), true)
 })

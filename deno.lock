@@ -4613,6 +4613,7 @@
           "jsr:@lockness/mail@0.4",
           "jsr:@lockness/notification@0.4",
           "jsr:@lockness/openapi@0.4",
+          "jsr:@lockness/queue@0.4",
           "jsr:@lockness/search@0.4",
           "jsr:@std/assert@1",
           "jsr:@std/fs@1",
@@ -4631,6 +4632,7 @@
             "npm:@lockness/mail@0.4",
             "npm:@lockness/notification@0.4",
             "npm:@lockness/openapi@0.4",
+            "npm:@lockness/queue@0.4",
             "npm:@lockness/search@0.4"
           ]
         }

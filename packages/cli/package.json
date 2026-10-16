@@ -42,7 +42,8 @@
         "@lockness/notification": "^0.4.0",
         "@lockness/openapi": "^0.4.0",
         "@lockness/search": "^0.4.0",
-        "@lockness/container": "^0.4.0"
+        "@lockness/container": "^0.4.0",
+        "@lockness/queue": "^0.4.0"
     },
     "lockness": {
         "jsr": {
@@ -59,6 +60,7 @@
             "@lockness/mail": "@lockness/mail",
             "@lockness/notification": "@lockness/notification",
             "@lockness/openapi": "@lockness/openapi",
+            "@lockness/queue": "@lockness/queue",
             "@lockness/search": "@lockness/search"
         },
         "publish": {
