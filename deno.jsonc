@@ -33,6 +33,10 @@
         // to create and drop the `lockness_fresh_mysql*` and
         // `lockness_status_mysql` databases.
         "test:mysql": "LOCKNESS_MYSQL_INTEGRATION=1 deno test -A packages/drizzle/tests/fresh_mysql_live.test.ts packages/drizzle/tests/status_mysql_live.test.ts",
+        // One runtime's lane (#594): every package whose package.json
+        // `engines` names the runtime. `--runtime=deno|bun|node`, optional
+        // `--package=<pkg>`. The how lives in scripts/test_runtime.ts only.
+        "test:runtime": "deno run -A scripts/test_runtime.ts",
         "test:coverage": "rm -rf coverage && deno test -A --coverage=coverage packages/ app/ && deno coverage coverage --lcov > coverage/lcov.info && deno coverage coverage",
         "coverage:floor": "deno run -A scripts/coverage_floor.ts --check",
         "coverage:floor:update": "deno run -A scripts/coverage_floor.ts --update",

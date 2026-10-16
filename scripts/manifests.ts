@@ -665,13 +665,21 @@ export interface Member {
 }
 
 /**
- * Read every member's `package.json`.
+ * Read every member's `package.json` — the one reader of the workspace's
+ * manifests, shared by the generator and by `scripts/test_runtime.ts`, which
+ * selects the packages a runtime lane runs from their `engines`.
  *
  * @param root - The workspace root.
  * @returns The members, in workspace order.
  * @throws {Error} When a member has no readable `package.json`.
+ *
+ * @example
+ * ```ts
+ * const members = await readMembers('.')
+ * members.filter((m) => m.pkg.engines?.node !== undefined).map((m) => m.dir)
+ * ```
  */
-async function readMembers(root: string): Promise<Member[]> {
+export async function readMembers(root: string): Promise<Member[]> {
     const members: Member[] = []
     for (const dir of await readWorkspaceMembers(root)) {
         const path = join(root, dir, 'package.json')
