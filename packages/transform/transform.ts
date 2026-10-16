@@ -3,15 +3,29 @@
  * it themselves: TypeScript 6 `transpileModule`, with the compiler options of
  * the app's `tsconfig.json`.
  *
- * The app's `tsconfig.json` is the single home of the options that shape user
- * code — the decorator lowering (through `target`) and the JSX emit (plan 274
- * §5, audit A10). This module reads them and spells none of them. The Node
- * load hook (`register.ts`) calls {@link transpile} per file; `lockness build`
- * reuses the same function, so development and production emit the same code.
+ * Compiler options split in two (plan 274 §5, rows 204 and 204b):
+ *
+ * - **Semantic options** decide what the code means — `target` (and with it
+ *   the decorator lowering), class fields, `jsx*`, `verbatimModuleSyntax`.
+ *   Their single home is the app's `tsconfig.json` (audit A10): this module
+ *   reads them and spells none of them.
+ * - **Placement options** decide where the emitted code and its map go and how
+ *   specifiers are written. They depend on who consumes the emit, so they live
+ *   in one table here, {@link PLACEMENT}, and the app's value for any of them
+ *   never reaches the emit.
+ *
+ * Two entry points run over one private emit:
+ *
+ * | Entry point | Consumer | Specifiers | Source map |
+ * | :--- | :--- | :--- | :--- |
+ * | {@link transpileForLoad} | the Node load hook | kept (`./a.ts`) | inlined |
+ * | {@link transpileForBuild} | `lockness build` | `.ts`/`.tsx` → `.js` | external, with a `sourceRoot` |
  *
  * The emit is single-file (`transpileModule`): no type check, no module
  * resolution. Type errors are the editor's and `deno check`'s job; only
- * syntax errors and invalid options stop a file here.
+ * syntax errors and invalid options stop a file here — and invalid options
+ * fail closed, because TypeScript drops a rejected value and the emit would
+ * silently change.
  *
  * TypeScript comes from npm because it has no JSR build (hard rule #2
  * exception, recorded in `package.json` and `deps.policy.jsonc`), pinned
@@ -21,12 +35,97 @@
  */
 
 import { existsSync, statSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { basename, dirname, join, relative, sep } from 'node:path'
 import process from 'node:process'
 import ts from 'typescript'
 import type { CompilerOptions, Diagnostic } from 'typescript'
 
 export type { CompilerOptions } from 'typescript'
+
+/** The result of {@link transpileForBuild}: the module and its source map. */
+export interface BuildEmit {
+    /**
+     * The emitted JavaScript. It ends with a `sourceMappingURL` comment
+     * naming `<outFile>.map` by its base name.
+     */
+    readonly code: string
+    /**
+     * The source map, as JSON text, to write at `<outFile>.map`. Its
+     * `sourceRoot` joined with its one `sources` entry resolves, from the
+     * map's location, to the source file.
+     */
+    readonly map: string
+}
+
+/** Who consumes an emit: the Node load hook, or `lockness build`. */
+type Consumer = 'load' | 'build'
+
+/**
+ * The placement options — the one table of them. The app's value for every
+ * option named here is discarded, then the consumer's values are applied.
+ *
+ * `dropped` are the layout options: where `tsc` puts outputs and maps when it
+ * compiles a project. A single-file emit has no layout of its own, and some
+ * of them still leak into it (`outDir` moves the map's `sources`, `mapRoot`
+ * the `sourceMappingURL`). `moduleResolution` goes too: it does not affect a
+ * single-file emit, and a Node resolution mode contradicts `module: ESNext`.
+ * (They are deleted, not set to `undefined`: `transpileModule` validates
+ * every key it is given.)
+ *
+ * Both consumers force `module: ESNext`, because both load the output as an
+ * ES module (an app's `module: nodenext` makes `transpileModule` emit
+ * CommonJS for a lone `.ts`). The load hook keeps `./a.ts` specifiers, which
+ * Node resolves to the file the hook transforms next, and inlines the map;
+ * the build rewrites them to the `.js` files it writes and keeps the map
+ * beside the output (its `sourceRoot` is computed per file).
+ */
+const PLACEMENT: {
+    readonly dropped: readonly (keyof CompilerOptions)[]
+} & Readonly<Record<Consumer, CompilerOptions>> = {
+    dropped: [
+        'moduleResolution',
+        'outDir',
+        'outFile',
+        'rootDir',
+        'rootDirs',
+        'declaration',
+        'declarationDir',
+        'declarationMap',
+        'emitDeclarationOnly',
+        'noEmit',
+        'composite',
+        'incremental',
+        'tsBuildInfoFile',
+        'sourceMap',
+        'inlineSourceMap',
+        'inlineSources',
+        'sourceRoot',
+        'mapRoot',
+    ],
+    load: {
+        module: ts.ModuleKind.ESNext,
+        rewriteRelativeImportExtensions: false,
+        inlineSourceMap: true,
+    },
+    build: {
+        module: ts.ModuleKind.ESNext,
+        rewriteRelativeImportExtensions: true,
+        sourceMap: true,
+    },
+}
+
+/**
+ * The options one consumer's emit runs with.
+ *
+ * @param options - The app's compiler options.
+ * @param consumer - Who consumes the emit.
+ * @returns The app's semantic options with the consumer's placement applied.
+ */
+function placed(options: CompilerOptions, consumer: Consumer): CompilerOptions {
+    const semantic: CompilerOptions = { ...options }
+    for (const name of PLACEMENT.dropped) delete semantic[name]
+    return { ...semantic, ...PLACEMENT[consumer] }
+}
 
 /** The file name {@link findTsconfig} looks for. */
 const TSCONFIG = 'tsconfig.json'
@@ -36,6 +135,13 @@ const TSCONFIG = 'tsconfig.json'
  * asks for the options only and lists no files, so this one is expected.
  */
 const NO_INPUTS = 18003
+
+/**
+ * The options whose **value** diagnostics are tolerated: they name the type
+ * environment (`"lib": ["deno.ns"]` for a Deno-oriented app), which a
+ * single-file emit never reads. Every other option diagnostic is fatal.
+ */
+const ENVIRONMENT_OPTIONS: ReadonlySet<string> = new Set(['lib', 'types'])
 
 /**
  * The JSX emits Node cannot run: `preserve` and `react-native` leave the JSX
@@ -127,11 +233,20 @@ function assertOwnTsconfig(path: string): void {
  * Only `compilerOptions` matter here: the `include` / `files` list is not
  * enumerated, so reading the options of a large app costs one parse.
  *
+ * Option diagnostics fail closed: an unknown option or an invalid value
+ * throws, because TypeScript drops a rejected value and the emit would
+ * silently differ from what the file asks for. The one exception is a value
+ * diagnostic on `lib` or `types`, which name the type environment (for
+ * example Deno's `"deno.ns"`) and do not affect a single-file emit. The file
+ * is parsed as a source file so that each diagnostic maps to the option that
+ * raised it.
+ *
  * @param tsconfigPath - Absolute path of the `tsconfig.json`.
  * @returns The parsed options, as TypeScript's API represents them (enum
  *   values, absolute paths).
- * @throws {Error} When the file cannot be read or parsed, or names an invalid
- *   option — the message names the file and every error TypeScript reported.
+ * @throws {Error} When the file (or one it extends) cannot be read or is not
+ *   valid JSONC, or names an unknown option or an invalid value — the message
+ *   names the file and locates every error TypeScript reported.
  *
  * @example
  * ```ts
@@ -140,9 +255,13 @@ function assertOwnTsconfig(path: string): void {
  * ```
  */
 export function readCompilerOptions(tsconfigPath: string): CompilerOptions {
-    const read = ts.readConfigFile(tsconfigPath, ts.sys.readFile)
-    if (read.error !== undefined) {
-        throw new Error(describe(tsconfigPath, [read.error]))
+    const text = ts.sys.readFile(tsconfigPath)
+    if (text === undefined) {
+        throw new Error(`${tsconfigPath}: cannot read the file`)
+    }
+    const syntax = ts.parseConfigFileTextToJson(tsconfigPath, text).error
+    if (syntax !== undefined) {
+        throw new Error(describe(tsconfigPath, [syntax]))
     }
     const host: ts.ParseConfigHost = {
         useCaseSensitiveFileNames: ts.sys.useCaseSensitiveFileNames,
@@ -150,32 +269,32 @@ export function readCompilerOptions(tsconfigPath: string): CompilerOptions {
         fileExists: ts.sys.fileExists,
         readFile: ts.sys.readFile,
     }
-    const parsed = ts.parseJsonConfigFileContent(
-        read.config,
+    const parsed = ts.parseJsonSourceFileConfigFileContent(
+        ts.readJsonConfigFile(tsconfigPath, () => text),
         host,
         dirname(tsconfigPath),
         undefined,
         tsconfigPath,
     )
-    const errors = parsed.errors.filter((d) => d.code !== NO_INPUTS)
+    const errors = parsed.errors.filter((d) =>
+        d.code !== NO_INPUTS && !isEnvironmentValueDiagnostic(d)
+    )
     if (errors.length > 0) throw new Error(describe(tsconfigPath, errors))
     return parsed.options
 }
 
 /**
- * Emit the JavaScript for one TypeScript source file.
+ * Emit the JavaScript the Node load hook hands to Node for one file.
  *
- * The compiler options are the app's, with one exception: the output is
- * always an ES module (`module: ESNext`), because both consumers — the Node
- * load hook and `lockness build` — load the result as one. `moduleResolution`
- * is dropped with it: it does not affect a single-file emit, and a Node
- * resolution mode would contradict the ES module kind.
+ * Relative specifiers stay as written (`./a.ts`): Node resolves them to the
+ * next file the hook transforms. The source map is inlined as a data URL, so
+ * `--enable-source-maps` locates a stack frame with nothing written to disk.
  *
  * @param source - The file's TypeScript source.
  * @param fileName - The file's path; its extension decides whether JSX is
- *   parsed (`.tsx`), and it names the file in errors.
+ *   parsed (`.tsx`), and it names the file in errors and in the map.
  * @param options - The app's compiler options, from {@link readCompilerOptions}.
- * @returns The emitted JavaScript.
+ * @returns The emitted JavaScript, an ES module.
  * @throws {Error} When the source has a syntax error or the options are
  *   invalid (the message carries `file:line:column` for each), or when a
  *   `.tsx` file is emitted under a `jsx` option that leaves JSX in the output.
@@ -183,24 +302,93 @@ export function readCompilerOptions(tsconfigPath: string): CompilerOptions {
  * @example
  * ```ts
  * const options = readCompilerOptions(findTsconfig(dir)!)
- * const js = transpile(readFileSync(file, 'utf8'), file, options)
+ * const js = transpileForLoad(readFileSync(file, 'utf8'), file, options)
  * ```
  */
-export function transpile(
+export function transpileForLoad(
     source: string,
     fileName: string,
     options: CompilerOptions,
 ): string {
-    if (fileName.endsWith('.tsx') && UNRUNNABLE_JSX.has(options.jsx)) {
+    return emit(source, fileName, placed(options, 'load')).outputText
+}
+
+/**
+ * Emit one file for `lockness build`: the module and its external source map.
+ *
+ * Relative `.ts` / `.tsx` specifiers are rewritten to the `.js` files the
+ * build writes; bare and `.d.ts` specifiers are left alone. The map names the
+ * source file through a `sourceRoot` relative to `outFile`, so it resolves
+ * wherever the build output is moved as a whole. The build never reads the
+ * load hook's cache.
+ *
+ * @param source - The file's TypeScript source.
+ * @param fileName - The file's path; its extension decides whether JSX is
+ *   parsed (`.tsx`), and it names the file in errors and in the map.
+ * @param outFile - Where the build writes the module, e.g.
+ *   `/srv/app/dist/main.js`. Its base name must be the one the rewritten
+ *   imports point at (`main.ts` → `main.js`).
+ * @param options - The app's compiler options, from {@link readCompilerOptions}.
+ * @returns The code and its map; write the map at `<outFile>.map`.
+ * @throws {Error} As {@link transpileForLoad} does, and when `outFile`'s base
+ *   name is not the emitted one.
+ *
+ * @example
+ * ```ts
+ * const { code, map } = transpileForBuild(source, file, outFile, options)
+ * writeFileSync(outFile, code)
+ * writeFileSync(`${outFile}.map`, map)
+ * ```
+ */
+export function transpileForBuild(
+    source: string,
+    fileName: string,
+    outFile: string,
+    options: CompilerOptions,
+): BuildEmit {
+    const sourceRoot = relative(dirname(outFile), dirname(fileName))
+        .split(sep).join('/')
+    const result = emit(source, fileName, {
+        ...placed(options, 'build'),
+        sourceRoot: sourceRoot === '' ? '' : `${sourceRoot}/`,
+    })
+    const map = result.sourceMapText ?? ''
+    const emitted = (JSON.parse(map) as { file: string }).file
+    if (basename(outFile) !== emitted) {
+        throw new Error(
+            `${fileName}: the build output must be named ${emitted}, the ` +
+                `name its importers' rewritten specifiers point at; got ` +
+                `${outFile}.`,
+        )
+    }
+    return { code: result.outputText, map }
+}
+
+/**
+ * The one emit both entry points run over.
+ *
+ * @param source - The file's TypeScript source.
+ * @param fileName - The file's path.
+ * @param compilerOptions - The app's options with the consumer's placement
+ *   options already applied.
+ * @returns TypeScript's output.
+ * @throws {Error} On a syntax or option error, or an unrunnable `jsx` emit
+ *   for a `.tsx` file.
+ */
+function emit(
+    source: string,
+    fileName: string,
+    compilerOptions: CompilerOptions,
+): ts.TranspileOutput {
+    if (fileName.endsWith('.tsx') && UNRUNNABLE_JSX.has(compilerOptions.jsx)) {
         throw new Error(
             `${fileName}: the governing tsconfig.json sets no runnable "jsx" ` +
                 `emit (unset, "preserve" or "react-native" leave JSX in the ` +
                 `output). Set "jsx" to "react-jsx", "react-jsxdev" or "react".`,
         )
     }
-    const { moduleResolution: _ignored, ...rest } = options
     const result = ts.transpileModule(source, {
-        compilerOptions: { ...rest, module: ts.ModuleKind.ESNext },
+        compilerOptions,
         fileName,
         reportDiagnostics: true,
     })
@@ -208,7 +396,66 @@ export function transpile(
         (d) => d.category === ts.DiagnosticCategory.Error,
     )
     if (errors.length > 0) throw new Error(describe(fileName, errors))
-    return result.outputText
+    return result
+}
+
+/**
+ * Whether a `tsconfig.json` diagnostic is a value diagnostic on `lib` or
+ * `types` — the one kind {@link readCompilerOptions} tolerates.
+ *
+ * The diagnostic is mapped to its option through the parsed JSON: it must lie
+ * inside the **value** of a `compilerOptions.lib` or `compilerOptions.types`
+ * property. A diagnostic with no position, or on an option's name (an unknown
+ * option), is not one.
+ *
+ * @param diagnostic - A diagnostic from parsing a `tsconfig.json` or a file
+ *   it extends.
+ * @returns `true` when it may be ignored.
+ */
+function isEnvironmentValueDiagnostic(diagnostic: Diagnostic): boolean {
+    const { file, start } = diagnostic
+    if (file === undefined || start === undefined) return false
+    const statement = file.statements[0]
+    if (statement === undefined || !ts.isExpressionStatement(statement)) {
+        return false
+    }
+    const compilerOptions = propertyValue(
+        statement.expression,
+        'compilerOptions',
+    )
+    if (compilerOptions === undefined) return false
+    for (const name of ENVIRONMENT_OPTIONS) {
+        const value = propertyValue(compilerOptions, name)
+        if (value !== undefined && start >= value.pos && start < value.end) {
+            return true
+        }
+    }
+    return false
+}
+
+/**
+ * The value of one property of a JSON object literal.
+ *
+ * @param node - A parsed JSON value.
+ * @param name - The property name.
+ * @returns The property's value node, or `undefined` when `node` is not an
+ *   object or has no such property.
+ */
+function propertyValue(
+    node: ts.Expression,
+    name: string,
+): ts.Expression | undefined {
+    if (!ts.isObjectLiteralExpression(node)) return undefined
+    for (const property of node.properties) {
+        if (
+            ts.isPropertyAssignment(property) &&
+            ts.isStringLiteral(property.name) &&
+            property.name.text === name
+        ) {
+            return property.initializer
+        }
+    }
+    return undefined
 }
 
 /**
@@ -237,6 +484,7 @@ function describe(subject: string, diagnostics: readonly Diagnostic[]): string {
 
 /**
  * The version of the TypeScript compiler doing the emit, part of every cache
- * key: a compiler change can change the output for the same input.
+ * key: a compiler change can change the output for the same input. Internal:
+ * the load hook's cache is its one consumer.
  */
 export const TYPESCRIPT_VERSION: string = ts.version

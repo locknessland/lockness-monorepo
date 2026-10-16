@@ -1,6 +1,6 @@
 /**
  * @fileoverview The Node load hook that runs user TypeScript through
- * {@link transpile}, and the production refusal (plan 274 §5, audit S9).
+ * {@link transpileForLoad}, and the production refusal (plan 274 §5, audit S9).
  *
  * `register.ts` installs what this module builds; keeping the two apart lets
  * the hook be tested as a function, without installing it into the test
@@ -38,7 +38,7 @@ import {
     type CompilerOptions,
     findTsconfig as findNearestTsconfig,
     readCompilerOptions,
-    transpile,
+    transpileForLoad,
     TYPESCRIPT_VERSION,
 } from './transform.ts'
 import { VERSION } from './version.generated.ts'
@@ -176,7 +176,7 @@ export function createLoadHook(
         })
         let code = cache.read(key)
         if (code === undefined) {
-            code = transpile(source, fileName, options)
+            code = transpileForLoad(source, fileName, options)
             cache.write(key, code)
         }
         return { format: 'module', source: code, shortCircuit: true }
