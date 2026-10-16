@@ -11,6 +11,13 @@
  *   floating `v2.x`, so the version that publishes is a version CI tested and
  *   no literal version sits in the matrix to drift from `.dvmrc`.
  *
+ * - `.bun-version` and `.node-version` are the Bun and Node lanes' pins
+ *   (#594), each one exact `x.y.z` at or above the floor the plan measured:
+ *   Bun 1.4.0, where `node:test` subtests and `mock.timers` arrive (plan 274
+ *   F4); Node 22.18.0, where type stripping is on by default and
+ *   `module.registerHooks` exists. Inline versions in YAML are forbidden
+ *   (plan 274 §5, "Runtime version pins").
+ *
  * The workflows are read through `scripts/ci_workflows.ts`, the one
  * `@std/yaml` reader every workflow-shape test shares (#480), so a shape it
  * does not expect throws instead of reading as an absent field.
@@ -23,6 +30,31 @@ import { assert, assertEquals, assertMatch } from '@std/assert'
 import { readWorkflows, type Workflow } from './ci_workflows.ts'
 
 const DENO_VERSION_FILE = new URL('../.dvmrc', import.meta.url)
+
+/** The other two runtime pins, with the floor each must meet. */
+const RUNTIME_PINS = [
+    // F4: `node:test` subtests, Node-style hooks and `mock.timers` need 1.4.0.
+    { file: '.bun-version', floor: [1, 4, 0] },
+    // Type stripping on by default, and `module.registerHooks`.
+    { file: '.node-version', floor: [22, 18, 0] },
+] as const
+
+/**
+ * Whether one `x.y.z` is at or above another.
+ *
+ * @param version - The version, as three numbers.
+ * @param floor - The floor, as three numbers.
+ * @returns `true` when `version >= floor`.
+ */
+function atLeast(
+    version: readonly number[],
+    floor: readonly number[],
+): boolean {
+    for (const [i, part] of floor.entries()) {
+        if (version[i] !== part) return version[i] > part
+    }
+    return true
+}
 
 /**
  * One workflow of the real tree, by file name.
@@ -57,6 +89,28 @@ test('.dvmrc holds one exact x.y.z, never a range', async () => {
     // One line: setup-deno reads the whole file as the version unless it
     // finds a `.tool-versions`-style `deno <version>` line.
     assertMatch(text, /^\d+\.\d+\.\d+\n?$/)
+})
+
+for (const { file, floor } of RUNTIME_PINS) {
+    test(`${file} holds one exact x.y.z, at or above ${floor.join('.')}`, async () => {
+        const text = await Deno.readTextFile(
+            new URL(`../${file}`, import.meta.url),
+        )
+        assertMatch(text, /^\d+\.\d+\.\d+\n?$/)
+        const version = text.trim().split('.').map(Number)
+        assert(
+            atLeast(version, floor),
+            `${file} pins ${text.trim()}, below the floor ${floor.join('.')}`,
+        )
+    })
+}
+
+test('the floor comparison reads each part as a number', () => {
+    assert(atLeast([1, 4, 3], [1, 4, 0]))
+    assert(atLeast([1, 10, 0], [1, 4, 0]))
+    assert(atLeast([24, 0, 0], [22, 18, 0]))
+    assert(!atLeast([1, 3, 9], [1, 4, 0]))
+    assert(!atLeast([22, 17, 9], [22, 18, 0]))
 })
 
 test('every publish.yml job installs Deno from .dvmrc only', async () => {
