@@ -8,7 +8,7 @@
  * | Case                              | Exit                       | Printed                    |
  * | :-------------------------------- | :------------------------- | :------------------------- |
  * | no command                        | 0                          | the command list           |
- * | unknown command                   | 1                          | `❌ Unknown command` + list |
+ * | unknown command                   | 1                          | `❌ Unknown command` (+ moved hint) + list |
  * | handler resolves                  | 0                          | —                          |
  * | failure-shaped throw              | its `exitCode` (1–255) / 1 | `❌ <message>`, no stack    |
  * | any other throw                   | 1                          | `❌ <name> failed: ` + `renderError(error, { frames: 10 })` + hint |
@@ -444,6 +444,17 @@ test('dispatch - an unknown command exits 1 and lists the commands', async () =>
     assertEquals(result, 1)
     assertEquals(error, [['❌ Unknown command: nope']])
     assertStringIncludes(log.flat().join('\n'), 'Available commands:')
+})
+
+test('dispatch - an unknown queue:* command says the commands moved to @lockness/queue (#592)', async () => {
+    const cli = cliWith(() => Promise.resolve())
+    const { result, error } = await capture(() => cli.dispatch(['queue:work']))
+    assertEquals(result, 1)
+    assertEquals(error.length, 1)
+    const [first, second] = String(error[0][0]).split('\n')
+    assertEquals(first, '❌ Unknown command: queue:work')
+    assertStringIncludes(second, '@lockness/queue')
+    assertStringIncludes(second, '"imports"')
 })
 
 test('dispatch - no command exits 0 and lists the commands', async () => {

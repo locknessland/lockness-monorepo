@@ -28,6 +28,7 @@ import { renderError, safeForLog } from '@lockness/contract'
 import { Stub } from './stubs.ts'
 import { renderMessage } from '@lockness/contract/logging/internal'
 import { applyExitStatus, reportThrown } from './report.ts'
+import { movedCommandHint } from './moved_commands.ts'
 import type {
     CommandClass,
     CommandContext,
@@ -312,7 +313,7 @@ export class Cli implements CommandRegistry {
      * | Outcome                                  | Status                         | Printed                          |
      * | :--------------------------------------- | :----------------------------- | :------------------------------- |
      * | no command                               | `0`                            | the command list                 |
-     * | unknown command                          | `1`                            | `❌ Unknown command: <name>` + list |
+     * | unknown command                          | `1`                            | `❌ Unknown command: <name>`, a hint when the command moved to another package, + list |
      * | handler resolves                         | `0`                            | —                                |
      * | handler throws a failure-shaped error    | its `exitCode` (`1`–`255`), else `1` | `❌ <message>` rendered, then ` caused by: <cause>` rendered when it has one; no stack |
      * | handler throws anything else             | `1`                            | `❌ <name> failed:` + name, vetted code, redacted message per link, then frames; raw only with `LOCKNESS_CLI_RAW_ERRORS=1` |
@@ -355,7 +356,13 @@ export class Cli implements CommandRegistry {
         const command = this.commands.get(commandName)
         if (!command) {
             // The name is whatever the user typed, so it is rendered.
-            console.error(`❌ Unknown command: ${renderMessage(commandName)}`)
+            // One console.error, the hint on its second line when the
+            // command moved to another package (#592).
+            const hint = movedCommandHint(commandName)
+            console.error(
+                `❌ Unknown command: ${renderMessage(commandName)}` +
+                    (hint === undefined ? '' : `\n${hint}`),
+            )
             await this.listCommands()
             return 1
         }
