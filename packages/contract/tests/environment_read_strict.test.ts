@@ -7,11 +7,11 @@
  * the variable: a bare `{ name: 'env' }` query would be refused under any
  * narrowed `--allow-env`.
  *
- * @module @lockness/contract/tests/environment_read
+ * @module @lockness/contract/tests/environment_read_strict
  */
 
 import { assertEquals, assertThrows } from '@std/assert'
-import { readEnv } from '../environment_read.ts'
+import { readEnv } from '../environment_read_strict.ts'
 
 /** The stand-ins for one test: a permission per variable, and a reader. */
 interface Stubs {

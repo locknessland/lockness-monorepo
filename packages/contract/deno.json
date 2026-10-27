@@ -13,7 +13,7 @@
         "./lifecycle/health/internal": "./lifecycle/health.ts",
         "./environment": "./environment.ts",
         "./environment/internal": "./environment_legacy.ts",
-        "./environment/read/internal": "./environment_read.ts",
+        "./environment/read/internal": "./environment_read_strict.ts",
         "./pagination": "./pagination/mod.ts",
         "./resource": "./resource/mod.ts"
     },
