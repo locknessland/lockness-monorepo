@@ -97,7 +97,7 @@ export function readRawErrorsSwitch(
     try {
         result = read(VARIABLE)
     } catch {
-        // Reported by placeholder below; the error itself may quote the value.
+        // Reported by a placeholder: the error itself may quote the value.
         return { state: 'unreadable', placeholder: '<unreadable>' }
     }
     if (result.state === 'not-granted' || result.state === 'unset') {

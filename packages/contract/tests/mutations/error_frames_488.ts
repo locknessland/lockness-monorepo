@@ -29,6 +29,8 @@ import { type Mutation, runBattery } from '@mutations/harness.ts'
 const SANITIZE = new URL('../../logging/sanitize.ts', import.meta.url)
 /** The CLI's raw switch (#508): its read is the dispatcher's frame sink. */
 const RAW_ERRORS = new URL('../../../cli/raw_errors.ts', import.meta.url)
+/** Contract's prompt-free read, the raw switch's default reader (#631). */
+const ENV_READ = new URL('../../environment_read_strict.ts', import.meta.url)
 const SUITES = [
     new URL('../error_frames_488.test.ts', import.meta.url).pathname,
     new URL('../../../cli/tests/raw_errors.test.ts', import.meta.url).pathname,
@@ -266,31 +268,42 @@ const MUTATIONS: Mutation[] = [
         ]],
         killedBy: 'a throwing stack getter renders a sentinel',
     },
-    // ---- The CLI's raw switch (#508) -----------------------------------------
+    // ---- The CLI's raw switch (#508, read through readEnv since #631) ----------
     {
         label:
             "a value that is not valid Unicode re-thrown — the command's error is lost",
         file: RAW_ERRORS,
         edits: [[
-            "if (error instanceof Deno.errors.NotCapable) return { state: 'off' }",
-            "if (error instanceof Deno.errors.NotCapable) return { state: 'off' }\n        if (error instanceof Deno.errors.InvalidData) throw error",
+            "return { state: 'unreadable', placeholder: '<not valid Unicode>' }",
+            "throw new Error('not valid Unicode')",
         ]],
         killedBy: 'T6 a switch value that is not valid Unicode',
     },
     {
-        label: 'InvalidData shown as <unreadable> — the notice loses its cause',
+        label: 'not-unicode shown as <unreadable> — the notice loses its cause',
         file: RAW_ERRORS,
         edits: [[
-            'placeholder: error instanceof Deno.errors.InvalidData',
-            'placeholder: false',
+            "return { state: 'unreadable', placeholder: '<not valid Unicode>' }",
+            "return { state: 'unreadable', placeholder: '<unreadable>' }",
         ]],
-        killedBy:
-            'a value that is not valid Unicode (InvalidData) reads as off',
+        killedBy: 'a value that is not valid Unicode reads as off',
+    },
+    {
+        label: "a throwing reader re-thrown — the command's error is lost",
+        file: RAW_ERRORS,
+        edits: [[
+            "    } catch {\n        // Reported by a placeholder: the error itself may quote the value.\n        return { state: 'unreadable', placeholder: '<unreadable>' }\n",
+            '    } catch (error) {\n        throw error\n',
+        ]],
+        killedBy: 'any other reader failure reads as off',
     },
     {
         label: 'the permission check removed — the read can prompt',
-        file: RAW_ERRORS,
-        edits: [["if (state !== 'granted') return undefined", '']],
+        file: ENV_READ,
+        edits: [[
+            "if (state !== 'granted') return { state: 'not-granted' }",
+            '',
+        ]],
         killedBy: 'reads as off without touching the environment',
     },
 ]
