@@ -2,7 +2,6 @@
  * Tests for @lockness/logger - Transports
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import {
     ConsoleTransport,
@@ -13,8 +12,8 @@ import {
     TextFormatter,
 } from '../mod.ts'
 
-test('Logger - Transports', async (t) => {
-    await t.test('MemoryTransport stores logs', async () => {
+Deno.test('Logger - Transports', async (t) => {
+    await t.step('MemoryTransport stores logs', async () => {
         const transport = new MemoryTransport()
 
         await transport.log({
@@ -35,7 +34,7 @@ test('Logger - Transports', async (t) => {
         assertEquals(logs[1].message, 'Test 2')
     })
 
-    await t.test('MemoryTransport can be cleared', async () => {
+    await t.step('MemoryTransport can be cleared', async () => {
         const transport = new MemoryTransport()
 
         await transport.log({
@@ -48,7 +47,7 @@ test('Logger - Transports', async (t) => {
         assertEquals(transport.getLogs().length, 0)
     })
 
-    await t.test('ConsoleTransport logs to console', async () => {
+    await t.step('ConsoleTransport logs to console', async () => {
         const transport = new ConsoleTransport()
 
         // Should not throw
@@ -59,7 +58,7 @@ test('Logger - Transports', async (t) => {
         })
     })
 
-    await t.test('FileTransport writes to file', async () => {
+    await t.step('FileTransport writes to file', async () => {
         const tempFile = await Deno.makeTempFile()
         const transport = new FileTransport(tempFile, new TextFormatter())
 
@@ -77,7 +76,7 @@ test('Logger - Transports', async (t) => {
         await Deno.remove(tempFile)
     })
 
-    await t.test('Multiple transports work together', async () => {
+    await t.step('Multiple transports work together', async () => {
         const memory1 = new MemoryTransport()
         const memory2 = new MemoryTransport()
 

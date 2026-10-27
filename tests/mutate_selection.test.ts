@@ -15,7 +15,6 @@
  * @module tests/mutate_selection
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { selectBatteries } from '../scripts/mutate.ts'
 
@@ -25,7 +24,7 @@ const ALL = [
     '/repo/packages/redis/tests/mutations/fake_redis_280.ts',
 ]
 
-test('mutate: EVERY argument is a filter, not just the first', () => {
+Deno.test('mutate: EVERY argument is a filter, not just the first', () => {
     const { selected, unmatched } = selectBatteries(ALL, [
         'presence_join_323',
         'roster_sync_330',
@@ -39,7 +38,7 @@ test('mutate: EVERY argument is a filter, not just the first', () => {
     assertEquals(unmatched, [])
 })
 
-test('mutate: a filter matching nothing is reported even when its siblings match', () => {
+Deno.test('mutate: a filter matching nothing is reported even when its siblings match', () => {
     const { selected, unmatched } = selectBatteries(ALL, [
         'presence_join_323',
         'no_such_battery',
@@ -54,19 +53,19 @@ test('mutate: a filter matching nothing is reported even when its siblings match
     )
 })
 
-test('mutate: no filters selects everything', () => {
+Deno.test('mutate: no filters selects everything', () => {
     const { selected, unmatched } = selectBatteries(ALL, [])
     assertEquals(selected, ALL)
     assertEquals(unmatched, [])
 })
 
-test('mutate: a partial-path filter selects the batteries under it', () => {
+Deno.test('mutate: a partial-path filter selects the batteries under it', () => {
     const { selected, unmatched } = selectBatteries(ALL, ['packages/realtime'])
     assertEquals(selected.length, 2, 'a package name selects its batteries')
     assertEquals(unmatched, [])
 })
 
-test('mutate: one filter matching several is not double-counted', () => {
+Deno.test('mutate: one filter matching several is not double-counted', () => {
     const { selected } = selectBatteries(ALL, ['mutations', 'realtime'])
     assertEquals(
         selected.length,

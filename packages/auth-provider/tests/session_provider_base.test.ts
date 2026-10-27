@@ -14,7 +14,6 @@
  * @module @lockness/auth-provider/tests/session_provider_base
  */
 
-import { test } from 'node:test'
 import {
     assert,
     assertEquals,
@@ -57,7 +56,7 @@ function neverIssued(): string {
 // Storage
 // -----------------------------------------------------------------------------
 
-test('createRememberToken stores only the SHA-256 hash, never the plaintext', async () => {
+Deno.test('createRememberToken stores only the SHA-256 hash, never the plaintext', async () => {
     const { provider, store, alice } = setup()
     const token = await provider.createRememberToken(alice, THIRTY_DAYS_S)
 
@@ -73,7 +72,7 @@ test('createRememberToken stores only the SHA-256 hash, never the plaintext', as
     assertEquals(row.userId, 1)
 })
 
-test('createRememberToken identifies the token by the store id, never the plaintext', async () => {
+Deno.test('createRememberToken identifies the token by the store id, never the plaintext', async () => {
     const { provider, store, alice } = setup()
     const token = await provider.createRememberToken(alice, THIRTY_DAYS_S)
     const [row] = [...store.rows.values()]
@@ -81,7 +80,7 @@ test('createRememberToken identifies the token by the store id, never the plaint
     assertNotEquals(token.identifier, token.value)
 })
 
-test('createRememberToken rejects when the store reports a nullish id', async () => {
+Deno.test('createRememberToken rejects when the store reports a nullish id', async () => {
     for (const id of [null, undefined]) {
         const { provider, store, alice } = setup()
         store.reportedId = { id }
@@ -97,7 +96,7 @@ test('createRememberToken rejects when the store reports a nullish id', async ()
 // Round trip and units
 // -----------------------------------------------------------------------------
 
-test('a created token verifies, with value "" and its origin at creation', async () => {
+Deno.test('a created token verifies, with value "" and its origin at creation', async () => {
     using _time = new FakeTime(T0)
     const { provider, alice } = setup()
     const created = await provider.createRememberToken(alice, THIRTY_DAYS_S)
@@ -113,7 +112,7 @@ test('a created token verifies, with value "" and its origin at creation', async
     assertEquals(created.createdAt.getTime(), T0.getTime())
 })
 
-test('expiresIn is in seconds: 30 days of seconds is 30 days of expiry (defect 1)', async () => {
+Deno.test('expiresIn is in seconds: 30 days of seconds is 30 days of expiry (defect 1)', async () => {
     using _time = new FakeTime(T0)
     const { provider, store, alice } = setup()
     const created = await provider.createRememberToken(alice, THIRTY_DAYS_S)
@@ -151,7 +150,7 @@ test('expiresIn is in seconds: 30 days of seconds is 30 days of expiry (defect 1
 // Deny paths — each resolves to null
 // -----------------------------------------------------------------------------
 
-test('an empty or non-string value does not verify', async () => {
+Deno.test('an empty or non-string value does not verify', async () => {
     const { provider, alice } = setup()
     await provider.createRememberToken(alice, THIRTY_DAYS_S)
     assertEquals(await provider.verifyRememberToken(''), null)
@@ -163,20 +162,20 @@ test('an empty or non-string value does not verify', async () => {
     }
 })
 
-test('an unknown token does not verify', async () => {
+Deno.test('an unknown token does not verify', async () => {
     const { provider, alice } = setup()
     await provider.createRememberToken(alice, THIRTY_DAYS_S)
     assertEquals(await provider.verifyRememberToken(neverIssued()), null)
 })
 
-test('a row whose hash differs from the presented hash does not verify', async () => {
+Deno.test('a row whose hash differs from the presented hash does not verify', async () => {
     const { provider, store, alice } = setup()
     const other = await provider.createRememberToken(alice, THIRTY_DAYS_S)
     store.wrongRow = store.rows.get(Number(other.identifier))!
     assertEquals(await provider.verifyRememberToken(neverIssued()), null)
 })
 
-test('a token expires exactly at expiresAt — one millisecond earlier it verifies', async () => {
+Deno.test('a token expires exactly at expiresAt — one millisecond earlier it verifies', async () => {
     using time = new FakeTime(T0)
     const { provider, alice } = setup()
     const token = await provider.createRememberToken(alice, 60)
@@ -189,7 +188,7 @@ test('a token expires exactly at expiresAt — one millisecond earlier it verifi
     assertEquals(await provider.verifyRememberToken(token.value), null)
 })
 
-test('a null, Invalid or non-Date expiresAt read back does not verify', async () => {
+Deno.test('a null, Invalid or non-Date expiresAt read back does not verify', async () => {
     for (
         const expiresAt of [
             null,
@@ -208,7 +207,7 @@ test('a null, Invalid or non-Date expiresAt read back does not verify', async ()
     }
 })
 
-test('a null or Invalid firstIssuedAt read back does not verify', async () => {
+Deno.test('a null or Invalid firstIssuedAt read back does not verify', async () => {
     for (const firstIssuedAt of [null, new Date(Number.NaN)]) {
         const { provider, store, alice } = setup()
         const token = await provider.createRememberToken(alice, THIRTY_DAYS_S)
@@ -217,7 +216,7 @@ test('a null or Invalid firstIssuedAt read back does not verify', async () => {
     }
 })
 
-test('a token whose user no longer exists does not verify', async () => {
+Deno.test('a token whose user no longer exists does not verify', async () => {
     const { provider, alice } = setup()
     const token = await provider.createRememberToken(alice, THIRTY_DAYS_S)
     provider.users.delete(1)
@@ -228,7 +227,7 @@ test('a token whose user no longer exists does not verify', async () => {
 // Storage errors propagate
 // -----------------------------------------------------------------------------
 
-test('a storage error rejects, never resolves to null or a user', async () => {
+Deno.test('a storage error rejects, never resolves to null or a user', async () => {
     type Call = (
         p: MemorySessionProvider,
         token: RememberMeToken,
@@ -254,7 +253,7 @@ test('a storage error rejects, never resolves to null or a user', async () => {
 // Owner scoping
 // -----------------------------------------------------------------------------
 
-test('deleteRememberToken is scoped by owner: another user cannot revoke a token', async () => {
+Deno.test('deleteRememberToken is scoped by owner: another user cannot revoke a token', async () => {
     const { provider, alice, bob } = setup()
     const token = await provider.createRememberToken(alice, THIRTY_DAYS_S)
 
@@ -265,7 +264,7 @@ test('deleteRememberToken is scoped by owner: another user cannot revoke a token
     assertEquals(await provider.verifyRememberToken(token.value), null)
 })
 
-test('deleteAllRememberTokens revokes every token of one user and no other', async () => {
+Deno.test('deleteAllRememberTokens revokes every token of one user and no other', async () => {
     const { provider, alice, bob } = setup()
     const a1 = await provider.createRememberToken(alice, THIRTY_DAYS_S)
     const a2 = await provider.createRememberToken(alice, THIRTY_DAYS_S)
@@ -281,7 +280,7 @@ test('deleteAllRememberTokens revokes every token of one user and no other', asy
 // Recycle order
 // -----------------------------------------------------------------------------
 
-test('recycle deletes before it inserts: a failed insert leaves the old token revoked', async () => {
+Deno.test('recycle deletes before it inserts: a failed insert leaves the old token revoked', async () => {
     const { provider, store, alice } = setup()
     const token = await provider.createRememberToken(alice, THIRTY_DAYS_S)
     const verified = await provider.verifyRememberToken(token.value)
@@ -305,7 +304,7 @@ test('recycle deletes before it inserts: a failed insert leaves the old token re
 // Without a store
 // -----------------------------------------------------------------------------
 
-test('without a store: create and recycle throw naming rememberTokensTable, verify denies, deletes resolve', async () => {
+Deno.test('without a store: create and recycle throw naming rememberTokensTable, verify denies, deletes resolve', async () => {
     const provider = new MemorySessionProvider()
     const alice = { id: 1 }
     provider.users.set(1, alice)
@@ -338,7 +337,7 @@ test('without a store: create and recycle throw naming rememberTokensTable, veri
 // Input validation
 // -----------------------------------------------------------------------------
 
-test('createRememberToken refuses an expiresIn that is not a finite positive number of seconds', async () => {
+Deno.test('createRememberToken refuses an expiresIn that is not a finite positive number of seconds', async () => {
     const { provider, store, alice } = setup()
     for (const bad of [0, -1, Number.NaN, Infinity, 1e20, '3600']) {
         await assertRejects(
@@ -350,7 +349,7 @@ test('createRememberToken refuses an expiresIn that is not a finite positive num
     assertEquals(store.writes, [], 'nothing was written')
 })
 
-test('the constructor refuses a store that lacks a port method, and never calls it', () => {
+Deno.test('the constructor refuses a store that lacks a port method, and never calls it', () => {
     const steps: StoreStep[] = [
         'insert',
         'findByHash',
@@ -389,7 +388,7 @@ test('the constructor refuses a store that lacks a port method, and never calls 
 // Surface
 // -----------------------------------------------------------------------------
 
-test('the base exposes no credential primitive', () => {
+Deno.test('the base exposes no credential primitive', () => {
     const proto = SessionProviderBase.prototype as unknown as Record<
         string,
         unknown
@@ -417,7 +416,7 @@ test('the base exposes no credential primitive', () => {
 // A broken token id
 // -----------------------------------------------------------------------------
 
-test('a row read back without an id does not verify', async () => {
+Deno.test('a row read back without an id does not verify', async () => {
     for (const id of [null, undefined]) {
         const { provider, store, alice } = setup()
         const token = await provider.createRememberToken(alice, THIRTY_DAYS_S)
@@ -432,7 +431,7 @@ test('a row read back without an id does not verify', async () => {
     }
 })
 
-test('recycle refuses a token without an identifier, before any write', async () => {
+Deno.test('recycle refuses a token without an identifier, before any write', async () => {
     for (const identifier of [null, undefined]) {
         const { provider, store, alice } = setup()
         const created = await provider.createRememberToken(alice, THIRTY_DAYS_S)

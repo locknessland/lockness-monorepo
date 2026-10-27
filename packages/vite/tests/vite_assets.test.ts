@@ -4,7 +4,6 @@
  * @module @lockness/vite/tests/vite_assets
  */
 
-import { test } from 'node:test'
 import {
     assert,
     assertEquals,
@@ -35,7 +34,7 @@ const MANIFEST = {
 
 // --- ManifestReader --------------------------------------------------------
 
-test('ManifestReader - mode: dev-server context wins over a present manifest (A-H1)', async () => {
+Deno.test('ManifestReader - mode: dev-server context wins over a present manifest (A-H1)', async () => {
     const { config } = await fixtureManifest(MANIFEST)
     const underDev = new ManifestReader(config, { isDevServer: true })
     assertEquals(
@@ -47,14 +46,14 @@ test('ManifestReader - mode: dev-server context wins over a present manifest (A-
     assertEquals(await notDev.mode(), 'production')
 })
 
-test('ManifestReader - mode: no manifest and not under dev server → dev', async () => {
+Deno.test('ManifestReader - mode: no manifest and not under dev server → dev', async () => {
     const config = defineViteConfig({ manifestPath: '/no/such/manifest.json' })
     const reader = new ManifestReader(config, { isDevServer: false })
     assertEquals(await reader.exists(), false)
     assertEquals(await reader.mode(), 'dev')
 })
 
-test('ManifestReader - resolve: keyed lookup returns the chunk; unknown key throws', async () => {
+Deno.test('ManifestReader - resolve: keyed lookup returns the chunk; unknown key throws', async () => {
     const { config } = await fixtureManifest(MANIFEST)
     const reader = new ManifestReader(config)
     const chunk = await reader.resolve(ENTRY)
@@ -66,7 +65,7 @@ test('ManifestReader - resolve: keyed lookup returns the chunk; unknown key thro
     )
 })
 
-test('ManifestReader - read: a missing manifest throws a clear, actionable error', async () => {
+Deno.test('ManifestReader - read: a missing manifest throws a clear, actionable error', async () => {
     const config = defineViteConfig({ manifestPath: '/no/such/manifest.json' })
     const reader = new ManifestReader(config)
     await assertRejects(
@@ -76,7 +75,7 @@ test('ManifestReader - read: a missing manifest throws a clear, actionable error
     )
 })
 
-test('ManifestReader - read: malformed JSON throws', async () => {
+Deno.test('ManifestReader - read: malformed JSON throws', async () => {
     const dir = await Deno.makeTempDir()
     const manifestPath = join(dir, 'manifest.json')
     await Deno.writeTextFile(manifestPath, '{ not json')
@@ -86,7 +85,7 @@ test('ManifestReader - read: malformed JSON throws', async () => {
 
 // --- viteAssets ------------------------------------------------------------
 
-test('viteAssets - dev mode points tags at the dev server', async () => {
+Deno.test('viteAssets - dev mode points tags at the dev server', async () => {
     const result = await viteAssets(ENTRY, {
         isDevServer: true,
         config: { manifestPath: '/no/such.json' },
@@ -96,7 +95,7 @@ test('viteAssets - dev mode points tags at the dev server', async () => {
     assertEquals(result.tags.every((t) => t.tag === 'script'), true)
 })
 
-test('viteAssets - dev mode honours a devServerUrl override', async () => {
+Deno.test('viteAssets - dev mode honours a devServerUrl override', async () => {
     const result = await viteAssets(ENTRY, {
         isDevServer: true,
         devServerUrl: 'http://localhost:9000',
@@ -104,7 +103,7 @@ test('viteAssets - dev mode honours a devServerUrl override', async () => {
     assertStringIncludes(result.html, 'http://localhost:9000/app/client.ts')
 })
 
-test('viteAssets - production resolves hashed JS + CSS from the manifest', async () => {
+Deno.test('viteAssets - production resolves hashed JS + CSS from the manifest', async () => {
     const { config } = await fixtureManifest(MANIFEST)
     const result = await viteAssets(ENTRY, { isDevServer: false, config })
     assertStringIncludes(result.html, '/assets/client.abc123.js')
@@ -116,7 +115,7 @@ test('viteAssets - production resolves hashed JS + CSS from the manifest', async
     assert(result.html.indexOf('<link') < result.html.indexOf('<script'))
 })
 
-test('viteAssets - production with a missing manifest throws', async () => {
+Deno.test('viteAssets - production with a missing manifest throws', async () => {
     // isDevServer:false + a real (nonexistent) manifest path → mode() sees no
     // manifest → dev; to force the production error path we point at an existing
     // dir-less path AND assert resolve throws when treated as production.
@@ -128,7 +127,7 @@ test('viteAssets - production with a missing manifest throws', async () => {
     )
 })
 
-test('viteAssets - nonce is applied to every script tag', async () => {
+Deno.test('viteAssets - nonce is applied to every script tag', async () => {
     const { config } = await fixtureManifest(MANIFEST)
     const result = await viteAssets(ENTRY, {
         isDevServer: false,
@@ -143,7 +142,7 @@ test('viteAssets - nonce is applied to every script tag', async () => {
     )
 })
 
-test('viteAssets - nonce is applied to every tag, link included (#114)', async () => {
+Deno.test('viteAssets - nonce is applied to every tag, link included (#114)', async () => {
     const { config } = await fixtureManifest(MANIFEST)
     const result = await viteAssets(ENTRY, {
         isDevServer: false,
@@ -162,7 +161,7 @@ test('viteAssets - nonce is applied to every tag, link included (#114)', async (
     )
 })
 
-test('viteAssets - production output never leaks the dev origin (S-F5)', async () => {
+Deno.test('viteAssets - production output never leaks the dev origin (S-F5)', async () => {
     const { config } = await fixtureManifest(MANIFEST)
     const result = await viteAssets(ENTRY, {
         isDevServer: false,
@@ -175,11 +174,11 @@ test('viteAssets - production output never leaks the dev origin (S-F5)', async (
     )
 })
 
-test('encodeAttribute - encodes quotes and angle brackets (S-F4)', () => {
+Deno.test('encodeAttribute - encodes quotes and angle brackets (S-F4)', () => {
     assertEquals(encodeAttribute('a"><b'), 'a&quot;&gt;&lt;b')
 })
 
-test('viteAssets - a hostile nonce is attribute-encoded in the rendered html (S-F4)', async () => {
+Deno.test('viteAssets - a hostile nonce is attribute-encoded in the rendered html (S-F4)', async () => {
     const { config } = await fixtureManifest(MANIFEST)
     const hostile = 'abc"><script>alert(1)</script>'
     const result = await viteAssets(ENTRY, {

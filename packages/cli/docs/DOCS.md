@@ -244,10 +244,9 @@ cli.register('deploy', async () => {
 - When a caught error caused the failure, pass it as `cause` and do not quote
   its text in the message: the CLI prints it after the message, rendered.
 - Do not print the failure yourself as well; the CLI prints it.
-- `cli.run()` sets `process.exitCode` and never calls `process.exit()`, so
-  `finally` blocks (closing a connection) still run. `cli.dispatch(args)`
-  returns the same status without touching the process, which is what a test
-  wants.
+- `cli.run()` sets `Deno.exitCode` and never calls `Deno.exit()`, so `finally`
+  blocks (closing a connection) still run. `cli.dispatch(args)` returns the same
+  status without touching the process, which is what a test wants.
 
 ### What a failure prints
 
@@ -315,7 +314,7 @@ A tool run with `deno run jsr:@lockness/<pkg>` rather than through a `Cli` — a
 installer, `@lockness/init`, `@lockness/ui`, `@lockness/upgrade` — follows the
 same contract through `runEntry`, from `@lockness/cli/entry`. Its work throws;
 `runEntry` prints the throw once, through the same printer as `Cli.dispatch()`,
-and sets `process.exitCode`:
+and sets `Deno.exitCode`:
 
 ```typescript
 import { CommandFailedError } from '@lockness/cli/command-failure'
@@ -340,7 +339,7 @@ if (import.meta.main) await runEntry('tool', () => main(Deno.args))
 `runEntry` catches **any** throw, not only a failure: an error that escaped a
 standalone entry would otherwise be printed by Deno as `error: Uncaught`, with
 its message, source line, stack and whole cause chain, none of it redacted. It
-returns the status too, and never calls `process.exit()`. `main` must return the
+returns the status too, and never calls `Deno.exit()`. `main` must return the
 promise of its work: a promise it starts without awaiting escapes `runEntry`, as
 it would escape any `try`. `@lockness/cli/entry` does not load the
 `@lockness/cli` barrel, so a tool that uses it loads none of the built-in

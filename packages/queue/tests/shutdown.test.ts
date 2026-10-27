@@ -7,7 +7,6 @@
  * have gone green over that.
  */
 
-import { test } from 'node:test'
 import { assertEquals, assertRejects } from '@std/assert'
 import {
     disposableCount,
@@ -15,7 +14,7 @@ import {
 } from '@lockness/contract/lifecycle/internal'
 import { DenoKvQueueDriver, QueueWorker } from '../mod.ts'
 
-test('queue - a RUNNING worker loop is stopped by the drain', async () => {
+Deno.test('queue - a RUNNING worker loop is stopped by the drain', async () => {
     // SC-002 is about a live loop terminating. The first version of this test
     // never called start(), so `running` was already false and stop() set
     // false -> false: a stop() that did nothing at all would have passed.
@@ -37,7 +36,7 @@ test('queue - a RUNNING worker loop is stopped by the drain', async () => {
     await loop
 })
 
-test('queue - construction alone registers nothing (SC-002)', () => {
+Deno.test('queue - construction alone registers nothing (SC-002)', () => {
     // A worker that was built but never started owns no running loop, so it is
     // invisible to the drain. Registration is a property of a RUNNING worker,
     // decided in start() — not of construction. (#140, invariant 2.)
@@ -51,7 +50,7 @@ test('queue - construction alone registers nothing (SC-002)', () => {
     void worker
 })
 
-test('queue - a restarted worker is registered again (SC-004)', async () => {
+Deno.test('queue - a restarted worker is registered again (SC-004)', async () => {
     // The gap #140 closes: registration was created at field-init and cleared by
     // stop(), so a stopped-then-restarted worker was invisible to the drain and
     // its loop was never stopped at shutdown. start() must (re-)register.
@@ -78,7 +77,7 @@ test('queue - a restarted worker is registered again (SC-004)', async () => {
     await loop2
 })
 
-test('queue - the KV driver announces itself only once it has a handle', async () => {
+Deno.test('queue - the KV driver announces itself only once it has a handle', async () => {
     drainDisposables()
     await Deno.mkdir(`${Deno.cwd()}/tmp`, { recursive: true })
     const path = `${Deno.cwd()}/tmp/queue-${crypto.randomUUID().slice(0, 8)}.db`
@@ -110,7 +109,7 @@ test('queue - the KV driver announces itself only once it has a handle', async (
     }
 })
 
-test('queue - a concurrent cold start opens exactly one KV handle (SC-006)', async () => {
+Deno.test('queue - a concurrent cold start opens exactly one KV handle (SC-006)', async () => {
     // Two callers racing the very first operation must share one open. The
     // unfixed `if (!this.kv) { this.kv = await Deno.openKv() }` awaits between
     // the guard and the assignment, so both open a handle and the first leaks.
@@ -160,7 +159,7 @@ test('queue - a concurrent cold start opens exactly one KV handle (SC-006)', asy
     }
 })
 
-test('queue - the worker sorts before the store it reads from', async () => {
+Deno.test('queue - the worker sorts before the store it reads from', async () => {
     drainDisposables()
     const worker = new QueueWorker({ sleep: 5, stopWhenEmpty: false })
     const loop = worker.start()
@@ -175,7 +174,7 @@ test('queue - the worker sorts before the store it reads from', async () => {
     await loop
 })
 
-test('queue - a failed cold open is not memoised; a later call retries', async () => {
+Deno.test('queue - a failed cold open is not memoised; a later call retries', async () => {
     drainDisposables()
     let opens = 0
     const original = Deno.openKv
@@ -220,7 +219,7 @@ test('queue - a failed cold open is not memoised; a later call retries', async (
     }
 })
 
-test('queue - close() during a cold open orphans no KV handle', async () => {
+Deno.test('queue - close() during a cold open orphans no KV handle', async () => {
     // Same interleaving as the cache driver's raced test: open #1 in flight,
     // close() clears the memo, a fresh op starts open #2, the two resolve out of
     // order. The stale open #1 must release its handle, not clobber the current.

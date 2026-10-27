@@ -4,7 +4,6 @@
 
 // deno-lint-ignore-file no-unused-vars require-await
 
-import { test } from 'node:test'
 import { assertEquals, assertExists } from '@std/assert'
 import {
     Controller,
@@ -20,7 +19,7 @@ import {
     MIDDLEWARE_NAME_KEY,
 } from '../routing/decorators.ts'
 
-test('@DeclareMiddleware - registers middleware in global registry', () => {
+Deno.test('@DeclareMiddleware - registers middleware in global registry', () => {
     // Clear registry before test
     declaredMiddlewares.clear()
 
@@ -37,7 +36,7 @@ test('@DeclareMiddleware - registers middleware in global registry', () => {
     assertExists(declaredMiddlewares.get('test-auth'))
 })
 
-test('@DeclareMiddleware - multiple middlewares can be registered', () => {
+Deno.test('@DeclareMiddleware - multiple middlewares can be registered', () => {
     declaredMiddlewares.clear()
 
     @DeclareMiddleware('auth')
@@ -67,7 +66,7 @@ test('@DeclareMiddleware - multiple middlewares can be registered', () => {
     assertEquals(declaredMiddlewares.has('rate-limit'), true)
 })
 
-test('@DeclareMiddleware - stores name as metadata on class', () => {
+Deno.test('@DeclareMiddleware - stores name as metadata on class', () => {
     declaredMiddlewares.clear()
 
     @DeclareMiddleware('metadata-test')
@@ -81,7 +80,7 @@ test('@DeclareMiddleware - stores name as metadata on class', () => {
     assertEquals(MetadataMiddleware[MIDDLEWARE_NAME_KEY], 'metadata-test')
 })
 
-test('@UseMiddleware - applies named middleware to controller method', () => {
+Deno.test('@UseMiddleware - applies named middleware to controller method', () => {
     declaredMiddlewares.clear()
 
     @DeclareMiddleware('method-auth')
@@ -113,7 +112,7 @@ test('@UseMiddleware - applies named middleware to controller method', () => {
     assertEquals(middlewares['protectedRoute'][0], 'method-auth')
 })
 
-test('@UseMiddleware - multiple named middlewares can stack', () => {
+Deno.test('@UseMiddleware - multiple named middlewares can stack', () => {
     declaredMiddlewares.clear()
 
     @DeclareMiddleware('auth')
@@ -163,22 +162,23 @@ test('@UseMiddleware - multiple named middlewares can stack', () => {
 
 // This test requires file system permissions and must be run with --allow-read --allow-write
 // It's skipped in CI or when run without full permissions
-test('Middleware discovery - imports trigger registration', {
-    skip: Deno.permissions.querySync?.({ name: 'write' }).state !== 'granted',
-}, async () => {
-    declaredMiddlewares.clear()
+Deno.test({
+    name: 'Middleware discovery - imports trigger registration',
+    ignore: Deno.permissions.querySync?.({ name: 'write' }).state !== 'granted',
+    fn: async () => {
+        declaredMiddlewares.clear()
 
-    // Create temporary middleware file
-    const tempDir = await Deno.makeTempDir()
-    const middlewareFile = `${tempDir}/temp_middleware.ts`
+        // Create temporary middleware file
+        const tempDir = await Deno.makeTempDir()
+        const middlewareFile = `${tempDir}/temp_middleware.ts`
 
-    // Get absolute path to the decorators module
-    const decoratorsPath = import.meta.resolve('../routing/decorators.ts')
-    const typesPath = import.meta.resolve('../types.ts')
+        // Get absolute path to the decorators module
+        const decoratorsPath = import.meta.resolve('../routing/decorators.ts')
+        const typesPath = import.meta.resolve('../types.ts')
 
-    await Deno.writeTextFile(
-        middlewareFile,
-        `
+        await Deno.writeTextFile(
+            middlewareFile,
+            `
 import { DeclareMiddleware } from '${decoratorsPath}'
 import type { MiddlewareContract, Context, Next } from '${typesPath}'
 
@@ -189,14 +189,15 @@ export class TempAuthMiddleware implements MiddlewareContract {
     }
 }
         `,
-    )
+        )
 
-    // Import the file
-    await import(middlewareFile)
+        // Import the file
+        await import(middlewareFile)
 
-    // Verify middleware was registered
-    assertEquals(declaredMiddlewares.has('temp-auth'), true)
+        // Verify middleware was registered
+        assertEquals(declaredMiddlewares.has('temp-auth'), true)
 
-    // Cleanup
-    await Deno.remove(tempDir, { recursive: true })
+        // Cleanup
+        await Deno.remove(tempDir, { recursive: true })
+    },
 })

@@ -8,7 +8,6 @@
  *   US3 — the returned array and its descriptor objects are fresh and inert.
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertStrictEquals } from '@std/assert'
 import { Container } from '../mod.ts'
 import type { ContainerRegistration } from '../mod.ts'
@@ -17,12 +16,12 @@ import type { ContainerRegistration } from '../mod.ts'
 // US1 — enumerate registrations for display
 // ============================================================================
 
-test('registrations - empty container returns an empty array', () => {
+Deno.test('registrations - empty container returns an empty array', () => {
     const container = new Container()
     assertEquals(container.registrations(), [])
 })
 
-test('registrations - one descriptor per token, across all token kinds', () => {
+Deno.test('registrations - one descriptor per token, across all token kinds', () => {
     const container = new Container()
 
     class UserService {}
@@ -50,7 +49,7 @@ test('registrations - one descriptor per token, across all token kinds', () => {
     )
 })
 
-test('registrations - a symbol token with no description falls back to "Symbol()"', () => {
+Deno.test('registrations - a symbol token with no description falls back to "Symbol()"', () => {
     const container = new Container()
     const TOKEN = Symbol()
     container.set(TOKEN, {})
@@ -61,7 +60,7 @@ test('registrations - a symbol token with no description falls back to "Symbol()
     assertEquals(regs[0].id, 'Symbol()')
 })
 
-test('registrations - id is display-only, not promised unique (class Foo + Symbol("Foo"))', () => {
+Deno.test('registrations - id is display-only, not promised unique (class Foo + Symbol("Foo"))', () => {
     const container = new Container()
     class Foo {}
     const FOO = Symbol('Foo')
@@ -80,7 +79,7 @@ test('registrations - id is display-only, not promised unique (class Foo + Symbo
     assert(tokens.has(FOO))
 })
 
-test('registrations - a token set to undefined is still a registration', () => {
+Deno.test('registrations - a token set to undefined is still a registration', () => {
     const container = new Container()
     const TOKEN = 'maybe'
     container.set(TOKEN, undefined)
@@ -94,7 +93,7 @@ test('registrations - a token set to undefined is still a registration', () => {
 // US2 — reading must not instantiate, and must not mutate
 // ============================================================================
 
-test('registrations - enumerating a registered token never re-constructs it (SC-002/FR-005)', () => {
+Deno.test('registrations - enumerating a registered token never re-constructs it (SC-002/FR-005)', () => {
     const container = new Container()
     let constructed = 0
     let neverBuilt = 0
@@ -140,7 +139,7 @@ test('registrations - enumerating a registered token never re-constructs it (SC-
     )
 })
 
-test('registrations - reading does not mutate the container', () => {
+Deno.test('registrations - reading does not mutate the container', () => {
     const container = new Container()
     class A {}
     container.get(A)
@@ -157,7 +156,7 @@ test('registrations - reading does not mutate the container', () => {
 // US3 — the returned data is inert
 // ============================================================================
 
-test('registrations - mutating the result does not reach the container (SC-003)', () => {
+Deno.test('registrations - mutating the result does not reach the container (SC-003)', () => {
     const container = new Container()
     class A {}
     container.get(A)
@@ -176,7 +175,7 @@ test('registrations - mutating the result does not reach the container (SC-003)'
     assert(!fresh.some((r) => r.id === 'BOGUS'))
 })
 
-test('registrations - each call returns a distinct array instance', () => {
+Deno.test('registrations - each call returns a distinct array instance', () => {
     const container = new Container()
     class A {}
     container.get(A)

@@ -39,9 +39,8 @@ Hono functionalities.
 - **ORM Integration**: Drizzle ORM with PostgreSQL
 - **Production Ready**: Compile to standalone binaries with `deno compile`
 
-> Framework-wide rules (no direct `hono` import, published runtime dependencies
-> declared per package with no `@std/*`, Tailwind v4 CSS-variable syntax,
-> pre-completion gate, etc.) are the
+> Framework-wide rules (no direct `hono` import, JSR-only specifiers, Tailwind
+> v4 CSS-variable syntax, pre-completion gate, etc.) are the
 > [hard rules](#-hard-rules-every-agent-must-respect) below.
 
 ---
@@ -54,28 +53,19 @@ blockers, not preferences.
 1. **No direct `hono` import.** Always import from `@lockness/core`. Lockness
    re-exports the Hono APIs it supports, on a pinned version. Direct imports
    break compatibility.
-2. **Published runtime code depends only on siblings, `node:` built-ins and npm
-   packages, declared per package.** Published runtime code depends only on
-   sibling packages, `node:` built-ins and npm packages, declared per package in
-   `package.json`; JSR-only packages (`@std/*`) are allowed only in tests and
-   tooling; `publish:check` and `npm:check` enforce it.
+2. **JSR-only dependencies, declared per package.** Dependencies come from JSR,
+   not npm and not a URL registry. Avoid `npm:` specifiers unless a package is
+   JSR-unavailable AND the use case justifies it (document the why in a code
+   comment).
 
-   In source, write the **bare** specifier (`from '@lockness/cli'`,
-   `from 'node:path'`). Declare it in the importing package's own
-   `package.json`: siblings and npm packages in `dependencies` (optional peers
-   in `peerDependencies`), a JSR-only test package in `devDependencies` as
-   `"jsr:<range>"`. `deno.json` is generated from it by `deno task manifests`;
-   never edit it. Inside the workspace a bare specifier resolves by workspace
-   member _name_, so an undeclared import works locally and ships a package a
-   consumer cannot resolve. `publish:check` owns declarations, `npm:check` the
-   npm closure. See [releasing.md](docs/releasing.md).
-
-   **Transition (#584).** A package whose `engines` does not yet name bun or
-   node may keep the runtime JSR imports its `package.json` `lockness.jsr` field
-   already lists, and only those: the field only shrinks, and no new runtime
-   `@std/*` import is written in any package. `npm:check` enforces the rule on
-   every published package whose `engines` names bun or node. This paragraph is
-   deleted in the change that empties `lockness.jsr` workspace-wide.
+   The rule is about the **registry**, not the spelling. In source, write the
+   **bare** specifier (`from '@lockness/cli'`, `from '@std/path'`); in the
+   importing package's own `deno.json`, declare it **fully qualified and
+   pinned** (`"@lockness/cli": "jsr:@lockness/cli@^0.2.0"`). Inside the
+   workspace a bare specifier resolves by workspace member _name_, so an
+   undeclared import works locally and ships a package a consumer cannot
+   resolve. `deno task publish:check` enforces it — it is the one check that
+   owns declarations. See [releasing.md](docs/releasing.md).
 3. **No `any` in exported APIs.** Use `unknown` + type guards when a type is
    genuinely uncertain. Exception requires a
    `// deno-lint-ignore no-explicit-any` comment with justification.
@@ -312,11 +302,6 @@ user-facing doc.
   `@Service`, `@Inject`, lifetimes. Injection is lazy, so services may hold each
   other; only a constructor cycle is a fault, and it raises
   `CircularDependencyError`.
-- [`@lockness/runtime`](packages/runtime/AGENTS.md) — What differs between Deno,
-  Bun and Node, decided once: the one runtime detector, the argv that runs a
-  script or an npm bin on a runtime (no shell), and the shutdown-signal
-  primitive. It never imports `contract`, which reaches its detector subpath
-  only (a recorded exception to contract's type-only rule).
 
 **Framework**
 
@@ -386,10 +371,6 @@ user-facing doc.
 - [`@lockness/vite`](packages/vite/AGENTS.md) — Deno-native Vite integration —
   dev-server bridge (`App.fetch()` by injection), Deno specifier resolver, and a
   manifest-aware asset helper. Standalone and opt-in (epic #64).
-- [`@lockness/transform`](packages/transform/AGENTS.md) — The Node `--import`
-  hook that runs an app's TypeScript (TC39 decorators, `.tsx`) through
-  TypeScript 6 with the app's `tsconfig.json`, behind a private project-local
-  cache. Loads before everything, so it imports nothing; refuses production.
 
 ### Package Documentation (`packages/*/docs/`)
 
@@ -744,9 +725,7 @@ reminders:
 
 - Public APIs go through `mod.ts`
 - Don't manually add `@lockness/*` to root imports — workspaces handle it
-- Register new libraries in the root `package.json` `workspaces` list; write
-  their `package.json`, then run `deno task manifests` (never hand-edit the
-  generated `deno.json`)
+- Register new libraries in the workspace array
 - Use `deno task bump <version>` for releases
 - Repo:
   [locknessland/lockness-monorepo](https://github.com/locknessland/lockness-monorepo)

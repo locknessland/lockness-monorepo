@@ -11,7 +11,6 @@
  * @module @lockness/realtime/tests/presence_authoritative
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { ChannelManager } from '../manager.ts'
 import { RedisBroadcastDriver } from '../drivers/redis.ts'
@@ -62,7 +61,7 @@ const joinedFor = (c: Connection<User>, memberId: number) =>
         (f.member as PresenceMember | undefined)?.id === memberId
     )
 
-test('SC-002: roster is cross-instance authoritative and a join crosses instances', async () => {
+Deno.test('SC-002: roster is cross-instance authoritative and a join crosses instances', async () => {
     const redis = new FakeRedis()
     const a = instance(redis)
     const b = instance(redis)

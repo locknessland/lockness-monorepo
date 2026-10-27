@@ -2,13 +2,11 @@
  * @fileoverview Public type vocabulary for the Lockness queue system.
  *
  * The job, driver and configuration contracts shared across the package. Kept
- * free of value imports so drivers, the registry, the worker and the dispatch
+ * dependency-free so drivers, the registry, the worker and the dispatch
  * helpers can all import from here without a cycle.
  *
  * @module @lockness/queue/types
  */
-
-import type { QueueDriverName } from '@lockness/contract/store'
 
 export interface JobPayload {
     /**
@@ -59,7 +57,7 @@ export type JobClass<T extends JobPayload = JobPayload> = new (
 
 export interface QueueConfig {
     /** Default queue driver */
-    driver: QueueDriverName
+    driver: 'memory' | 'deno-kv' | 'redis'
     /** Default queue name */
     defaultQueue: string
     /** Deno KV path (optional) */

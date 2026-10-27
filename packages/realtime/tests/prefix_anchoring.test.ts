@@ -137,7 +137,6 @@
  * @module @lockness/realtime/tests/prefix_anchoring
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import { RedisBroadcastDriver } from '../drivers/redis.ts'
 import { isAnchored, recordingPorts } from './recording_ports.ts'
@@ -347,7 +346,7 @@ async function exercise(prefix: string) {
     return recording
 }
 
-test('FR-001: BOTH psubscribe sites are captured, by count', async () => {
+Deno.test('FR-001: BOTH psubscribe sites are captured, by count', async () => {
     // A recorder that catches only the events subscription would satisfy every
     // "is it anchored" assertion below while missing `controlTopic` — the one
     // name US3 exists for, and the only one that uses no `:` separator.
@@ -367,7 +366,7 @@ test('FR-001: BOTH psubscribe sites are captured, by count', async () => {
     assertEquals(patterns, ['app__control', 'app__event:room'])
 })
 
-test('FR-003: anchoring is prefix PLUS a separator, not startsWith', () => {
+Deno.test('FR-003: anchoring is prefix PLUS a separator, not startsWith', () => {
     assert(isAnchored('app', 'app'), 'the prefix itself')
     assert(isAnchored('app:room', 'app'), 'the `:` separator')
     assert(isAnchored('app__control', 'app'), 'the `__` separator, no colon')
@@ -385,7 +384,7 @@ test('FR-003: anchoring is prefix PLUS a separator, not startsWith', () => {
     assert(!isAnchored('ap', 'app'), 'a truncation is not an anchor')
 })
 
-test('SC-001: every prefix-derived name is anchored', async () => {
+Deno.test('SC-001: every prefix-derived name is anchored', async () => {
     // The differential: run the same exercise under two prefixes, and take the
     // strings that CHANGED. Those are prefix-derived by construction — no
     // per-command key-position table, and nothing to drift from Redis.
@@ -473,7 +472,7 @@ test('SC-001: every prefix-derived name is anchored', async () => {
     }
 })
 
-test('SC-004: the pinned roster matches the driver source', async () => {
+Deno.test('SC-004: the pinned roster matches the driver source', async () => {
     // Completeness is a SOURCE fact and exercise is a RUNTIME fact; one
     // criterion cannot carry both. This is the source half.
     const source = await Deno.readTextFile(
@@ -499,7 +498,7 @@ test('SC-004: the pinned roster matches the driver source', async () => {
     )
 })
 
-test('FR-006: every pinned member is actually driven by the exercise', async () => {
+Deno.test('FR-006: every pinned member is actually driven by the exercise', async () => {
     // A name can exist, be anchored, and never be reached. Then the containment
     // claim covers a smaller set than it appears to.
     const recording = await exercise('alpha')
@@ -583,7 +582,7 @@ function globMatches(pattern: string, topic: string): boolean {
     return new RegExp(`^${out}$`, 's').test(topic)
 }
 
-test('globMatches models the broker well enough to be trusted', () => {
+Deno.test('globMatches models the broker well enough to be trusted', () => {
     // This helper is #288's evidence. If it is wrong, the P0 is misfiled — which
     // is worse than not filing it. It ran nowhere until the review gate pointed
     // out that its only caller was an ignored test.
@@ -757,7 +756,7 @@ function patternsIn(subscriptions: readonly { pattern: string }[]): string {
     return JSON.stringify(subscriptions.map((s) => s.pattern))
 }
 
-test('SC-002: no accepted prefix can reach another, in either direction', async () => {
+Deno.test('SC-002: no accepted prefix can reach another, in either direction', async () => {
     for (const [self, other] of ISOLATION_PAIRS) {
         const mine = await exercise(self)
         const theirs = await exercise(other)
@@ -841,7 +840,7 @@ async function deliver(prefix: string, topic: string, payload: string) {
     return got
 }
 
-test('FR-002: a topic that does not carry the event marker is DROPPED', async () => {
+Deno.test('FR-002: a topic that does not carry the event marker is DROPPED', async () => {
     // Deny by default. This branch used to read `channel = topic`, so a topic
     // the subscription could not have produced became a channel name — and a
     // plausible one: `isValidName('app__control')` is TRUE, because `_` and `:`
@@ -864,7 +863,7 @@ test('FR-002: a topic that does not carry the event marker is DROPPED', async ()
     )
 })
 
-test('FR-002: a channel containing the reserved separator round-trips whole', async () => {
+Deno.test('FR-002: a channel containing the reserved separator round-trips whole', async () => {
     // The fixture that separates a fixed-offset slice from a `replace`. Both
     // strip the marker from `app__event:room`; only the slice survives a
     // channel that CONTAINS the marker, and NAME_RE permits one to
@@ -918,7 +917,7 @@ test('FR-002: a channel containing the reserved separator round-trips whole', as
  */
 const RESERVED_LEAD_LITERAL = '${RESERVED_SEPARATOR_LEAD}'
 
-test('FR-004 source: EVERY derived name carries the reserved lead-in', async () => {
+Deno.test('FR-004 source: EVERY derived name carries the reserved lead-in', async () => {
     // The review gate's finding, and it was right: the isolation invariant was
     // enforced by a comment. Seven builders each re-write the interpolation
     // shape independently, `this.prefix` is `private readonly` rather than
@@ -983,7 +982,7 @@ test('FR-004 source: EVERY derived name carries the reserved lead-in', async () 
     }
 })
 
-test('FR-004: a subscription reaches ONLY its own family, within one prefix', async () => {
+Deno.test('FR-004: a subscription reaches ONLY its own family, within one prefix', async () => {
     // The second half of the invariant, and the first draft of this test
     // checked a hazard that does not exist. It asserted no family name is a
     // prefix of another, reasoning that `__events:` beside `__event:` would
@@ -1041,7 +1040,7 @@ test('FR-004: a subscription reaches ONLY its own family, within one prefix', as
     }
 })
 
-test('FR-004: the refused sequence and the separator lead-in are ONE decision', () => {
+Deno.test('FR-004: the refused sequence and the separator lead-in are ONE decision', () => {
     // The invariant the whole isolation proof rests on, and the one thing that
     // can break silently: the guard refuses `__`, and every reserved separator
     // begins with `__`. Neither half is worth anything alone.
@@ -1107,7 +1106,7 @@ async function presenceKeyOf(prefix: string, channel: string): Promise<string> {
     return key
 }
 
-test('FR-012: two accepted prefixes cannot derive the same KEY', async () => {
+Deno.test('FR-012: two accepted prefixes cannot derive the same KEY', async () => {
     // SC-002 covers what a SUBSCRIPTION reaches. Keys are never glob-matched,
     // so their risk is not reach — it is COLLISION, and the two are not the
     // same property. Before #288 this pair really did collide, and no test in
@@ -1139,7 +1138,7 @@ test('FR-012: two accepted prefixes cannot derive the same KEY', async () => {
     assert(a !== b, `both prefixes derive "${a}"`)
 })
 
-test('#278/SC-003: the last two colliding prefix pairs are closed', async () => {
+Deno.test('#278/SC-003: the last two colliding prefix pairs are closed', async () => {
     // #288 anchored five names and left TWO out — the legacy revocation keys,
     // which existed only to read what a pre-#276 instance wrote at those exact
     // strings. Anchoring them would have addressed a key nothing ever wrote,
@@ -1178,7 +1177,7 @@ test('#278/SC-003: the last two colliding prefix pairs are closed', async () => 
     )
 })
 
-test('SC-005: an unusable prefix is refused, by the RIGHT guard', () => {
+Deno.test('SC-005: an unusable prefix is refused, by the RIGHT guard', () => {
     // Not hygiene. Such a prefix is trivially "anchored" under ANY definition —
     // every name it derives begins with it — so SC-001 passes while the driver
     // subscribes to traffic it does not own. The containment test and this
@@ -1254,7 +1253,7 @@ test('SC-005: an unusable prefix is refused, by the RIGHT guard', () => {
     new RedisBroadcastDriver(command, subscriber, {}).close()
 })
 
-test('SC-005: an ordinary prefix is still accepted', async () => {
+Deno.test('SC-005: an ordinary prefix is still accepted', async () => {
     // The negative control. Without it, a guard that rejected EVERYTHING would
     // satisfy the test above.
     const recording = await exercise('lockness:realtime')

@@ -24,7 +24,6 @@
  * @module
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { join } from '@std/path'
 import postgres from 'postgres'
@@ -55,10 +54,11 @@ interface Snapshot {
 }
 
 for (const kit of migratingKits()) {
-    test(
-        `#444 live: a fresh ${kit} app migrates, re-migrates as a no-op, and db:fresh re-applies`,
-        { skip: !LIVE_POSTGRES },
-        async function () {
+    Deno.test({
+        name:
+            `#444 live: a fresh ${kit} app migrates, re-migrates as a no-op, and db:fresh re-applies`,
+        ignore: !LIVE_POSTGRES,
+        async fn() {
             const adminUrl = await liveUrl()
             const database = `lockness_kit_${kit}_${
                 crypto.randomUUID().replaceAll('-', '').slice(0, 12)
@@ -166,5 +166,5 @@ for (const kit of migratingKits()) {
                 })
             }
         },
-    )
+    })
 }

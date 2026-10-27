@@ -12,7 +12,7 @@
  * @module @lockness/testing/acting_as
  */
 
-import type { MiddlewareHandler } from '@lockness/hono'
+import type { MiddlewareHandler } from 'hono'
 import type { Authenticatable } from '@lockness/auth'
 
 /**

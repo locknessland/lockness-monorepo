@@ -9,7 +9,6 @@
  * @module @lockness/notification/tests/queued
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { ChannelManager, type QueuedNotificationJob } from '../manager.ts'
 import { Notification } from '../notification.ts'
@@ -63,7 +62,7 @@ class User implements QueueableNotifiable {
     }
 }
 
-test('SC-004: a queued notification enqueues one job, then re-renders on handle', async () => {
+Deno.test('SC-004: a queued notification enqueues one job, then re-renders on handle', async () => {
     resetNotificationRegistry()
     const jobs: QueuedNotificationJob[] = []
     const channel = new RecordingChannel()
@@ -97,7 +96,7 @@ test('SC-004: a queued notification enqueues one job, then re-renders on handle'
     resetNotificationRegistry()
 })
 
-test('a queued delivery whose channel fails throws QueuedDeliveryError (not a silent success)', async () => {
+Deno.test('a queued delivery whose channel fails throws QueuedDeliveryError (not a silent success)', async () => {
     resetNotificationRegistry()
     const failing: Channel = {
         name: 'mail',
@@ -133,7 +132,7 @@ test('a queued delivery whose channel fails throws QueuedDeliveryError (not a si
     resetNotificationRegistry()
 })
 
-test('handleNotificationJob fails clearly for an unregistered notification', async () => {
+Deno.test('handleNotificationJob fails clearly for an unregistered notification', async () => {
     resetNotificationRegistry()
     const manager = new ChannelManager()
     let threw = false

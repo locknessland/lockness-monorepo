@@ -2,12 +2,11 @@
  * Tests for @lockness/logger - Metadata & Context
  */
 
-import { test } from 'node:test'
 import { assertEquals, assertExists } from '@std/assert'
 import { Logger, MemoryTransport, TextFormatter } from '../mod.ts'
 
-test('Logger - Metadata support', async (t) => {
-    await t.test('logs with metadata', async () => {
+Deno.test('Logger - Metadata support', async (t) => {
+    await t.step('logs with metadata', async () => {
         const memory = new MemoryTransport()
         const log = new Logger({
             transports: [memory],
@@ -21,7 +20,7 @@ test('Logger - Metadata support', async (t) => {
         assertEquals(logs[0].metadata?.action, 'login')
     })
 
-    await t.test('error with Error object', async () => {
+    await t.step('error with Error object', async () => {
         const memory = new MemoryTransport()
         const log = new Logger({
             transports: [memory],
@@ -36,7 +35,7 @@ test('Logger - Metadata support', async (t) => {
         assertExists(logs[0].metadata?.stack)
     })
 
-    await t.test('error with metadata object', async () => {
+    await t.step('error with metadata object', async () => {
         const memory = new MemoryTransport()
         const log = new Logger({
             transports: [memory],
@@ -51,8 +50,8 @@ test('Logger - Metadata support', async (t) => {
     })
 })
 
-test('Logger - Context support', async (t) => {
-    await t.test('creates logger with context', async () => {
+Deno.test('Logger - Context support', async (t) => {
+    await t.step('creates logger with context', async () => {
         const memory = new MemoryTransport()
         const log = new Logger({
             context: 'API',
@@ -66,7 +65,7 @@ test('Logger - Context support', async (t) => {
         assertEquals(logs[0].context, 'API')
     })
 
-    await t.test('child logger inherits context', async () => {
+    await t.step('child logger inherits context', async () => {
         const memory = new MemoryTransport()
         const parentLog = new Logger({
             context: 'App',
@@ -81,7 +80,7 @@ test('Logger - Context support', async (t) => {
         assertEquals(logs[0].context, 'App:Database')
     })
 
-    await t.test('nested child contexts', async () => {
+    await t.step('nested child contexts', async () => {
         const memory = new MemoryTransport()
         const log = new Logger({
             context: 'Server',

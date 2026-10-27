@@ -8,7 +8,6 @@
  * @module @lockness/realtime/tests/protocol
  */
 
-import { test } from 'node:test'
 import { assertEquals, assertThrows } from '@std/assert'
 import {
     decodeClientMessage,
@@ -18,7 +17,7 @@ import {
     ProtocolError,
 } from '../protocol.ts'
 
-test('SC-007: subscribe/unsubscribe/ping round-trip', () => {
+Deno.test('SC-007: subscribe/unsubscribe/ping round-trip', () => {
     assertEquals(
         decodeClientMessage('{"type":"subscribe","channel":"private-room.1"}'),
         { type: 'subscribe', channel: 'private-room.1' },
@@ -30,7 +29,7 @@ test('SC-007: subscribe/unsubscribe/ping round-trip', () => {
     assertEquals(decodeClientMessage('{"type":"ping"}'), { type: 'ping' })
 })
 
-test('SC-007: a server frame encodes to JSON', () => {
+Deno.test('SC-007: a server frame encodes to JSON', () => {
     const raw = encodeServerMessage({
         type: 'event',
         channel: 'news',
@@ -40,7 +39,7 @@ test('SC-007: a server frame encodes to JSON', () => {
     assertEquals(JSON.parse(raw).event, 'headline')
 })
 
-test('SC-007: malformed JSON, unknown type, and non-object frames throw ProtocolError', () => {
+Deno.test('SC-007: malformed JSON, unknown type, and non-object frames throw ProtocolError', () => {
     assertThrows(() => decodeClientMessage('{not json'), ProtocolError)
     assertThrows(() => decodeClientMessage('123'), ProtocolError)
     assertThrows(
@@ -49,12 +48,12 @@ test('SC-007: malformed JSON, unknown type, and non-object frames throw Protocol
     )
 })
 
-test('SC-007: an oversized frame throws ProtocolError', () => {
+Deno.test('SC-007: an oversized frame throws ProtocolError', () => {
     const huge = JSON.stringify({ type: 'subscribe', channel: 'a'.repeat(50) })
     assertThrows(() => decodeClientMessage(huge, 10), ProtocolError, 'maximum')
 })
 
-test('SC-007b: an out-of-charset or oversized channel name is rejected (S3)', () => {
+Deno.test('SC-007b: an out-of-charset or oversized channel name is rejected (S3)', () => {
     assertThrows(
         () =>
             decodeClientMessage(
@@ -75,7 +74,7 @@ test('SC-007b: an out-of-charset or oversized channel name is rejected (S3)', ()
     )
 })
 
-test('isValidName accepts the allow-list charset only', () => {
+Deno.test('isValidName accepts the allow-list charset only', () => {
     assertEquals(isValidName('presence-room.1:v2_x-y'), true)
     assertEquals(isValidName('bad name'), false)
     assertEquals(isValidName('bad/slash'), false)

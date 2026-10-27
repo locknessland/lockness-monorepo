@@ -13,7 +13,6 @@
  * @module @lockness/core/tests/database_step
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { container } from '@lockness/container'
 import { deregisterHealthCheck, type HealthCheck } from '@lockness/contract'
@@ -81,7 +80,7 @@ function databaseCheck(): HealthCheck {
     return checks[0]
 }
 
-test('#420 boot configures the database with zero round trips; /ready makes one', async () => {
+Deno.test('#420 boot configures the database with zero round trips; /ready makes one', async () => {
     await withFreshDatabase(async (db) => {
         const counts = { built: 0, probes: 0 }
         const factory: DriverFactory = () => {
@@ -111,7 +110,7 @@ test('#420 boot configures the database with zero round trips; /ready makes one'
     })
 })
 
-test('#420 a client that cannot be built does not stop boot, and /ready reports down', async () => {
+Deno.test('#420 a client that cannot be built does not stop boot, and /ready reports down', async () => {
     await withFreshDatabase(async (db) => {
         db.setDriverFactory('postgres', () => {
             throw new Error('Cannot find module postgres')
@@ -179,7 +178,7 @@ async function runStepCapturingConnect(
     return { options, logged, imported }
 }
 
-test('#454 logger: true passes notices whose warn and debug reach the logger', async () => {
+Deno.test('#454 logger: true passes notices whose warn and debug reach the logger', async () => {
     const { options, logged } = await runStepCapturingConnect({ logger: true })
 
     assertEquals(options.length, 1)
@@ -193,7 +192,7 @@ test('#454 logger: true passes notices whose warn and debug reach the logger', a
     ])
 })
 
-test('#454 a logger whose transport rejects causes no unhandled rejection and writes one stderr line', async () => {
+Deno.test('#454 a logger whose transport rejects causes no unhandled rejection and writes one stderr line', async () => {
     // A `FileTransport` on a full disk, or a sink that is down, rejects. The
     // reporter used to `void` that promise, so the rejection went unhandled
     // and ended the process the first time a notice arrived.
@@ -244,7 +243,7 @@ test('#454 a logger whose transport rejects causes no unhandled rejection and wr
     assertEquals(errors[0].includes('disk full'), true, errors[0])
 })
 
-test('#454 without logger, connect receives no notices key and the logger is not imported', async () => {
+Deno.test('#454 without logger, connect receives no notices key and the logger is not imported', async () => {
     const { options, imported } = await runStepCapturingConnect({})
 
     assertEquals(options.length, 1)

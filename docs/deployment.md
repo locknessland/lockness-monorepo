@@ -104,20 +104,9 @@ warning: set `APP_ENV` and remove `DENO_ENV`.
 | `production`                | yes                     | hidden            | off      | boot refused      | `deno-kv`        |
 | unset, `staging`, any other | yes                     | hidden            | off      | per-process key   | `memory`         |
 | `development`               | no                      | shown             | on       | per-process key   | `memory`         |
-| unreadable (see below)      | yes                     | hidden            | off      | boot refused      | `memory`         |
 
 An unset `APP_ENV` is never production, so the production-only refusals do not
 apply to it. Set `APP_ENV=production` on every production deployment.
-
-**Unreadable is not unset.** A `deno compile` binary built without the env grant
-(custom `compile.flags` that narrow `--allow-env`; the default build uses `-A`),
-or a run whose `--allow-env` lists variables but not `APP_ENV`, cannot read
-`APP_ENV`. Lockness never prompts for it. The boot prints one warning, and the
-controls that protect production treat the process as possibly production: a
-cookie session with no `APP_KEY` refuses to boot, `db:seed`, `db:fresh` and
-factory writes refuse without `--allow-production`, and the mail preview stays
-off. Everything else (`isProduction()`, the error pages, your `config/app.ts`)
-reads it as unset. Grant `--allow-env=APP_ENV` so the process can tell.
 
 ### Environment Variables
 

@@ -13,7 +13,6 @@
  * @module @lockness/core/ssg/tests/enumerate
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertRejects, assertThrows } from '@std/assert'
 import { join, resolve } from '@std/path'
 import { Controller, Get, Post, Static } from '@lockness/contract'
@@ -29,7 +28,7 @@ type Ref = ControllerWithMetadata & { readonly name: string }
 // deno-lint-ignore no-explicit-any
 const ref = (ctor: any): Ref => ctor as Ref
 
-test('enumerate - includes @Static GET routes, excludes plain routes', () => {
+Deno.test('enumerate - includes @Static GET routes, excludes plain routes', () => {
     @Controller('/docs')
     class DocsCtrl {
         @Get('/')
@@ -65,7 +64,7 @@ test('enumerate - includes @Static GET routes, excludes plain routes', () => {
     assertEquals(targets[0].outputPath, join(DIST, 'docs', 'index.html'))
 })
 
-test('enumerate - class-level @Static marks every GET route', () => {
+Deno.test('enumerate - class-level @Static marks every GET route', () => {
     @Controller('/ui')
     @Static()
     class UiCtrl {
@@ -101,7 +100,7 @@ test('enumerate - class-level @Static marks every GET route', () => {
     assertEquals(llms.outputPath, join(DIST, 'ui', 'llms.txt'))
 })
 
-test('enumerate - a @Static non-GET route throws (FR-010)', () => {
+Deno.test('enumerate - a @Static non-GET route throws (FR-010)', () => {
     @Controller('/x')
     class XCtrl {
         @Post('/')
@@ -125,7 +124,7 @@ test('enumerate - a @Static non-GET route throws (FR-010)', () => {
     )
 })
 
-test('enumerate - a parameterized @Static route without params throws actionably (SC-007)', () => {
+Deno.test('enumerate - a parameterized @Static route without params throws actionably (SC-007)', () => {
     @Controller('/docs')
     class DocsCtrl {
         @Get('/:slug')
@@ -150,7 +149,7 @@ test('enumerate - a parameterized @Static route without params throws actionably
     )
 })
 
-test('enumerate - a literal params list expands into one target per entry (US4)', () => {
+Deno.test('enumerate - a literal params list expands into one target per entry (US4)', () => {
     @Controller('/docs')
     class DocsCtrl {
         @Get('/:slug')
@@ -180,7 +179,7 @@ test('enumerate - a literal params list expands into one target per entry (US4)'
     )
 })
 
-test('enumerate - a traversal param value is rejected by outputPathFor (ties to S1)', () => {
+Deno.test('enumerate - a traversal param value is rejected by outputPathFor (ties to S1)', () => {
     @Controller('/docs')
     class DocsCtrl {
         @Get('/:slug')
@@ -204,7 +203,7 @@ test('enumerate - a traversal param value is rejected by outputPathFor (ties to 
     )
 })
 
-test('loadControllers - is fatal on an import failure (FR-012), naming the file', async () => {
+Deno.test('loadControllers - is fatal on an import failure (FR-012), naming the file', async () => {
     const dir = await Deno.makeTempDir()
     try {
         await Deno.writeTextFile(
@@ -221,7 +220,7 @@ test('loadControllers - is fatal on an import failure (FR-012), naming the file'
     }
 })
 
-test('loadControllers - collects @Controller exports from a dir', async () => {
+Deno.test('loadControllers - collects @Controller exports from a dir', async () => {
     const dir = await Deno.makeTempDir()
     try {
         await Deno.writeTextFile(

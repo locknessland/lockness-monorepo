@@ -27,7 +27,6 @@
  * @module @lockness/realtime/tests/presence_member_transitions_344
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertThrows } from '@std/assert'
 import { ChannelManager } from '../manager.ts'
 import { MemoryBroadcastDriver } from '../drivers/memory.ts'
@@ -215,7 +214,7 @@ for (
         ['W4 roster-less', rosterlessDriver],
     ] as const
 ) {
-    test(`#344 ${label}: two tabs as one member announce ONE joined and ONE presence-join`, async () => {
+    Deno.test(`#344 ${label}: two tabs as one member announce ONE joined and ONE presence-join`, async () => {
         const { observer, published } = await twoTabs(make)
         assertEquals(
             presenceFrames(observer, 'joined', 7).length,
@@ -225,7 +224,7 @@ for (
         assertEquals(controls(published, 'presence-join', 7).length, 1)
     })
 
-    test(`#344 ${label}: closing one of two tabs announces nothing`, async () => {
+    Deno.test(`#344 ${label}: closing one of two tabs announces nothing`, async () => {
         const { manager, observer, published } = await twoTabs(make)
         assertEquals(await manager.unsubscribe('c1', CHANNEL), 'left')
         assertEquals(
@@ -236,7 +235,7 @@ for (
         assertEquals(controls(published, 'presence-leave', 7), [])
     })
 
-    test(`#344 ${label}: closing the last tab announces exactly one left`, async () => {
+    Deno.test(`#344 ${label}: closing the last tab announces exactly one left`, async () => {
         const { manager, observer, published } = await twoTabs(make)
         await manager.unsubscribe('c1', CHANNEL)
         await manager.unsubscribe('c2', CHANNEL)
@@ -270,7 +269,7 @@ function redisInstance(
     return { driver, manager }
 }
 
-test('#344 W5 member 7 on two instances: one presence-join; A leaving says nothing; B leaving is the one presence-leave', async () => {
+Deno.test('#344 W5 member 7 on two instances: one presence-join; A leaving says nothing; B leaving is the one presence-leave', async () => {
     const redis = new FakeRedis()
     const log: Array<ControlMessage & { from: string }> = []
     const a = redisInstance(redis, 'A', log)
@@ -313,7 +312,7 @@ test('#344 W5 member 7 on two instances: one presence-join; A leaving says nothi
 
 // --- W6 / W7: the #330 gated rig --------------------------------------------
 
-test('#344 W6 a join overtaken by its own leave announces nothing — neither the join nor the leave', async () => {
+Deno.test('#344 W6 a join overtaken by its own leave announces nothing — neither the join nor the leave', async () => {
     // No local observer: the join is only overtaken when it awaits `#watch`,
     // which a hosted channel skips (#330). The control frames are what every
     // other instance would be told (A-L4).
@@ -343,7 +342,7 @@ test('#344 W6 a join overtaken by its own leave announces nothing — neither th
     assertEquals(r.roster.size, 0)
 })
 
-test('#344 W7 a hold that lands before the leave announces joined, then left', async () => {
+Deno.test('#344 W7 a hold that lands before the leave announces joined, then left', async () => {
     // Green before and after #344: this interleaving genuinely held the member.
     //
     // REPAIRED by #361, which made `unsubscribe` forget the member BEFORE its
@@ -375,7 +374,7 @@ test('#344 W7 a hold that lands before the leave announces joined, then left', a
     )
 })
 
-test('#344 W7b a leave issued before the join held anything overtakes it, and nothing is announced (#361)', async () => {
+Deno.test('#344 W7b a leave issued before the join held anything overtakes it, and nothing is announced (#361)', async () => {
     // The pre-#361 interleaving of W7: the leave arrives while the join is
     // suspended at its watch. The leave forgets the member first, so the
     // join's queued write computes "absent" and holds nothing (#330) — no
@@ -406,7 +405,7 @@ test('#344 W7b a leave issued before the join held anything overtakes it, and no
     assertEquals(r.manager.connectionCount, 1)
 })
 
-test("#344 W8 a join whose queued write finds the slot emptied sends the one left, from that join's write", async () => {
+Deno.test("#344 W8 a join whose queued write finds the slot emptied sends the one left, from that join's write", async () => {
     const r = rig({ gated: ['hold', 'release'] })
     const observer = conn('c0', 1)
     r.manager.register(observer)
@@ -447,7 +446,7 @@ test("#344 W8 a join whose queued write finds the slot emptied sends the one lef
 
 // --- W9: `joined` never reaches a connection of the same member -------------
 
-test('#344 W9 two tabs of member 7 racing its arrival — neither receives joined for 7', async () => {
+Deno.test('#344 W9 two tabs of member 7 racing its arrival — neither receives joined for 7', async () => {
     const r = rig({ gated: ['hold'] })
     const c1 = conn('c1', 7)
     r.manager.register(c1)
@@ -469,7 +468,7 @@ test('#344 W9 two tabs of member 7 racing its arrival — neither receives joine
     )
 })
 
-test("#344 W9 remote: a tab of member 7 on B never receives B's re-emit of A's presence-join for 7", async () => {
+Deno.test("#344 W9 remote: a tab of member 7 on B never receives B's re-emit of A's presence-join for 7", async () => {
     const redis = new FakeRedis()
     const log: Array<ControlMessage & { from: string }> = []
     const g = gates()
@@ -527,7 +526,7 @@ test("#344 W9 remote: a tab of member 7 on B never receives B's re-emit of A's p
 
 // --- W10: a lost presence-leave publish ------------------------------------
 
-test('#344 W10 a failed presence-leave publish: unsubscribe resolves left, with one WARN naming no member', async () => {
+Deno.test('#344 W10 a failed presence-leave publish: unsubscribe resolves left, with one WARN naming no member', async () => {
     const secretId = 424242
     const secretInfo = 'ada@example.test'
     const r = rig({
@@ -580,7 +579,7 @@ test('#344 W10 a failed presence-leave publish: unsubscribe resolves left, with 
     )
 })
 
-test('#344 W10 an encode that refuses the local joined frame: one WARN, no rethrow, and the presence-join is still published', async () => {
+Deno.test('#344 W10 an encode that refuses the local joined frame: one WARN, no rethrow, and the presence-join is still published', async () => {
     // FR-010: an `encode` throw is a WARN like a publish failure. The two
     // halves fail independently — this instance's codec refusing the frame for
     // its own sockets does not keep the other instances from hearing of it.
@@ -641,7 +640,7 @@ test('#344 W10 an encode that refuses the local joined frame: one WARN, no rethr
     )
 })
 
-test("#344 the arrival's joined carries the earliest local connection's entry, not the origin's", async () => {
+Deno.test("#344 the arrival's joined carries the earliest local connection's entry, not the origin's", async () => {
     // ADR 003 §7: the slot holds `desired`, the member's earliest local entry,
     // and FR-010 announces that same entry. Here the arrival is observed by
     // c2's write (the slot was emptied under c1, as another instance's release
@@ -680,7 +679,7 @@ test("#344 the arrival's joined carries the earliest local connection's entry, n
     assertEquals(r.roster.get('7'), { id: 7, info: { tab: 'first' } })
 })
 
-test('#344 W10 (guard) a failed RELEASE still rejects unsubscribe', async () => {
+Deno.test('#344 W10 (guard) a failed RELEASE still rejects unsubscribe', async () => {
     // Green before and after: only the announcement's failure is absorbed.
     const r = rig({
         publishControl: () => {},
@@ -710,7 +709,7 @@ const legacyBase = {
     readRoster: () => ({ members: [], total: 0, selves: [] }),
 }
 
-test('#344 W12 a driver still offering addMember / removeMember is refused at construction', () => {
+Deno.test('#344 W12 a driver still offering addMember / removeMember is refused at construction', () => {
     const error = assertThrows(
         () =>
             new ChannelManager<User>({
@@ -728,7 +727,7 @@ test('#344 W12 a driver still offering addMember / removeMember is refused at co
     )
 })
 
-test('#344 W12 a driver offering listMembers too is refused ONCE, naming all three', () => {
+Deno.test('#344 W12 a driver offering listMembers too is refused ONCE, naming all three', () => {
     const error = assertThrows(
         () =>
             new ChannelManager<User>({
@@ -753,7 +752,7 @@ type ContractDriver = Pick<
     'holdMember' | 'releaseMember' | 'readRoster'
 >
 
-test('#344 W11 memory: hold → arrived, hold again → not, release → gone, then never again', async () => {
+Deno.test('#344 W11 memory: hold → arrived, hold again → not, release → gone, then never again', async () => {
     const d: ContractDriver =
         new MemoryBroadcastDriver() as unknown as ContractDriver
     const ada = { id: 7, info: { name: 'Ada' } }
@@ -790,7 +789,7 @@ function contractRedis(redis: FakeRedis): RedisBroadcastDriver {
     )
 }
 
-test('#344 W11 FakeRedis: the six contract rows across two instances', async () => {
+Deno.test('#344 W11 FakeRedis: the six contract rows across two instances', async () => {
     const redis = new FakeRedis()
     const a = contractRedis(redis)
     const b = contractRedis(redis)
@@ -832,7 +831,7 @@ test('#344 W11 FakeRedis: the six contract rows across two instances', async () 
     }
 })
 
-test('#344 W11 FakeRedis: two instances interleaved — exactly one arrival, exactly one departure', async () => {
+Deno.test('#344 W11 FakeRedis: two instances interleaved — exactly one arrival, exactly one departure', async () => {
     const redis = new FakeRedis()
     const a = contractRedis(redis)
     const b = contractRedis(redis)

@@ -2,12 +2,11 @@
  * Tests for @lockness/validator - Special Validators
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { custom, ip, json, validate } from '../mod.ts'
 
-test('Validator - Special validators', async (t) => {
-    await t.test('ip validator', async () => {
+Deno.test('Validator - Special validators', async (t) => {
+    await t.step('ip validator', async () => {
         const result = await validate(
             { ip: '192.168.1.1' },
             { ip: [ip()] },
@@ -21,7 +20,7 @@ test('Validator - Special validators', async (t) => {
         assertEquals(invalid.valid, false)
     })
 
-    await t.test('json validator', async () => {
+    await t.step('json validator', async () => {
         const result = await validate(
             { config: '{"key": "value"}' },
             { config: [json()] },
@@ -35,7 +34,7 @@ test('Validator - Special validators', async (t) => {
         assertEquals(invalid.valid, false)
     })
 
-    await t.test('custom validator', async () => {
+    await t.step('custom validator', async () => {
         const evenNumber = custom(
             (value: unknown) => typeof value === 'number' && value % 2 === 0,
             'Must be an even number',
@@ -55,7 +54,7 @@ test('Validator - Special validators', async (t) => {
         assertEquals(invalid.errors.number?.[0], 'Must be an even number')
     })
 
-    await t.test('async custom validator', async () => {
+    await t.step('async custom validator', async () => {
         const asyncValidator = custom(
             async (value: unknown) => {
                 await new Promise((resolve) => setTimeout(resolve, 10))

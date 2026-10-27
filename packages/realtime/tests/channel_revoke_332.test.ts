@@ -24,7 +24,6 @@
  * @module @lockness/realtime/tests/channel_revoke_332
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import {
     ChannelManager,
@@ -191,7 +190,7 @@ function twoInstances(options: { dropControl?: boolean } = {}) {
     return { a, b, roster, index, tickB }
 }
 
-test('#332 A revokes one room on a socket B owns — and B keeps the socket', async () => {
+Deno.test('#332 A revokes one room on a socket B owns — and B keeps the socket', async () => {
     const { a, b, roster } = twoInstances()
     const victim = conn('c1', 1)
     b.register(victim)
@@ -243,7 +242,7 @@ test('#332 A revokes one room on a socket B owns — and B keeps the socket', as
     )
 })
 
-test('#332 revoking a room this instance OWNS reports what it did', async () => {
+Deno.test('#332 revoking a room this instance OWNS reports what it did', async () => {
     const { b } = twoInstances()
     const victim = conn('c1', 1)
     b.register(victim)
@@ -263,7 +262,7 @@ test('#332 revoking a room this instance OWNS reports what it did', async () => 
     )
 })
 
-test('#332 a revocation is NOT a ban — the client may re-subscribe', async () => {
+Deno.test('#332 a revocation is NOT a ban — the client may re-subscribe', async () => {
     // #331's settled model, asserted from this side so it cannot be quietly
     // reversed into a framework-owned deny list. `subscribe` does not consult
     // the revocation index, deliberately: a stale entry would otherwise refuse
@@ -282,7 +281,7 @@ test('#332 a revocation is NOT a ban — the client may re-subscribe', async () 
     assertEquals(again.here?.members.map((m) => m.id), [1])
 })
 
-test('#332 BOTH names are asserted, and nothing is published on refusal', async () => {
+Deno.test('#332 BOTH names are asserted, and nothing is published on refusal', async () => {
     // A dedicated rig with a publish spy, because the assertion is that
     // NOTHING was published — which the shared two-instance rig cannot show.
     const published: ControlMessage[] = []
@@ -317,7 +316,7 @@ test('#332 BOTH names are asserted, and nothing is published on refusal', async 
     )
 })
 
-test('#332 a driver that can ROUTE but not RECORD is refused', async () => {
+Deno.test('#332 a driver that can ROUTE but not RECORD is refused', async () => {
     const published: ControlMessage[] = []
     const driver: BroadcastDriver = {
         publish: () => {},
@@ -354,7 +353,7 @@ test('#332 a driver that can ROUTE but not RECORD is refused', async () => {
     )
 })
 
-test('#332 a single-process driver revokes locally and reports honestly', async () => {
+Deno.test('#332 a single-process driver revokes locally and reports honestly', async () => {
     // No control plane and no store: nothing to route to, nothing to lose a
     // frame on, so no durability is owed. What must NOT happen is a silent
     // success for a target this instance does not hold — that is verbatim the
@@ -382,7 +381,7 @@ test('#332 a single-process driver revokes locally and reports honestly', async 
     )
 })
 
-test('#332 a LOST control frame is recovered by the reconcile, exactly once', async () => {
+Deno.test('#332 a LOST control frame is recovered by the reconcile, exactly once', async () => {
     // The case durability exists for, and it is modelled at the BUS rather
     // than by stubbing the manager: the frame is published and never arrives.
     // Stubbing `handleControl` instead would prove something about a method
@@ -439,7 +438,7 @@ test('#332 a LOST control frame is recovered by the reconcile, exactly once', as
     )
 })
 
-test('#332 a CONNECTION-scoped record still hard-closes — scope is dispatched, not re-decided', async () => {
+Deno.test('#332 a CONNECTION-scoped record still hard-closes — scope is dispatched, not re-decided', async () => {
     // The other arm of the one mapping. Both entry points that have no caller
     // — the control frame and the reconcile — route through it, so a third
     // scope added later cannot land in one and not the other.
@@ -461,7 +460,7 @@ test('#332 a CONNECTION-scoped record still hard-closes — scope is dispatched,
     )
 })
 
-test('#332 durability failure never cancels the revocation, and is reported after', async () => {
+Deno.test('#332 durability failure never cancels the revocation, and is reported after', async () => {
     // `evict`'s sequencing, applied to the new verb: the local apply needs no
     // broker at all, so letting a durability write reject out of the method
     // would skip the one revocation that was still possible — failing OPEN on
@@ -501,7 +500,7 @@ test('#332 durability failure never cancels the revocation, and is reported afte
     )
 })
 
-test('#332 a failed CLEAR is reported to a caller and swallowed where there is none', async () => {
+Deno.test('#332 a failed CLEAR is reported to a caller and swallowed where there is none', async () => {
     // Asymmetric on purpose (FR-019). On `revokeChannel`'s own path there is a
     // caller to receive it. On the reconcile path there is not — the driver's
     // timer invoked it — so re-throwing there would be an unhandled rejection
@@ -564,7 +563,7 @@ test('#332 a failed CLEAR is reported to a caller and swallowed where there is n
     )
 })
 
-test('#332 a revoke that found nothing to remove KEEPS its durable record', async () => {
+Deno.test('#332 a revoke that found nothing to remove KEEPS its durable record', async () => {
     // THE REVIEW'S HIGH, and it is reachable rather than theoretical.
     //
     // `subscribe` suspends at the application authorizer before `#joinLocal`
@@ -647,7 +646,7 @@ test('#332 a revoke that found nothing to remove KEEPS its durable record', asyn
     assertEquals(live.size, 0, 'the record is cleared once it has been applied')
 })
 
-test('#332 a revoke-channel frame with NO channel is dropped, not widened', async () => {
+Deno.test('#332 a revoke-channel frame with NO channel is dropped, not widened', async () => {
     // The guard at the control-frame case. Deleting it hands a channel-less
     // frame to the scope mapping, which reads "no channel" as a WHOLE
     // connection revocation — hard-close 4403 — from a frame that named a room
@@ -699,7 +698,7 @@ test('#332 a revoke-channel frame with NO channel is dropped, not widened', asyn
     )
 })
 
-test('#332 the reconcile applies a record ONLY to a socket this instance owns', async () => {
+Deno.test('#332 the reconcile applies a record ONLY to a socket this instance owns', async () => {
     // BOTH DIRECTIONS, because each alone is witnessed by something else.
     //
     // Inverted, the guard makes the owning instance skip the record it is the

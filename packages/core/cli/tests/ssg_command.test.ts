@@ -11,7 +11,6 @@
  * @module @lockness/core/cli/tests/ssg_command
  */
 
-import { test } from 'node:test'
 import { assertEquals, assertRejects, assertStringIncludes } from '@std/assert'
 import { join, resolve } from '@std/path'
 import {
@@ -69,18 +68,18 @@ class PlainController {
 
 // --- findKernel / loadKernel ------------------------------------------------
 
-test('findKernel - finds the @Kernel-decorated class in a module', () => {
+Deno.test('findKernel - finds the @Kernel-decorated class in a module', () => {
     @Kernel({ controllersDir: './app/controller' })
     class AppKernel {}
 
     assertEquals(findKernel({ AppKernel, other: {} })?.KernelClass, AppKernel)
 })
 
-test('findKernel - returns undefined when no class is decorated', () => {
+Deno.test('findKernel - returns undefined when no class is decorated', () => {
     assertEquals(findKernel({ x: {}, y: class {} }), undefined)
 })
 
-test('loadKernel - returns undefined when no kernel file exists', async () => {
+Deno.test('loadKernel - returns undefined when no kernel file exists', async () => {
     const empty = await Deno.makeTempDir()
     try {
         assertEquals(await loadKernel(empty), undefined)
@@ -89,7 +88,7 @@ test('loadKernel - returns undefined when no kernel file exists', async () => {
     }
 })
 
-test('loadKernel - app/kernel.ts wins over app/kernel.tsx, as for compile (#485)', async () => {
+Deno.test('loadKernel - app/kernel.ts wins over app/kernel.tsx, as for compile (#485)', async () => {
     const root = await Deno.makeTempDir()
     const decorators = import.meta.resolve('../../kernel/kernel_decorators.ts')
     const source = (staticDir: string) =>
@@ -108,7 +107,7 @@ test('loadKernel - app/kernel.ts wins over app/kernel.tsx, as for compile (#485)
     }
 })
 
-test('loadKernel - an undecorated app/kernel.ts is reported by name; app/kernel.tsx is not read (#485)', async () => {
+Deno.test('loadKernel - an undecorated app/kernel.ts is reported by name; app/kernel.tsx is not read (#485)', async () => {
     const root = await Deno.makeTempDir()
     const key = `__lockness_485_tsx_read_${crypto.randomUUID()}`
     const decorators = import.meta.resolve('../../kernel/kernel_decorators.ts')
@@ -139,7 +138,7 @@ test('loadKernel - an undecorated app/kernel.ts is reported by name; app/kernel.
 
 // --- buildStaticSite --------------------------------------------------------
 
-test('buildStaticSite - warns (FR-013), renders the @Static page, reports it', async () => {
+Deno.test('buildStaticSite - warns (FR-013), renders the @Static page, reports it', async () => {
     const dist = await Deno.makeTempDir()
     try {
         const app = new App()
@@ -173,7 +172,7 @@ test('buildStaticSite - warns (FR-013), renders the @Static page, reports it', a
     }
 })
 
-test('buildStaticSite - a controller with no @Static yields empty (nothing to render), still warns', async () => {
+Deno.test('buildStaticSite - a controller with no @Static yields empty (nothing to render), still warns', async () => {
     const dist = await Deno.makeTempDir()
     try {
         const app = new App()
@@ -199,7 +198,7 @@ test('buildStaticSite - a controller with no @Static yields empty (nothing to re
 
 // --- FR-012 instantiation half ----------------------------------------------
 
-test('boot aborts when a controller constructor throws (FR-012/SC-008)', async () => {
+Deno.test('boot aborts when a controller constructor throws (FR-012/SC-008)', async () => {
     @Controller('/boom')
     class BoomController {
         constructor() {

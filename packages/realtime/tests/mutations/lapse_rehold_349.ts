@@ -657,7 +657,7 @@ const LAPSE_RUN_ROWS: Mutation[] = [
         // assertion, before the event was dispatched, so the rejection took
         // the whole file down. The listener now outlives one macrotask — a
         // contract of the shared `watchingEscapes` since #374, pinned by
-        // `escape_watcher.deno.test.ts`.
+        // `escape_watcher.test.ts`.
         killedBy: '#349 WS2',
     },
 ]

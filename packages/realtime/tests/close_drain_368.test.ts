@@ -25,7 +25,6 @@
  * @module @lockness/realtime/tests/close_drain_368
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
 import {
@@ -154,7 +153,7 @@ function captureLogs() {
 // W1 — the sweep pass alone is stalled
 // ---------------------------------------------------------------------------
 
-test('#368 W1 a stalled sweep release: close() waits until the TTL, logs one WARN naming the sweep pass, and the late reply announces nothing', async () => {
+Deno.test('#368 W1 a stalled sweep release: close() waits until the TTL, logs one WARN naming the sweep pass, and the late reply announces nothing', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(START)
     const port = lapsingPort(redis)
@@ -217,7 +216,7 @@ test('#368 W1 a stalled sweep release: close() waits until the TTL, logs one WAR
     }
 })
 
-test('#368 W1b no further sweep command is issued, even after the reconcile interval elapses', async () => {
+Deno.test('#368 W1b no further sweep command is issued, even after the reconcile interval elapses', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(START)
     const port = lapsingPort(redis)
@@ -264,7 +263,7 @@ test('#368 W1b no further sweep command is issued, even after the reconcile inte
 // W2 — the lapse run alone is stalled
 // ---------------------------------------------------------------------------
 
-test('#368 W2 a stalled lapse run: close() waits until the TTL and logs one WARN naming the lapse run', async () => {
+Deno.test('#368 W2 a stalled lapse run: close() waits until the TTL and logs one WARN naming the lapse run', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(START)
     const port = lapsingPort(redis)
@@ -307,7 +306,7 @@ test('#368 W2 a stalled lapse run: close() waits until the TTL and logs one WARN
 // W3 — both are stalled: one budget, not two
 // ---------------------------------------------------------------------------
 
-test('#368 W3 both the sweep pass and the lapse run stalled: close() resolves at the TTL, not twice it', async () => {
+Deno.test('#368 W3 both the sweep pass and the lapse run stalled: close() resolves at the TTL, not twice it', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(START)
     const port = lapsingPort(redis)
@@ -362,7 +361,7 @@ test('#368 W3 both the sweep pass and the lapse run stalled: close() resolves at
 // W4 — awaitCloseDrain's own contract, isolated from the driver's timers
 // ---------------------------------------------------------------------------
 
-test('#368 W4 (i) a healthy drain resolves with nothing pending and clears the timer it armed', async () => {
+Deno.test('#368 W4 (i) a healthy drain resolves with nothing pending and clears the timer it armed', async () => {
     const realSetTimeout = globalThis.setTimeout
     const realClearTimeout = globalThis.clearTimeout
     const created: ReturnType<typeof setTimeout>[] = []
@@ -398,7 +397,7 @@ test('#368 W4 (i) a healthy drain resolves with nothing pending and clears the t
     }
 })
 
-test('#368 W4 (ii) a healthy close() over a real driver writes no WARN', async () => {
+Deno.test('#368 W4 (ii) a healthy close() over a real driver writes no WARN', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(START)
     const port = lapsingPort(redis)
@@ -419,7 +418,7 @@ test('#368 W4 (ii) a healthy close() over a real driver writes no WARN', async (
 // W5 — the owned connections still close after expiry
 // ---------------------------------------------------------------------------
 
-test('#368 W5 the owned connections are closed even though the sweep pass never settled', async () => {
+Deno.test('#368 W5 the owned connections are closed even though the sweep pass never settled', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(START)
     const port = lapsingPort(redis)
@@ -458,7 +457,7 @@ test('#368 W5 the owned connections are closed even though the sweep pass never 
 // W6 — a throwing console.warn falls back to the marked line
 // ---------------------------------------------------------------------------
 
-test('#368 W6 a throwing console.warn produces one CLOSE_LOG_FAILED line, and teardown still finishes', async () => {
+Deno.test('#368 W6 a throwing console.warn produces one CLOSE_LOG_FAILED line, and teardown still finishes', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(START)
     const port = lapsingPort(redis)
@@ -501,7 +500,7 @@ test('#368 W6 a throwing console.warn produces one CLOSE_LOG_FAILED line, and te
 // W7 — the budget follows the configured liveness TTL
 // ---------------------------------------------------------------------------
 
-test('#368 W7 a liveness TTL of 2 s gives a budget of 2 s, not the default 3 s', async () => {
+Deno.test('#368 W7 a liveness TTL of 2 s gives a budget of 2 s, not the default 3 s', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(START)
     const port = lapsingPort(redis)
@@ -542,7 +541,7 @@ test('#368 W7 a liveness TTL of 2 s gives a budget of 2 s, not the default 3 s',
 // returns
 // ---------------------------------------------------------------------------
 
-test("#368 W8 the drain's timer is ref'd: a caller that does not await close() still sees it settle", async () => {
+Deno.test("#368 W8 the drain's timer is ref'd: a caller that does not await close() still sees it settle", async () => {
     // Measured (#368 grooming): a directly `await`ed call settles a ref'd OR
     // an unref'd timer alike, because the top-level module has not finished
     // either way — a FakeTime test, and a same-process real-timer test that
@@ -577,7 +576,7 @@ test("#368 W8 the drain's timer is ref'd: a caller that does not await close() s
 // W9 — the roster-maintenance drain alone is stalled (#371)
 // ---------------------------------------------------------------------------
 
-test('#368 W9 a stalled roster-maintenance drain: close() waits until the TTL and logs one WARN naming the drain', async () => {
+Deno.test('#368 W9 a stalled roster-maintenance drain: close() waits until the TTL and logs one WARN naming the drain', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(START)
     const port = lapsingPort(redis)

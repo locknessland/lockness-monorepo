@@ -1,4 +1,3 @@
-import { test } from 'node:test'
 import { assertEquals, assertExists } from '@std/assert'
 import {
     AuthenticationError,
@@ -10,14 +9,14 @@ import {
     UnauthorizedAccessError,
 } from '../errors.ts'
 
-test('AuthenticationError - can be instantiated', () => {
+Deno.test('AuthenticationError - can be instantiated', () => {
     const error = new AuthenticationError('Test error')
     assertEquals(error.message, 'Test error')
     assertEquals(error.name, 'AuthenticationError')
     assertExists(error)
 })
 
-test('InvalidCredentialsError - has correct properties', () => {
+Deno.test('InvalidCredentialsError - has correct properties', () => {
     const error = new InvalidCredentialsError('Custom message')
     assertEquals(error.message, 'Custom message')
     assertEquals(error.name, 'InvalidCredentialsError')
@@ -25,7 +24,7 @@ test('InvalidCredentialsError - has correct properties', () => {
     assertEquals(error.code, 'E_INVALID_CREDENTIALS')
 })
 
-test('InvalidCredentialsError - toJSON returns correct structure', () => {
+Deno.test('InvalidCredentialsError - toJSON returns correct structure', () => {
     const error = new InvalidCredentialsError('Login failed')
     const json = error.toJSON()
 
@@ -34,13 +33,13 @@ test('InvalidCredentialsError - toJSON returns correct structure', () => {
     assertEquals(json.status, 401)
 })
 
-test('InvalidCredentialsError - default message', () => {
+Deno.test('InvalidCredentialsError - default message', () => {
     const error = new InvalidCredentialsError()
     assertEquals(error.message, 'Invalid user credentials')
     assertEquals(error.toJSON().message, 'Invalid user credentials')
 })
 
-test('UnauthorizedAccessError - has correct properties', () => {
+Deno.test('UnauthorizedAccessError - has correct properties', () => {
     const error = new UnauthorizedAccessError('Access denied')
     assertEquals(error.message, 'Access denied')
     assertEquals(error.name, 'UnauthorizedAccessError')
@@ -48,7 +47,7 @@ test('UnauthorizedAccessError - has correct properties', () => {
     assertEquals(error.code, 'E_UNAUTHORIZED_ACCESS')
 })
 
-test('UnauthorizedAccessError - toJSON returns correct structure', () => {
+Deno.test('UnauthorizedAccessError - toJSON returns correct structure', () => {
     const error = new UnauthorizedAccessError('Protected resource')
     const json = error.toJSON()
 
@@ -57,12 +56,12 @@ test('UnauthorizedAccessError - toJSON returns correct structure', () => {
     assertEquals(json.status, 401)
 })
 
-test('UnauthorizedAccessError - default message', () => {
+Deno.test('UnauthorizedAccessError - default message', () => {
     const error = new UnauthorizedAccessError()
     assertEquals(error.message, 'Unauthorized access')
 })
 
-test('SessionExpiredError - has correct properties', () => {
+Deno.test('SessionExpiredError - has correct properties', () => {
     const error = new SessionExpiredError('Your session expired')
     assertEquals(error.message, 'Your session expired')
     assertEquals(error.name, 'SessionExpiredError')
@@ -70,7 +69,7 @@ test('SessionExpiredError - has correct properties', () => {
     assertEquals(error.code, 'E_SESSION_EXPIRED')
 })
 
-test('SessionExpiredError - toJSON returns correct structure', () => {
+Deno.test('SessionExpiredError - toJSON returns correct structure', () => {
     const error = new SessionExpiredError('Session timeout')
     const json = error.toJSON()
 
@@ -79,12 +78,12 @@ test('SessionExpiredError - toJSON returns correct structure', () => {
     assertEquals(json.status, 401)
 })
 
-test('SessionExpiredError - default message', () => {
+Deno.test('SessionExpiredError - default message', () => {
     const error = new SessionExpiredError()
     assertEquals(error.message, 'Session has expired')
 })
 
-test('InvalidTokenError - has correct properties', () => {
+Deno.test('InvalidTokenError - has correct properties', () => {
     const error = new InvalidTokenError('Token invalid')
     assertEquals(error.message, 'Token invalid')
     assertEquals(error.name, 'InvalidTokenError')
@@ -92,7 +91,7 @@ test('InvalidTokenError - has correct properties', () => {
     assertEquals(error.code, 'E_INVALID_TOKEN')
 })
 
-test('InvalidTokenError - toJSON returns correct structure', () => {
+Deno.test('InvalidTokenError - toJSON returns correct structure', () => {
     const error = new InvalidTokenError('Malformed token')
     const json = error.toJSON()
 
@@ -101,12 +100,12 @@ test('InvalidTokenError - toJSON returns correct structure', () => {
     assertEquals(json.status, 401)
 })
 
-test('InvalidTokenError - default message', () => {
+Deno.test('InvalidTokenError - default message', () => {
     const error = new InvalidTokenError()
     assertEquals(error.message, 'Invalid or expired token')
 })
 
-test('AuthenticationRequiredError - has correct properties', () => {
+Deno.test('AuthenticationRequiredError - has correct properties', () => {
     const error = new AuthenticationRequiredError('Please authenticate')
     assertEquals(error.message, 'Please authenticate')
     assertEquals(error.name, 'AuthenticationRequiredError')
@@ -114,7 +113,7 @@ test('AuthenticationRequiredError - has correct properties', () => {
     assertEquals(error.code, 'E_AUTHENTICATION_REQUIRED')
 })
 
-test('AuthenticationRequiredError - toJSON returns correct structure', () => {
+Deno.test('AuthenticationRequiredError - toJSON returns correct structure', () => {
     const error = new AuthenticationRequiredError('Not authenticated')
     const json = error.toJSON()
 
@@ -123,7 +122,7 @@ test('AuthenticationRequiredError - toJSON returns correct structure', () => {
     assertEquals(json.status, 401)
 })
 
-test('AuthenticationRequiredError - default message', () => {
+Deno.test('AuthenticationRequiredError - default message', () => {
     const error = new AuthenticationRequiredError()
     assertEquals(
         error.message,
@@ -131,14 +130,14 @@ test('AuthenticationRequiredError - default message', () => {
     )
 })
 
-test('InvalidGuardConfigError - can be instantiated', () => {
+Deno.test('InvalidGuardConfigError - can be instantiated', () => {
     const error = new InvalidGuardConfigError('Invalid config')
     assertEquals(error.message, 'Invalid config')
     assertEquals(error.name, 'InvalidGuardConfigError')
     assertExists(error)
 })
 
-test('All errors inherit from Error', () => {
+Deno.test('All errors inherit from Error', () => {
     const errors = [
         new AuthenticationError('test'),
         new InvalidCredentialsError(),

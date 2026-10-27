@@ -10,7 +10,6 @@
  * @module @lockness/realtime/tests/driver_redis
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertThrows } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
 import { ChannelManager } from '../manager.ts'
@@ -115,7 +114,7 @@ function instance(bus: FakeRedisBus, authorize: (id: User | null) => boolean) {
     return new ChannelManager<User>({ driver, authorize })
 }
 
-test('SC-001: a broadcast on instance A reaches an authorized subscriber on instance B', async () => {
+Deno.test('SC-001: a broadcast on instance A reaches an authorized subscriber on instance B', async () => {
     const bus = new FakeRedisBus()
     const a = instance(bus, () => true)
     const b = instance(bus, () => true)
@@ -135,7 +134,7 @@ test('SC-001: a broadcast on instance A reaches an authorized subscriber on inst
     assertEquals(JSON.parse(sentOf(subB)[0]).channel, 'private-room')
 })
 
-test('SC-001a: the receiving instance re-applies local authorization (S6)', async () => {
+Deno.test('SC-001a: the receiving instance re-applies local authorization (S6)', async () => {
     const bus = new FakeRedisBus()
     const a = instance(bus, () => true)
     // Instance B denies everyone, so no local subscription exists on B.
@@ -155,7 +154,7 @@ test('SC-001a: the receiving instance re-applies local authorization (S6)', asyn
     assertEquals(sentOf(notOnB).length, 0) // B has no authorized local subscriber
 })
 
-test('cross-channel isolation: a broadcast to X is not delivered to a Y subscriber', async () => {
+Deno.test('cross-channel isolation: a broadcast to X is not delivered to a Y subscriber', async () => {
     const bus = new FakeRedisBus()
     const a = instance(bus, () => true)
     const onY = fakeConn('y', { id: 3 })
@@ -165,7 +164,7 @@ test('cross-channel isolation: a broadcast to X is not delivered to a Y subscrib
     assertEquals(sentOf(onY).length, 0)
 })
 
-test('S3 ingest: a Redis message with an out-of-charset event name is dropped', () => {
+Deno.test('S3 ingest: a Redis message with an out-of-charset event name is dropped', () => {
     const bus = new FakeRedisBus()
     const driver = new RedisBroadcastDriver(
         { command: bus.command },
@@ -200,7 +199,7 @@ test('S3 ingest: a Redis message with an out-of-charset event name is dropped', 
     )
 })
 
-test('FR-019 ingest: a Redis message whose channel name is out of charset is dropped', () => {
+Deno.test('FR-019 ingest: a Redis message whose channel name is out of charset is dropped', () => {
     const bus = new FakeRedisBus()
     const driver = new RedisBroadcastDriver(
         { command: bus.command },
@@ -236,7 +235,7 @@ test('FR-019 ingest: a Redis message whose channel name is out of charset is dro
     )
 })
 
-test('FR-019 ingest: a Redis message with a non-string event is dropped', () => {
+Deno.test('FR-019 ingest: a Redis message with a non-string event is dropped', () => {
     const bus = new FakeRedisBus()
     const driver = new RedisBroadcastDriver(
         { command: bus.command },
@@ -272,7 +271,7 @@ test('FR-019 ingest: a Redis message with a non-string event is dropped', () => 
     )
 })
 
-test('FR-019 ingest: a valid channel + event name is delivered', () => {
+Deno.test('FR-019 ingest: a valid channel + event name is delivered', () => {
     const bus = new FakeRedisBus()
     const driver = new RedisBroadcastDriver(
         { command: bus.command },
@@ -291,7 +290,7 @@ test('FR-019 ingest: a valid channel + event name is delivered', () => {
     assertEquals(got[0].event, 'published')
 })
 
-test('#293: a heartbeat that cannot outrun its own liveness TTL is rejected at construction', () => {
+Deno.test('#293: a heartbeat that cannot outrun its own liveness TTL is rejected at construction', () => {
     const bus = new FakeRedisBus()
     const build = (presence: Record<string, number>) =>
         new RedisBroadcastDriver(
@@ -363,7 +362,7 @@ test('#293: a heartbeat that cannot outrun its own liveness TTL is rejected at c
     build({ heartbeatIntervalMs: 5_000, livenessTtlSeconds: 15 })
 })
 
-test('FR-015: a control secret below the 32-byte floor is rejected at construction', () => {
+Deno.test('FR-015: a control secret below the 32-byte floor is rejected at construction', () => {
     const bus = new FakeRedisBus()
     // A short, guessable secret weakens the control-frame MAC — refuse it up
     // front rather than shipping a forgeable control plane.
@@ -385,7 +384,7 @@ test('FR-015: a control secret below the 32-byte floor is rejected at constructi
     )
 })
 
-test('publish sends PUBLISH with the reserved prefix and JSON payload', async () => {
+Deno.test('publish sends PUBLISH with the reserved prefix and JSON payload', async () => {
     const bus = new FakeRedisBus()
     const calls: string[][] = []
     const driver = new RedisBroadcastDriver(
@@ -399,7 +398,7 @@ test('publish sends PUBLISH with the reserved prefix and JSON payload', async ()
     assert(calls[0][2].includes('"event":"e"'))
 })
 
-test('FR-004: a subscriber without the reconnect seam constructs and arms its periodic trigger', async () => {
+Deno.test('FR-004: a subscriber without the reconnect seam constructs and arms its periodic trigger', async () => {
     const bus = new FakeRedisBus()
     const time = new FakeTime(new Date('2026-09-05T10:00:00Z'))
     // The fake above deliberately has no `onReconnect`. Registering the
@@ -433,7 +432,7 @@ test('FR-004: a subscriber without the reconnect seam constructs and arms its pe
     }
 })
 
-test('#245: fromConfig actually forwards the subscribe cadences', () => {
+Deno.test('#245: fromConfig actually forwards the subscribe cadences', () => {
     // The knobs README documents are only real if they reach the subscribe
     // connection. `fromConfig` builds that connection internally, so there is no
     // way to observe the value from outside — but an INVALID pair is observable,
@@ -457,7 +456,7 @@ test('#245: fromConfig actually forwards the subscribe cadences', () => {
     )
 })
 
-test('#245: fromConfig accepts a valid cadence set', async () => {
+Deno.test('#245: fromConfig accepts a valid cadence set', async () => {
     // The other half, and the reason this test exists at all: before the config
     // type was widened, an object literal carrying `keepaliveMs` was a TS2353
     // excess-property error, so the documented knobs were unreachable from the

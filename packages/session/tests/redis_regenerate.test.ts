@@ -16,7 +16,6 @@
  * `GET, SETEX, DEL` (no `EVAL`), and no frame carries `7200`.
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { RedisSessionDriver } from '../drivers/redis.ts'
 import { startRespServer } from './resp_server.ts'
@@ -39,7 +38,7 @@ function withTimeout<T>(work: Promise<T>, ms = 3000): Promise<T> {
     ) as Promise<T>
 }
 
-test('redis regenerate - one EVAL carrying the lifetime, never config.db, never GET+SET+DEL', async () => {
+Deno.test('redis regenerate - one EVAL carrying the lifetime, never config.db, never GET+SET+DEL', async () => {
     const server = await startRespServer()
     try {
         // db defaults to 0; the broken body passed that as the TTL. Prove the

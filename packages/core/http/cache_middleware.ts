@@ -1,4 +1,4 @@
-import type { MiddlewareHandler } from '@lockness/hono'
+import type { MiddlewareHandler } from 'hono'
 import {
     type CacheContract,
     type CacheOptions,

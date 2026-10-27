@@ -10,7 +10,6 @@
  * @module @lockness/core/tests/environment_tripwire
  */
 
-import { test } from 'node:test'
 import {
     assert,
     assertEquals,
@@ -60,7 +59,7 @@ async function denoEnvWarnings(fn: () => Promise<void>): Promise<string[]> {
     return warnings
 }
 
-test('createApp - DENO_ENV=production alone refuses to boot, naming APP_ENV', async () => {
+Deno.test('createApp - DENO_ENV=production alone refuses to boot, naming APP_ENV', async () => {
     @Kernel()
     class TestKernel {}
 
@@ -71,7 +70,7 @@ test('createApp - DENO_ENV=production alone refuses to boot, naming APP_ENV', as
     })
 })
 
-test('createApp - a DENO_ENV disagreeing with APP_ENV refuses to boot', async () => {
+Deno.test('createApp - a DENO_ENV disagreeing with APP_ENV refuses to boot', async () => {
     @Kernel()
     class TestKernel {}
 
@@ -87,7 +86,7 @@ test('createApp - a DENO_ENV disagreeing with APP_ENV refuses to boot', async ()
     )
 })
 
-test('createApp - a DENO_ENV equal to APP_ENV boots and warns once', async () => {
+Deno.test('createApp - a DENO_ENV equal to APP_ENV boots and warns once', async () => {
     @Kernel()
     class TestKernel {}
 
@@ -103,7 +102,7 @@ test('createApp - a DENO_ENV equal to APP_ENV boots and warns once', async () =>
     )
 })
 
-test('createApp - neither variable set boots without a DENO_ENV warning', async () => {
+Deno.test('createApp - neither variable set boots without a DENO_ENV warning', async () => {
     @Kernel()
     class TestKernel {}
 
@@ -115,7 +114,7 @@ test('createApp - neither variable set boots without a DENO_ENV warning', async 
     })
 })
 
-test('the environment step runs first, before any step that reads the environment', () => {
+Deno.test('the environment step runs first, before any step that reads the environment', () => {
     const steps = getDefaultSteps()
     assertEquals(steps[0].id, environmentStep.id)
     assertEquals(environmentStep.order, 1)
@@ -124,7 +123,7 @@ test('the environment step runs first, before any step that reads the environmen
     }
 })
 
-test('@lockness/core re-exports the environment predicates, and not the tripwire', () => {
+Deno.test('@lockness/core re-exports the environment predicates, and not the tripwire', () => {
     assertEquals(typeof core.resolveEnvName, 'function')
     assertEquals(typeof core.isProduction, 'function')
     assertEquals(typeof core.isDevelopment, 'function')

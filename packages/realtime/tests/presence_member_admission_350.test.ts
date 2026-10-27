@@ -29,7 +29,6 @@
  * @module @lockness/realtime/tests/presence_member_admission_350
  */
 
-import { test } from 'node:test'
 import {
     assert,
     assertEquals,
@@ -312,7 +311,7 @@ async function assertNothingJoined(room: Room, memberId: string | number) {
 // --- (a) an own key beside id/info is refused -------------------------------
 
 for (const kind of KINDS) {
-    test(`#350 (a) ${kind}: a member with an own key beside id and info throws PresenceMemberShapeError, names the key, never echoes its value, and writes nothing`, async () => {
+    Deno.test(`#350 (a) ${kind}: a member with an own key beside id and info throws PresenceMemberShapeError, names the key, never echoes its value, and writes nothing`, async () => {
         const room = await makeRoom(
             kind,
             () => ({ id: 'u1', info: {}, secret: SENTINEL }),
@@ -365,7 +364,7 @@ class LeakyMember {
 }
 
 for (const kind of KINDS) {
-    test(`#350 (b) ${kind}: a member whose toJSON answers { id, secret } joins as { id, info }, and secret reaches no frame, snapshot or roster value`, async () => {
+    Deno.test(`#350 (b) ${kind}: a member whose toJSON answers { id, secret } joins as { id, info }, and secret reaches no frame, snapshot or roster value`, async () => {
         const room = await makeRoom(kind, () => new LeakyMember())
         try {
             const joiner = conn('joiner', JOINER)
@@ -432,7 +431,7 @@ function flippingId(answers: readonly unknown[], reads: { n: number }) {
 }
 
 for (const kind of KINDS) {
-    test(`#350 (c) ${kind}: a getter id answering 'ok' then 500 characters is admitted as 'ok' everywhere and read once`, async () => {
+    Deno.test(`#350 (c) ${kind}: a getter id answering 'ok' then 500 characters is admitted as 'ok' everywhere and read once`, async () => {
         const reads = { n: 0 }
         const room = await makeRoom(
             kind,
@@ -479,7 +478,7 @@ for (const kind of KINDS) {
         }
     })
 
-    test(`#350 (c) ${kind}: a getter id answering 500 characters first is refused with PresenceMemberIdError`, async () => {
+    Deno.test(`#350 (c) ${kind}: a getter id answering 500 characters first is refused with PresenceMemberIdError`, async () => {
         const reads = { n: 0 }
         const room = await makeRoom(
             kind,
@@ -498,7 +497,7 @@ for (const kind of KINDS) {
         }
     })
 
-    test(`#350 (c) ${kind}: a getter id whose second answer is null never produces a 'null' key`, async () => {
+    Deno.test(`#350 (c) ${kind}: a getter id whose second answer is null never produces a 'null' key`, async () => {
         const reads = { n: 0 }
         const room = await makeRoom(kind, () => flippingId(['ok', null], reads))
         try {
@@ -524,7 +523,7 @@ for (const kind of KINDS) {
         }
     })
 
-    test(`#350 (c) ${kind}: an info getter answering differently on a second read is read once, and only its first answer ships`, async () => {
+    Deno.test(`#350 (c) ${kind}: an info getter answering differently on a second read is read once, and only its first answer ships`, async () => {
         const reads = { n: 0 }
         const room = await makeRoom(kind, () => ({
             id: 'u1',
@@ -554,7 +553,7 @@ for (const kind of KINDS) {
     })
 }
 
-test('#350 (c) admitPresenceMember on a counting Proxy: ownKeys once, get id once, get info once', () => {
+Deno.test('#350 (c) admitPresenceMember on a counting Proxy: ownKeys once, get id once, get info once', () => {
     const traps = { ownKeys: 0, id: 0, info: 0, other: [] as string[] }
     const candidate = new Proxy({ id: 'u1', info: { name: 'Ada' } }, {
         ownKeys(target) {
@@ -589,7 +588,7 @@ function flippingToJson(calls: { n: number }) {
     }
 }
 
-test('#350 (c) admitPresenceMember: a nested info.toJSON runs once, and the member is its first answer', () => {
+Deno.test('#350 (c) admitPresenceMember: a nested info.toJSON runs once, and the member is its first answer', () => {
     const calls = { n: 0 }
     const admitted = admitPresenceMember(
         { id: 'u1', info: flippingToJson(calls) },
@@ -606,7 +605,7 @@ test('#350 (c) admitPresenceMember: a nested info.toJSON runs once, and the memb
 })
 
 for (const kind of KINDS) {
-    test(`#350 (c) ${kind}: a nested info.toJSON answering differently on a second call runs once, and the stored member is its first answer`, async () => {
+    Deno.test(`#350 (c) ${kind}: a nested info.toJSON answering differently on a second call runs once, and the stored member is its first answer`, async () => {
         const calls = { n: 0 }
         const room = await makeRoom(kind, () => ({
             id: 'u1',
@@ -671,7 +670,7 @@ const AGREED: ReadonlyArray<readonly [string, () => unknown, string]> = [
 ]
 
 for (const [name, candidate, wire] of AGREED) {
-    test(`#350 (d) accepted ${name}: A's local joined, B's joined and B's roster read are the same JSON`, async () => {
+    Deno.test(`#350 (d) accepted ${name}: A's local joined, B's joined and B's roster read are the same JSON`, async () => {
         const room = await makeRoom('fake Redis', candidate)
         try {
             const joiner = conn('joiner', JOINER)
@@ -713,7 +712,7 @@ const REFUSED_INFO: ReadonlyArray<readonly [string, () => unknown, string]> = [
 ]
 
 for (const [name, info, label] of REFUSED_INFO) {
-    test(`#350 (d) refused ${name}: PresenceMemberShapeError on A naming ${label}, nothing on B`, async () => {
+    Deno.test(`#350 (d) refused ${name}: PresenceMemberShapeError on A naming ${label}, nothing on B`, async () => {
         const room = await makeRoom(
             'fake Redis',
             () => ({ id: 'u1', info: info() }),
@@ -746,7 +745,7 @@ for (const [name, info, label] of REFUSED_INFO) {
 
 // --- (e) the frame ingest ----------------------------------------------------
 
-test('#350 (e) frame ingest: a signed frame carrying a two-key { id, smuggled } member is dropped at the shape gate', async () => {
+Deno.test('#350 (e) frame ingest: a signed frame carrying a two-key { id, smuggled } member is dropped at the shape gate', async () => {
     const redis = new FakeRedis()
     const make = () =>
         new RedisBroadcastDriver(
@@ -792,7 +791,7 @@ test('#350 (e) frame ingest: a signed frame carrying a two-key { id, smuggled } 
 
 // --- (f) the roster read -----------------------------------------------------
 
-test('#350 (f) roster read: an entry whose info is not an object is skipped with a WARN naming its type; an entry with extra keys is reduced to { id, info }', async () => {
+Deno.test('#350 (f) roster read: an entry whose info is not an object is skipped with a WARN naming its type; an entry with extra keys is reduced to { id, info }', async () => {
     const redis = new FakeRedis()
     const driver = new RedisBroadcastDriver(
         { command: redis.command },
@@ -844,7 +843,7 @@ test('#350 (f) roster read: an entry whose info is not an object is skipped with
 
 // --- (g) ordering ------------------------------------------------------------
 
-test('#350 (g) a full connection whose authorizer returns a raw row gets PresenceMemberShapeError, not ChannelLimitError', async () => {
+Deno.test('#350 (g) a full connection whose authorizer returns a raw row gets PresenceMemberShapeError, not ChannelLimitError', async () => {
     const m = new ChannelManager<User>({
         driver: new MemoryBroadcastDriver(),
         maxChannelsPerConnection: 1,
@@ -870,7 +869,7 @@ test('#350 (g) a full connection whose authorizer returns a raw row gets Presenc
 // --- negative controls -------------------------------------------------------
 
 for (const kind of KINDS) {
-    test(`#350 control ${kind}: authorize() returning true still admits as { id: connection.id }`, async () => {
+    Deno.test(`#350 control ${kind}: authorize() returning true still admits as { id: connection.id }`, async () => {
         const room = await makeRoom(kind, () => true)
         try {
             const joiner = conn('joiner', JOINER)
@@ -894,7 +893,7 @@ for (const kind of KINDS) {
 
 // --- admitPresenceMember, the pure function ---------------------------------
 
-test('#350 admit: the result is a fresh parsed copy, never the candidate or its info', () => {
+Deno.test('#350 admit: the result is a fresh parsed copy, never the candidate or its info', () => {
     const info = { name: 'Ada', tags: ['a'] }
     const candidate = { id: 'u1', info }
     const admitted = admitPresenceMember(candidate, 4096)
@@ -905,21 +904,21 @@ test('#350 admit: the result is a fresh parsed copy, never the candidate or its 
     assertEquals(admitted.info, { name: 'Ada', tags: ['a'] })
 })
 
-test('#350 admit: an absent or undefined info yields no info key', () => {
+Deno.test('#350 admit: an absent or undefined info yields no info key', () => {
     for (const candidate of [{ id: 7 }, { id: 7, info: undefined }]) {
         const admitted = admitPresenceMember(candidate, 4096)
         assertEquals(Object.keys(admitted), ['id'])
     }
 })
 
-test('#350 admit: extra keys are checked BEFORE the id', () => {
+Deno.test('#350 admit: extra keys are checked BEFORE the id', () => {
     assertThrows(
         () => admitPresenceMember({ id: null, extra: 1 }, 4096),
         PresenceMemberShapeError,
     )
 })
 
-test('#350 admit: the message names at most three extra keys, the count, and no value', () => {
+Deno.test('#350 admit: the message names at most three extra keys, the count, and no value', () => {
     const error = assertThrows(
         () =>
             admitPresenceMember({
@@ -949,7 +948,7 @@ test('#350 admit: the message names at most three extra keys, the count, and no 
     assert(!error.message.includes(SENTINEL), `no value: ${error.message}`)
 })
 
-test('#350 admit: an extra key name is log-encoded', () => {
+Deno.test('#350 admit: an extra key name is log-encoded', () => {
     const error = assertThrows(
         () => admitPresenceMember({ id: 'u1', ['evil\nline']: 1 }, 4096),
         PresenceMemberShapeError,
@@ -957,7 +956,7 @@ test('#350 admit: an extra key name is log-encoded', () => {
     assert(!error.message.includes('\n'), `no raw newline: ${error.message}`)
 })
 
-test('#350 admit: the id is checked before the serialization', () => {
+Deno.test('#350 admit: the id is checked before the serialization', () => {
     // `JSON.stringify` throws on a bigint: a size error here would mean the
     // id rule ran after it.
     assertThrows(
@@ -966,7 +965,7 @@ test('#350 admit: the id is checked before the serialization', () => {
     )
 })
 
-test('#350 admit: the byte bound is exact, and measured on the serialized pair', () => {
+Deno.test('#350 admit: the byte bound is exact, and measured on the serialized pair', () => {
     const bytes =
         new TextEncoder().encode('{"id":"u1","info":{"n":"é"}}').length
     const member = { info: { n: 'é' }, id: 'u1' }
@@ -980,7 +979,7 @@ test('#350 admit: the byte bound is exact, and measured on the serialized pair',
     )
 })
 
-test('#350 admit: an info that cannot be serialized is a size error of Infinity', () => {
+Deno.test('#350 admit: an info that cannot be serialized is a size error of Infinity', () => {
     const cyclic: Record<string, unknown> = {}
     cyclic.self = cyclic
     for (const info of [cyclic, { n: 1n }]) {
@@ -992,7 +991,7 @@ test('#350 admit: an info that cannot be serialized is a size error of Infinity'
     }
 })
 
-test('#350 admit: an info that serializes to nothing — a function, a symbol, a toJSON answering undefined — is refused, never admitted as { id }', () => {
+Deno.test('#350 admit: an info that serializes to nothing — a function, a symbol, a toJSON answering undefined — is refused, never admitted as { id }', () => {
     const cases: ReadonlyArray<readonly [string, unknown, string]> = [
         ['a function', () => SENTINEL, 'function'],
         ['a symbol', Symbol(SENTINEL), 'symbol'],
@@ -1017,7 +1016,7 @@ test('#350 admit: an info that serializes to nothing — a function, a symbol, a
     }
 })
 
-test('#350 the three member errors are exported from mod.ts, and they are the classes admission throws', () => {
+Deno.test('#350 the three member errors are exported from mod.ts, and they are the classes admission throws', () => {
     assertEquals(publicApi.PresenceMemberIdError, PresenceMemberIdError)
     assertEquals(publicApi.PresenceMemberSizeError, PresenceMemberSizeError)
     assertEquals(publicApi.PresenceMemberShapeError, PresenceMemberShapeError)

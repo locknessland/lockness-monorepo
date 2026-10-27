@@ -7,13 +7,12 @@
  * @module @lockness/contract/tests/environment_legacy
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { legacyEnvironmentSignal } from '../environment_legacy.ts'
 import { safeForLog } from '../logging/sanitize.ts'
 import { type EnvCombo, withEnv } from './env_fixture.ts'
 
-test('no DENO_ENV, or an empty one, raises no signal', () => {
+Deno.test('no DENO_ENV, or an empty one, raises no signal', () => {
     const rows: EnvCombo[] = [
         {},
         { APP_ENV: 'production' },
@@ -32,7 +31,7 @@ test('no DENO_ENV, or an empty one, raises no signal', () => {
     }
 })
 
-test('a DENO_ENV equal to APP_ENV is redundant, and the message says to remove it', () => {
+Deno.test('a DENO_ENV equal to APP_ENV is redundant, and the message says to remove it', () => {
     const rows: EnvCombo[] = [
         { DENO_ENV: 'production', APP_ENV: 'production' },
         { DENO_ENV: 'Production', APP_ENV: ' production\r' },
@@ -48,7 +47,7 @@ test('a DENO_ENV equal to APP_ENV is redundant, and the message says to remove i
     }
 })
 
-test('a DENO_ENV that disagrees with APP_ENV is a conflict naming APP_ENV and the fix', () => {
+Deno.test('a DENO_ENV that disagrees with APP_ENV is a conflict naming APP_ENV and the fix', () => {
     const rows: EnvCombo[] = [
         { DENO_ENV: 'production' },
         { DENO_ENV: 'production', APP_ENV: '' },
@@ -69,7 +68,7 @@ test('a DENO_ENV that disagrees with APP_ENV is a conflict naming APP_ENV and th
     }
 })
 
-test('a conflict message encodes a DENO_ENV value carrying terminal controls', () => {
+Deno.test('a conflict message encodes a DENO_ENV value carrying terminal controls', () => {
     const esc = String.fromCharCode(0x1b)
     const hostile = `production${esc}[2J${esc}[31m`
     withEnv({ DENO_ENV: hostile }, () => {
@@ -81,7 +80,7 @@ test('a conflict message encodes a DENO_ENV value carrying terminal controls', (
     })
 })
 
-test('a NotCapable read raises no signal and does not throw', () => {
+Deno.test('a NotCapable read raises no signal and does not throw', () => {
     // deno-lint-ignore no-explicit-any
     const envAny = Deno.env as any
     const original = envAny.get

@@ -8,7 +8,6 @@
  * @module @lockness/vite/tests/dev_server
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import {
     type AppFetchHandler,
@@ -24,7 +23,7 @@ import { DEFAULTS } from '../src/shared.ts'
 
 // --- isViteInternalRequest (the security boundary, S-F5) ------------------
 
-test('isViteInternalRequest - Vite internals are kept, app routes forward', () => {
+Deno.test('isViteInternalRequest - Vite internals are kept, app routes forward', () => {
     for (
         const kept of [
             '/@vite/client',
@@ -52,14 +51,14 @@ test('isViteInternalRequest - Vite internals are kept, app routes forward', () =
     }
 })
 
-test('isViteInternalRequest - a full URL is classified by pathname', () => {
+Deno.test('isViteInternalRequest - a full URL is classified by pathname', () => {
     assert(isViteInternalRequest('http://localhost:5173/@vite/client'))
     assert(!isViteInternalRequest('http://localhost:5173/blog'))
 })
 
 // --- injectCssIntoHtml -----------------------------------------------------
 
-test('injectCssIntoHtml - inserts before </head>, no-op on empty css', () => {
+Deno.test('injectCssIntoHtml - inserts before </head>, no-op on empty css', () => {
     const html = '<html><head><title>x</title></head><body>hi</body></html>'
     const out = injectCssIntoHtml(html, '.a{color:red}')
     assertStringIncludes(
@@ -69,7 +68,7 @@ test('injectCssIntoHtml - inserts before </head>, no-op on empty css', () => {
     assertEquals(injectCssIntoHtml(html, ''), html)
 })
 
-test('injectCssIntoHtml - appends when there is no head', () => {
+Deno.test('injectCssIntoHtml - appends when there is no head', () => {
     assertStringIncludes(
         injectCssIntoHtml('<body>x</body>', '.a{}'),
         '<style data-lockness-vite>.a{}</style>',
@@ -78,7 +77,7 @@ test('injectCssIntoHtml - appends when there is no head', () => {
 
 // --- resolveDevHost (S-F1) -------------------------------------------------
 
-test('resolveDevHost - defaults to loopback, warns on non-loopback', () => {
+Deno.test('resolveDevHost - defaults to loopback, warns on non-loopback', () => {
     assertEquals(resolveDevHost(undefined), '127.0.0.1')
     let warned = ''
     assertEquals(resolveDevHost('localhost', (m) => warned = m), 'localhost')
@@ -89,7 +88,7 @@ test('resolveDevHost - defaults to loopback, warns on non-loopback', () => {
 
 // --- nodeRequestToWebRequest (verbatim, S-F6) ------------------------------
 
-test('nodeRequestToWebRequest - preserves method, path and headers', () => {
+Deno.test('nodeRequestToWebRequest - preserves method, path and headers', () => {
     const req = {
         url: '/api/users?q=1',
         method: 'GET',
@@ -104,7 +103,7 @@ test('nodeRequestToWebRequest - preserves method, path and headers', () => {
 
 // --- forwardWebResponse ----------------------------------------------------
 
-test('forwardWebResponse - copies status/headers/body; injects CSS into HTML', async () => {
+Deno.test('forwardWebResponse - copies status/headers/body; injects CSS into HTML', async () => {
     const captured: {
         status?: number
         headers: Record<string, string>
@@ -135,7 +134,7 @@ test('forwardWebResponse - copies status/headers/body; injects CSS into HTML', a
 
 // --- middleware integration (fake server + fake app) -----------------------
 
-test('devServerBridge - forwards a non-asset request to App.fetch and back', async () => {
+Deno.test('devServerBridge - forwards a non-asset request to App.fetch and back', async () => {
     const app: AppFetchHandler = {
         fetch: (request) =>
             new Response(`ROUTE ${new URL(request.url).pathname}`, {
@@ -191,7 +190,7 @@ test('devServerBridge - forwards a non-asset request to App.fetch and back', asy
     assertStringIncludes(captured.body!, 'ROUTE /blog/hello')
 })
 
-test('devServerBridge - config() defaults host to loopback and keeps fs.strict', () => {
+Deno.test('devServerBridge - config() defaults host to loopback and keeps fs.strict', () => {
     const plugin = devServerBridge({ app: { fetch: () => new Response('') } })
     const out = (plugin.config as unknown as (
         u: Record<string, unknown>,
@@ -200,7 +199,7 @@ test('devServerBridge - config() defaults host to loopback and keeps fs.strict',
     assertEquals(out.server.fs.strict, true)
 })
 
-test('devServerBridge - config() sets appType custom so requests reach the bridge (#154)', () => {
+Deno.test('devServerBridge - config() sets appType custom so requests reach the bridge (#154)', () => {
     const plugin = devServerBridge({ app: { fetch: () => new Response('') } })
     const call = plugin.config as unknown as (
         u: Record<string, unknown>,
@@ -245,7 +244,7 @@ function fakeRes() {
     }
 }
 
-test('forwardWebResponse - multiple Set-Cookie headers survive as an array (M1)', async () => {
+Deno.test('forwardWebResponse - multiple Set-Cookie headers survive as an array (M1)', async () => {
     const { res, captured } = fakeRes()
     const headers = new Headers()
     headers.append('set-cookie', 'a=1; Path=/')
@@ -259,7 +258,7 @@ test('forwardWebResponse - multiple Set-Cookie headers survive as an array (M1)'
     assertEquals((cookies as string[]).length, 2)
 })
 
-test('forwardWebResponse - drops stale Content-Length when CSS is injected (M2)', async () => {
+Deno.test('forwardWebResponse - drops stale Content-Length when CSS is injected (M2)', async () => {
     const { res, captured } = fakeRes()
     const body = '<html><head></head><body>x</body></html>'
     const response = new Response(body, {
@@ -277,7 +276,7 @@ test('forwardWebResponse - drops stale Content-Length when CSS is injected (M2)'
     assertStringIncludes(captured.body!, '<style data-lockness-vite>')
 })
 
-test('forwardWebResponse - keeps Content-Length when the body is not modified', async () => {
+Deno.test('forwardWebResponse - keeps Content-Length when the body is not modified', async () => {
     const { res, captured } = fakeRes()
     const response = new Response('{"a":1}', {
         headers: { 'content-type': 'application/json', 'content-length': '7' },
@@ -287,7 +286,7 @@ test('forwardWebResponse - keeps Content-Length when the body is not modified', 
     assertEquals(captured.body, '{"a":1}')
 })
 
-test('nodeRequestToWebRequest - forwards a POST body verbatim with duplex (M3/S-F6)', async () => {
+Deno.test('nodeRequestToWebRequest - forwards a POST body verbatim with duplex (M3/S-F6)', async () => {
     const bytes = new TextEncoder().encode('name=lockness')
     const req = {
         url: '/submit',
@@ -302,7 +301,7 @@ test('nodeRequestToWebRequest - forwards a POST body verbatim with duplex (M3/S-
     assertEquals(await request.text(), 'name=lockness')
 })
 
-test('nodeRequestToWebRequest - a GET has no body', () => {
+Deno.test('nodeRequestToWebRequest - a GET has no body', () => {
     const request = nodeRequestToWebRequest({
         url: '/',
         method: 'GET',
@@ -311,7 +310,7 @@ test('nodeRequestToWebRequest - a GET has no body', () => {
     assertEquals(request.body, null)
 })
 
-test('nodeRequestToWebRequest - array-valued headers survive verbatim (S-F6)', () => {
+Deno.test('nodeRequestToWebRequest - array-valued headers survive verbatim (S-F6)', () => {
     const request = nodeRequestToWebRequest({
         url: '/',
         method: 'GET',
@@ -325,7 +324,7 @@ test('nodeRequestToWebRequest - array-valued headers survive verbatim (S-F6)', (
 
 // --- dev CSP widening (#114) -----------------------------------------------
 
-test('widenCspForDev - appends the dev origin to present directives only', () => {
+Deno.test('widenCspForDev - appends the dev origin to present directives only', () => {
     const out = widenCspForDev(
         "script-src 'self'; style-src 'self'; img-src 'self'",
         'http://localhost:5173',
@@ -340,13 +339,13 @@ test('widenCspForDev - appends the dev origin to present directives only', () =>
     )
 })
 
-test('widenCspForDev - connect-src also gets the ws origin for HMR', () => {
+Deno.test('widenCspForDev - connect-src also gets the ws origin for HMR', () => {
     const out = widenCspForDev("connect-src 'self'", 'http://localhost:5173')
     assertStringIncludes(out, 'http://localhost:5173')
     assertStringIncludes(out, 'ws://localhost:5173')
 })
 
-test('widenCspForDev - the ws origin is confined to connect-src', () => {
+Deno.test('widenCspForDev - the ws origin is confined to connect-src', () => {
     const out = widenCspForDev(
         "script-src 'self'; style-src 'self'; connect-src 'self'",
         'http://localhost:5173',
@@ -374,7 +373,7 @@ test('widenCspForDev - the ws origin is confined to connect-src', () => {
     )
 })
 
-test('widenCspForDev - is idempotent and leaves an absent directive alone', () => {
+Deno.test('widenCspForDev - is idempotent and leaves an absent directive alone', () => {
     // default-src only → nothing widened (a target directive is never invented).
     assertEquals(
         widenCspForDev("default-src 'self'", 'http://localhost:5173'),
@@ -385,7 +384,7 @@ test('widenCspForDev - is idempotent and leaves an absent directive alone', () =
     assertEquals(widenCspForDev(once, 'http://localhost:5173'), once)
 })
 
-test('forwardWebResponse - widens a CSP header when a dev origin is given (#114)', async () => {
+Deno.test('forwardWebResponse - widens a CSP header when a dev origin is given (#114)', async () => {
     const { res, captured } = fakeRes()
     const response = new Response('ok', {
         headers: { 'content-security-policy': "script-src 'self'" },
@@ -397,7 +396,7 @@ test('forwardWebResponse - widens a CSP header when a dev origin is given (#114)
     )
 })
 
-test('forwardWebResponse - leaves the CSP header verbatim without a dev origin (S-F5)', async () => {
+Deno.test('forwardWebResponse - leaves the CSP header verbatim without a dev origin (S-F5)', async () => {
     const { res, captured } = fakeRes()
     const response = new Response('ok', {
         headers: { 'content-security-policy': "script-src 'self'" },
@@ -416,7 +415,7 @@ test('forwardWebResponse - leaves the CSP header verbatim without a dev origin (
     )
 })
 
-test('forwardWebResponse - widens a report-only CSP header too (#114)', async () => {
+Deno.test('forwardWebResponse - widens a report-only CSP header too (#114)', async () => {
     const { res, captured } = fakeRes()
     const response = new Response('ok', {
         headers: {
@@ -430,7 +429,7 @@ test('forwardWebResponse - widens a report-only CSP header too (#114)', async ()
     )
 })
 
-test('devServerBridge - App.fetch() throwing yields a 500 (test-reviewer M4)', async () => {
+Deno.test('devServerBridge - App.fetch() throwing yields a 500 (test-reviewer M4)', async () => {
     const app: AppFetchHandler = {
         fetch: () => {
             throw new Error('boom')

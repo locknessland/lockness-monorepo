@@ -33,11 +33,10 @@ const MATRIX = 'the predicates depend on APP_ENV alone'
 const MUTATIONS: Mutation[] = [
     {
         label: 'DENO_ENV read first again — a stray DENO_ENV overrides APP_ENV',
-        // The one APP_ENV read moved into `readAppEnv` with #624.
-        file: READ,
+        file: ENVIRONMENT,
         edits: [[
-            "const read = readEnv('APP_ENV')",
-            "const read = readEnv(readEnvName('DENO_ENV') === undefined ? 'APP_ENV' : 'DENO_ENV')",
+            "return readEnvName('APP_ENV')",
+            "return readEnvName('DENO_ENV') ?? readEnvName('APP_ENV')",
         ]],
         killedBy: MATRIX,
     },
@@ -82,7 +81,7 @@ const MUTATIONS: Mutation[] = [
         label: 'the NotCapable catch removed — resolution throws without env',
         file: READ,
         edits: [[
-            '        if (error instanceof Deno.errors.NotCapable) return UNREADABLE\n        throw error\n',
+            '        if (error instanceof Deno.errors.NotCapable) return undefined\n        throw error\n',
             '        throw error\n',
         ]],
         killedBy: 'NotCapable read resolves to development',
@@ -91,8 +90,8 @@ const MUTATIONS: Mutation[] = [
         label: 'the NotCapable catch widened — every read failure means unset',
         file: READ,
         edits: [[
-            '        if (error instanceof Deno.errors.NotCapable) return UNREADABLE\n        throw error\n',
-            '        void error\n        return UNREADABLE\n',
+            '        if (error instanceof Deno.errors.NotCapable) return undefined\n        throw error\n',
+            '        void error\n        return undefined\n',
         ]],
         killedBy: 'other than NotCapable is not swallowed',
     },

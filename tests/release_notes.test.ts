@@ -18,7 +18,6 @@
  * @module tests/release_notes_test
  */
 
-import { test } from 'node:test'
 import {
     assert,
     assertEquals,
@@ -209,7 +208,7 @@ async function shortSha(repo: Fixture): Promise<string> {
 
 // ─── R: render and composition ───────────────────────────────────────────────
 
-test('#364 R1 one guide at the target tag: one entry, every title in document order', async () => {
+Deno.test('#364 R1 one guide at the target tag: one entry, every title in document order', async () => {
     await withRepo(async (repo) => {
         const titles = ['1. First', '2. Second', '3. Third']
         await commit(repo, { 'docs/g.md': doc(guide('0.4.0', titles)) })
@@ -226,7 +225,7 @@ test('#364 R1 one guide at the target tag: one entry, every title in document or
     })
 })
 
-test('#364 R2 two guides: two entries, sorted by path', async () => {
+Deno.test('#364 R2 two guides: two entries, sorted by path', async () => {
     await withRepo(async (repo) => {
         await commit(repo, {
             'packages/b/docs/DOCS.md': doc(guide('0.4.0', ['1. In b'])),
@@ -248,7 +247,7 @@ test('#364 R2 two guides: two entries, sorted by path', async () => {
     })
 })
 
-test('#364 R3 the link is pinned to the tag, with the version slug', async () => {
+Deno.test('#364 R3 the link is pinned to the tag, with the version slug', async () => {
     await withRepo(async (repo) => {
         await commit(repo, { 'docs/g.md': doc(guide('0.4.0', ['1. A'])) })
         await tag(repo, 'v0.4.0')
@@ -263,7 +262,7 @@ test('#364 R3 the link is pinned to the tag, with the version slug', async () =>
     })
 })
 
-test('#364 R4 order: continuity line, breaking changes, notes, then stdin', async () => {
+Deno.test('#364 R4 order: continuity line, breaking changes, notes, then stdin', async () => {
     await withRepo(async (repo) => {
         await commit(repo, { 'docs/g.md': doc(guide('0.4.0', ['1. A'])) })
         await tag(repo, 'v0.4.0')
@@ -289,7 +288,7 @@ test('#364 R4 order: continuity line, breaking changes, notes, then stdin', asyn
     })
 })
 
-test('#364 R5 the stdin tail is byte-identical', async () => {
+Deno.test('#364 R5 the stdin tail is byte-identical', async () => {
     const tails = [
         'x  \n---\n**Full log** trailing\t \nno final newline',
         'line with trailing spaces   \n---\n\n',
@@ -311,7 +310,7 @@ test('#364 R5 the stdin tail is byte-identical', async () => {
     }
 })
 
-test('#364 R6 an empty --notes file means no Notes heading', async () => {
+Deno.test('#364 R6 an empty --notes file means no Notes heading', async () => {
     await withRepo(async (repo) => {
         await commit(repo, { 'docs/g.md': doc(guide('0.4.0', ['1. A'])) })
         await tag(repo, 'v0.4.0')
@@ -324,7 +323,7 @@ test('#364 R6 an empty --notes file means no Notes heading', async () => {
     })
 })
 
-test("#364 R7 the index reads the tag's tree, not the working tree", async () => {
+Deno.test("#364 R7 the index reads the tag's tree, not the working tree", async () => {
     await withRepo(async (repo) => {
         await commit(repo, { 'docs/g.md': doc(guide('0.4.0', ['1. Tagged'])) })
         await tag(repo, 'v0.4.0')
@@ -340,7 +339,7 @@ test("#364 R7 the index reads the tag's tree, not the working tree", async () =>
     })
 })
 
-test('#364 R8 a missing target tag is exit 2, with stdout empty', async () => {
+Deno.test('#364 R8 a missing target tag is exit 2, with stdout empty', async () => {
     await withRepo(async (repo) => {
         await commit(repo, { 'docs/g.md': doc(guide('0.4.0', ['1. A'])) })
 
@@ -352,7 +351,7 @@ test('#364 R8 a missing target tag is exit 2, with stdout empty', async () => {
     })
 })
 
-test('#364 R9 a malformed version is exit 2 before any git call', async () => {
+Deno.test('#364 R9 a malformed version is exit 2 before any git call', async () => {
     const dir = await makeDir()
     try {
         for (const version of ['v0.4.0', '0.4', '0.4.0-rc1', '0.4.0; rm']) {
@@ -373,7 +372,7 @@ test('#364 R9 a malformed version is exit 2 before any git call', async () => {
 
 // ─── P: parser and CommonMark ────────────────────────────────────────────────
 
-test('#364 P1 a section inside a backtick fence is not a section', () => {
+Deno.test('#364 P1 a section inside a backtick fence is not a section', () => {
     const inner = guide('0.4.0', ['1. Fenced'])
     // A four-backtick fence is not closed by a shorter three-backtick line.
     const text = doc(fence('````', `\`\`\`\n${inner}`))
@@ -384,7 +383,7 @@ test('#364 P1 a section inside a backtick fence is not a section', () => {
     assertEquals(parsed.nearMisses, [])
 })
 
-test('#364 P2 a section inside a tilde fence is not a section', () => {
+Deno.test('#364 P2 a section inside a tilde fence is not a section', () => {
     const inner = guide('0.4.0', ['1. Fenced'])
     // A tilde fence is not closed by a backtick line.
     const text = doc(fence('~~~', `\`\`\`\n${inner}`))
@@ -394,7 +393,7 @@ test('#364 P2 a section inside a tilde fence is not a section', () => {
     assertEquals(parsed.sections, [])
 })
 
-test('#364 P3 a heading indented by three spaces counts', () => {
+Deno.test('#364 P3 a heading indented by three spaces counts', () => {
     const text = doc(guide('0.4.0', ['1. A'], { indent: '   ' }))
 
     const parsed = parseUpgradeSections(text, 'docs/g.md')
@@ -404,7 +403,7 @@ test('#364 P3 a heading indented by three spaces counts', () => {
     ])
 })
 
-test('#364 P4 a heading indented by four spaces is code, not a heading', () => {
+Deno.test('#364 P4 a heading indented by four spaces is code, not a heading', () => {
     const text = doc(guide('0.4.0', ['1. A'], { indent: '    ' }))
 
     const parsed = parseUpgradeSections(text, 'docs/g.md')
@@ -412,7 +411,7 @@ test('#364 P4 a heading indented by four spaces is code, not a heading', () => {
     assertEquals(parsed.sections, [])
 })
 
-test('#364 P5 closing hashes on the heading count as the heading', () => {
+Deno.test('#364 P5 closing hashes on the heading count as the heading', () => {
     const text = doc(guide('0.4.0', ['1. A'], { closing: true }))
 
     const parsed = parseUpgradeSections(text, 'docs/g.md')
@@ -422,7 +421,7 @@ test('#364 P5 closing hashes on the heading count as the heading', () => {
     ])
 })
 
-test('#364 P6 a #### under an item is not a title', () => {
+Deno.test('#364 P6 a #### under an item is not a title', () => {
     const text = doc(
         guide('0.4.0', ['1. A'], { prose: 'Prose.\n\n#### A detail\n' }),
     )
@@ -432,7 +431,7 @@ test('#364 P6 a #### under an item is not a title', () => {
     assertEquals(parsed.sections[0]?.titles, ['1. A'])
 })
 
-test('#364 P7 the section ends at the next level-2 or level-1 heading', () => {
+Deno.test('#364 P7 the section ends at the next level-2 or level-1 heading', () => {
     const text = doc(
         guide('0.4.0', ['1. A']),
         '## Another section\n\n### Not an item\n',
@@ -448,7 +447,7 @@ test('#364 P7 the section ends at the next level-2 or level-1 heading', () => {
     ])
 })
 
-test('#382 P14 a setext level-2 or level-1 heading ends the section too', () => {
+Deno.test('#382 P14 a setext level-2 or level-1 heading ends the section too', () => {
     const text = doc(
         guide('0.4.0', ['1. A']),
         'Another section\n---\n\n### Not an item\n',
@@ -465,7 +464,7 @@ test('#382 P14 a setext level-2 or level-1 heading ends the section too', () => 
     assertEquals(parsed.nearMisses, [])
 })
 
-test('#364 P8 a fence that closes gives the lines after it back to the parser', () => {
+Deno.test('#364 P8 a fence that closes gives the lines after it back to the parser', () => {
     const cases: readonly (readonly [string, string])[] = [
         ['backtick fence', fence('```', 'code\n')],
         ['tilde fence', fence('~~~', 'code\n')],
@@ -488,7 +487,7 @@ test('#364 P8 a fence that closes gives the lines after it back to the parser', 
     }
 })
 
-test('#364 P9 a run that cannot close the fence keeps it open', () => {
+Deno.test('#364 P9 a run that cannot close the fence keeps it open', () => {
     const cases: readonly (readonly [string, string])[] = [
         ['shorter run', '````\ncode\n```\n'],
         ['other character', '```\ncode\n~~~\n'],
@@ -504,7 +503,7 @@ test('#364 P9 a run that cannot close the fence keeps it open', () => {
     }
 })
 
-test('#364 P10 a setext upgrade heading is reported as a near-miss', () => {
+Deno.test('#364 P10 a setext upgrade heading is reported as a near-miss', () => {
     for (const underline of ['---', '===', '   ------  ']) {
         const text = doc(
             `Upgrading to v0.4.0\n${underline}\n\n### 1. A\n`,
@@ -519,7 +518,7 @@ test('#364 P10 a setext upgrade heading is reported as a near-miss', () => {
     }
 })
 
-test('#364 P11 prose followed by a thematic break is not a setext near-miss', () => {
+Deno.test('#364 P11 prose followed by a thematic break is not a setext near-miss', () => {
     const text = doc(
         'Some prose about upgrading.\n\n---\n',
         // Prose that reads as a near-miss: only the blank line keeps the
@@ -533,7 +532,7 @@ test('#364 P11 prose followed by a thematic break is not a setext near-miss', ()
     assertEquals(parsed.nearMisses, [])
 })
 
-test('#364 P12 a section with no ### item is reported, not indexed empty', () => {
+Deno.test('#364 P12 a section with no ### item is reported, not indexed empty', () => {
     const text = doc(
         '## Upgrading to v0.4.0\n\nProse, and no item.\n',
         '## Next\n',
@@ -547,7 +546,7 @@ test('#364 P12 a section with no ### item is reported, not indexed empty', () =>
     ])
 })
 
-test('#364 P13 an empty section is exit 1 in the subject tree, in both modes', async () => {
+Deno.test('#364 P13 an empty section is exit 1 in the subject tree, in both modes', async () => {
     await withRepo(async (repo) => {
         await commit(repo, {
             'docs/g.md': doc('## Upgrading to v0.4.0\n\nNothing yet.\n'),
@@ -566,7 +565,7 @@ test('#364 P13 an empty section is exit 1 in the subject tree, in both modes', a
 
 // ─── L: the scan filter ──────────────────────────────────────────────────────
 
-test('#364 L1 listScanned keeps exactly the three globs, anchored at both ends', () => {
+Deno.test('#364 L1 listScanned keeps exactly the three globs, anchored at both ends', () => {
     const table: readonly (readonly [string, boolean])[] = [
         ['docs/a.md', true],
         ['docs/x/y/a.md', true],
@@ -598,7 +597,7 @@ test('#364 L1 listScanned keeps exactly the three globs, anchored at both ends',
 
 // ─── E: stderr hygiene ───────────────────────────────────────────────────────
 
-test('#364 E1 stderr names repo-relative paths, never the absolute one', async () => {
+Deno.test('#364 E1 stderr names repo-relative paths, never the absolute one', async () => {
     await withRepo(async (repo) => {
         await commit(repo, { 'docs/g.md': doc(guide('0.3.0', ['1. A'])) })
         await tag(repo, 'v0.3.0')
@@ -624,7 +623,7 @@ test('#364 E1 stderr names repo-relative paths, never the absolute one', async (
     })
 })
 
-test('#364 E3 an absolute path inside an unexpected error is made relative', async () => {
+Deno.test('#364 E3 an absolute path inside an unexpected error is made relative', async () => {
     await withRepo(async (repo) => {
         await commit(repo, { 'docs/g.md': '# G\n' })
         // A tracked symlink to nowhere: git lists it, reading it fails, and
@@ -649,7 +648,7 @@ test('#364 E3 an absolute path inside an unexpected error is made relative', asy
     })
 })
 
-test('#364 E4 a failed git call is exit 2, stdout empty, no absolute path', async () => {
+Deno.test('#364 E4 a failed git call is exit 2, stdout empty, no absolute path', async () => {
     const dir = await makeDir()
     try {
         const real = await Deno.realPath(dir.root)
@@ -666,7 +665,7 @@ test('#364 E4 a failed git call is exit 2, stdout empty, no absolute path', asyn
     }
 })
 
-test('#364 E5 an unknown flag or a stray argument is exit 2 with usage', async () => {
+Deno.test('#364 E5 an unknown flag or a stray argument is exit 2 with usage', async () => {
     await withRepo(async (repo) => {
         await commit(repo, { 'docs/g.md': '# G\n' })
         await tag(repo, 'v0.4.0')
@@ -703,7 +702,7 @@ function sink(): {
     }
 }
 
-test('#382 E6 a closed stdout pipe is exit 2, with no stack and no path', async () => {
+Deno.test('#382 E6 a closed stdout pipe is exit 2, with no stack and no path', async () => {
     const stderr = sink()
     const stdout = {
         write: (): Promise<number> =>
@@ -749,7 +748,7 @@ function loggedStreams(
     return { stdout: tagged('stdout'), stderr: tagged('stderr') }
 }
 
-test('#382 E7 writeResult writes stderr, then stdout, and returns the code', async () => {
+Deno.test('#382 E7 writeResult writes stderr, then stdout, and returns the code', async () => {
     const log: string[] = []
     const { stdout, stderr } = loggedStreams(log)
 
@@ -806,7 +805,7 @@ async function task(repo: Fixture, args: string[]): Promise<RunResult> {
     }
 }
 
-test('#364 S2 settings.json asks before any promote, non-draft create or run rerun (FR-021)', async () => {
+Deno.test('#364 S2 settings.json asks before any promote, non-draft create or run rerun (FR-021)', async () => {
     // Ask rules are checked before allow rules, so these three prompt even
     // under /ship's allowed-tools. This reads the repo's own settings file.
     const settings = parseJsonc(
@@ -826,7 +825,7 @@ test('#364 S2 settings.json asks before any promote, non-draft create or run rer
     }
 })
 
-test('#364 S1 the real task: exit 0 on a clean tree, 1 on a near-miss, 2 on a bad version', async () => {
+Deno.test('#364 S1 the real task: exit 0 on a clean tree, 1 on a near-miss, 2 on a bad version', async () => {
     await withRepo(async (repo) => {
         await commit(repo, { 'docs/g.md': doc(guide('0.4.0', ['1. A'])) })
         await tag(repo, 'v0.4.0')
@@ -854,7 +853,7 @@ test('#364 S1 the real task: exit 0 on a clean tree, 1 on a near-miss, 2 on a ba
     })
 })
 
-test('#364 E2 stderr reports how many files were scanned', async () => {
+Deno.test('#364 E2 stderr reports how many files were scanned', async () => {
     await withRepo(async (repo) => {
         await commit(repo, {
             'docs/a.md': '# A\n',
@@ -881,7 +880,7 @@ test('#364 E2 stderr reports how many files were scanned', async () => {
 
 // ─── G: the frozen guard ─────────────────────────────────────────────────────
 
-test('#364 G1 --check: a title added to a released section is exit 1', async () => {
+Deno.test('#364 G1 --check: a title added to a released section is exit 1', async () => {
     await withRepo(async (repo) => {
         await commit(repo, {
             'docs/g.md': doc(guide('0.3.0', ['1. A', '2. B'])),
@@ -901,7 +900,7 @@ test('#364 G1 --check: a title added to a released section is exit 1', async () 
     })
 })
 
-test('#364 G2 --check: a retitle is exit 1, because it adds a title', async () => {
+Deno.test('#364 G2 --check: a retitle is exit 1, because it adds a title', async () => {
     await withRepo(async (repo) => {
         await commit(repo, {
             'docs/g.md': doc(guide('0.3.0', ['1. A', '2. B'])),
@@ -918,7 +917,7 @@ test('#364 G2 --check: a retitle is exit 1, because it adds a title', async () =
     })
 })
 
-test("#364 G3 render: the target tag's tree adds a title to a released version", async () => {
+Deno.test("#364 G3 render: the target tag's tree adds a title to a released version", async () => {
     await withRepo(async (repo) => {
         await commit(repo, { 'docs/g.md': doc(guide('0.3.0', ['1. A'])) })
         await tag(repo, 'v0.3.0')
@@ -938,7 +937,7 @@ test("#364 G3 render: the target tag's tree adds a title to a released version",
     })
 })
 
-test('#364 G4 --check: a section for an untagged version below the highest tag is exit 2', async () => {
+Deno.test('#364 G4 --check: a section for an untagged version below the highest tag is exit 2', async () => {
     await withRepo(async (repo) => {
         await commit(repo, { 'docs/g.md': '# G\n' })
         await tag(repo, 'v0.2.0')
@@ -954,7 +953,7 @@ test('#364 G4 --check: a section for an untagged version below the highest tag i
     })
 })
 
-test('#364 G5 render: a section for an untagged version below the target is exit 2', async () => {
+Deno.test('#364 G5 render: a section for an untagged version below the target is exit 2', async () => {
     await withRepo(async (repo) => {
         await commit(repo, { 'docs/g.md': '# G\n' })
         await tag(repo, 'v0.3.0')
@@ -974,7 +973,7 @@ test('#364 G5 render: a section for an untagged version below the target is exit
     })
 })
 
-test('#364 G6 --check: the next release, above the highest tag, is skipped', async () => {
+Deno.test('#364 G6 --check: the next release, above the highest tag, is skipped', async () => {
     await withRepo(async (repo) => {
         await commit(repo, { 'docs/g.md': doc(guide('0.3.0', ['1. A'])) })
         await tag(repo, 'v0.3.0')
@@ -992,7 +991,7 @@ test('#364 G6 --check: the next release, above the highest tag, is skipped', asy
     })
 })
 
-test('#364 G7 --check: prose edited under a released title passes', async () => {
+Deno.test('#364 G7 --check: prose edited under a released title passes', async () => {
     await withRepo(async (repo) => {
         await commit(repo, { 'docs/g.md': doc(guide('0.3.0', ['1. A'])) })
         await tag(repo, 'v0.3.0')
@@ -1008,7 +1007,7 @@ test('#364 G7 --check: prose edited under a released title passes', async () => 
     })
 })
 
-test('#364 G8 --check: a released section pruned from the tree passes', async () => {
+Deno.test('#364 G8 --check: a released section pruned from the tree passes', async () => {
     await withRepo(async (repo) => {
         await commit(repo, { 'docs/g.md': doc(guide('0.3.0', ['1. A'])) })
         await tag(repo, 'v0.3.0')
@@ -1020,7 +1019,7 @@ test('#364 G8 --check: a released section pruned from the tree passes', async ()
     })
 })
 
-test('#364 G9 --check: a guide moved to another scanned path passes', async () => {
+Deno.test('#364 G9 --check: a guide moved to another scanned path passes', async () => {
     await withRepo(async (repo) => {
         const content = doc(guide('0.3.0', ['1. A']))
         await commit(repo, { 'docs/g.md': content })
@@ -1037,7 +1036,7 @@ test('#364 G9 --check: a guide moved to another scanned path passes', async () =
     })
 })
 
-test('#364 G10 --check: a released title removed passes', async () => {
+Deno.test('#364 G10 --check: a released title removed passes', async () => {
     await withRepo(async (repo) => {
         await commit(repo, {
             'docs/g.md': doc(guide('0.3.0', ['1. A', '2. B'])),
@@ -1051,7 +1050,7 @@ test('#364 G10 --check: a released title removed passes', async () => {
     })
 })
 
-test('#364 G11 --check with no v* tag at all: a section cannot be judged, exit 2', async () => {
+Deno.test('#364 G11 --check with no v* tag at all: a section cannot be judged, exit 2', async () => {
     await withRepo(async (repo) => {
         await commit(repo, { 'docs/g.md': doc(guide('0.4.0', ['1. A'])) })
 
@@ -1065,7 +1064,7 @@ test('#364 G11 --check with no v* tag at all: a section cannot be judged, exit 2
 
 // ─── N: near-miss headings ───────────────────────────────────────────────────
 
-test('#364 N7 the near-miss net covers backticks, spacing, "version" and a leading symbol', () => {
+Deno.test('#364 N7 the near-miss net covers backticks, spacing, "version" and a leading symbol', () => {
     const headings = [
         '## Upgrading to `v0.4.0`',
         '## Upgrading  to v0.4.0',
@@ -1090,7 +1089,7 @@ const NEAR_MISSES: readonly (readonly [string, string])[] = [
 ]
 
 for (const [id, heading] of NEAR_MISSES) {
-    test(`#364 ${id} near-miss "${heading}" is exit 1 in the subject tree`, async () => {
+    Deno.test(`#364 ${id} near-miss "${heading}" is exit 1 in the subject tree`, async () => {
         await withRepo(async (repo) => {
             // doc() puts the first part on line 5.
             await commit(repo, { 'docs/g.md': doc(`${heading}\n`) })
@@ -1108,7 +1107,7 @@ for (const [id, heading] of NEAR_MISSES) {
     })
 }
 
-test("#364 N5 a near-miss only in an earlier tag's tree is not fatal", async () => {
+Deno.test("#364 N5 a near-miss only in an earlier tag's tree is not fatal", async () => {
     await withRepo(async (repo) => {
         await commit(repo, {
             'docs/g.md': doc(
@@ -1133,7 +1132,7 @@ test("#364 N5 a near-miss only in an earlier tag's tree is not fatal", async () 
     })
 })
 
-test('#364 N6 the upgrade and realtime headings that merely mention upgrading pass', async () => {
+Deno.test('#364 N6 the upgrade and realtime headings that merely mention upgrading pass', async () => {
     const upgrade = doc(
         '### Upgrade to Latest Version\n\nText.\n',
         '### Upgrade to Specific Version\n\nText.\n',
@@ -1165,7 +1164,7 @@ test('#364 N6 the upgrade and realtime headings that merely mention upgrading pa
 
 // ─── Z: empty scan, and "none recorded" ──────────────────────────────────────
 
-test('#364 Z1 an empty scan is exit 1, in both modes', async () => {
+Deno.test('#364 Z1 an empty scan is exit 1, in both modes', async () => {
     await withRepo(async (repo) => {
         await commit(repo, { 'README.md': '# Root\n', 'docs/a.txt': 'x\n' })
         await tag(repo, 'v0.4.0')
@@ -1194,7 +1193,7 @@ async function rangeRepo(
     await tag(repo, 'v0.4.0')
 }
 
-test('#364 Z2 no section and no marked commit: "none recorded"', async () => {
+Deno.test('#364 Z2 no section and no marked commit: "none recorded"', async () => {
     await withRepo(async (repo) => {
         await rangeRepo(repo, ['fix: a plain fix', 'feat(core): a feature'])
 
@@ -1205,7 +1204,7 @@ test('#364 Z2 no section and no marked commit: "none recorded"', async () => {
     })
 })
 
-test('#364 Z3 a feat!: commit in range refuses "none recorded"', async () => {
+Deno.test('#364 Z3 a feat!: commit in range refuses "none recorded"', async () => {
     await withRepo(async (repo) => {
         await rangeRepo(repo, ['feat!: drop the old API'])
         const sha = await shortSha(repo)
@@ -1219,7 +1218,7 @@ test('#364 Z3 a feat!: commit in range refuses "none recorded"', async () => {
     })
 })
 
-test('#364 Z4 a scoped fix(realtime)!: commit refuses "none recorded"', async () => {
+Deno.test('#364 Z4 a scoped fix(realtime)!: commit refuses "none recorded"', async () => {
     await withRepo(async (repo) => {
         await rangeRepo(repo, ['fix(realtime)!: refuse oversized members'])
 
@@ -1230,7 +1229,7 @@ test('#364 Z4 a scoped fix(realtime)!: commit refuses "none recorded"', async ()
     })
 })
 
-test('#364 Z5 a BREAKING CHANGE footer refuses "none recorded"', async () => {
+Deno.test('#364 Z5 a BREAKING CHANGE footer refuses "none recorded"', async () => {
     await withRepo(async (repo) => {
         await rangeRepo(repo, [
             'fix: tighten a bound\n\nBREAKING CHANGE: the bound now refuses',
@@ -1243,7 +1242,7 @@ test('#364 Z5 a BREAKING CHANGE footer refuses "none recorded"', async () => {
     })
 })
 
-test('#364 Z6 no previous tag: the whole history is scanned', async () => {
+Deno.test('#364 Z6 no previous tag: the whole history is scanned', async () => {
     await withRepo(async (repo) => {
         await commit(repo, {}, 'feat!: the very first break')
         await commit(repo, { 'docs/g.md': doc('No upgrade needed.\n') })
@@ -1256,7 +1255,7 @@ test('#364 Z6 no previous tag: the whole history is scanned', async () => {
     })
 })
 
-test('#364 Z7 a marked commit before the previous tag does not block', async () => {
+Deno.test('#364 Z7 a marked commit before the previous tag does not block', async () => {
     await withRepo(async (repo) => {
         await rangeRepo(repo, ['fix: plain'], ['feat!: an old break'])
 
@@ -1267,7 +1266,7 @@ test('#364 Z7 a marked commit before the previous tag does not block', async () 
     })
 })
 
-test('#364 Z8 a hyphenated BREAKING-CHANGE footer refuses "none recorded"', async () => {
+Deno.test('#364 Z8 a hyphenated BREAKING-CHANGE footer refuses "none recorded"', async () => {
     await withRepo(async (repo) => {
         await rangeRepo(repo, [
             'fix: tighten a bound\n\nBREAKING-CHANGE: the bound now refuses',
@@ -1281,7 +1280,7 @@ test('#364 Z8 a hyphenated BREAKING-CHANGE footer refuses "none recorded"', asyn
     })
 })
 
-test('#382 Z9 composeBody throws NoneRecordedContradicted, naming each marked commit', () => {
+Deno.test('#382 Z9 composeBody throws NoneRecordedContradicted, naming each marked commit', () => {
     const commits = [
         { sha: 'abc1234', subject: 'feat!: drop the old API' },
         { sha: 'def5678', subject: 'fix: tighten a bound' },
@@ -1302,7 +1301,7 @@ test('#382 Z9 composeBody throws NoneRecordedContradicted, naming each marked co
     assertStringIncludes(error.message, '\n  def5678 fix: tighten a bound\n')
 })
 
-test('#382 Z10 composeBody lets marked commits through when the release has its own section', () => {
+Deno.test('#382 Z10 composeBody lets marked commits through when the release has its own section', () => {
     const own = [{ path: 'docs/g.md', version: '0.4.0', titles: ['1. A'] }]
 
     const body = composeBody('0.4.0', own, '', '', [
@@ -1313,7 +1312,7 @@ test('#382 Z10 composeBody lets marked commits through when the release has its 
     assertStringIncludes(body, '- 1. A\n')
 })
 
-test('#364 R10 a whitespace-only --notes file means no Notes heading', async () => {
+Deno.test('#364 R10 a whitespace-only --notes file means no Notes heading', async () => {
     await withRepo(async (repo) => {
         await commit(repo, { 'docs/g.md': doc(guide('0.4.0', ['1. A'])) })
         await tag(repo, 'v0.4.0')
@@ -1328,7 +1327,7 @@ test('#364 R10 a whitespace-only --notes file means no Notes heading', async () 
 
 // ─── D: double compose ───────────────────────────────────────────────────────
 
-test('#364 D1 stdin already carrying the continuity line is exit 1', async () => {
+Deno.test('#364 D1 stdin already carrying the continuity line is exit 1', async () => {
     await withRepo(async (repo) => {
         await commit(repo, { 'docs/g.md': doc(guide('0.4.0', ['1. A'])) })
         await tag(repo, 'v0.4.0')
@@ -1340,7 +1339,7 @@ test('#364 D1 stdin already carrying the continuity line is exit 1', async () =>
     })
 })
 
-test('#364 D2 stdin already carrying the breaking heading is exit 1', async () => {
+Deno.test('#364 D2 stdin already carrying the breaking heading is exit 1', async () => {
     await withRepo(async (repo) => {
         await commit(repo, { 'docs/g.md': doc(guide('0.4.0', ['1. A'])) })
         await tag(repo, 'v0.4.0')

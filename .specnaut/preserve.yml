@@ -26,11 +26,6 @@ preserved:
   - .claude/agents/qa-tester.md
   - .claude/agents/product-owner/memory/MEMORY.md
 
-  # architect-expert restates hard rule #2 in its read-first table; the
-  # upstream template says "JSR-only specifiers", which C03 (#589) retired.
-  # Preserved so an upgrade cannot bring the old rule back (#623).
-  - .claude/agents/architect-expert.md
-
   # Documents the Lockness override that upstream's doctrine contradicts:
   # here `tag.sh` DOES bump version files, via `deno task bump`, because JSR
   # publishes from the `version` field in each deno.json — not from the tag.

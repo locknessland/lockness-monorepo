@@ -4,7 +4,6 @@
 
 // deno-lint-ignore-file no-unused-vars require-await
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { App } from '../app.ts'
 import {
@@ -18,7 +17,7 @@ import {
 import type { Context } from '../types.ts'
 import { declaredMiddlewares } from '../routing/decorators.ts'
 
-test('App integration - declared middlewares are automatically registered', async () => {
+Deno.test('App integration - declared middlewares are automatically registered', async () => {
     declaredMiddlewares.clear()
 
     @DeclareMiddleware('integration-auth')
@@ -52,7 +51,7 @@ test('App integration - declared middlewares are automatically registered', asyn
     assertEquals(json.authenticated, true)
 })
 
-test('App integration - multiple declared middlewares work together', async () => {
+Deno.test('App integration - multiple declared middlewares work together', async () => {
     declaredMiddlewares.clear()
 
     @DeclareMiddleware('step1')
@@ -110,7 +109,7 @@ test('App integration - multiple declared middlewares work together', async () =
     assertEquals(json.steps, ['step1', 'step2', 'step3'])
 })
 
-test('App integration - declared middleware can block requests', async () => {
+Deno.test('App integration - declared middleware can block requests', async () => {
     declaredMiddlewares.clear()
 
     @DeclareMiddleware('block')
@@ -143,7 +142,7 @@ test('App integration - declared middleware can block requests', async () => {
     assertEquals(text, 'Blocked')
 })
 
-test('App integration - backward compatibility with @Use decorator', async () => {
+Deno.test('App integration - backward compatibility with @Use decorator', async () => {
     declaredMiddlewares.clear()
 
     @DeclareMiddleware('compat')

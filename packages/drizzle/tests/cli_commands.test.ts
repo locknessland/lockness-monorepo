@@ -13,7 +13,6 @@
  * @module @lockness/drizzle/tests/cli_commands
  */
 
-import { test } from 'node:test'
 import {
     assert,
     assertEquals,
@@ -113,7 +112,7 @@ function muteConsole(): () => void {
 // Registration
 // -----------------------------------------------------------------------------
 
-test('registerDrizzleCommands - registers the full db:* / make:* set', () => {
+Deno.test('registerDrizzleCommands - registers the full db:* / make:* set', () => {
     const cli = new FakeCli()
     registerDrizzleCommands(cli) // defaults; no handler is invoked → no real I/O
     assertEquals([...cli.commands.keys()].sort(), [
@@ -148,7 +147,7 @@ const shellCommands: ReadonlyArray<readonly [string, string]> = [
 // -----------------------------------------------------------------------------
 
 for (const [command, subcommand] of shellCommands) {
-    test(`${command} - rejects with CommandFailedError when drizzle-kit ${subcommand} exits 1`, async () => {
+    Deno.test(`${command} - rejects with CommandFailedError when drizzle-kit ${subcommand} exits 1`, async () => {
         const restore = muteConsole()
         try {
             const cli = new FakeCli()
@@ -169,7 +168,7 @@ for (const [command, subcommand] of shellCommands) {
         }
     })
 
-    test(`${command} - resolves when drizzle-kit ${subcommand} exits 0`, async () => {
+    Deno.test(`${command} - resolves when drizzle-kit ${subcommand} exits 0`, async () => {
         const restore = muteConsole()
         try {
             const cli = new FakeCli()
@@ -183,7 +182,7 @@ for (const [command, subcommand] of shellCommands) {
     })
 }
 
-test('#439 db:validate - only claims a valid migrations folder, never drift or pending migrations', async () => {
+Deno.test('#439 db:validate - only claims a valid migrations folder, never drift or pending migrations', async () => {
     const lines: string[] = []
     const { log } = console
     console.log = (...args: unknown[]) => void lines.push(args.join(' '))
@@ -216,7 +215,7 @@ test('#439 db:validate - only claims a valid migrations folder, never drift or p
     assert(!/up to date|schema changes|pending|applied/i.test(lines.join('\n')))
 })
 
-test('wiring - a real Cli exits 1 on a failed db:migrate, printing one error line', async () => {
+Deno.test('wiring - a real Cli exits 1 on a failed db:migrate, printing one error line', async () => {
     await withMigrations(async (folder) => {
         const errors: unknown[][] = []
         const { log, error } = console
@@ -273,7 +272,7 @@ async function dispatchReal(
     }
 }
 
-test('#440 wiring - a real Cli exits 1 on a failed db:seed, printing one error line', async () => {
+Deno.test('#440 wiring - a real Cli exits 1 on a failed db:seed, printing one error line', async () => {
     const { connect } = fakeConnection()
     const loadSeeder: SeederLoader = () => Promise.resolve({})
 
@@ -290,7 +289,7 @@ test('#440 wiring - a real Cli exits 1 on a failed db:seed, printing one error l
     assertStringIncludes(line, 'DatabaseSeeder class not found')
 })
 
-test('#440 wiring - a real Cli exits 1 on a failed db:fresh, printing one error line', async () => {
+Deno.test('#440 wiring - a real Cli exits 1 on a failed db:fresh, printing one error line', async () => {
     await withMigrations(async (folder) => {
         const { deps } = freshDeps(folder, 'migrate')
 
@@ -306,7 +305,7 @@ test('#440 wiring - a real Cli exits 1 on a failed db:fresh, printing one error 
 })
 
 for (const [command, subcommand] of shellCommands) {
-    test(`${command} - constructs the drizzle-kit \`${subcommand}\` argv`, async () => {
+    Deno.test(`${command} - constructs the drizzle-kit \`${subcommand}\` argv`, async () => {
         const restore = muteConsole()
         try {
             const cli = new FakeCli()
@@ -332,7 +331,7 @@ for (const [command, subcommand] of shellCommands) {
     })
 }
 
-test('#437 every shell-out runs an exactly pinned drizzle-kit', async () => {
+Deno.test('#437 every shell-out runs an exactly pinned drizzle-kit', async () => {
     const restore = muteConsole()
     try {
         for (const [command] of shellCommands) {
@@ -467,7 +466,7 @@ const VERDICTS: ReadonlyArray<{
 for (const { command, result, failure } of VERDICTS) {
     const stderr = JSON.stringify(result.stderr.slice(0, 24))
     const verdict = failure === undefined ? 'passes' : 'fails'
-    test(`#445 ${command} - (${result.code}, ${stderr}) ${verdict}`, async () => {
+    Deno.test(`#445 ${command} - (${result.code}, ${stderr}) ${verdict}`, async () => {
         const judged = await judge(command, result)
         assertEquals(judged.failure?.message, failure)
         if (judged.failure) assertEquals(judged.failure.exitCode, 1)
@@ -475,7 +474,7 @@ for (const { command, result, failure } of VERDICTS) {
 }
 
 for (const command of ['db:generate', 'db:push']) {
-    test(`#445 ${command} - prints no closing ✅ line: Lockness cannot observe the outcome`, async () => {
+    Deno.test(`#445 ${command} - prints no closing ✅ line: Lockness cannot observe the outcome`, async () => {
         const { printed, failure } = await judge(command, exited(0))
         assertEquals(failure, undefined)
         assert(!printed.includes('✅'), printed)
@@ -503,7 +502,7 @@ function recordingSink() {
     }
 }
 
-test('#445 defaultRunCommand - returns the exit code and what the child wrote to stderr', async () => {
+Deno.test('#445 defaultRunCommand - returns the exit code and what the child wrote to stderr', async () => {
     const sink = recordingSink()
     const result = await defaultRunCommand({
         cmd: Deno.execPath(),
@@ -513,7 +512,7 @@ test('#445 defaultRunCommand - returns the exit code and what the child wrote to
     assertEquals(sink.text(), 'x\n')
 })
 
-test('#445 defaultRunCommand - reports a non-zero exit with an empty stderr', async () => {
+Deno.test('#445 defaultRunCommand - reports a non-zero exit with an empty stderr', async () => {
     const result = await defaultRunCommand({
         cmd: Deno.execPath(),
         args: ['eval', 'Deno.exit(3)'],
@@ -521,7 +520,7 @@ test('#445 defaultRunCommand - reports a non-zero exit with an empty stderr', as
     assertEquals(result, { code: 3, stderr: '' })
 })
 
-test('#445 defaultRunCommand - forwards all of stderr but retains a bounded copy', async () => {
+Deno.test('#445 defaultRunCommand - forwards all of stderr but retains a bounded copy', async () => {
     const total = RETAINED_STDERR_BYTES + 40_000
     const sink = recordingSink()
     const result = await defaultRunCommand({
@@ -537,7 +536,7 @@ test('#445 defaultRunCommand - forwards all of stderr but retains a bounded copy
     assertEquals(result.stderr, 'a'.repeat(RETAINED_STDERR_BYTES))
 })
 
-test('#445 defaultRunCommand - a failed forward kills and reaps the child, then surfaces the error', async () => {
+Deno.test('#445 defaultRunCommand - a failed forward kills and reaps the child, then surfaces the error', async () => {
     const dir = await Deno.makeTempDir({ prefix: 'lockness-445-sink-' })
     const marker = `${dir}/finished`
     try {
@@ -570,7 +569,7 @@ test('#445 defaultRunCommand - a failed forward kills and reaps the child, then 
 // db:check — connection port only, always closes
 // -----------------------------------------------------------------------------
 
-test('db:check - probes through the connection port then closes', async () => {
+Deno.test('db:check - probes through the connection port then closes', async () => {
     const restore = muteConsole()
     try {
         const cli = new FakeCli()
@@ -585,7 +584,7 @@ test('db:check - probes through the connection port then closes', async () => {
     }
 })
 
-test('db:check - a failed probe rejects with one message, and still closes', async () => {
+Deno.test('db:check - a failed probe rejects with one message, and still closes', async () => {
     const restore = muteConsole()
     try {
         const cli = new FakeCli()
@@ -611,7 +610,7 @@ test('db:check - a failed probe rejects with one message, and still closes', asy
     }
 })
 
-test('db:check - a connect() that rejects is a CommandFailedError', async () => {
+Deno.test('db:check - a connect() that rejects is a CommandFailedError', async () => {
     const restore = muteConsole()
     try {
         const cli = new FakeCli()
@@ -672,7 +671,7 @@ async function withDefaultPort(
     }
 }
 
-test('#427 T11 db:check makes exactly one round trip and never claims "configured"', async () => {
+Deno.test('#427 T11 db:check makes exactly one round trip and never claims "configured"', async () => {
     const counts = { built: 0, probes: 0, closes: 0 }
     await withDefaultPort(() => {
         counts.built++
@@ -702,7 +701,7 @@ test('#427 T11 db:check makes exactly one round trip and never claims "configure
     })
 })
 
-test('#427 T12 a real Cli prints a failed db:check once and exits 1', async () => {
+Deno.test('#427 T12 a real Cli prints a failed db:check once and exits 1', async () => {
     await withDefaultPort(() => {
         throw new Error('Cannot find module postgres')
     }, async () => {
@@ -775,7 +774,7 @@ function assertNoCredential(
 // db:check nor db:seed may carry it into the thrown error, its `cause` chain,
 // or the console (#440(b)).
 for (const command of ['db:check', 'db:seed']) {
-    test(`#440 ${command} - a driver error quoting the DSN reaches neither the error chain nor the console`, async () => {
+    Deno.test(`#440 ${command} - a driver error quoting the DSN reaches neither the error chain nor the console`, async () => {
         const { dsn, user, password } = fakeDsn()
         let loaded = false
         await withDefaultPort(() => {
@@ -803,7 +802,7 @@ for (const command of ['db:check', 'db:seed']) {
 // The usual wrong-password case: the client builds, and the probe's round trip
 // rejects quoting the DSN. Only db:check probes; db:seed makes no round trip
 // of its own before the seeder runs (#420), so it has no probe path to pin.
-test('#440 db:check - a probe error quoting the DSN reaches neither the error chain nor the console', async () => {
+Deno.test('#440 db:check - a probe error quoting the DSN reaches neither the error chain nor the console', async () => {
     const { dsn, user, password } = fakeDsn()
     let probed = false
     await withDefaultPort(() =>
@@ -845,7 +844,7 @@ const UNNAMED_TARGETS: ReadonlyArray<
 
 for (const command of ['db:seed', 'db:check']) {
     for (const [label, url, state] of UNNAMED_TARGETS) {
-        test(`#443 T1 ${command} refuses before connecting when DATABASE_URL is ${label}`, async () => {
+        Deno.test(`#443 T1 ${command} refuses before connecting when DATABASE_URL is ${label}`, async () => {
             let built = 0
             let loaded = false
             await withDefaultPort(() => {
@@ -891,7 +890,7 @@ for (const command of ['db:seed', 'db:check']) {
 // db:seed — seeder-loader port only, no dynamic import
 // -----------------------------------------------------------------------------
 
-test('db:seed - loads and runs DatabaseSeeder through the loader port', async () => {
+Deno.test('db:seed - loads and runs DatabaseSeeder through the loader port', async () => {
     const restore = muteConsole()
     try {
         const cli = new FakeCli()
@@ -920,7 +919,7 @@ test('db:seed - loads and runs DatabaseSeeder through the loader port', async ()
     }
 })
 
-test('db:seed <name> - loads the named seeder through the loader port', async () => {
+Deno.test('db:seed <name> - loads the named seeder through the loader port', async () => {
     const restore = muteConsole()
     try {
         const cli = new FakeCli()
@@ -948,7 +947,7 @@ test('db:seed <name> - loads the named seeder through the loader port', async ()
     }
 })
 
-test('db:seed - rejects, and closes the connection, when the module has no seeder', async () => {
+Deno.test('db:seed - rejects, and closes the connection, when the module has no seeder', async () => {
     const restore = muteConsole()
     try {
         const cli = new FakeCli()
@@ -970,7 +969,7 @@ test('db:seed - rejects, and closes the connection, when the module has no seede
     }
 })
 
-test('db:seed - the seeder’s own error passes through unwrapped, and the connection closes', async () => {
+Deno.test('db:seed - the seeder’s own error passes through unwrapped, and the connection closes', async () => {
     const restore = muteConsole()
     try {
         const cli = new FakeCli()
@@ -998,7 +997,7 @@ test('db:seed - the seeder’s own error passes through unwrapped, and the conne
     }
 })
 
-test('db:seed <name> - rejects when the module exports no seeder class', async () => {
+Deno.test('db:seed <name> - rejects when the module exports no seeder class', async () => {
     const restore = muteConsole()
     try {
         const cli = new FakeCli()
@@ -1022,7 +1021,7 @@ test('db:seed <name> - rejects when the module exports no seeder class', async (
     }
 })
 
-test('db:seed - a missing database_seeder.ts is a CommandFailedError with the fix', async () => {
+Deno.test('db:seed - a missing database_seeder.ts is a CommandFailedError with the fix', async () => {
     const restore = muteConsole()
     try {
         const cli = new FakeCli()
@@ -1043,7 +1042,7 @@ test('db:seed - a missing database_seeder.ts is a CommandFailedError with the fi
     }
 })
 
-test('#478 db:seed - a seeder load failure is rendered, never embedded raw', async () => {
+Deno.test('#478 db:seed - a seeder load failure is rendered, never embedded raw', async () => {
     // A fake marker assembled at run time, so the secret scan never sees it.
     const head = 'FA' + 'KE'
     const tail = 'MA' + 'RK'
@@ -1078,7 +1077,7 @@ test('#478 db:seed - a seeder load failure is rendered, never embedded raw', asy
     }
 })
 
-test('db:seed <name> - a module that fails to load is a CommandFailedError keeping the cause', async () => {
+Deno.test('db:seed <name> - a module that fails to load is a CommandFailedError keeping the cause', async () => {
     const restore = muteConsole()
     try {
         const cli = new FakeCli()
@@ -1132,7 +1131,7 @@ async function withAppEnv(
     }
 }
 
-test('db:seed - refuses to run under APP_ENV=production without --allow-production', async () => {
+Deno.test('db:seed - refuses to run under APP_ENV=production without --allow-production', async () => {
     const restore = muteConsole()
     try {
         const cli = new FakeCli()
@@ -1160,7 +1159,7 @@ test('db:seed - refuses to run under APP_ENV=production without --allow-producti
     }
 })
 
-test('db:seed --allow-production - runs under production with the override flag', async () => {
+Deno.test('db:seed --allow-production - runs under production with the override flag', async () => {
     const restore = muteConsole()
     try {
         const cli = new FakeCli()
@@ -1192,7 +1191,7 @@ test('db:seed --allow-production - runs under production with the override flag'
 // db:seed — the real connection port refuses a failed connect() (#420)
 // -----------------------------------------------------------------------------
 
-test('db:seed - stops before loading any seeder when connect() fails', async () => {
+Deno.test('db:seed - stops before loading any seeder when connect() fails', async () => {
     // The default port (`initDatabase`) against the container's Database, with
     // a driver factory that cannot build its client. Since #420 `connect()`
     // makes no round trip, so a `success: false` is the only signal left that
@@ -1387,7 +1386,7 @@ async function capture(fn: () => Promise<void>): Promise<{
     }
 }
 
-test('db:fresh - resets then migrates on one connection, spawning nothing and prompting nothing', async () => {
+Deno.test('db:fresh - resets then migrates on one connection, spawning nothing and prompting nothing', async () => {
     await withMigrations(async (folder) => {
         const { calls, deps } = freshDeps(folder)
         const cli = new FakeCli()
@@ -1419,7 +1418,7 @@ test('db:fresh - resets then migrates on one connection, spawning nothing and pr
     })
 })
 
-test('db:fresh - hands migrations.table and migrations.schema to the postgres migrator', async () => {
+Deno.test('db:fresh - hands migrations.table and migrations.schema to the postgres migrator', async () => {
     await withMigrations(async (folder) => {
         const { calls, deps } = freshDeps(folder, undefined, {
             config: {
@@ -1445,7 +1444,7 @@ test('db:fresh - hands migrations.table and migrations.schema to the postgres mi
     })
 })
 
-test('db:fresh - opens the connection with the dialect and url of drizzle.config.ts', async () => {
+Deno.test('db:fresh - opens the connection with the dialect and url of drizzle.config.ts', async () => {
     await withMigrations(async (folder) => {
         const { deps, opened } = freshDeps(folder)
         const cli = new FakeCli()
@@ -1461,7 +1460,7 @@ test('db:fresh - opens the connection with the dialect and url of drizzle.config
 })
 
 for (const failAt of ['read', 'execute', 'migrate'] as const) {
-    test(`db:fresh - a failed ${failAt} is a CommandFailedError, prints no "refreshed" line, and closes`, async () => {
+    Deno.test(`db:fresh - a failed ${failAt} is a CommandFailedError, prints no "refreshed" line, and closes`, async () => {
         await withMigrations(async (folder) => {
             const { calls, deps } = freshDeps(folder, failAt)
             const cli = new FakeCli()
@@ -1482,7 +1481,7 @@ for (const failAt of ['read', 'execute', 'migrate'] as const) {
     })
 }
 
-test('db:fresh - a failed reset never runs migrate', async () => {
+Deno.test('db:fresh - a failed reset never runs migrate', async () => {
     await withMigrations(async (folder) => {
         const { calls, deps } = freshDeps(folder, 'execute')
         const cli = new FakeCli()
@@ -1498,7 +1497,7 @@ test('db:fresh - a failed reset never runs migrate', async () => {
     })
 })
 
-test('db:fresh - a connection that cannot be opened is a CommandFailedError', async () => {
+Deno.test('db:fresh - a connection that cannot be opened is a CommandFailedError', async () => {
     await withMigrations(async (folder) => {
         const { deps } = freshDeps(folder)
         const cli = new FakeCli()
@@ -1522,7 +1521,7 @@ test('db:fresh - a connection that cannot be opened is a CommandFailedError', as
     })
 })
 
-test('db:fresh - R2 and R3 refuse before the connection is opened', async () => {
+Deno.test('db:fresh - R2 and R3 refuse before the connection is opened', async () => {
     await withMigrations(async (folder) => {
         const cases: Array<[string, () => Promise<unknown>]> = [
             ['R2 import', () => Promise.reject(new Error('no such file'))],
@@ -1578,7 +1577,7 @@ test('db:fresh - R2 and R3 refuse before the connection is opened', async () => 
     })
 })
 
-test('db:fresh - an empty dbCredentials.url never reaches a driver (#449)', async () => {
+Deno.test('db:fresh - an empty dbCredentials.url never reaches a driver (#449)', async () => {
     await withMigrations(async (folder) => {
         container.delete(Database)
         try {
@@ -1628,7 +1627,7 @@ test('db:fresh - an empty dbCredentials.url never reaches a driver (#449)', asyn
     })
 })
 
-test('db:fresh - a dbCredentials.url that names no database never reaches a driver (#456)', async () => {
+Deno.test('db:fresh - a dbCredentials.url that names no database never reaches a driver (#456)', async () => {
     // Assembled at runtime, so no scanner reads a credential into the source.
     const host = ['secret-host', 'db.example'].join('.')
     await withMigrations(async (folder) => {
@@ -1688,7 +1687,7 @@ test('db:fresh - a dbCredentials.url that names no database never reaches a driv
     })
 })
 
-test('db:fresh - an import error quoting the DSN reaches neither the output nor the error chain', async () => {
+Deno.test('db:fresh - an import error quoting the DSN reaches neither the output nor the error chain', async () => {
     // Assembled at runtime, so no scanner reads a credential into the source.
     const dsn = ['postgres://app', 'not-a-real-secret@db.example/app'].join(':')
     await withMigrations(async (folder) => {
@@ -1719,7 +1718,7 @@ test('db:fresh - an import error quoting the DSN reaches neither the output nor 
     })
 })
 
-test('db:fresh - a catalogue refusal happens before any drop, and closes', async () => {
+Deno.test('db:fresh - a catalogue refusal happens before any drop, and closes', async () => {
     await withMigrations(async (folder) => {
         const { calls, deps } = freshDeps(folder)
         const cli = new FakeCli()
@@ -1749,7 +1748,7 @@ test('db:fresh - a catalogue refusal happens before any drop, and closes', async
     })
 })
 
-test('db:fresh - R4 refuses a driver without the maintenance capability', async () => {
+Deno.test('db:fresh - R4 refuses a driver without the maintenance capability', async () => {
     await withMigrations(async (folder) => {
         container.delete(Database)
         try {
@@ -1865,7 +1864,7 @@ async function freshThroughDefaultOpener(
     }
 }
 
-test('#447 db:fresh through the default opener resets and migrates on one connection, then closes it, then the Database', async () => {
+Deno.test('#447 db:fresh through the default opener resets and migrates on one connection, then closes it, then the Database', async () => {
     await withMigrations(async (folder) => {
         const { events, error, stillConnected } =
             await freshThroughDefaultOpener(folder)
@@ -1882,7 +1881,7 @@ test('#447 db:fresh through the default opener resets and migrates on one connec
     })
 })
 
-test('#447 the default opener keeps the R4 refusal when closing the Database fails too, and logs that failure', async () => {
+Deno.test('#447 the default opener keeps the R4 refusal when closing the Database fails too, and logs that failure', async () => {
     await withMigrations(async (folder) => {
         const { events, lines, error } = await freshThroughDefaultOpener(
             folder,
@@ -1903,7 +1902,7 @@ test('#447 the default opener keeps the R4 refusal when closing the Database fai
     })
 })
 
-test('#447 the default opener closes the Database when the connection cannot be opened, keeping the open failure', async () => {
+Deno.test('#447 the default opener closes the Database when the connection cannot be opened, keeping the open failure', async () => {
     await withMigrations(async (folder) => {
         const { events, lines, error, stillConnected } =
             await freshThroughDefaultOpener(folder, {
@@ -1923,7 +1922,7 @@ test('#447 the default opener closes the Database when the connection cannot be 
     })
 })
 
-test('#447 the composed close still closes the Database after the connection fails to close, and keeps that first failure', async () => {
+Deno.test('#447 the composed close still closes the Database after the connection fails to close, and keeps that first failure', async () => {
     await withMigrations(async (folder) => {
         const { events, lines, error, stillConnected } =
             await freshThroughDefaultOpener(folder, {
@@ -1945,7 +1944,7 @@ test('#447 the composed close still closes the Database after the connection fai
     })
 })
 
-test('db:fresh and db:seed share one production guard, with the same message shape', async () => {
+Deno.test('db:fresh and db:seed share one production guard, with the same message shape', async () => {
     await withMigrations(async (folder) => {
         const { calls, deps } = freshDeps(folder)
         const { events, connect } = fakeConnection()
@@ -1977,7 +1976,7 @@ test('db:fresh and db:seed share one production guard, with the same message sha
     })
 })
 
-test('db:fresh --allow-production - runs under production with the override flag', async () => {
+Deno.test('db:fresh --allow-production - runs under production with the override flag', async () => {
     await withMigrations(async (folder) => {
         const { calls, deps } = freshDeps(folder)
         const cli = new FakeCli()
@@ -2077,7 +2076,7 @@ async function invoke(
     )
 }
 
-test('#442 db:migrate hands out, migrations.table and migrations.schema to the migrator', async () => {
+Deno.test('#442 db:migrate hands out, migrations.table and migrations.schema to the migrator', async () => {
     await withMigrations(async (folder) => {
         const cases: Array<[string, Record<string, unknown>, MigrateOptions]> =
             [
@@ -2119,7 +2118,7 @@ test('#442 db:migrate hands out, migrations.table and migrations.schema to the m
     })
 })
 
-test('#442 db:migrate and db:fresh hand the migrator identical options', async () => {
+Deno.test('#442 db:migrate and db:fresh hand the migrator identical options', async () => {
     await withMigrations(async (folder) => {
         const { migrated, deps } = migrateDeps({
             dialect: 'postgresql',
@@ -2136,7 +2135,7 @@ test('#442 db:migrate and db:fresh hand the migrator identical options', async (
     })
 })
 
-test('#442 db:migrate spawns nothing', async () => {
+Deno.test('#442 db:migrate spawns nothing', async () => {
     await withMigrations(async (folder) => {
         const { spawned, deps } = migrateDeps({
             dialect: 'sqlite',
@@ -2151,7 +2150,7 @@ test('#442 db:migrate spawns nothing', async () => {
     })
 })
 
-test('#442 db:migrate runs in production without --allow-production', async () => {
+Deno.test('#442 db:migrate runs in production without --allow-production', async () => {
     await withMigrations(async (folder) => {
         const { calls, deps } = migrateDeps({
             dialect: 'sqlite',
@@ -2312,7 +2311,7 @@ const MIGRATE_REFUSALS: readonly MigrateRefusal[] = [
 ]
 
 for (const refusal of MIGRATE_REFUSALS) {
-    test(`#442 db:migrate refuses before connecting: ${refusal.label}`, async () => {
+    Deno.test(`#442 db:migrate refuses before connecting: ${refusal.label}`, async () => {
         await withMigrations(async (folder) => {
             const { opened, spawned, deps } = migrateDeps(
                 refusal.config(folder),
@@ -2350,7 +2349,7 @@ for (const refusal of MIGRATE_REFUSALS) {
     })
 }
 
-test('#442 no db:migrate refusal quotes a credential', async () => {
+Deno.test('#442 no db:migrate refusal quotes a credential', async () => {
     await withMigrations(async (folder) => {
         const configs: Record<string, unknown>[] = [
             credentials('postgresql', {
@@ -2390,7 +2389,7 @@ test('#442 no db:migrate refusal quotes a credential', async () => {
     })
 })
 
-test('#442 a malformed schemaFilter blocks db:fresh, not db:migrate', async () => {
+Deno.test('#442 a malformed schemaFilter blocks db:fresh, not db:migrate', async () => {
     await withMigrations(async (folder) => {
         for (const schemaFilter of [[], 42]) {
             const config = postgresWith({ schemaFilter })(folder)
@@ -2409,7 +2408,7 @@ test('#442 a malformed schemaFilter blocks db:fresh, not db:migrate', async () =
     })
 })
 
-test('#442 db:migrate accepts the documented url alternatives verbatim', async () => {
+Deno.test('#442 db:migrate accepts the documented url alternatives verbatim', async () => {
     await withMigrations(async (folder) => {
         for (
             const [dialect, url] of [
@@ -2436,7 +2435,7 @@ test('#442 db:migrate accepts the documented url alternatives verbatim', async (
     })
 })
 
-test('#442 db:migrate refuses a missing journal before connecting', async () => {
+Deno.test('#442 db:migrate refuses a missing journal before connecting', async () => {
     await withMigrations(async (folder) => {
         const { opened, deps } = migrateDeps({
             dialect: 'sqlite',
@@ -2456,7 +2455,7 @@ test('#442 db:migrate refuses a missing journal before connecting', async () => 
     })
 })
 
-test('#442 db:migrate frames R4 with the drizzle-kit clause, and closes the client', async () => {
+Deno.test('#442 db:migrate frames R4 with the drizzle-kit clause, and closes the client', async () => {
     await withMigrations(async (folder) => {
         container.delete(Database)
         try {
@@ -2495,7 +2494,7 @@ test('#442 db:migrate frames R4 with the drizzle-kit clause, and closes the clie
     })
 })
 
-test('#442 a failed db:migrate exits 1, prints no success line, and closes', async () => {
+Deno.test('#442 a failed db:migrate exits 1, prints no success line, and closes', async () => {
     await withMigrations(async (folder) => {
         const { calls, deps } = migrateDeps({
             dialect: 'sqlite',
@@ -2514,7 +2513,7 @@ test('#442 a failed db:migrate exits 1, prints no success line, and closes', asy
     })
 })
 
-test('#442 db:migrate on a client that cannot be configured exits 1', async () => {
+Deno.test('#442 db:migrate on a client that cannot be configured exits 1', async () => {
     await withMigrations(async (folder) => {
         const { deps } = migrateDeps({
             dialect: 'sqlite',
@@ -2534,7 +2533,7 @@ test('#442 db:migrate on a client that cannot be configured exits 1', async () =
     })
 })
 
-test('#442 db:fresh frames a kit-only refusal as before, with no drizzle-kit clause', async () => {
+Deno.test('#442 db:fresh frames a kit-only refusal as before, with no drizzle-kit clause', async () => {
     await withMigrations(async (folder) => {
         const { deps } = migrateDeps(postgresWith({ driver: 'pglite' })(folder))
 
@@ -2639,7 +2638,7 @@ function statusDeps(
     return { calls, queries, spawned, deps }
 }
 
-test('#439 db:status - all applied: lists them, ends on one ✅ line, exits 0, spawns nothing', async () => {
+Deno.test('#439 db:status - all applied: lists them, ends on one ✅ line, exits 0, spawns nothing', async () => {
     await withMigrations(async (folder) => {
         const { calls, queries, spawned, deps } = statusDeps(
             statusConfig(folder),
@@ -2663,7 +2662,7 @@ test('#439 db:status - all applied: lists them, ends on one ✅ line, exits 0, s
     })
 })
 
-test('#439 db:status - a pending migration exits 1 with the count as its message', async () => {
+Deno.test('#439 db:status - a pending migration exits 1 with the count as its message', async () => {
     await withMigrations(async (folder) => {
         const { calls, deps } = statusDeps(statusConfig(folder), { rows: [] })
 
@@ -2680,7 +2679,7 @@ test('#439 db:status - a pending migration exits 1 with the count as its message
     })
 })
 
-test('#439 db:status - never migrated: every migration pending, and no row query runs', async () => {
+Deno.test('#439 db:status - never migrated: every migration pending, and no row query runs', async () => {
     await withMigrations(async (folder) => {
         const { queries, deps } = statusDeps(statusConfig(folder), {
             catalogue: [{ schema: 'public', name: 'users' }],
@@ -2698,7 +2697,7 @@ test('#439 db:status - never migrated: every migration pending, and no row query
     })
 })
 
-test('#439 db:status - an edited applied migration warns and still exits 0', async () => {
+Deno.test('#439 db:status - an edited applied migration warns and still exits 0', async () => {
     await withMigrations(async (folder) => {
         const { deps } = statusDeps(statusConfig(folder), {
             rows: [{ hash: 'an-older-hash', created_at: 1 }],
@@ -2712,7 +2711,7 @@ test('#439 db:status - an edited applied migration warns and still exits 0', asy
     })
 })
 
-test('#439 db:status - a refusal is framed for db:status, before any connection', async () => {
+Deno.test('#439 db:status - a refusal is framed for db:status, before any connection', async () => {
     await withMigrations(async (folder) => {
         const { calls, deps } = statusDeps({
             ...statusConfig(folder),
@@ -2734,7 +2733,7 @@ test('#439 db:status - a refusal is framed for db:status, before any connection'
     })
 })
 
-test('#439 db:status - a kit-only refusal names no drizzle-kit fallback: it has no status command', async () => {
+Deno.test('#439 db:status - a kit-only refusal names no drizzle-kit fallback: it has no status command', async () => {
     await withMigrations(async (folder) => {
         const { deps } = statusDeps({
             ...statusConfig(folder),
@@ -2756,7 +2755,7 @@ test('#439 db:status - a kit-only refusal names no drizzle-kit fallback: it has 
     })
 })
 
-test('#439 db:status - a missing journal is refused before connecting', async () => {
+Deno.test('#439 db:status - a missing journal is refused before connecting', async () => {
     const folder = await Deno.makeTempDir()
     try {
         const { calls, deps } = statusDeps(statusConfig(folder))
@@ -2774,7 +2773,7 @@ test('#439 db:status - a missing journal is refused before connecting', async ()
     }
 })
 
-test('#439 db:status - a connection that cannot be opened exits 1', async () => {
+Deno.test('#439 db:status - a connection that cannot be opened exits 1', async () => {
     await withMigrations(async (folder) => {
         const { deps } = statusDeps(statusConfig(folder), {
             openError: new Error('Database not configured: no client'),
@@ -2792,7 +2791,7 @@ test('#439 db:status - a connection that cannot be opened exits 1', async () => 
     })
 })
 
-test('#439 db:status - an R4 refusal from the opener is framed, with no drizzle-kit clause', async () => {
+Deno.test('#439 db:status - an R4 refusal from the opener is framed, with no drizzle-kit clause', async () => {
     await withMigrations(async (folder) => {
         const { deps } = statusDeps(statusConfig(folder), {
             openError: new RefusedError('the driver offers no maintenance', {
@@ -2814,7 +2813,7 @@ test('#439 db:status - an R4 refusal from the opener is framed, with no drizzle-
 for (
     const [label, failQuery] of [['catalogue', 1], ['bookkeeping', 2]] as const
 ) {
-    test(`#439 db:status - a failed ${label} query exits 1 and closes the session`, async () => {
+    Deno.test(`#439 db:status - a failed ${label} query exits 1 and closes the session`, async () => {
         await withMigrations(async (folder) => {
             const { calls, deps } = statusDeps(statusConfig(folder), {
                 failQuery,
@@ -2834,7 +2833,7 @@ for (
     })
 }
 
-test('#439 db:status - a malformed bookkeeping row exits 1 and closes the session', async () => {
+Deno.test('#439 db:status - a malformed bookkeeping row exits 1 and closes the session', async () => {
     await withMigrations(async (folder) => {
         const { calls, deps } = statusDeps(statusConfig(folder), {
             rows: [{ hash: 'h', created_at: null }],
@@ -2853,7 +2852,7 @@ test('#439 db:status - a malformed bookkeeping row exits 1 and closes the sessio
     })
 })
 
-test('#439 db:status - reads, never writes: no execute, no migrate', async () => {
+Deno.test('#439 db:status - reads, never writes: no execute, no migrate', async () => {
     await withMigrations(async (folder) => {
         const { calls, deps } = statusDeps(statusConfig(folder), { rows: [] })
 
@@ -2864,7 +2863,7 @@ test('#439 db:status - reads, never writes: no execute, no migrate', async () =>
     })
 })
 
-test('#439 db:status runs in production without --allow-production: it is the deploy gate', async () => {
+Deno.test('#439 db:status runs in production without --allow-production: it is the deploy gate', async () => {
     await withMigrations(async (folder) => {
         const { deps } = statusDeps(statusConfig(folder), {
             rows: [{ hash: await sha256(INIT_SQL), created_at: '1' }],
@@ -2880,7 +2879,7 @@ test('#439 db:status runs in production without --allow-production: it is the de
     })
 })
 
-test('#439 wiring - a real Cli exits 1 on a pending db:status, the count its last line', async () => {
+Deno.test('#439 wiring - a real Cli exits 1 on a pending db:status, the count its last line', async () => {
     await withMigrations(async (folder) => {
         const { deps } = statusDeps(statusConfig(folder), { rows: [] })
 

@@ -23,14 +23,14 @@ names does not belong here._
 
 | Direction                                 | Packages                                                                                |
 | :---------------------------------------- | :-------------------------------------------------------------------------------------- |
-| Imports (static)                          | `contract` _(type-only)_                                                                |
+| Imports (static)                          | `cli`                                                                                   |
 | Imports (soft, loaded at runtime by name) | —                                                                                       |
 | Imported by                               | `core`, `realtime`                                                                      |
 | **Must never import**                     | `core`, `realtime` — each already reaches this package, so importing one closes a cycle |
 
 Enforced by `deno task deps:analyze` against `deps.policy.jsonc`. A soft edge is
-an optional peer in this package's `package.json`, never a dependency: the
-consuming application installs it, or the feature stays off.
+deliberately **not** declared in this package's `deno.json`: the consuming
+application installs it, or the feature stays off.
 
 <!-- /generated:deps -->
 
@@ -56,7 +56,7 @@ Anything not listed is internal and free to change.
 | Raising a deprecation              | `trigger.ts`    |
 | Decorator form                     | `decorators.ts` |
 | Aggregation for the devtools panel | `collector.ts`  |
-| Project setup step                 | `setup.ts`      |
+| Project installer                  | `install.ts`    |
 
 ## Pitfalls
 
@@ -72,7 +72,7 @@ Anything not listed is internal and free to change.
 2 test files for 9 source files:
 
 - `packages/deprecation-contracts/tests/deprecation.test.ts`
-- `packages/deprecation-contracts/tests/setup.test.ts`
+- `packages/deprecation-contracts/tests/install.test.ts`
 
 <!-- /generated:tests -->
 

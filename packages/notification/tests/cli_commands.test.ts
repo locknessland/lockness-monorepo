@@ -14,17 +14,16 @@
  * @module @lockness/notification/tests/cli_commands
  */
 
-import { test } from 'node:test'
-import type { CommandRegistry } from '@lockness/contract/command'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import { Cli as RealCli } from '@lockness/cli'
 import {
+    type Cli,
     handleMakeNotification,
     notificationNaming,
     registerNotificationCommands,
 } from '../cli_commands.ts'
 
-test('notificationNaming derives PascalCase class + snake file name', () => {
+Deno.test('notificationNaming derives PascalCase class + snake file name', () => {
     assertEquals(notificationNaming('invoicePaid'), {
         className: 'InvoicePaid',
         fileName: 'invoice_paid',
@@ -35,7 +34,7 @@ test('notificationNaming derives PascalCase class + snake file name', () => {
     })
 })
 
-test('SC-003: make:notification scaffolds the class file', async () => {
+Deno.test('SC-003: make:notification scaffolds the class file', async () => {
     const dir = await Deno.makeTempDir()
     const prevCwd = Deno.cwd()
     Deno.chdir(dir)
@@ -56,13 +55,12 @@ test('SC-003: make:notification scaffolds the class file', async () => {
     }
 })
 
-test('registerNotificationCommands registers make:notification', () => {
+Deno.test('registerNotificationCommands registers make:notification', () => {
     const registered: string[] = []
-    const cli: CommandRegistry = {
+    const cli: Cli = {
         register: (name) => {
             registered.push(name)
         },
-        registerCommand: () => {},
     }
     registerNotificationCommands(cli)
     assert(registered.includes('make:notification'))
@@ -93,7 +91,7 @@ function assertCommandFailure(error: Error, fragment: string): void {
     )
 }
 
-test('make:notification with no name throws a failure with exitCode 1 and prints nothing', async () => {
+Deno.test('make:notification with no name throws a failure with exitCode 1 and prints nothing', async () => {
     const { result: error, errors } = await captureErrors(() =>
         assertRejects(() => handleMakeNotification([]), Error)
     )
@@ -101,7 +99,7 @@ test('make:notification with no name throws a failure with exitCode 1 and prints
     assertEquals(errors.length, 0, 'the dispatcher is the only printer')
 })
 
-test('make:notification with a traversal name throws and writes nothing', async () => {
+Deno.test('make:notification with a traversal name throws and writes nothing', async () => {
     const dir = await Deno.makeTempDir()
     const prevCwd = Deno.cwd()
     Deno.chdir(dir)
@@ -119,7 +117,7 @@ test('make:notification with a traversal name throws and writes nothing', async 
     }
 })
 
-test('make:notification through the real Cli.dispatch exits 1 with exactly one ❌ line', async () => {
+Deno.test('make:notification through the real Cli.dispatch exits 1 with exactly one ❌ line', async () => {
     const cli = new RealCli()
     registerNotificationCommands(cli)
     const { result: status, errors } = await captureErrors(() =>

@@ -13,7 +13,6 @@
  * @module @lockness/realtime/tests/marked_fallback_391
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { renderError } from '@lockness/contract'
 import {
@@ -80,14 +79,14 @@ function channels(fail: { console: boolean; stderr: boolean }) {
 }
 
 for (const shape of SHAPES) {
-    test(`#391 H1 (${shape.name}) a working console gets the one line, and stderr nothing`, () => {
+    Deno.test(`#391 H1 (${shape.name}) a working console gets the one line, and stderr nothing`, () => {
         using sink = channels({ console: false, stderr: false })
         writeMarkedFallback(MARKER, SUBJECT, shape.failure)
         assertEquals(sink.errors, [[shape.line]])
         assertEquals(sink.writes, [])
     })
 
-    test(`#391 H2 (${shape.name}) a throwing console: one stderr line naming what it threw, the same original bytes`, () => {
+    Deno.test(`#391 H2 (${shape.name}) a throwing console: one stderr line naming what it threw, the same original bytes`, () => {
         using sink = channels({ console: true, stderr: false })
         writeMarkedFallback(MARKER, SUBJECT, shape.failure)
         assertEquals(sink.errors, [[shape.line]], 'the console was tried first')
@@ -96,7 +95,7 @@ for (const shape of SHAPES) {
         ])
     })
 
-    test(`#391 H3 (${shape.name}) console and stderr both throwing: it still returns`, () => {
+    Deno.test(`#391 H3 (${shape.name}) console and stderr both throwing: it still returns`, () => {
         using sink = channels({ console: true, stderr: true })
         assertEquals(
             writeMarkedFallback(MARKER, SUBJECT, shape.failure),

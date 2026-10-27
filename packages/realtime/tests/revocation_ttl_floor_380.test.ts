@@ -31,7 +31,6 @@
  * @module @lockness/realtime/tests/revocation_ttl_floor_380
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertRejects, assertThrows } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
 import { ChannelManager } from '../manager.ts'
@@ -303,7 +302,7 @@ const CORRUPT_FLOOR = ['300', '1e3', '0x10', ' 5', '5.5', 'inf', '', '012']
 // US1 — a short-TTL peer's revocation still reaches a long-interval reader
 // ---------------------------------------------------------------------------
 
-test("#380 F1 a TTL-10 peer's revocation reaches a TTL-300 reader whose next pass is 59 s later", async () => {
+Deno.test("#380 F1 a TTL-10 peer's revocation reaches a TTL-300 reader whose next pass is 59 s later", async () => {
     await withFixture(async (f) => {
         const w = f.driver({ interval: 5_000, ttl: 10 })
         const r = f.driver({ interval: 60_000, ttl: 300 })
@@ -325,7 +324,7 @@ test("#380 F1 a TTL-10 peer's revocation reaches a TTL-300 reader whose next pas
     })
 })
 
-test('#380 F2 a uniform fleet: a mark scores t + 300 exactly, the index TTL in [300, 360]', async () => {
+Deno.test('#380 F2 a uniform fleet: a mark scores t + 300 exactly, the index TTL in [300, 360]', async () => {
     await withFixture(async (f) => {
         const a = f.driver({ interval: 60_000, ttl: 300 })
         const b = f.driver({ interval: 60_000, ttl: 300 })
@@ -338,7 +337,7 @@ test('#380 F2 a uniform fleet: a mark scores t + 300 exactly, the index TTL in [
     })
 })
 
-test('#380 F3 one reap by a TTL-300 driver writes exactly { 300: t + 300 }, key TTL 360', async () => {
+Deno.test('#380 F3 one reap by a TTL-300 driver writes exactly { 300: t + 300 }, key TTL 360', async () => {
     await withFixture(async (f) => {
         const r = f.driver({ interval: 60_000, ttl: 300 })
         await r.listRevocations()
@@ -347,7 +346,7 @@ test('#380 F3 one reap by a TTL-300 driver writes exactly { 300: t + 300 }, key 
     })
 })
 
-test('#380 F7 a floor member above the range is clamped: the record and the index TTL use the maximum', async () => {
+Deno.test('#380 F7 a floor member above the range is clamped: the record and the index TTL use the maximum', async () => {
     await withFixture(async (f) => {
         await seedFloor(f.redis, ['9999999'])
         const w = f.driver({ interval: 5_000, ttl: 10 })
@@ -363,7 +362,7 @@ test('#380 F7 a floor member above the range is clamped: the record and the inde
     })
 })
 
-test('#380 F11 an absent floor: the record scores t + own TTL, and the mark is one floor read then one EVAL', async () => {
+Deno.test('#380 F11 an absent floor: the record scores t + own TTL, and the mark is one floor read then one EVAL', async () => {
     await withFixture(async (f) => {
         const port = f.port()
         const w = f.driver({ interval: 5_000, ttl: 10, command: port.command })
@@ -379,7 +378,7 @@ test('#380 F11 an absent floor: the record scores t + own TTL, and the mark is o
     })
 })
 
-test('#380 F12 decodeRevocationFloor refuses a reply that is not an array of bulk strings, skips and clamps members', () => {
+Deno.test('#380 F12 decodeRevocationFloor refuses a reply that is not an array of bulk strings, skips and clamps members', () => {
     const bulk = (value: string) => ({ type: 'bulk', value })
     for (
         const reply of [
@@ -425,7 +424,7 @@ test('#380 F12 decodeRevocationFloor refuses a reply that is not an array of bul
 // US3 — a stopped long-TTL reader stops lengthening records
 // ---------------------------------------------------------------------------
 
-test("#380 F8 301 s after a TTL-300 reader's last reap, a TTL-10 reap prunes its entry and marks score t + 10", async () => {
+Deno.test("#380 F8 301 s after a TTL-300 reader's last reap, a TTL-10 reap prunes its entry and marks score t + 10", async () => {
     await withFixture(async (f) => {
         const r = f.driver({ interval: 60_000, ttl: 300 })
         const w = f.driver({ interval: 5_000, ttl: 10 })
@@ -444,7 +443,7 @@ test("#380 F8 301 s after a TTL-300 reader's last reap, a TTL-10 reap prunes its
     })
 })
 
-test('#380 F9 (i) a shorter-TTL write never pulls a floor entry or the key back in', async () => {
+Deno.test('#380 F9 (i) a shorter-TTL write never pulls a floor entry or the key back in', async () => {
     await withFixture(async (f) => {
         const long = f.driver({ interval: 60_000, ttl: 300 })
         const short = f.driver({ interval: 5_000, ttl: 10 })
@@ -461,7 +460,7 @@ test('#380 F9 (i) a shorter-TTL write never pulls a floor entry or the key back 
     })
 })
 
-test('#380 F9 (ii) a longer-TTL write extends the key a shorter one armed', async () => {
+Deno.test('#380 F9 (ii) a longer-TTL write extends the key a shorter one armed', async () => {
     await withFixture(async (f) => {
         const short = f.driver({ interval: 5_000, ttl: 10 })
         const long = f.driver({ interval: 60_000, ttl: 300 })
@@ -476,7 +475,7 @@ test('#380 F9 (ii) a longer-TTL write extends the key a shorter one armed', asyn
 // US4 — a corrupt or unreadable floor never blocks a revocation
 // ---------------------------------------------------------------------------
 
-test('#380 F6 a corrupt floor: the record scores t + 300, and one count-only WARN follows the EVAL', async () => {
+Deno.test('#380 F6 a corrupt floor: the record scores t + 300, and one count-only WARN follows the EVAL', async () => {
     await withFixture(async (f) => {
         await seedFloor(f.redis, CORRUPT_FLOOR)
         const port = f.port()
@@ -500,7 +499,7 @@ test('#380 F6 a corrupt floor: the record scores t + 300, and one count-only WAR
     })
 })
 
-test('#380 F14 (i) a WRONGTYPE floor read: the mark resolves at the maximum TTL, one WARN after the EVAL', async () => {
+Deno.test('#380 F14 (i) a WRONGTYPE floor read: the mark resolves at the maximum TTL, one WARN after the EVAL', async () => {
     await withFixture(async (f) => {
         const port = f.port()
         // The broker's error reply to a ZRANGEBYSCORE on a string key, as the
@@ -534,7 +533,7 @@ test('#380 F14 (i) a WRONGTYPE floor read: the mark resolves at the maximum TTL,
     })
 })
 
-test('#380 F14 (ii) a transport error or a refused reply on the floor read: the mark resolves at the maximum TTL', async () => {
+Deno.test('#380 F14 (ii) a transport error or a refused reply on the floor read: the mark resolves at the maximum TTL', async () => {
     await withFixture(async (f) => {
         const port = f.port()
         const w = f.driver({ interval: 5_000, ttl: 10, command: port.command })
@@ -552,7 +551,7 @@ test('#380 F14 (ii) a transport error or a refused reply on the floor read: the 
     })
 })
 
-test('#380 F14 (iii) the EVAL itself rejecting still fails the mark', async () => {
+Deno.test('#380 F14 (iii) the EVAL itself rejecting still fails the mark', async () => {
     await withFixture(async (f) => {
         const port = f.port()
         const w = f.driver({ interval: 5_000, ttl: 10, command: port.command })
@@ -566,7 +565,7 @@ test('#380 F14 (iii) the EVAL itself rejecting still fails the mark', async () =
     })
 })
 
-test('#380 F15 a throwing console.warn never fails a mark: the record is written, one marked line per WARN', async () => {
+Deno.test('#380 F15 a throwing console.warn never fails a mark: the record is written, one marked line per WARN', async () => {
     await withFixture(async (f) => {
         await seedFloor(f.redis, ['1e3'])
         const port = f.port()
@@ -592,7 +591,7 @@ test('#380 F15 a throwing console.warn never fails a mark: the record is written
 // US5 — the announce, and a reader whose first announce fails
 // ---------------------------------------------------------------------------
 
-test('#380 F4 (i) the first registration issues exactly one announce, 1 <floor> 300 360, before any reap', async () => {
+Deno.test('#380 F4 (i) the first registration issues exactly one announce, 1 <floor> 300 360, before any reap', async () => {
     await withFixture(async (f) => {
         const port = f.port()
         const r = f.driver({
@@ -610,7 +609,7 @@ test('#380 F4 (i) the first registration issues exactly one announce, 1 <floor> 
     })
 })
 
-test('#380 F4 (ii) a re-registration announces nothing', async () => {
+Deno.test('#380 F4 (ii) a re-registration announces nothing', async () => {
     await withFixture(async (f) => {
         const port = f.port()
         const r = f.driver({
@@ -627,7 +626,7 @@ test('#380 F4 (ii) a re-registration announces nothing', async () => {
     })
 })
 
-test('#380 F4 (iii) a registration after close() announces nothing', async () => {
+Deno.test('#380 F4 (iii) a registration after close() announces nothing', async () => {
     await withFixture(async (f) => {
         const port = f.port()
         const r = f.driver({
@@ -642,7 +641,7 @@ test('#380 F4 (iii) a registration after close() announces nothing', async () =>
     })
 })
 
-test('#380 F4 (iv) a ChannelManager over the driver announces exactly once', async () => {
+Deno.test('#380 F4 (iv) a ChannelManager over the driver announces exactly once', async () => {
     await withFixture(async (f) => {
         const port = f.port()
         const r = f.driver({
@@ -656,7 +655,7 @@ test('#380 F4 (iv) a ChannelManager over the driver announces exactly once', asy
     })
 })
 
-test('#380 F4 (v) the announce is not a reap on the wire: no reap until the first pass, then one', async () => {
+Deno.test('#380 F4 (v) the announce is not a reap on the wire: no reap until the first pass, then one', async () => {
     await withFixture(async (f) => {
         const port = f.port()
         const r = f.driver({
@@ -679,7 +678,7 @@ test('#380 F4 (v) the announce is not a reap on the wire: no reap until the firs
     })
 })
 
-test('#380 F5 (i) a rejected announce writes one WARN and nothing escapes', async () => {
+Deno.test('#380 F5 (i) a rejected announce writes one WARN and nothing escapes', async () => {
     await watchingEscapes(async (escaped) => {
         await withFixture(async (f) => {
             const port = f.port()
@@ -704,7 +703,7 @@ test('#380 F5 (i) a rejected announce writes one WARN and nothing escapes', asyn
     })
 })
 
-test('#380 F5 (ii) a rejected announce with console.warn throwing: one marked line carrying both halves', async () => {
+Deno.test('#380 F5 (ii) a rejected announce with console.warn throwing: one marked line carrying both halves', async () => {
     await watchingEscapes(async (escaped) => {
         await withFixture(async (f) => {
             const port = f.port()
@@ -728,7 +727,7 @@ test('#380 F5 (ii) a rejected announce with console.warn throwing: one marked li
     })
 })
 
-test('#380 F5 (iii) after a rejected announce, the first completed reap writes the entry and stops the retry', async () => {
+Deno.test('#380 F5 (iii) after a rejected announce, the first completed reap writes the entry and stops the retry', async () => {
     await withFixture(async (f) => {
         const port = f.port()
         port.refuseFrom(announce, new Error('announce refused (#380)'))
@@ -752,7 +751,7 @@ test('#380 F5 (iii) after a rejected announce, the first completed reap writes t
     })
 })
 
-test('#380 F5 (iv) a port whose command() throws synchronously: registration completes, one WARN, nothing escapes', async () => {
+Deno.test('#380 F5 (iv) a port whose command() throws synchronously: registration completes, one WARN, nothing escapes', async () => {
     await watchingEscapes(async (escaped) => {
         await withFixture(async (f) => {
             let reconnects = 0
@@ -781,7 +780,7 @@ test('#380 F5 (iv) a port whose command() throws synchronously: registration com
     })
 })
 
-test('#380 F13 (i) an announce rejected once is retried within 2 s, so a TTL-10 mark at +2 s scores t + 300', async () => {
+Deno.test('#380 F13 (i) an announce rejected once is retried within 2 s, so a TTL-10 mark at +2 s scores t + 300', async () => {
     await withFixture(async (f) => {
         const port = f.port()
         port.refuseOnce(announce, new Error('announce refused (#380)'))
@@ -806,7 +805,7 @@ test('#380 F13 (i) an announce rejected once is retried within 2 s, so a TTL-10 
     })
 })
 
-test('#380 F13 (ii) close() stops the announce retry: no announce after it, no timer left pending', async () => {
+Deno.test('#380 F13 (ii) close() stops the announce retry: no announce after it, no timer left pending', async () => {
     await withFixture(async (f) => {
         const port = f.port()
         port.refuseFrom(announce, new Error('announce refused (#380)'))
@@ -839,7 +838,7 @@ test('#380 F13 (ii) close() stops the announce retry: no announce after it, no t
     })
 })
 
-test('#380 F16 a failing announce is retried 1 s, 2 s, then doubling until reconcileIntervalMs caps the gap', async () => {
+Deno.test('#380 F16 a failing announce is retried 1 s, 2 s, then doubling until reconcileIntervalMs caps the gap', async () => {
     await withFixture(async (f) => {
         // Every announce is refused; the issue instant of each is recorded on
         // the fake clock, so the gaps ARE the backoff schedule.
@@ -876,7 +875,7 @@ test('#380 F16 a failing announce is retried 1 s, 2 s, then doubling until recon
 // US6 — an upgrade in progress is no worse than today
 // ---------------------------------------------------------------------------
 
-test('#380 F10 an old-release writer and reap beside a new TTL-300 reader: nothing shortened, nothing reaped early', async () => {
+Deno.test('#380 F10 an old-release writer and reap beside a new TTL-300 reader: nothing shortened, nothing reaped early', async () => {
     await withFixture(async (f) => {
         const r = f.driver({ interval: 60_000, ttl: 300 })
         await r.listRevocations()

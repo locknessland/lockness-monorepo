@@ -1,4 +1,3 @@
-import { test } from 'node:test'
 import { assertEquals, assertExists } from '@std/assert'
 import type { Authenticatable } from '../types.ts'
 
@@ -10,7 +9,7 @@ interface TestUser extends Authenticatable {
     name: string
 }
 
-test('DrizzleSessionProvider - findById returns user', async () => {
+Deno.test('DrizzleSessionProvider - findById returns user', async () => {
     const user: TestUser = {
         id: 1,
         email: 'test@example.com',
@@ -27,7 +26,7 @@ test('DrizzleSessionProvider - findById returns user', async () => {
     assertEquals(result?.email, 'test@example.com')
 })
 
-test('DrizzleSessionProvider - findById returns null for non-existent user', async () => {
+Deno.test('DrizzleSessionProvider - findById returns null for non-existent user', async () => {
     const findUserById = (_db: unknown, _id: string | number) => {
         return Promise.resolve(null)
     }
@@ -36,7 +35,7 @@ test('DrizzleSessionProvider - findById returns null for non-existent user', asy
     assertEquals(result, null)
 })
 
-test('DrizzleSessionProvider - findByCredentials with valid credentials', async () => {
+Deno.test('DrizzleSessionProvider - findByCredentials with valid credentials', async () => {
     const user: TestUser = {
         id: 1,
         email: 'alice@example.com',
@@ -64,7 +63,7 @@ test('DrizzleSessionProvider - findByCredentials with valid credentials', async 
     assertEquals(result?.email, 'alice@example.com')
 })
 
-test('DrizzleSessionProvider - findByCredentials with invalid credentials', async () => {
+Deno.test('DrizzleSessionProvider - findByCredentials with invalid credentials', async () => {
     const findByCredentials = (
         _db: unknown,
         email: string,
@@ -84,7 +83,7 @@ test('DrizzleSessionProvider - findByCredentials with invalid credentials', asyn
     assertEquals(result, null)
 })
 
-test('DrizzleSessionProvider - findByCredentials with invalid email', async () => {
+Deno.test('DrizzleSessionProvider - findByCredentials with invalid email', async () => {
     const findByCredentials = (
         _db: unknown,
         email: string,
@@ -109,7 +108,7 @@ test('DrizzleSessionProvider - findByCredentials with invalid email', async () =
     assertEquals(result, null)
 })
 
-test('DrizzleSessionProvider - verifyPassword with matching passwords', async () => {
+Deno.test('DrizzleSessionProvider - verifyPassword with matching passwords', async () => {
     const verifyPassword = (plain: string, hash: string) => {
         return Promise.resolve(plain === hash)
     }
@@ -118,7 +117,7 @@ test('DrizzleSessionProvider - verifyPassword with matching passwords', async ()
     assertEquals(result, true)
 })
 
-test('DrizzleSessionProvider - verifyPassword with non-matching passwords', async () => {
+Deno.test('DrizzleSessionProvider - verifyPassword with non-matching passwords', async () => {
     const verifyPassword = (plain: string, hash: string) => {
         return Promise.resolve(plain === hash)
     }
@@ -127,7 +126,7 @@ test('DrizzleSessionProvider - verifyPassword with non-matching passwords', asyn
     assertEquals(result, false)
 })
 
-test('DrizzleSessionProvider - token generation produces unique tokens', () => {
+Deno.test('DrizzleSessionProvider - token generation produces unique tokens', () => {
     const generateToken = () => {
         const array = new Uint8Array(40)
         crypto.getRandomValues(array)
@@ -144,7 +143,7 @@ test('DrizzleSessionProvider - token generation produces unique tokens', () => {
     assertEquals(token1 !== token2, true) // Should be unique
 })
 
-test('DrizzleBasicAuthProvider - findById returns user', async () => {
+Deno.test('DrizzleBasicAuthProvider - findById returns user', async () => {
     const user: TestUser = {
         id: 1,
         email: 'test@example.com',
@@ -160,7 +159,7 @@ test('DrizzleBasicAuthProvider - findById returns user', async () => {
     assertEquals(result?.id, 1)
 })
 
-test('DrizzleBasicAuthProvider - findByCredentials with valid credentials', async () => {
+Deno.test('DrizzleBasicAuthProvider - findByCredentials with valid credentials', async () => {
     const user: TestUser = {
         id: 1,
         email: 'alice@example.com',
@@ -188,7 +187,7 @@ test('DrizzleBasicAuthProvider - findByCredentials with valid credentials', asyn
     assertEquals(result?.id, 1)
 })
 
-test('DrizzleBasicAuthProvider - verifyPassword works correctly', async () => {
+Deno.test('DrizzleBasicAuthProvider - verifyPassword works correctly', async () => {
     const verifyPassword = (plain: string, hash: string) => {
         return Promise.resolve(plain === hash)
     }

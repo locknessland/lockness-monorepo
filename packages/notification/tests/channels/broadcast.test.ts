@@ -8,7 +8,6 @@
  * @module @lockness/notification/tests/channels/broadcast
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import {
     BroadcastChannel,
@@ -39,7 +38,7 @@ class Ping extends Notification {
 const userA: Notifiable = { routeNotificationFor: () => 'client-A' }
 const userB: Notifiable = { routeNotificationFor: () => 'client-B' }
 
-test('SC-006: a broadcast reaches only the target notifiable', async () => {
+Deno.test('SC-006: a broadcast reaches only the target notifiable', async () => {
     const bc = new RecordingBroadcaster()
     const channel = new BroadcastChannel(bc)
 
@@ -58,7 +57,7 @@ test('SC-006: a broadcast reaches only the target notifiable', async () => {
     assertEquals(forB.length, 1)
 })
 
-test("SC-006 (routed): the manager resolves A's own client id — B is never reached", async () => {
+Deno.test("SC-006 (routed): the manager resolves A's own client id — B is never reached", async () => {
     // This drives the full path: the manager calls routeNotificationFor, so the
     // per-notifiable client id is resolved by the notifiable, not passed in.
     const bc = new RecordingBroadcaster()
@@ -74,7 +73,7 @@ test("SC-006 (routed): the manager resolves A's own client id — B is never rea
     assertEquals(bc.sent.filter((s) => s.clientId === 'client-B').length, 1)
 })
 
-test('a broadcast notification with no toBroadcast() builder fails clearly', async () => {
+Deno.test('a broadcast notification with no toBroadcast() builder fails clearly', async () => {
     class NoBuilder extends Notification {
         override via(): string[] {
             return ['broadcast']
@@ -88,7 +87,7 @@ test('a broadcast notification with no toBroadcast() builder fails clearly', asy
     )
 })
 
-test('the broadcaster port exposes send(clientId,…) — never a shared broadcast()', () => {
+Deno.test('the broadcaster port exposes send(clientId,…) — never a shared broadcast()', () => {
     const bc = new RecordingBroadcaster()
     // The port the channel depends on is a per-client send, structurally: a
     // fan-to-all `broadcast()` is deliberately not part of BroadcasterLike, so a

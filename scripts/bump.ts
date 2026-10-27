@@ -1,108 +1,133 @@
 #!/usr/bin/env -S deno run -A
 /**
- * @fileoverview The lockstep version bump for the Lockness monorepo — the one
- * behind `deno task bump` (plan §5, "Lockstep bump").
+ * @fileoverview Version bump script for the Lockness monorepo.
  *
- * Every workspace member moves to the same version on every release. The bump
- * works on the **source** manifests, then regenerates everything derived from
- * them, in this order:
+ * This script updates version numbers across all packages in the monorepo,
+ * including the root deno.jsonc, all package deno.json files, inter-package
+ * dependencies, and stub files.
  *
- * 1. every member's `package.json` (the root `package.json` `workspaces`
- *    list): its `version`, when it has one, and every `@lockness/*` range in
- *    `dependencies`, `peerDependencies` and `devDependencies`, keeping the
- *    range's `^` / `~` prefix. A member with no `version` (the vite demo) gets
- *    none, but its ranges still move: a range left naming the previous version
- *    makes Deno resolve that sibling from the registry instead of the
- *    workspace;
- * 2. the root `deno.jsonc`: its `version` — what
- *    `.specnaut/scripts/release/tag.sh` reads to name the tag (#324) — and its
- *    `@lockness/*` imports, edited through `@david/jsonc-morph` so every
- *    comment survives byte-for-byte;
- * 3. the generated manifests, through `scripts/manifests.ts` (each member's
- *    `deno.json` and own-version module);
- * 4. `deno.lock`, through `scripts/lockfile.ts` (`deno install`): it records
- *    each member's ranges, and a release commit without the refresh cannot be
- *    published (#429).
+ * ## Comment preservation strategy
  *
- * Steps 1 to 3 are computed in memory first: a manifest the generator refuses
- * stops the bump before any file is written, never half-way through.
+ * The root `deno.jsonc` file is edited via `@david/jsonc-morph`, which
+ * operates on the Concrete Syntax Tree (CST) of the file. Only the
+ * touched leaf tokens (`version` value and `@lockness/*` import values)
+ * are replaced in the source text; all comments, blank lines, key order,
+ * and unrelated formatting are preserved byte-for-byte.
  *
- * It replaced two tools (#591): `bump-native.ts`, a wrapper over Deno's
- * `deno bump-version`, which rewrites `deno.json` files that are now
- * generated; and the legacy hand-rolled bump. No stub carries a version pin —
- * the scaffolder writes `{{ locknessVersion }}` from `@lockness/init`'s own
- * version module — so no stub is rewritten.
+ * Per-package `packages/*\/deno.json` files are plain JSON by convention
+ * (no comments) and continue to use `JSON.parse` / `JSON.stringify`.
  *
- * `--dry-run` writes nothing and says what would change.
+ * ## Lockfile
+ *
+ * After the manifests are written, the script regenerates `deno.lock` through
+ * the shared `refreshLockfile()` in `scripts/lockfile.ts`, exactly as
+ * `deno task bump` does. Without it the release commit carries a lockfile that
+ * names the previous version and `deno publish` refuses the tagged tree (#429).
+ * `--dry-run` writes nothing and says the lockfile would be refreshed.
  *
  * @module scripts/bump
  *
  * @example
  * ```bash
- * deno task bump --patch            # 0.4.0 -> 0.4.1, every member
- * deno task bump minor              # 0.4.0 -> 0.5.0
- * deno task bump 0.9.0              # any jump
- * deno task bump --patch --dry-run
+ * # Bump all packages to version 0.2.0
+ * deno task bump:legacy 0.2.0
+ *
+ * # Show what would change, write nothing
+ * deno task bump:legacy 0.2.0 --dry-run
+ *
+ * # Or run directly
+ * deno run -A scripts/bump.ts 0.2.0
  * ```
  */
 
-import { parse as parseJsoncCst } from '@david/jsonc-morph'
+import { parse as parseJsonc } from '@david/jsonc-morph'
 import { parse } from '@std/jsonc'
 import { parseArgs } from '@std/cli/parse-args'
 import * as semver from '@std/semver'
 import { refreshLockfile } from './lockfile.ts'
-import {
-    type GeneratedFile,
-    type Member,
-    type PackageManifest,
-    planFiles,
-    readWorkspaceMembers,
-    writeFiles,
-} from './manifests.ts'
 
-/** Path to the root configuration file, which carries the release version. */
-const ROOT_CONFIG_PATH = './deno.jsonc' as const
+// =============================================================================
+// Types
+// =============================================================================
 
 /**
- * A JSR Lockness specifier with its version. Group 4 captures an optional
- * subpath export (e.g. `/jsx-runtime`) so the bump preserves it instead of
- * collapsing `@lockness/hono/jsx-runtime` onto the base export (#162).
+ * Root monorepo configuration structure.
+ */
+interface RootConfig {
+    /** Current version of the monorepo */
+    version: string
+    /** List of workspace member paths */
+    readonly workspace: readonly string[]
+    /** Import map entries */
+    imports?: Record<string, string>
+}
+
+/**
+ * Package configuration structure.
+ */
+interface PackageConfig {
+    /** Package version */
+    version: string
+    /** Import map entries */
+    imports?: Record<string, string>
+}
+
+/**
+ * Result of an update operation.
+ */
+interface UpdateResult {
+    /** Whether the update was successful */
+    readonly success: boolean
+    /** Path that was updated */
+    readonly path: string
+    /** Whether the file's content changed (or would, in a dry run) */
+    readonly changed?: boolean
+    /** Error message if failed */
+    readonly error?: string
+}
+
+// =============================================================================
+// Constants
+// =============================================================================
+
+/** Path to the root configuration file */
+const ROOT_CONFIG_PATH = './deno.jsonc' as const
+
+/** Regex pattern for matching JSR Lockness imports with versions */
+export const LOCKNESS_VERSION_PATTERN =
+    /(jsr:@lockness\/[^@]+)@([\^~])([\d.]+)(\/[^"'\s]*)?/g
+
+/**
+ * Regex pattern for extracting version parts from an import. Group 4 captures
+ * an optional subpath export (e.g. `/jsx-runtime`) so the bump preserves it
+ * instead of collapsing `@lockness/hono/jsx-runtime` onto the base export.
  */
 export const VERSION_EXTRACT_PATTERN =
     /(jsr:@lockness\/[^@]+)@([\^~])([\d.]+)(\/[^"'\s]*)?/
 
-/** A plain `X.Y.Z` version, no prerelease or build metadata. */
+/** Regex pattern for validating semver format */
 export const SEMVER_PATTERN = /^\d+\.\d+\.\d+$/
 
-/** A `package.json` range the bump rewrites: an optional `^`/`~` and `X.Y.Z`. */
-const RANGE_PATTERN = /^([\^~]?)\d+\.\d+\.\d+$/
-
-/** The increments the bump accepts as a flag or a bare keyword. */
-const INCREMENTS = ['major', 'minor', 'patch'] as const
-
-/** The dependency fields whose `@lockness/*` ranges move in lockstep. */
-const DEPENDENCY_FIELDS = [
-    'dependencies',
-    'peerDependencies',
-    'devDependencies',
-] as const
+// =============================================================================
+// Helper Functions
+// =============================================================================
 
 /**
- * Extract the message from an unknown thrown value.
+ * Extract error message from an unknown error.
  *
- * @param error - The thrown value.
- * @returns Its message, or its string form.
+ * @param error - The error to extract message from
+ * @returns The error message string
  */
 export function getErrorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error)
 }
 
 /**
- * Whether an import-map entry is a Lockness package.
+ * Check if an import key/value pair is a Lockness package.
  *
- * @param key - The import key.
- * @param value - The import value.
- * @returns `true` when the key or the value names `@lockness/`.
+ * @param key - The import key
+ * @param value - The import value
+ * @returns True if this is a Lockness package import
  */
 export function isLocknessImport(key: string, value: unknown): value is string {
     return (
@@ -112,17 +137,11 @@ export function isLocknessImport(key: string, value: unknown): value is string {
 }
 
 /**
- * Set the version of a `jsr:@lockness/*` specifier, keeping its prefix and
- * subpath.
+ * Update the version in a JSR import string.
  *
- * @param importValue - e.g. `jsr:@lockness/hono@^0.4.0/jsx-runtime`.
- * @param newVersion - The version to write.
- * @returns The rewritten specifier, or `null` when it is not one.
- *
- * @example
- * ```ts
- * updateImportVersion('jsr:@lockness/core@^0.4.0', '0.5.0') // 'jsr:@lockness/core@^0.5.0'
- * ```
+ * @param importValue - The current import value
+ * @param newVersion - The new version to set
+ * @returns The updated import string, or null if no match
  */
 export function updateImportVersion(
     importValue: string,
@@ -130,29 +149,71 @@ export function updateImportVersion(
 ): string | null {
     const match = importValue.match(VERSION_EXTRACT_PATTERN)
     if (!match) return null
+
     const [, packagePath, versionPrefix, , subpath] = match
     return `${packagePath}@${versionPrefix}${newVersion}${subpath ?? ''}`
 }
 
 /**
- * Rewrite the root `deno.jsonc` text: its `version` and every `@lockness/*`
- * import value, leaving every comment, blank line and other token intact.
+ * Recursively collect all .stub files from a directory.
  *
- * @param text - The raw JSONC source.
- * @param newVersion - The version to write.
- * @returns The rewritten source.
- * @throws {Error} If the JSONC is malformed or has no `version` key.
+ * @param dirPath - The directory path to scan
+ * @returns Array of stub file paths
+ */
+async function collectStubFiles(dirPath: string): Promise<string[]> {
+    const stubFiles: string[] = []
+
+    const walk = async (path: string): Promise<void> => {
+        try {
+            for await (const entry of Deno.readDir(path)) {
+                const fullPath = `${path}/${entry.name}`
+                if (entry.isDirectory) {
+                    await walk(fullPath)
+                } else if (entry.name.endsWith('.stub')) {
+                    stubFiles.push(fullPath)
+                }
+            }
+        } catch {
+            // Directory doesn't exist or isn't readable
+        }
+    }
+
+    await walk(dirPath)
+    return stubFiles
+}
+
+// =============================================================================
+// Update Functions
+// =============================================================================
+
+/**
+ * Rewrite the text of a JSONC config, bumping `version` and all
+ * `@lockness/*` import values, while preserving every comment,
+ * blank line, and unrelated token byte-for-byte.
+ *
+ * This is a pure function (no I/O) so it can be snapshot-tested directly.
+ *
+ * @param text - The raw source text of the JSONC file
+ * @param newVersion - The new semver string to write
+ * @returns The rewritten source text with only the targeted tokens changed
+ *
+ * @throws {Error} If the JSONC text is malformed or `version` key is missing
  *
  * @example
  * ```ts
- * updateRootJsonc('{ "version": "0.4.0" }', '0.5.0') // '{ "version": "0.5.0" }'
+ * const source = await Deno.readTextFile('deno.jsonc')
+ * const updated = updateRootJsonc(source, '1.2.3')
+ * await Deno.writeTextFile('deno.jsonc', updated)
  * ```
  */
 export function updateRootJsonc(text: string, newVersion: string): string {
-    const root = parseJsoncCst(text)
+    const root = parseJsonc(text)
     const obj = root.asObjectOrThrow()
+
+    // Bump the version field
     obj.getOrThrow('version').setValue(newVersion)
 
+    // Bump any @lockness/* imports
     const importsProp = obj.get('imports')
     if (importsProp) {
         const importsObj = importsProp.valueIfObjectOrThrow()
@@ -170,218 +231,298 @@ export function updateRootJsonc(text: string, newVersion: string): string {
             }
         }
     }
+
     return root.toString()
 }
 
 /**
- * A member's `package.json` at a new lockstep version.
+ * Update the root monorepo configuration.
  *
- * @param pkg - The manifest; not mutated.
- * @param version - The new version.
- * @returns A copy with its `version` (only when it has one) and every
- *   `@lockness/*` range moved, each range keeping its `^` / `~` prefix.
+ * Updates both the version field and any Lockness imports.
+ * Uses {@link updateRootJsonc} to preserve comments in `deno.jsonc`.
  *
- * @example
- * ```ts
- * bumpPackageManifest({ version: '0.4.0', dependencies: { '@lockness/a': '^0.4.0' } }, '0.5.0')
- * // { version: '0.5.0', dependencies: { '@lockness/a': '^0.5.0' } }
- * ```
+ * @param newVersion - The new version to set
+ * @param dryRun - When true, compute the rewrite but do not write it
+ * @returns The updated root configuration (parsed for workspace traversal)
  */
-export function bumpPackageManifest(
-    pkg: PackageManifest,
-    version: string,
-): PackageManifest {
-    const bumped: PackageManifest = structuredClone(pkg)
-    if (typeof bumped.version === 'string') bumped.version = version
-    for (const field of DEPENDENCY_FIELDS) {
-        const deps = bumped[field]
-        if (deps === undefined) continue
-        for (const [name, range] of Object.entries(deps)) {
-            const match = RANGE_PATTERN.exec(range)
-            if (!name.startsWith('@lockness/') || match === null) continue
-            deps[name] = `${match[1]}${version}`
+async function updateRootConfig(
+    newVersion: string,
+    dryRun: boolean,
+): Promise<RootConfig> {
+    const content = await Deno.readTextFile(ROOT_CONFIG_PATH)
+    const rewritten = updateRootJsonc(content, newVersion)
+    if (!dryRun) await Deno.writeTextFile(ROOT_CONFIG_PATH, rewritten)
+    // Parse for caller to read workspace list; use @std/jsonc for read-only
+    return parse(rewritten) as unknown as RootConfig
+}
+
+/**
+ * Update a single package's version and dependencies.
+ *
+ * @param memberPath - Path to the package (e.g., './packages/core')
+ * @param newVersion - The new version to set
+ * @param dryRun - When true, compute the rewrite but do not write it
+ * @returns Result of the update operation
+ */
+async function updatePackage(
+    memberPath: string,
+    newVersion: string,
+    dryRun: boolean,
+): Promise<UpdateResult> {
+    const configPath = `${memberPath}/deno.json`
+
+    try {
+        const content = await Deno.readTextFile(configPath)
+        const config = JSON.parse(content) as PackageConfig
+
+        // Update version — but only if the member already declares one. A
+        // never-published member (e.g. the vite demo) carries no `version`
+        // field; adding one is drift, and the native `deno bump-version`
+        // leaves it alone too.
+        let hasChanges = false
+        if (typeof config.version === 'string') {
+            config.version = newVersion
+            hasChanges = true
+        }
+
+        // Update imports
+        if (config.imports) {
+            for (const [key, value] of Object.entries(config.imports)) {
+                if (isLocknessImport(key, value)) {
+                    const updated = updateImportVersion(value, newVersion)
+                    if (updated && updated !== value) {
+                        config.imports[key] = updated
+                        hasChanges = true
+                    }
+                }
+            }
+        }
+
+        // Nothing to bump — do not rewrite (and reformat) an untouched file.
+        if (!hasChanges) {
+            return { success: true, path: memberPath, changed: false }
+        }
+
+        if (!dryRun) {
+            await Deno.writeTextFile(
+                configPath,
+                JSON.stringify(config, null, 4) + '\n',
+            )
+        }
+
+        return { success: true, path: memberPath, changed: true }
+    } catch (error) {
+        return {
+            success: false,
+            path: memberPath,
+            error: getErrorMessage(error),
         }
     }
-    return bumped
-}
-
-/** The parsed bump request. */
-export interface BumpRequest {
-    /** `--major`. */
-    major?: boolean
-    /** `--minor`. */
-    minor?: boolean
-    /** `--patch`. */
-    patch?: boolean
-    /** A bare `major` / `minor` / `patch`, or an absolute `X.Y.Z`. */
-    positional?: string
 }
 
 /**
- * The version a bump request lands on.
+ * Update version references in a stub file.
  *
- * @param request - Flags and the positional argument.
- * @param current - The current version.
- * @returns The target version.
- * @throws {Error} When the request names no bump, or an absolute version is
- *   not `X.Y.Z`.
- *
- * @example
- * ```ts
- * resolveTargetVersion({ patch: true }, '0.4.0')          // '0.4.1'
- * resolveTargetVersion({ positional: '0.9.0' }, '0.4.0')  // '0.9.0'
- * ```
+ * @param stubPath - Path to the stub file
+ * @param newVersion - The new version to set
+ * @param dryRun - When true, compute the rewrite but do not write it
+ * @returns Result of the update operation
  */
-export function resolveTargetVersion(
-    request: BumpRequest,
-    current: string,
-): string {
-    const flag = INCREMENTS.find((kind) => request[kind] === true)
-    const keyword = INCREMENTS.find((kind) => request.positional === kind)
-    const increment = flag ?? keyword
-    if (increment !== undefined) {
-        return semver.format(semver.increment(semver.parse(current), increment))
-    }
-    if (request.positional === undefined) {
-        throw new Error(
-            'Usage: deno task bump <--major|--minor|--patch | major|minor|patch | X.Y.Z> [--dry-run]',
+async function updateStubFile(
+    stubPath: string,
+    newVersion: string,
+    dryRun: boolean,
+): Promise<UpdateResult> {
+    try {
+        const content = await Deno.readTextFile(stubPath)
+        const updatedContent = content.replace(
+            LOCKNESS_VERSION_PATTERN,
+            `$1@$2${newVersion}$4`,
         )
+
+        if (updatedContent !== content) {
+            if (!dryRun) await Deno.writeTextFile(stubPath, updatedContent)
+            return { success: true, path: stubPath, changed: true }
+        }
+
+        return { success: true, path: stubPath, changed: false }
+    } catch (error) {
+        return {
+            success: false,
+            path: stubPath,
+            error: getErrorMessage(error),
+        }
     }
-    if (!SEMVER_PATTERN.test(request.positional)) {
-        throw new Error(
-            `"${request.positional}" is not a version: use the form X.Y.Z`,
+}
+
+// =============================================================================
+// Main Functions
+// =============================================================================
+
+/**
+ * Print the final summary and next steps.
+ *
+ * @param newVersion - The version that was set
+ * @param dryRun - Whether this was a dry run (nothing written)
+ */
+function printSummary(newVersion: string, dryRun: boolean): void {
+    console.log('')
+    if (dryRun) {
+        console.log(
+            `Dry run: nothing was written. A real run sets every package to ${newVersion}.`,
         )
+        console.log('')
+        return
     }
-    return request.positional
+    console.log(
+        `✨ Bump terminé ! Tous les packages sont en version ${newVersion}`,
+    )
+    console.log('')
+    console.log('📝 Prochaines étapes:')
+    console.log('   1. Vérifier les changements: git diff')
+    console.log('   2. Tester: deno task test')
+    console.log(
+        '   3. Committer deno.lock avec les manifestes, sinon deno publish refuse le tag',
+    )
+    console.log('   4. Publier: deno publish')
+    console.log('')
 }
 
 /**
- * Read the current release version from the root `deno.jsonc`.
+ * Main entry point for the bump script.
  *
- * @returns The version.
- * @throws {Error} If the file cannot be read or has no string `version`.
+ * Orchestrates the version bump across all packages.
  */
-async function readCurrentVersion(): Promise<string> {
-    const config = parse(await Deno.readTextFile(ROOT_CONFIG_PATH))
-    const version = typeof config === 'object' && config !== null
-        ? (config as { version?: unknown }).version
-        : undefined
-    if (typeof version !== 'string') {
-        throw new Error(`${ROOT_CONFIG_PATH} has no string "version" field`)
-    }
-    return version
-}
-
-/** One file the bump rewrites, with its content before and after. */
-interface Rewrite {
-    /** Path relative to the root. */
-    path: string
-    /** Current content. */
-    before: string
-    /** Content at the new version. */
-    after: string
-}
-
-/** Everything a bump writes, computed before anything is written. */
-interface BumpPlan {
-    /** Every member's `package.json` whose content changes. */
-    sources: Rewrite[]
-    /** The root `deno.jsonc`. */
-    root: Rewrite
-    /** Every generated file, from the bumped manifests. */
-    generated: GeneratedFile[]
-}
-
-/**
- * Compute the whole bump in memory: every bumped `package.json`, the root
- * `deno.jsonc`, and every file generated from the bumped manifests. A
- * manifest the generator refuses throws here, before any file is written, so
- * a failed bump never leaves a half-bumped tree.
- *
- * @param version - The new version.
- * @returns The plan.
- * @throws {Error} When a manifest cannot be read, or cannot be generated from.
- */
-async function planBump(version: string): Promise<BumpPlan> {
-    const members: Member[] = []
-    const sources: Rewrite[] = []
-    for (const dir of await readWorkspaceMembers('.')) {
-        const path = `${dir}/package.json`
-        const before = await Deno.readTextFile(path)
-        const pkg = bumpPackageManifest(JSON.parse(before), version)
-        members.push({ dir, pkg })
-        const after = JSON.stringify(pkg, null, 4) + '\n'
-        if (after !== before) sources.push({ path, before, after })
-    }
-    const generated = planFiles(members)
-    const rootBefore = await Deno.readTextFile(ROOT_CONFIG_PATH)
-    return {
-        sources,
-        root: {
-            path: ROOT_CONFIG_PATH,
-            before: rootBefore,
-            after: updateRootJsonc(rootBefore, version),
-        },
-        generated,
-    }
-}
-
-/**
- * Run the bump.
- *
- * @param args - The command-line arguments.
- * @returns The exit code.
- */
-async function main(args: string[]): Promise<number> {
-    const parsed = parseArgs(args, {
+async function main(): Promise<void> {
+    const args = parseArgs(Deno.args, {
         boolean: ['major', 'minor', 'patch', 'dry-run'],
         alias: { major: 'M', minor: 'm', patch: 'p' },
     })
-    const dryRun = parsed['dry-run'] === true
-    let current: string
-    let target: string
-    let plan: BumpPlan
-    try {
-        current = await readCurrentVersion()
-        target = resolveTargetVersion({
-            major: parsed.major,
-            minor: parsed.minor,
-            patch: parsed.patch,
-            positional: parsed._[0]?.toString(),
-        }, current)
-        plan = await planBump(target)
-    } catch (error) {
-        console.error(`❌ ${getErrorMessage(error)}`)
-        console.error('   Nothing was written.')
-        return 1
+
+    let newVersion = args._[0]?.toString()
+
+    if (!newVersion) {
+        // Read current version to determine next version
+        try {
+            const content = await Deno.readTextFile(ROOT_CONFIG_PATH)
+            const config = parse(content) as unknown as RootConfig
+            const currentVersion = config.version
+
+            const versionSemver = semver.parse(currentVersion)
+
+            if (args.major) {
+                newVersion = semver.format(
+                    semver.increment(versionSemver, 'major'),
+                )
+            } else if (args.minor) {
+                newVersion = semver.format(
+                    semver.increment(versionSemver, 'minor'),
+                )
+            } else if (args.patch) {
+                newVersion = semver.format(
+                    semver.increment(versionSemver, 'patch'),
+                )
+            } else {
+                console.error(
+                    '❌ Merci de spécifier une version ou un flag type --major, --minor, --patch.',
+                )
+                console.error('   Ex: deno task bump 0.2.0')
+                console.error('   Ex: deno task bump --minor')
+                Deno.exit(1)
+            }
+            console.log(
+                `ℹ️  Bump automatique: ${currentVersion} -> ${newVersion}`,
+            )
+        } catch (error) {
+            console.error(
+                `❌ Impossible de lire la version actuelle: ${
+                    getErrorMessage(error)
+                }`,
+            )
+            Deno.exit(1)
+        }
     }
 
-    console.log(`🚀 ${current} -> ${target}${dryRun ? ' (dry run)' : ''}`)
-    for (const file of [...plan.sources, plan.root]) {
-        if (!dryRun && file.after !== file.before) {
-            await Deno.writeTextFile(file.path, file.after)
-        }
-        console.log(`   ${file.path}`)
+    // Validate version format
+    if (!SEMVER_PATTERN.test(newVersion)) {
+        console.error(
+            '❌ Format de version invalide. Utilisez le format semver: X.Y.Z',
+        )
+        Deno.exit(1)
     }
-    if (dryRun) {
-        console.log('   generated manifests would be regenerated')
-    } else {
-        for (const path of await writeFiles('.', plan.generated)) {
-            console.log(`   ${path} (generated)`)
+
+    const dryRun = args['dry-run'] === true
+
+    console.log(`🚀 Mise à jour vers la version ${newVersion}`)
+    if (dryRun) console.log('   (dry run: no file is written)')
+    console.log('')
+
+    // Step 0: Update root config
+    console.log('🏠 Mise à jour de la version du monorepo racine...')
+    const rootConfig = await updateRootConfig(newVersion, dryRun)
+    console.log(`   ✅ deno.jsonc → ${newVersion}`)
+    console.log('')
+
+    // Step 1: Update all packages
+    console.log('📦 Mise à jour des versions des packages...')
+    for (const member of rootConfig.workspace) {
+        const result = await updatePackage(member, newVersion, dryRun)
+        if (result.success) {
+            console.log(`   ✅ ${member} → ${newVersion}`)
+        } else {
+            console.warn(`   ⚠️  ${member}: ${result.error}`)
+        }
+    }
+    console.log('')
+
+    // Step 2: Update stub files
+    console.log('🔧 Mise à jour des fichiers stubs...')
+    const stubFiles: string[] = []
+
+    for await (const entry of Deno.readDir('packages')) {
+        if (entry.isDirectory) {
+            const packageStubs = await collectStubFiles(
+                `packages/${entry.name}/stubs`,
+            )
+            stubFiles.push(...packageStubs)
         }
     }
 
+    let stubUpdates = 0
+    for (const stubPath of stubFiles) {
+        const result = await updateStubFile(stubPath, newVersion, dryRun)
+        if (result.success) {
+            if (result.changed === true) {
+                console.log(`   ✅ ${stubPath}`)
+                stubUpdates++
+            }
+        } else {
+            console.warn(`   ⚠️  ${stubPath}: ${result.error}`)
+        }
+    }
+
+    if (stubUpdates === 0 && stubFiles.length > 0) {
+        console.log('   ℹ️  Aucun fichier stub nécessitant une mise à jour')
+    } else if (stubFiles.length === 0) {
+        console.log('   ℹ️  Aucun fichier stub trouvé')
+    }
+
+    // Step 3: Refresh the lockfile, through the same module as `deno task
+    // bump`. It records every member's `@lockness/*` range; left stale, the
+    // release commit names the previous version and `deno publish` refuses
+    // the tagged tree (#429).
+    console.log('')
+    console.log('🔒 deno.lock...')
     const lockCode = await refreshLockfile({ dryRun })
-    if (lockCode !== 0) return lockCode
+    if (lockCode !== 0) Deno.exit(lockCode)
 
-    console.log(
-        dryRun
-            ? `Dry run: nothing was written. A real run sets every package to ${target}.`
-            : `✨ Every package is at ${target}. Commit deno.lock with the manifests, or deno publish refuses the tag.`,
-    )
-    return 0
+    printSummary(newVersion, dryRun)
 }
 
+// =============================================================================
+// Execution
+// =============================================================================
+
 if (import.meta.main) {
-    Deno.exit(await main(Deno.args))
+    await main()
 }

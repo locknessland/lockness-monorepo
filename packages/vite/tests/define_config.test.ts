@@ -4,16 +4,15 @@
  * @module @lockness/vite/tests/define_config
  */
 
-import { test } from 'node:test'
 import { assertEquals, assertNotStrictEquals } from '@std/assert'
 import { defineViteConfig } from '../src/define_config.ts'
 import { DEFAULTS } from '../src/shared.ts'
 
-test('defineViteConfig - no args returns all DEFAULTS', () => {
+Deno.test('defineViteConfig - no args returns all DEFAULTS', () => {
     assertEquals(defineViteConfig(), DEFAULTS)
 })
 
-test('defineViteConfig - a partial config overrides only the provided keys', () => {
+Deno.test('defineViteConfig - a partial config overrides only the provided keys', () => {
     // Keys unrelated to the port/devServerUrl pair (which is reconciled below).
     const result = defineViteConfig({ outDir: 'dist', cssInput: 'x.css' })
     assertEquals(result.outDir, 'dist')
@@ -27,19 +26,19 @@ test('defineViteConfig - a partial config overrides only the provided keys', () 
     assertEquals(result.routeDir, DEFAULTS.routeDir)
 })
 
-test('defineViteConfig - overriding port alone derives devServerUrl (no desync)', () => {
+Deno.test('defineViteConfig - overriding port alone derives devServerUrl (no desync)', () => {
     const result = defineViteConfig({ port: 3000 })
     assertEquals(result.port, 3000)
     assertEquals(result.devServerUrl, 'http://localhost:3000')
 })
 
-test('defineViteConfig - overriding devServerUrl alone derives the port', () => {
+Deno.test('defineViteConfig - overriding devServerUrl alone derives the port', () => {
     const result = defineViteConfig({ devServerUrl: 'http://localhost:4000' })
     assertEquals(result.devServerUrl, 'http://localhost:4000')
     assertEquals(result.port, 4000)
 })
 
-test('defineViteConfig - overriding both takes each as given', () => {
+Deno.test('defineViteConfig - overriding both takes each as given', () => {
     const result = defineViteConfig({
         port: 3000,
         devServerUrl: 'http://127.0.0.1:8080',
@@ -48,25 +47,25 @@ test('defineViteConfig - overriding both takes each as given', () => {
     assertEquals(result.devServerUrl, 'http://127.0.0.1:8080')
 })
 
-test('defineViteConfig - a devServerUrl without an explicit port leaves port at default', () => {
+Deno.test('defineViteConfig - a devServerUrl without an explicit port leaves port at default', () => {
     const result = defineViteConfig({ devServerUrl: 'http://localhost' })
     assertEquals(result.devServerUrl, 'http://localhost')
     assertEquals(result.port, DEFAULTS.port)
 })
 
-test('defineViteConfig - does not mutate DEFAULTS', () => {
+Deno.test('defineViteConfig - does not mutate DEFAULTS', () => {
     const before = { ...DEFAULTS }
     const result = defineViteConfig({ port: 9999 })
     assertNotStrictEquals(result, DEFAULTS)
     assertEquals(DEFAULTS, before)
 })
 
-test('DEFAULTS - manifestPath sits under outDir', () => {
+Deno.test('DEFAULTS - manifestPath sits under outDir', () => {
     // The manifest lives inside the asset output tree (plan invariant).
     assertEquals(DEFAULTS.manifestPath.startsWith(DEFAULTS.outDir + '/'), true)
 })
 
-test('defineViteConfig - explicit undefined keeps the default (Required<> intact)', () => {
+Deno.test('defineViteConfig - explicit undefined keeps the default (Required<> intact)', () => {
     const result = defineViteConfig({ port: undefined, outDir: undefined })
     assertEquals(result.port, DEFAULTS.port)
     assertEquals(result.outDir, DEFAULTS.outDir)

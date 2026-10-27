@@ -5,11 +5,10 @@
  * @module
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { GIT_ENV_LEAK_KEYS, sanitizedGitEnv } from './git_env.ts'
 
-test('sanitizedGitEnv strips every leak key and keeps everything else', () => {
+Deno.test('sanitizedGitEnv strips every leak key and keeps everything else', () => {
     const base: Record<string, string> = {
         HOME: '/home/fixture',
         PATH: '/usr/bin',
@@ -33,7 +32,7 @@ test('sanitizedGitEnv strips every leak key and keeps everything else', () => {
     assertEquals(env.GIT_AUTHOR_NAME, 'fixture')
 })
 
-test('sanitizedGitEnv strips GIT_DIR, GIT_WORK_TREE and GIT_INDEX_FILE', () => {
+Deno.test('sanitizedGitEnv strips GIT_DIR, GIT_WORK_TREE and GIT_INDEX_FILE', () => {
     const env = sanitizedGitEnv({
         GIT_DIR: '/decoy/.git',
         GIT_WORK_TREE: '/decoy',
@@ -44,14 +43,14 @@ test('sanitizedGitEnv strips GIT_DIR, GIT_WORK_TREE and GIT_INDEX_FILE', () => {
     assertEquals(env.GIT_INDEX_FILE, undefined)
 })
 
-test('sanitizedGitEnv never mutates the environment it was given', () => {
+Deno.test('sanitizedGitEnv never mutates the environment it was given', () => {
     const base = { GIT_DIR: '/decoy/.git', HOME: '/h' }
     const env = sanitizedGitEnv(base)
     assertEquals(base, { GIT_DIR: '/decoy/.git', HOME: '/h' })
     assertEquals(env, { HOME: '/h', GIT_NO_REPLACE_OBJECTS: '1' })
 })
 
-test('GIT_ENV_LEAK_KEYS is exactly what git rev-parse --local-env-vars prints', async () => {
+Deno.test('GIT_ENV_LEAK_KEYS is exactly what git rev-parse --local-env-vars prints', async () => {
     // Outside any repository, so nothing is read from one.
     const cwd = await Deno.makeTempDir({ prefix: 'git-env-' })
     const run = await new Deno.Command('git', {
@@ -69,7 +68,7 @@ test('GIT_ENV_LEAK_KEYS is exactly what git rev-parse --local-env-vars prints', 
     assertEquals([...GIT_ENV_LEAK_KEYS].sort(), printed.sort())
 })
 
-test('sanitizedGitEnv disables replace refs, even over an inherited value', () => {
+Deno.test('sanitizedGitEnv disables replace refs, even over an inherited value', () => {
     assertEquals(sanitizedGitEnv({}).GIT_NO_REPLACE_OBJECTS, '1')
     assertEquals(
         sanitizedGitEnv({ GIT_NO_REPLACE_OBJECTS: '0' }).GIT_NO_REPLACE_OBJECTS,

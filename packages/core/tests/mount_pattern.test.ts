@@ -6,13 +6,12 @@
  * `.specnaut/specs/001-fix-i18n-mount-ambiguity/plan.md`.
  */
 
-import { test } from 'node:test'
 import { assertEquals, assertStringIncludes, assertThrows } from '@std/assert'
 import { codeConstraint, constrainedParam } from '../routing/mount_pattern.ts'
 
 // --- T003: the grouping is non-negotiable (FR-002) ---
 
-test('codeConstraint - emits a non-capturing group, never a bare alternation', () => {
+Deno.test('codeConstraint - emits a non-capturing group, never a bare alternation', () => {
     const out = codeConstraint(['en', 'fr'])
 
     assertEquals(out, '(?:en|fr)')
@@ -23,11 +22,11 @@ test('codeConstraint - emits a non-capturing group, never a bare alternation', (
     assertEquals(out.startsWith('en|'), false)
 })
 
-test('codeConstraint - a single code still gets its group', () => {
+Deno.test('codeConstraint - a single code still gets its group', () => {
     assertEquals(codeConstraint(['en']), '(?:en)')
 })
 
-test('constrainedParam - wraps the group in Hono param-constraint syntax', () => {
+Deno.test('constrainedParam - wraps the group in Hono param-constraint syntax', () => {
     assertEquals(
         constrainedParam('langId', ['en', 'fr', 'es', 'de', 'ja']),
         ':langId{(?:en|fr|es|de|ja)}',
@@ -36,7 +35,7 @@ test('constrainedParam - wraps the group in Hono param-constraint syntax', () =>
 
 // --- T004: validate positively, then escape (FR-003) ---
 
-test('codeConstraint - rejects codes carrying regex or Hono metacharacters', () => {
+Deno.test('codeConstraint - rejects codes carrying regex or Hono metacharacters', () => {
     for (
         const bad of [
             'a}b',
@@ -59,22 +58,22 @@ test('codeConstraint - rejects codes carrying regex or Hono metacharacters', () 
     }
 })
 
-test('codeConstraint - rejects an empty code and an over-long code', () => {
+Deno.test('codeConstraint - rejects an empty code and an over-long code', () => {
     assertThrows(() => codeConstraint(['en', '']), Error, 'index 1')
     assertThrows(() => codeConstraint(['en', 'abcdefghi']), Error, 'index 1')
 })
 
-test('codeConstraint - accepts the allowlisted shape', () => {
+Deno.test('codeConstraint - accepts the allowlisted shape', () => {
     assertEquals(codeConstraint(['en', 'pt-BR', 'x9']), '(?:en|pt\\-BR|x9)')
 })
 
 // --- T005: bounds (FR-003b) ---
 
-test('codeConstraint - throws on an empty list rather than emitting an empty group', () => {
+Deno.test('codeConstraint - throws on an empty list rather than emitting an empty group', () => {
     assertThrows(() => codeConstraint([]), Error, 'at least one')
 })
 
-test('codeConstraint - throws, never truncates, past the length cap', () => {
+Deno.test('codeConstraint - throws, never truncates, past the length cap', () => {
     const tooMany = Array.from({ length: 257 }, (_, i) => `c${i}`)
     assertThrows(() => codeConstraint(tooMany), Error, '256')
 
@@ -83,7 +82,7 @@ test('codeConstraint - throws, never truncates, past the length cap', () => {
     assertStringIncludes(codeConstraint(atCap), '(?:c0|c1|')
 })
 
-test('constrainedParam - rejects a param name that is not a bare identifier', () => {
+Deno.test('constrainedParam - rejects a param name that is not a bare identifier', () => {
     assertThrows(() => constrainedParam('lang-Id', ['en']), Error, 'param name')
     assertThrows(() => constrainedParam('', ['en']), Error, 'param name')
 })

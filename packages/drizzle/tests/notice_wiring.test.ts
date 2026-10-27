@@ -11,7 +11,6 @@
  * @module @lockness/drizzle/tests/notice_wiring
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { Database } from '../mod.ts'
 import {
@@ -81,7 +80,7 @@ function onnoticeOf(options: unknown): (notice: unknown) => void {
 // The driver factory (AC 3)
 // -----------------------------------------------------------------------------
 
-test('#454 postgresDriverFactory - the client gets an onnotice that reaches the onNotice given', async () => {
+Deno.test('#454 postgresDriverFactory - the client gets an onnotice that reaches the onNotice given', async () => {
     const { constructed, load } = recordingLoader()
     const received: unknown[] = []
 
@@ -96,7 +95,7 @@ test('#454 postgresDriverFactory - the client gets an onnotice that reaches the 
     assertEquals(received, [notice])
 })
 
-test('#454 postgresDriverFactory - with no onNotice, a WARNING produces the single fallback line', async () => {
+Deno.test('#454 postgresDriverFactory - with no onNotice, a WARNING produces the single fallback line', async () => {
     const { constructed, load } = recordingLoader()
 
     await postgresDriverFactory(load)(URL_UNDER_TEST)
@@ -128,7 +127,7 @@ function spyFactory() {
     return { seen, factory }
 }
 
-test('#454 Database.connect - the factory receives an onNotice that reaches ConnectionOptions.notices', async () => {
+Deno.test('#454 Database.connect - the factory receives an onNotice that reaches ConnectionOptions.notices', async () => {
     const { seen, factory } = spyFactory()
     const calls: string[] = []
     const notices: NoticeReporter = {
@@ -150,7 +149,7 @@ test('#454 Database.connect - the factory receives an onNotice that reaches Conn
     }
 })
 
-test('#454 Database.connect - silent: true does not hide a WARNING', async () => {
+Deno.test('#454 Database.connect - silent: true does not hide a WARNING', async () => {
     const { seen, factory } = spyFactory()
     const db = new Database()
     db.setDriverFactory('postgres', factory)
@@ -172,7 +171,7 @@ test('#454 Database.connect - silent: true does not hide a WARNING', async () =>
 // The installer's probe
 // -----------------------------------------------------------------------------
 
-test('#454 testDatabaseConnection - the probe client gets an onnotice, and a WARNING is one console.warn line', async () => {
+Deno.test('#454 testDatabaseConnection - the probe client gets an onnotice, and a WARNING is one console.warn line', async () => {
     const previous = Deno.env.get('DATABASE_URL')
     Deno.env.set('DATABASE_URL', URL_UNDER_TEST)
     const options: unknown[] = []
@@ -201,7 +200,7 @@ test('#454 testDatabaseConnection - the probe client gets an onnotice, and a WAR
     }
 })
 
-test('#454 defaultConnector - forwards options.onnotice to the postgres.js client', async () => {
+Deno.test('#454 defaultConnector - forwards options.onnotice to the postgres.js client', async () => {
     const onnotice = (_notice: unknown) => {}
     // postgres.js is lazy: constructing the client opens no connection.
     const sql = defaultConnector(URL_UNDER_TEST, { onnotice })

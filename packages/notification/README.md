@@ -80,8 +80,8 @@ See [docs/notifications.md](../../docs/notifications.md) for the full guide.
 
 ## Upgrading to v0.5.0
 
-Two items. **Migration step:** if your code imports `handleMakeNotification`,
-run `make:notification` through the CLI instead.
+One item. **Migration step:** if your code imports `handleMakeNotification`, run
+`make:notification` through the CLI instead.
 
 ### 1. `handleMakeNotification` is no longer exported, and `make:notification` fails non-zero
 
@@ -94,15 +94,3 @@ and is the way to add the command to a `Cli`; code that called
 `handleMakeNotification` directly can dispatch the command instead
 (`await cli.dispatch(['make:notification', 'InvoicePaid'])` returns the exit
 status).
-
-### 2. The `Cli` type and the CLI helpers `processStub`, `createFile` and `notificationNaming` are no longer exported
-
-`@lockness/notification` exported its own structural `Cli` interface, the type
-of `registerNotificationCommands`'s parameter, and `processStub`, `createFile`
-and `notificationNaming` — internals of its `make:*` command — from the package
-root (#579). Anything an `exports` entry reaches is public API, so none of them
-stays there. `registerNotificationCommands` now takes `CommandRegistry` from
-`@lockness/contract/command`, which `@lockness/cli`'s `Cli` implements: passing
-a `Cli` works unchanged. Code that named the `Cli` type imports
-`CommandRegistry` instead. `processStub`, `createFile` and `notificationNaming`
-are internal and are not replaced; the command they serve behaves as before.

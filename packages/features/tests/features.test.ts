@@ -4,13 +4,11 @@
  * @module @lockness/features/tests/features
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import { configureFeatures, features, resetFeatures } from '../features.ts'
-import { isContained } from '@lockness/contract/fs/internal'
-import { handleMakeFlag } from '../cli_commands.ts'
+import { handleMakeFlag, isContained } from '../cli_commands.ts'
 
-test('SC-001: override wins → definition → default off', async () => {
+Deno.test('SC-001: override wins → definition → default off', async () => {
     resetFeatures()
     configureFeatures({ flags: { beta: true, off: false } })
     const f = features()
@@ -24,7 +22,7 @@ test('SC-001: override wins → definition → default off', async () => {
     resetFeatures()
 })
 
-test('SC-001: a rollout is stable per scope across repeated calls', async () => {
+Deno.test('SC-001: a rollout is stable per scope across repeated calls', async () => {
     resetFeatures()
     configureFeatures({ flags: { ramp: { rollout: 50 } } })
     const f = features()
@@ -35,7 +33,7 @@ test('SC-001: a rollout is stable per scope across repeated calls', async () => 
     resetFeatures()
 })
 
-test('SC-002: a rollout splits scopes roughly by the percentage', async () => {
+Deno.test('SC-002: a rollout splits scopes roughly by the percentage', async () => {
     resetFeatures()
     configureFeatures({ flags: { ramp: { rollout: 30 } } })
     const f = features()
@@ -50,7 +48,7 @@ test('SC-002: a rollout splits scopes roughly by the percentage', async () => {
     resetFeatures()
 })
 
-test('SC-001a: a throwing resolver / erroring driver fails closed (false)', async () => {
+Deno.test('SC-001a: a throwing resolver / erroring driver fails closed (false)', async () => {
     resetFeatures()
     configureFeatures({
         flags: {
@@ -71,7 +69,7 @@ test('SC-001a: a throwing resolver / erroring driver fails closed (false)', asyn
     resetFeatures()
 })
 
-test('forget() reverts an override to the definition', async () => {
+Deno.test('forget() reverts an override to the definition', async () => {
     resetFeatures()
     configureFeatures({ flags: { beta: true } })
     const f = features()
@@ -82,7 +80,7 @@ test('forget() reverts an override to the definition', async () => {
     resetFeatures()
 })
 
-test('SC-001a: a throwing RESOLVER (driver ok) fails closed to false', async () => {
+Deno.test('SC-001a: a throwing RESOLVER (driver ok) fails closed to false', async () => {
     resetFeatures()
     configureFeatures({
         flags: {
@@ -97,7 +95,7 @@ test('SC-001a: a throwing RESOLVER (driver ok) fails closed to false', async () 
     resetFeatures()
 })
 
-test('a boolean/percentage/resolver definition each resolve', async () => {
+Deno.test('a boolean/percentage/resolver definition each resolve', async () => {
     resetFeatures()
     configureFeatures({
         flags: {
@@ -114,7 +112,7 @@ test('a boolean/percentage/resolver definition each resolve', async () => {
     resetFeatures()
 })
 
-test('SC-007: make:flag scaffolds + rejects a traversal name', async () => {
+Deno.test('SC-007: make:flag scaffolds + rejects a traversal name', async () => {
     const dir = await Deno.makeTempDir()
     const prev = Deno.cwd()
     Deno.chdir(dir)
@@ -135,7 +133,7 @@ test('SC-007: make:flag scaffolds + rejects a traversal name', async () => {
     }
 })
 
-test('isContained rejects escapes', () => {
+Deno.test('isContained rejects escapes', () => {
     assert(isContained('./app/features', './app/features/x_flag.ts'))
     assert(!isContained('./app/features', './app/features/../../etc'))
 })

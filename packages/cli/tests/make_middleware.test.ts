@@ -2,12 +2,11 @@
  * Tests for CLI make:middleware command
  */
 
-import { test } from 'node:test'
 import { assertStringIncludes } from '@std/assert'
 import { Stub } from '../stubs.ts'
 
-test('make:middleware', async (t) => {
-    await t.test('generates valid middleware from stub', async () => {
+Deno.test('make:middleware', async (t) => {
+    await t.step('generates valid middleware from stub', async () => {
         const content = await Stub.render('make', 'middleware', {
             className: 'AuthMiddleware',
         })
@@ -16,7 +15,7 @@ test('make:middleware', async (t) => {
         assertStringIncludes(content, 'implements MiddlewareContract')
     })
 
-    await t.test('includes handle method', async () => {
+    await t.step('includes handle method', async () => {
         const content = await Stub.render('make', 'middleware', {
             className: 'LoggerMiddleware',
         })
@@ -25,7 +24,7 @@ test('make:middleware', async (t) => {
         assertStringIncludes(content, 'next()')
     })
 
-    await t.test('imports required types', async () => {
+    await t.step('imports required types', async () => {
         const content = await Stub.render('make', 'middleware', {
             className: 'CorsMiddleware',
         })

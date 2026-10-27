@@ -15,12 +15,11 @@
  * @module @lockness/contract/tests/static_decorator
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertThrows } from '@std/assert'
 import { Static } from '../routing/decorators.ts'
 import type { ControllerWithMetadata } from '../routing/decorators.ts'
 
-test('@Static - method level records the method in _staticConfigs on instantiation', () => {
+Deno.test('@Static - method level records the method in _staticConfigs on instantiation', () => {
     class Ctrl {
         @Static()
         index() {}
@@ -37,7 +36,7 @@ test('@Static - method level records the method in _staticConfigs on instantiati
     )
 })
 
-test('@Static - stores the literal params list', () => {
+Deno.test('@Static - stores the literal params list', () => {
     const params = [{ slug: 'a' }, { slug: 'b' }] as const
     class Ctrl {
         @Static({ params })
@@ -48,7 +47,7 @@ test('@Static - stores the literal params list', () => {
     assertEquals(meta._staticConfigs!.page.params, params)
 })
 
-test('@Static - class level marks every route static via _staticAll', () => {
+Deno.test('@Static - class level marks every route static via _staticAll', () => {
     @Static()
     class Ctrl {
         index() {}
@@ -57,7 +56,7 @@ test('@Static - class level marks every route static via _staticAll', () => {
     assertEquals(meta._staticAll, true, 'the class is marked all-static')
 })
 
-test('@Static - method options default to an empty object', () => {
+Deno.test('@Static - method options default to an empty object', () => {
     class Ctrl {
         @Static()
         index() {}
@@ -67,7 +66,7 @@ test('@Static - method options default to an empty object', () => {
     assertEquals(meta._staticConfigs!.index.params, undefined)
 })
 
-test('@Static - rejects a non-class, non-method target', () => {
+Deno.test('@Static - rejects a non-class, non-method target', () => {
     assertThrows(
         () => {
             // Simulate the decorator called on a field context.

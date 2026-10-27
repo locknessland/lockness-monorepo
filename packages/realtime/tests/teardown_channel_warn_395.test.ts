@@ -19,7 +19,6 @@
  * @module @lockness/realtime/tests/teardown_channel_warn_395
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { ChannelManager, TEARDOWN_CHANNEL_LOG_FAILED } from '../manager.ts'
 import type { BroadcastDriver } from '../driver.ts'
@@ -44,7 +43,7 @@ function conn(id: string): Connection<User> {
     }
 }
 
-test("#395 (LOW) #teardownChannels: a later channel is still released when a middle failure's WARN itself throws", async () => {
+Deno.test("#395 (LOW) #teardownChannels: a later channel is still released when a middle failure's WARN itself throws", async () => {
     await watchingEscapes(async (escaped) => {
         const unwatched: string[] = []
         const driver: BroadcastDriver = {

@@ -15,7 +15,6 @@
  * @module @lockness/realtime/tests/fake_redis_conformance
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertRejects, assertThrows } from '@std/assert'
 import { FakeRedis, serializedCommands } from './fake_redis.ts'
 
@@ -29,7 +28,7 @@ const int = (value: number) => ({ type: 'integer', value })
  */
 const run = (r: FakeRedis, ...args: string[]) => void r.command(...args)
 
-test('#280 DEL takes many keys, counts them, and reaches every store', async () => {
+Deno.test('#280 DEL takes many keys, counts them, and reaches every store', async () => {
     const r = new FakeRedis()
     await r.command('SET', 'str', 'v')
     await r.command('SADD', 'set', 'a')
@@ -46,7 +45,7 @@ test('#280 DEL takes many keys, counts them, and reaches every store', async () 
     }
 })
 
-test('#280 DEL removes a sorted set, which the revocation index is', async () => {
+Deno.test('#280 DEL removes a sorted set, which the revocation index is', async () => {
     // The arm reached #hashes, #sets and #strings and stopped there. The
     // revocation index #276 introduced is a ZSET, so deleting it returned 0 and
     // left every member in place — a cleanup that silently did nothing.
@@ -59,7 +58,7 @@ test('#280 DEL removes a sorted set, which the revocation index is', async () =>
     )
 })
 
-test('#280 EXISTS takes many keys and sees every type', async () => {
+Deno.test('#280 EXISTS takes many keys and sees every type', async () => {
     const r = new FakeRedis()
     await r.command('SADD', 'set', 'a')
     await r.command('HSET', 'hash', 'f', 'v')
@@ -73,7 +72,7 @@ test('#280 EXISTS takes many keys and sees every type', async () => {
     assertEquals(await r.command('EXISTS', 'str', 'set', 'absent'), int(2))
 })
 
-test('#280 SET rejects an option it does not model', async () => {
+Deno.test('#280 SET rejects an option it does not model', async () => {
     const r = new FakeRedis()
     // Silently ignoring NX is the exact shape that made an inert guard look
     // like a working one: the caller believes it wrote only if absent.
@@ -94,7 +93,7 @@ test('#280 SET rejects an option it does not model', async () => {
     })
 })
 
-test('#349 WC SET … GET answers the previous string, or nil when absent or expired', async () => {
+Deno.test('#349 WC SET … GET answers the previous string, or nil when absent or expired', async () => {
     // Real Redis (>= 6.2): `SET key value [EX s] GET` writes, and answers the
     // value the key held BEFORE the write — nil when there was none. The
     // heartbeat reads its lapse bit from exactly that nil (#349 FR-001), so an
@@ -132,7 +131,7 @@ test('#349 WC SET … GET answers the previous string, or nil when absent or exp
     assertEquals(r.expiryOf('k'), 1_061)
 })
 
-test('#349 WC SET refuses GET twice, and GET over a key of another type', async () => {
+Deno.test('#349 WC SET refuses GET twice, and GET over a key of another type', async () => {
     const r = new FakeRedis()
     // GET twice: a declared gap — a real broker accepts it, the fake refuses
     // rather than guess (the live WC test pins both halves).
@@ -155,7 +154,7 @@ test('#349 WC SET refuses GET twice, and GET over a key of another type', async 
     })
 })
 
-test('#280 ZRANGEBYSCORE rejects an option it does not model', async () => {
+Deno.test('#280 ZRANGEBYSCORE rejects an option it does not model', async () => {
     const r = new FakeRedis()
     await r.command('ZADD', 'z', '1', 'm')
     for (const opts of [['WITHSCORES'], ['LIMIT', '0', '10']]) {
@@ -168,7 +167,7 @@ test('#280 ZRANGEBYSCORE rejects an option it does not model', async () => {
     }
 })
 
-test('#280 the fake has ONE clock, and setTime moves all of it', async () => {
+Deno.test('#280 the fake has ONE clock, and setTime moves all of it', async () => {
     // EXPIRE and the zset TTL consulted `#now()`, which `setTime()` overrides.
     // `SET ... EX` and the string liveness check consulted `Date.now()`, which
     // it does not. So advancing the clock expired sorted sets and never expired
@@ -191,7 +190,7 @@ test('#280 the fake has ONE clock, and setTime moves all of it', async () => {
     )
 })
 
-test('#280 HSET and HDEL take many field/value pairs', async () => {
+Deno.test('#280 HSET and HDEL take many field/value pairs', async () => {
     const r = new FakeRedis()
     // Real Redis: HSET key field value [field value ...] -> fields ADDED.
     assertEquals(await r.command('HSET', 'h', 'a', '1', 'b', '2'), int(2))
@@ -203,7 +202,7 @@ test('#280 HSET and HDEL take many field/value pairs', async () => {
     })
 })
 
-test('#280 an odd HSET argument list is refused, not half-applied', () => {
+Deno.test('#280 an odd HSET argument list is refused, not half-applied', () => {
     const r = new FakeRedis()
     // 'HSET' alone would also match the `default:` arm's "unmodelled command
     // 'HSET'", so deleting the whole case would leave this green. Assert the
@@ -215,7 +214,7 @@ test('#280 an odd HSET argument list is refused, not half-applied', () => {
     )
 })
 
-test('#280 SET refuses an EX with a missing or unparseable value', () => {
+Deno.test('#280 SET refuses an EX with a missing or unparseable value', () => {
     const r = new FakeRedis()
     // `opts[++i]` consumed the argument without checking it was there. Both of
     // these returned OK and stored `expireAt = NaN`; `NaN >= x` is false
@@ -233,7 +232,7 @@ test('#280 SET refuses an EX with a missing or unparseable value', () => {
     assertThrows(() => run(r, 'SET', 'k', 'v', 'EX', '10', 'EX', '20'), Error)
 })
 
-test('#280 key-level TTL is authoritative for every type', async () => {
+Deno.test('#280 key-level TTL is authoritative for every type', async () => {
     // `#keyExpiry` was consulted only through `#liveZset`, so EXPIRE on a
     // string, a set or a hash was inert for existence and DEL over-counted:
     // four logically-expired keys returned 3 where Redis returns 0.
@@ -254,7 +253,7 @@ test('#280 key-level TTL is authoritative for every type', async () => {
     assertEquals(await r.command('DEL', 's', 'set', 'h', 'z'), int(0))
 })
 
-test('#280 a plain SET clears an existing TTL, as Redis does', async () => {
+Deno.test('#280 a plain SET clears an existing TTL, as Redis does', async () => {
     const r = new FakeRedis()
     r.setTime(1_000)
     await r.command('SET', 'k', 'v', 'EX', '30')
@@ -268,7 +267,7 @@ test('#280 a plain SET clears an existing TTL, as Redis does', async () => {
     )
 })
 
-test('#280 the arms with no options refuse extra arguments', () => {
+Deno.test('#280 the arms with no options refuse extra arguments', () => {
     const r = new FakeRedis()
     // The AGENTS.md rule says every arm rejects an option it does not
     // implement. It was written before these four did, which made the rule
@@ -285,7 +284,7 @@ test('#280 the arms with no options refuse extra arguments', () => {
     }
 })
 
-test('#280 a rejection survives a driver that swallows it', async () => {
+Deno.test('#280 a rejection survives a driver that swallows it', async () => {
     // The driver console.warns around its heartbeat, reconcile and revocation
     // passes, so a throw from this fake goes silent on exactly the paths the
     // new guards were added for — the #276 shape, one layer down. The fake
@@ -303,7 +302,7 @@ test('#280 a rejection survives a driver that swallows it', async () => {
     )
 })
 
-test('#280 an emptied collection stops existing, as Redis does', async () => {
+Deno.test('#280 an emptied collection stops existing, as Redis does', async () => {
     // Redis removes a key when its last element goes. This fake left the empty
     // container behind, which was invisible while EXISTS consulted only the
     // string store — and became wrong the moment EXISTS saw every type. The
@@ -324,7 +323,7 @@ test('#280 an emptied collection stops existing, as Redis does', async () => {
     }
 })
 
-test('#280 EXPIRE on a missing key changes nothing', async () => {
+Deno.test('#280 EXPIRE on a missing key changes nothing', async () => {
     // Redis returns 0 and records nothing. Writing the expiry anyway let a
     // LATER create inherit a TTL it never asked for — the hazard `#dropKey`
     // exists to prevent, closed on DEL and left open here.
@@ -341,7 +340,7 @@ test('#280 EXPIRE on a missing key changes nothing', async () => {
     )
 })
 
-test('#280 ZADD writes every score/member pair', async () => {
+Deno.test('#280 ZADD writes every score/member pair', async () => {
     // The one variadic arm still dropping arguments after the first — the same
     // class DEL, EXISTS, HSET and HDEL were all fixed for, left in the arm #276
     // actually depends on.
@@ -359,7 +358,7 @@ test('#280 ZADD writes every score/member pair', async () => {
     assertThrows(() => run(r, 'ZADD', 'z', 'notanumber', 'a'), Error, 'ZADD')
 })
 
-test('#280 ZADD reads its flags by position, not by content', async () => {
+Deno.test('#280 ZADD reads its flags by position, not by content', async () => {
     // The old scan ran `filter` over the whole tail, so a MEMBER named `gt` was
     // silently accepted as a flag and one named `nx` raised a spurious
     // rejection: the argument list decided by content rather than position.
@@ -377,7 +376,7 @@ test('#280 ZADD reads its flags by position, not by content', async () => {
     assertThrows(() => run(r, 'ZADD', 'z', 'NX', '1', 'm'), Error, 'ZADD')
 })
 
-test('#280 ZRANGEBYSCORE breaks a score tie lexicographically', async () => {
+Deno.test('#280 ZRANGEBYSCORE breaks a score tie lexicographically', async () => {
     // A stable sort left ties in insertion order. Revocation scores are whole
     // seconds from TIME, so two evictions in the same second tie routinely and
     // consumers got an order the real broker would never produce.
@@ -392,7 +391,7 @@ test('#280 ZRANGEBYSCORE breaks a score tie lexicographically', async () => {
     })
 })
 
-test('#280 DEL clears the key TTL, so a re-create does not inherit it', async () => {
+Deno.test('#280 DEL clears the key TTL, so a re-create does not inherit it', async () => {
     // `#dropKey`'s JSDoc states this as its reason for existing and nothing
     // exercised it: deleting the line left every test green. A key re-created
     // after a DEL must not expire at a time it never asked for.
@@ -414,7 +413,7 @@ test('#280 DEL clears the key TTL, so a re-create does not inherit it', async ()
 const bulk = (value: string) => ({ type: 'bulk', value })
 const nil = { type: 'nil' }
 
-test('#341 HLEN counts a hash, answers 0 for an absent key, and refuses extra arguments', async () => {
+Deno.test('#341 HLEN counts a hash, answers 0 for an absent key, and refuses extra arguments', async () => {
     const r = new FakeRedis()
     await r.command('HSET', 'h', 'a', '1', 'b', '2')
     assertEquals(await r.command('HLEN', 'h'), int(2))
@@ -426,7 +425,7 @@ test('#341 HLEN counts a hash, answers 0 for an absent key, and refuses extra ar
     )
 })
 
-test('#341 HMGET answers in field order with nil for an absent field', async () => {
+Deno.test('#341 HMGET answers in field order with nil for an absent field', async () => {
     const r = new FakeRedis()
     await r.command('HSET', 'h', 'a', '1', 'b', '2')
     assertEquals(await r.command('HMGET', 'h', 'b', 'zz', 'a'), {
@@ -439,7 +438,7 @@ test('#341 HMGET answers in field order with nil for an absent field', async () 
     })
 })
 
-test('#341 HMGET with no field is an arity error, as on a real broker', () => {
+Deno.test('#341 HMGET with no field is an arity error, as on a real broker', () => {
     // Real Redis answers `ERR wrong number of arguments for 'hmget'`. A fake
     // that returned an empty array would hide a script issuing HMGET with zero
     // self ids (#341 A1) until it met a real broker.
@@ -451,7 +450,7 @@ test('#341 HMGET with no field is an arity error, as on a real broker', () => {
     )
 })
 
-test('#341 HRANDFIELD count WITHVALUES at or above the size returns the whole hash in HGETALL order', async () => {
+Deno.test('#341 HRANDFIELD count WITHVALUES at or above the size returns the whole hash in HGETALL order', async () => {
     const r = new FakeRedis()
     await r.command('HSET', 'h', 'b', '2', 'a', '1', 'c', '3')
     const whole = await r.command('HGETALL', 'h')
@@ -462,7 +461,7 @@ test('#341 HRANDFIELD count WITHVALUES at or above the size returns the whole ha
     )
 })
 
-test('#341 HRANDFIELD count WITHVALUES below the size returns count distinct pairs', async () => {
+Deno.test('#341 HRANDFIELD count WITHVALUES below the size returns count distinct pairs', async () => {
     // Real Redis picks the pairs at random; this fake answers the first
     // `count` in insertion order, which is one outcome a real broker can
     // produce — never a property a test may rely on beyond distinctness.
@@ -478,7 +477,7 @@ test('#341 HRANDFIELD count WITHVALUES below the size returns count distinct pai
     )
 })
 
-test('#341 HRANDFIELD refuses the shapes it does not model', () => {
+Deno.test('#341 HRANDFIELD refuses the shapes it does not model', () => {
     // A negative count returns REPEATED pairs on a real broker, no count
     // returns one bare field, and no WITHVALUES changes the reply shape. Each
     // is refused rather than answered as if it were the modelled form.
@@ -501,7 +500,7 @@ test('#341 HRANDFIELD refuses the shapes it does not model', () => {
     }
 })
 
-test('#341 EVAL returns an integer as an integer and a nil element as nil, nested', async () => {
+Deno.test('#341 EVAL returns an integer as an integer and a nil element as nil, nested', async () => {
     // Redis converts a Lua number to an integer reply and a `false` table
     // element to a nil bulk. Stringifying either would let a driver parse a
     // reply shape no real broker sends.
@@ -516,7 +515,7 @@ test('#341 EVAL returns an integer as an integer and a nil element as nil, neste
     })
 })
 
-test('#345 HGET answers a bulk for a present field, nil for an absent one, and checks its arity', async () => {
+Deno.test('#345 HGET answers a bulk for a present field, nil for an absent one, and checks its arity', async () => {
     const r = new FakeRedis()
     await r.command('HSET', 'h', 'a', '1')
     assertEquals(await r.command('HGET', 'h', 'a'), bulk('1'))
@@ -532,7 +531,7 @@ test('#345 HGET answers a bulk for a present field, nil for an absent one, and c
     }
 })
 
-test('#345 inside a script, HGET of a missing field is false — the nil reply converted once, at the bridge', async () => {
+Deno.test('#345 inside a script, HGET of a missing field is false — the nil reply converted once, at the bridge', async () => {
     // Redis hands Lua `false` for a nil reply. The release script's
     // `mine == false` decides the `gone` bit #344 announces from, so a bridge
     // handing Lua anything else would make the fake and a real broker disagree
@@ -546,7 +545,7 @@ test('#345 inside a script, HGET of a missing field is false — the nil reply c
     assertEquals(await r.command('EVAL', script, '1', 'h', 'present'), int(0))
 })
 
-test('#345 HRANDFIELD key 1 WITHVALUES is [field, value], indexable in a script', async () => {
+Deno.test('#345 HRANDFIELD key 1 WITHVALUES is [field, value], indexable in a script', async () => {
     const r = new FakeRedis()
     await r.command('HSET', 'holders', 'B', '{"id":7}')
     assertEquals(await r.command('HRANDFIELD', 'holders', '1', 'WITHVALUES'), {
@@ -563,7 +562,7 @@ test('#345 HRANDFIELD key 1 WITHVALUES is [field, value], indexable in a script'
     )
 })
 
-test('#345 a holders hash emptied inside a script no longer EXISTS', async () => {
+Deno.test('#345 a holders hash emptied inside a script no longer EXISTS', async () => {
     const r = new FakeRedis()
     await r.command('HSET', 'holders', 'A', 'e')
     const script = "redis.call('HDEL', KEYS[1], ARGV[1])\n" +
@@ -572,7 +571,7 @@ test('#345 a holders hash emptied inside a script no longer EXISTS', async () =>
     assertEquals(await r.command('EXISTS', 'holders'), int(0))
 })
 
-test('#345 HSET returns 1 for a new field and 0 for an update, inside a script too', async () => {
+Deno.test('#345 HSET returns 1 for a new field and 0 for an update, inside a script too', async () => {
     const r = new FakeRedis()
     assertEquals(await r.command('HSET', 'h', 'f', 'v1'), int(1))
     assertEquals(await r.command('HSET', 'h', 'f', 'v2'), int(0))
@@ -583,7 +582,7 @@ test('#345 HSET returns 1 for a new field and 0 for an update, inside a script t
     assertEquals(await r.command('EVAL', script, '1', 'h', 'g', 'y'), int(0))
 })
 
-test('#348 the serialized wrapper runs one exchange at a time, in issue order', async () => {
+Deno.test('#348 the serialized wrapper runs one exchange at a time, in issue order', async () => {
     // `RedisClient` chains every command on one tail; FakeRedis settles each
     // on its own. W8's `left`-before-`joined` ordering depends on the former.
     const r = new FakeRedis()
@@ -618,7 +617,7 @@ test('#348 the serialized wrapper runs one exchange at a time, in issue order', 
     assertEquals(settled, ['HSET', 'HGET'])
 })
 
-test('#348 whenIssued resolves on the matching command being ISSUED, before it runs, and only for a match', async () => {
+Deno.test('#348 whenIssued resolves on the matching command being ISSUED, before it runs, and only for a match', async () => {
     // W8 waits on it to know the hold is queued behind the held release: it
     // must fire on issue (not on execution, which the gate is holding back)
     // and must not fire for a command that does not match.
@@ -683,7 +682,7 @@ async function sscan(
     }
 }
 
-test('#358 WC SSCAN refuses a missing COUNT, any option but COUNT, and a non-canonical cursor — into the ledger', async () => {
+Deno.test('#358 WC SSCAN refuses a missing COUNT, any option but COUNT, and a non-canonical cursor — into the ledger', async () => {
     // The #280 rule: an option the fake does not model is REFUSED, never
     // ignored. MATCH filters the page, so an ignored MATCH hands the sweep
     // members a real broker would not; a missing COUNT is a scan whose page
@@ -736,7 +735,7 @@ test('#358 WC SSCAN refuses a missing COUNT, any option but COUNT, and a non-can
     )
 })
 
-test('#358 SSCAN answers a set of at most COUNT whole at cursor 0, and an absent key as [0, []]', async () => {
+Deno.test('#358 SSCAN answers a set of at most COUNT whole at cursor 0, and an absent key as [0, []]', async () => {
     const r = new FakeRedis()
     assertEquals(await sscan(r, 'absent', '0', '10'), {
         cursor: '0',
@@ -750,7 +749,7 @@ test('#358 SSCAN answers a set of at most COUNT whole at cursor 0, and an absent
     r.assertNoRejections()
 })
 
-test('#358 SSCAN walks a larger set by stable slots: each member once per iteration, and a removal shifts nothing', async () => {
+Deno.test('#358 SSCAN walks a larger set by stable slots: each member once per iteration, and a removal shifts nothing', async () => {
     const r = new FakeRedis()
     const seeded = Array.from({ length: 300 }, (_, i) => `m${i}`)
     await r.command('SADD', 'set', ...seeded)
@@ -800,7 +799,7 @@ test('#358 SSCAN walks a larger set by stable slots: each member once per iterat
     r.assertNoRejections()
 })
 
-test('#358 the scan core refuses past its per-key call ceiling, so a scan that never advances fails instead of hanging', async () => {
+Deno.test('#358 the scan core refuses past its per-key call ceiling, so a scan that never advances fails instead of hanging', async () => {
     const r = new FakeRedis()
     await r.command(
         'SADD',
@@ -826,7 +825,7 @@ test('#358 the scan core refuses past its per-key call ceiling, so a scan that n
     assertThrows(() => r.assertNoRejections(), Error, 'scan call ceiling')
 })
 
-test('#358 the scan core refuses past its cumulative call ceiling, across keys, so a caller that moves to a fresh key per call still fails', async () => {
+Deno.test('#358 the scan core refuses past its cumulative call ceiling, across keys, so a caller that moves to a fresh key per call still fails', async () => {
     const r = new FakeRedis()
     const keys = Array.from({ length: 11 }, (_, i) => `set-${i}`)
     for (const key of keys) await r.command('SADD', key, 'm')
@@ -848,7 +847,7 @@ test('#358 the scan core refuses past its cumulative call ceiling, across keys, 
     assertThrows(() => r.assertNoRejections(), Error, 'scan call ceiling')
 })
 
-test('#358 WC SSCAN refuses a missing cursor and a cursor past the slot table — into the ledger', async () => {
+Deno.test('#358 WC SSCAN refuses a missing cursor and a cursor past the slot table — into the ledger', async () => {
     // Real Redis requires the cursor, and accepts any number as one; this fake
     // refuses a cursor past its table because it never issued one, so a test
     // that drives it with a made-up cursor fails instead of reading a
@@ -900,7 +899,7 @@ async function zscan(
     }
 }
 
-test('#359 WC ZSCAN refuses a missing COUNT, any option but COUNT, and a non-canonical cursor — into the ledger', async () => {
+Deno.test('#359 WC ZSCAN refuses a missing COUNT, any option but COUNT, and a non-canonical cursor — into the ledger', async () => {
     // The #280 rule, for the revocation pass's paged read. MATCH filters the
     // page and NOSCORES (Redis 8) drops the scores: ignoring either hands the
     // pass a page a real broker would not send. A missing COUNT is a read its
@@ -956,7 +955,7 @@ test('#359 WC ZSCAN refuses a missing COUNT, any option but COUNT, and a non-can
     )
 })
 
-test('#359 ZSCAN answers [cursor, [member, score, …]] with integral scores as plain digits, an absent key as [0, []], and honours key expiry', async () => {
+Deno.test('#359 ZSCAN answers [cursor, [member, score, …]] with integral scores as plain digits, an absent key as [0, []], and honours key expiry', async () => {
     const r = new FakeRedis()
     r.setTime(1_000)
     assertEquals(await zscan(r, 'absent', '0', '10'), {
@@ -994,7 +993,7 @@ test('#359 ZSCAN answers [cursor, [member, score, …]] with integral scores as 
     assertThrows(() => r.assertNoRejections(), Error, 'refused 1 command(s)')
 })
 
-test('#359 ZSCAN walks a larger sorted set on the shared scan core: each pair once per iteration, in FakeRedis.scanOrder', async () => {
+Deno.test('#359 ZSCAN walks a larger sorted set on the shared scan core: each pair once per iteration, in FakeRedis.scanOrder', async () => {
     const r = new FakeRedis()
     const seeded = Array.from({ length: 300 }, (_, i) => `m${i}`)
     for (const [i, m] of seeded.entries()) {

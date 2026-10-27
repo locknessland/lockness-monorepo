@@ -7,7 +7,7 @@
  * @module @lockness/contract/http/compose
  */
 
-import type { MiddlewareHandler } from '@lockness/hono'
+import type { MiddlewareHandler } from 'hono'
 import type { Context, Next } from '../types.ts'
 import { declaredMiddlewares } from '../routing/middleware_decorators.ts'
 

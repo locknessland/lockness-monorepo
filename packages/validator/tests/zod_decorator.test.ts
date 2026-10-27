@@ -2,12 +2,11 @@
  * Tests for Validation System
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { z } from 'zod'
 
-test('validation system', async (t) => {
-    await t.test('zod schema validates correct data', () => {
+Deno.test('validation system', async (t) => {
+    await t.step('zod schema validates correct data', () => {
         const schema = z.object({
             name: z.string().min(1),
             email: z.string().email(),
@@ -23,7 +22,7 @@ test('validation system', async (t) => {
         assertEquals(result.success, true)
     })
 
-    await t.test('zod schema rejects invalid data', () => {
+    await t.step('zod schema rejects invalid data', () => {
         const schema = z.object({
             email: z.string().email(),
         })
@@ -35,7 +34,7 @@ test('validation system', async (t) => {
         assertEquals(result.success, false)
     })
 
-    await t.test('zod coercion works', () => {
+    await t.step('zod coercion works', () => {
         const schema = z.object({
             id: z.coerce.number(),
         })
@@ -48,7 +47,7 @@ test('validation system', async (t) => {
         }
     })
 
-    await t.test('zod optional fields work', () => {
+    await t.step('zod optional fields work', () => {
         const schema = z.object({
             required: z.string(),
             optional: z.string().optional(),
@@ -59,7 +58,7 @@ test('validation system', async (t) => {
         assertEquals(result.success, true)
     })
 
-    await t.test('zod default values work', () => {
+    await t.step('zod default values work', () => {
         const schema = z.object({
             name: z.string().default('Anonymous'),
         })

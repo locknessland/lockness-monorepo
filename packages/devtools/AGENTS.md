@@ -29,8 +29,8 @@ names does not belong here._
 | **Must never import**                     | `core` — each already reaches this package, so importing one closes a cycle |
 
 Enforced by `deno task deps:analyze` against `deps.policy.jsonc`. A soft edge is
-an optional peer in this package's `package.json`, never a dependency: the
-consuming application installs it, or the feature stays off.
+deliberately **not** declared in this package's `deno.json`: the consuming
+application installs it, or the feature stays off.
 
 <!-- /generated:deps -->
 
@@ -79,12 +79,11 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-7 test files for 42 source files:
+6 test files for 42 source files:
 
 - `packages/devtools/tests/collector.test.ts`
 - `packages/devtools/tests/debug_panels.test.ts`
 - `packages/devtools/tests/gate.test.ts`
-- `packages/devtools/tests/gate_env.deno.test.ts`
 - `packages/devtools/tests/gate_routes.test.ts`
 - `packages/devtools/tests/helpers.test.ts`
 - `packages/devtools/tests/toolbar.test.ts`
@@ -102,7 +101,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 7 test files directly —
+Then, specific to this package: run its 6 test files directly —
 
 ```bash
 deno test -A packages/devtools/

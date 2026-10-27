@@ -6,7 +6,6 @@
  * @module @lockness/notification/tests/wiring
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { ChannelManager, notify } from '../manager.ts'
 import { registerBuiltInChannels } from '../channels/mod.ts'
@@ -28,7 +27,7 @@ class LogOnly extends Notification {
 
 const user: Notifiable = { routeNotificationFor: () => 7 }
 
-test('SC-002: a log-only fan-out soft-loads only @lockness/logger', async () => {
+Deno.test('SC-002: a log-only fan-out soft-loads only @lockness/logger', async () => {
     const requested: string[] = []
     const importer: ModuleImporter = (specifier) => {
         requested.push(specifier)
@@ -52,7 +51,7 @@ test('SC-002: a log-only fan-out soft-loads only @lockness/logger', async () => 
     assertEquals(requested, ['@lockness/logger'])
 })
 
-test('configureNotifications round-trips the config surface and resets', () => {
+Deno.test('configureNotifications round-trips the config surface and resets', () => {
     resetNotificationConfig()
     const table = { __table: 'notifications' }
     const resolver = (id: string | number): Notifiable => ({
@@ -87,7 +86,7 @@ class Keyed implements QueueableNotifiable {
     }
 }
 
-test('configureNotifications installs the queueDispatcher on the default manager (via notify)', async () => {
+Deno.test('configureNotifications installs the queueDispatcher on the default manager (via notify)', async () => {
     const jobs: QueuedNotificationJob[] = []
     try {
         configureNotifications({

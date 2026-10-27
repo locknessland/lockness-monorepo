@@ -25,7 +25,6 @@
  * @module @lockness/realtime/tests/presence_join_compensation_323
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import {
     ChannelManager,
@@ -156,7 +155,7 @@ async function failingJoin(
     }
 }
 
-test('#323/SC-001 a rejected roster write announces NOTHING', async () => {
+Deno.test('#323/SC-001 a rejected roster write announces NOTHING', async () => {
     const { driver, state } = faultyRoster()
     const m = new ChannelManager<User>({ driver, authorize })
     const watcher = conn('c1', 1)
@@ -176,7 +175,7 @@ test('#323/SC-001 a rejected roster write announces NOTHING', async () => {
     )
 })
 
-test('#323/FR-002 a rejected roster write leaves no local residue', async () => {
+Deno.test('#323/FR-002 a rejected roster write leaves no local residue', async () => {
     const { driver, roster, state } = faultyRoster()
     const m = new ChannelManager<User>({ driver, authorize })
     const watcher = conn('c1', 1)
@@ -222,7 +221,7 @@ test('#323/FR-002 a rejected roster write leaves no local residue', async () => 
     )
 })
 
-test('#323/SC-004 a failed first join releases the channel subscription', async () => {
+Deno.test('#323/SC-004 a failed first join releases the channel subscription', async () => {
     const { driver, watched, state } = faultyRoster()
     const m = new ChannelManager<User>({ driver, authorize })
 
@@ -240,7 +239,7 @@ test('#323/SC-004 a failed first join releases the channel subscription', async 
     )
 })
 
-test('#323/SC-003 a failed join can be retried, and yields ONE member', async () => {
+Deno.test('#323/SC-003 a failed join can be retried, and yields ONE member', async () => {
     const { driver, roster, state } = faultyRoster()
     const m = new ChannelManager<User>({ driver, authorize })
     const watcher = conn('c1', 1)
@@ -273,7 +272,7 @@ test('#323/SC-003 a failed join can be retried, and yields ONE member', async ()
     )
 })
 
-test('#323 the joiner never receives its own `joined`', async () => {
+Deno.test('#323 the joiner never receives its own `joined`', async () => {
     const { driver } = faultyRoster()
     const m = new ChannelManager<User>({ driver, authorize })
     const first = conn('c1', 1)
@@ -296,7 +295,7 @@ test('#323 the joiner never receives its own `joined`', async () => {
     )
 })
 
-test('#323/FR-005 a failed control publish loses the announcement, not the join', async () => {
+Deno.test('#323/FR-005 a failed control publish loses the announcement, not the join', async () => {
     const { driver, roster, state } = faultyRoster()
     const m = new ChannelManager<User>({ driver, authorize })
     const watcher = conn('c1', 1)
@@ -324,7 +323,7 @@ test('#323/FR-005 a failed control publish loses the announcement, not the join'
     )
 })
 
-test('#323/FR-006 a failed roster read degrades to the local view', async () => {
+Deno.test('#323/FR-006 a failed roster read degrades to the local view', async () => {
     const { driver, state } = faultyRoster()
     const m = new ChannelManager<User>({ driver, authorize })
     const watcher = conn('c1', 1)
@@ -383,7 +382,7 @@ test('#323/FR-006 a failed roster read degrades to the local view', async () => 
 // holds six witnesses for the guard itself — including the one that dies when
 // the membership claim moves below `#joinLocal`.
 
-test('#323 a failed FIRST join best-effort removes a write that may have landed', async () => {
+Deno.test('#323 a failed FIRST join best-effort removes a write that may have landed', async () => {
     // The EVAL is atomic, but its REPLY can still be lost — a dropped
     // connection after the write commits looks exactly like a write that never
     // happened. The manager cannot tell, so a first join that fails asks the
@@ -411,7 +410,7 @@ test('#323 a failed FIRST join best-effort removes a write that may have landed'
     )
 })
 
-test('#323 a failed join into an OCCUPIED channel leaves the incumbent alone', async () => {
+Deno.test('#323 a failed join into an OCCUPIED channel leaves the incumbent alone', async () => {
     // SC-004 covers the 0→1 case: a failed FIRST join gives the broker
     // subscription back. The other half is that a failed join must take away
     // only its own membership — the channel stays watched for whoever was

@@ -135,39 +135,12 @@ To update Hono across entire Lockness ecosystem:
 
 - **getCookie**, **setCookie**, **deleteCookie**, **getSignedCookie**,
   **setSignedCookie** - Cookie management
+- **getConnInfo** - Connection info
 - **validator** - Request validation
 - **createMiddleware**, **createFactory** - Factory functions
-- **serveStatic** - Static file serving (runtime-neutral; pass `getContent`)
+- **serveStatic**, **denoServeStatic** - Static file serving
 - **hc** - RPC client
 - **proxy** - Proxy requests
-
-### Runtime adapters
-
-Static files read from disk, the peer address (`getConnInfo`) and the WebSocket
-upgrade depend on the runtime, so they live on subpaths and never in the root
-barrel — importing `@lockness/hono` does not pin a runtime. They are meant for
-`@lockness/runtime` alone; until its HTTP layer lands, core's static file server
-and the devtools gate import the Deno one directly.
-
-| Subpath               | Wraps                                      | Loads on      |
-| :-------------------- | :----------------------------------------- | :------------ |
-| `@lockness/hono/deno` | `hono/deno`                                | Deno only     |
-| `@lockness/hono/bun`  | `hono/bun`                                 | Bun only      |
-| `@lockness/hono/node` | `@hono/node-server`, `@hono/node-ws` (npm) | every runtime |
-
-For framework maintainers: `denoServeStatic` and `getConnInfo` left this
-package's root barrel. Framework code that needs them imports `serveStatic` and
-`getConnInfo` from `@lockness/hono/deno`. Applications are unaffected: they
-import from `@lockness/core` (hard rule #1), which keeps `denoServeStatic` until
-the runtime-selected replacement lands.
-
-### JSX runtimes
-
-`@lockness/hono/jsx-runtime` (`jsx`, `jsxs`, `Fragment`) and
-`@lockness/hono/jsx-dev-runtime` (`jsxDEV`, `Fragment`) are the automatic JSX
-runtimes — the one JSX mode on every runtime. The precompile helpers
-(`jsxTemplate`, `jsxAttr`, `jsxEscape`) remain until the workspace leaves
-`jsx: precompile`.
 
 ## Import Patterns (Internal Use)
 

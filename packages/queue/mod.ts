@@ -70,11 +70,3 @@ export {
 // =============================================================================
 
 export { QueueWorker } from './worker.ts'
-
-// =============================================================================
-// CLI commands (queue:work, queue:clear, queue:retry)
-// =============================================================================
-
-// Found on this root by `@lockness/cli`'s package loader, which registers the
-// first `register*Commands` export of each loaded package (#592).
-export { registerQueueCommands } from './commands.ts'

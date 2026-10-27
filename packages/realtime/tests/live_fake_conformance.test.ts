@@ -21,7 +21,6 @@
  * @module @lockness/realtime/tests/live_fake_conformance
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import type { RespReply } from '../../redis/resp.ts'
 import { RedisClient } from '../../redis/mod.ts'
@@ -515,10 +514,10 @@ const SEQUENCES: Sequence[] = [
     },
 ]
 
-test(
-    '#285 the fake answers as a real broker does',
-    { skip: !LIVE_BROKER },
-    async function () {
+Deno.test({
+    name: '#285 the fake answers as a real broker does',
+    ignore: !LIVE_BROKER,
+    async fn() {
         const config = brokerConfig()
         await preflight(config)
         const live = new RedisClient(config)
@@ -623,446 +622,455 @@ test(
                 `${divergences.join('\n\n')}\n`,
         )
     },
-)
-
-test('#285 the revocation scripts agree, fake against broker', {
-    skip: !LIVE_BROKER,
-}, async function () {
-    // **The arm with the largest divergence surface, and the one the step
-    // table cannot reach.** `EVAL` is where the fake stops modelling a
-    // command and starts reimplementing a LANGUAGE: a 195-line Lua subset
-    // in `packages/redis/tests/lua_eval.ts` standing in for a real
-    // interpreter. Both #276 revocation scripts run through it, so the
-    // whole atomicity guarantee rests on that subset being right.
-    //
-    // The scripts are module-private and copying them here would be the
-    // verbatim-second-copy this package's own brief warns against. So this
-    // drives the real production path instead — `markRevocation` and
-    // `listRevocations` (one reap `EVAL`, then `ZSCAN` pages) on two
-    // drivers, one on each backend — which exercises EVAL through its
-    // actual caller and needs no export.
-    const config = brokerConfig()
-    await preflight(config)
-    const live = new RedisClient(config)
-    const fake = new FakeRedis()
-    const nothing = { psubscribe: () => {} }
-
-    try {
-        const onLive = new RedisBroadcastDriver(live, nothing, {
-            prefix: `${NS}-live`,
-            revocationTtlSeconds: 300,
-        })
-        const onFake = new RedisBroadcastDriver(
-            { command: fake.command },
-            nothing,
-            {
-                prefix: `${NS}-fake`,
-                revocationTtlSeconds: 300,
-            },
-        )
-
-        // Empty on both, before anything is written.
-        assertEquals(
-            (await onLive.listRevocations?.() ?? []).map((r) => r.target)
-                .sort(),
-            (await onFake.listRevocations?.() ?? []).map((r) => r.target)
-                .sort(),
-            'an empty revocation index disagreed',
-        )
-
-        for (const id of ['c1', 'c2', 'c3']) {
-            await onLive.markRevocation?.({ target: id })
-            await onFake.markRevocation?.({ target: id })
-        }
-
-        assertEquals(
-            (await onLive.listRevocations?.() ?? []).map((r) => r.target)
-                .sort(),
-            ['c1', 'c2', 'c3'],
-            'the live broker did not record the revocations',
-        )
-        assertEquals(
-            (await onFake.listRevocations?.() ?? []).map((r) => r.target)
-                .sort(),
-            (await onLive.listRevocations?.() ?? []).map((r) => r.target)
-                .sort(),
-            'the fake and the broker disagreed on the live revocation set',
-        )
-
-        // **The SCORES, not just the membership.** Comparing the set of
-        // ids cannot see a wrong `t`: mutate the Lua subset's `[n]`
-        // indexing so `TIME[1]` reads the microseconds field instead of
-        // the seconds one, and every score becomes ~300 instead of
-        // ~now+300 — while `ZREMRANGEBYSCORE -inf t` still reaps nothing
-        // and the `score > t` filter still keeps everything. Identical
-        // membership, completely wrong expiry. Measured: that mutant
-        // survived until this block existed.
-        //
-        // This is an INVARIANT check rather than a differential one, and
-        // that is the point — it catches the class the diff structurally
-        // cannot, because both sides would be wrong in the same way only
-        // if the broker were wrong too.
-        const now = Math.floor(Date.now() / 1000)
-        for (
-            const [label, driver] of [
-                ['broker', onLive],
-                ['fake', onFake],
-            ] as const
-        ) {
-            const key = `${NS}-${
-                label === 'broker' ? 'live' : 'fake'
-            }__revocations`
-            const client = label === 'broker' ? live : { command: fake.command }
-            const inWindow = await client.command(
-                'ZRANGEBYSCORE',
-                key,
-                String(now + 300 - 60),
-                String(now + 300 + 60),
-            ) as RespReply
-            assertEquals(
-                inWindow.type === 'array' ? inWindow.value.length : -1,
-                3,
-                `${label}: revocation scores are not ~now+ttl — a wrong ` +
-                    'clock source would keep the membership identical',
-            )
-            assertEquals(typeof driver.listRevocations, 'function')
-        }
-
-        // Re-marking is idempotent on both — GT keeps the later expiry and
-        // the member count does not grow.
-        await onLive.markRevocation?.({ target: 'c1' })
-        await onFake.markRevocation?.({ target: 'c1' })
-        assertEquals(
-            (await onFake.listRevocations?.() ?? []).map((r) => r.target)
-                .sort(),
-            (await onLive.listRevocations?.() ?? []).map((r) => r.target)
-                .sort(),
-            'a re-mark diverged',
-        )
-
-        // #332/#337: the CHANNEL scope and the exact clear, on both
-        // backends. The composite is a plain member string, so the fake's
-        // ZSET arms carry it unchanged — but `clearRevocation` needs ZREM,
-        // which the fake did not model at all until #332, and an unmodelled
-        // command is exactly the divergence this file exists to catch.
-        //
-        // TWO marks for ONE pair, then a clear of the first (#337). The
-        // index semantics the fix rests on are the broker's: `ZADD GT`
-        // must ADD the second member rather than update the first, and
-        // `ZREM` must remove one exact member. A fake that got either
-        // wrong would let a pair-keyed clear pass here.
-        const first = '5f0c1c8e-8a4e-4a57-9d8e-2f4b6b1d7c01'
-        const second = '5f0c1c8e-8a4e-4a57-9d8e-2f4b6b1d7c02'
-        for (const driver of [onLive, onFake]) {
-            for (const id of [first, second]) {
-                await driver.markRevocation?.({
-                    target: 'c1',
-                    channel: 'presence-room',
-                    id,
-                })
-            }
-        }
-        const scoped = (rs: Revocation[]) =>
-            rs.map((r) =>
-                r.channel === undefined
-                    ? `${r.target}/-`
-                    : `${r.target}/${r.channel}/${r.id}`
-            ).sort()
-        assertEquals(
-            scoped(await onFake.listRevocations?.() ?? []),
-            scoped(await onLive.listRevocations?.() ?? []),
-            'the channel-scoped records round-tripped differently — the ' +
-                'SCOPE and the ID are asserted here, not merely the ' +
-                'target, because a record that lost its channel is applied ' +
-                'as a socket kill and one that lost its id cannot be cleared',
-        )
-        // Only c1's records: earlier steps in this test mark other targets.
-        const c1 = async () =>
-            scoped(await onLive.listRevocations?.() ?? []).filter((r) =>
-                r.startsWith('c1/')
-            )
-        assertEquals(
-            await c1(),
-            [
-                'c1/-',
-                `c1/presence-room/${first}`,
-                `c1/presence-room/${second}`,
-            ],
-            'two revocations of one pair are two records on the broker',
-        )
-
-        for (const driver of [onLive, onFake]) {
-            await driver.clearRevocation?.({
-                target: 'c1',
-                channel: 'presence-room',
-                id: first,
-            })
-        }
-        assertEquals(
-            scoped(await onFake.listRevocations?.() ?? []),
-            scoped(await onLive.listRevocations?.() ?? []),
-            'clearing one record diverged',
-        )
-        assertEquals(
-            await c1(),
-            ['c1/-', `c1/presence-room/${second}`],
-            'the clear removed EXACTLY its own id: the newer record for the ' +
-                "same pair and c1's connection-scoped record both survive",
-        )
-    } finally {
-        await teardown(live, NS)
-        await live.close()
-    }
 })
 
-test('#323 the roster scripts agree, fake against broker', {
-    skip: !LIVE_BROKER,
-}, async function () {
-    // The same argument as the revocation arm, for the two scripts #323
-    // added. `holdMember` and `releaseMember` each became one `EVAL`, and the
-    // whole atomicity guarantee now rests on the fake's Lua subset agreeing
-    // with a real interpreter about two multi-key scripts — the file's
-    // first. Nothing else checks that.
-    //
-    // **What this arm can and cannot see.** It compares the OBSERVABLE
-    // roster through the production path on both backends, which is what
-    // the fake could get wrong. It cannot see cross-slot behaviour: a
-    // single-node broker accepts a multi-key `EVAL` that Redis Cluster would
-    // refuse, and that limitation is stated on HOLD_MEMBER_SCRIPT rather
-    // than pretended away here.
-    const config = brokerConfig()
-    await preflight(config)
-    const live = new RedisClient(config)
-    const fake = new FakeRedis()
-    const nothing = { psubscribe: () => {} }
-
-    try {
-        const onLive = new RedisBroadcastDriver(live, nothing, {
-            prefix: `${NS}-live-roster`,
-        })
-        const onFake = new RedisBroadcastDriver(
-            { command: fake.command },
-            nothing,
-            { prefix: `${NS}-fake-roster` },
-        )
-        const ids = (m: { id: string | number }[]) =>
-            m.map((x) => String(x.id)).sort()
-        const both = async (
-            run: (d: RedisBroadcastDriver) => Promise<void>,
-        ) => {
-            await run(onLive)
-            await run(onFake)
-        }
+Deno.test({
+    name: '#285 the revocation scripts agree, fake against broker',
+    ignore: !LIVE_BROKER,
+    async fn() {
+        // **The arm with the largest divergence surface, and the one the step
+        // table cannot reach.** `EVAL` is where the fake stops modelling a
+        // command and starts reimplementing a LANGUAGE: a 195-line Lua subset
+        // in `packages/redis/tests/lua_eval.ts` standing in for a real
+        // interpreter. Both #276 revocation scripts run through it, so the
+        // whole atomicity guarantee rests on that subset being right.
+        //
+        // The scripts are module-private and copying them here would be the
+        // verbatim-second-copy this package's own brief warns against. So this
+        // drives the real production path instead — `markRevocation` and
+        // `listRevocations` (one reap `EVAL`, then `ZSCAN` pages) on two
+        // drivers, one on each backend — which exercises EVAL through its
+        // actual caller and needs no export.
+        const config = brokerConfig()
+        await preflight(config)
+        const live = new RedisClient(config)
+        const fake = new FakeRedis()
+        const nothing = { psubscribe: () => {} }
 
         try {
-            await both((d) =>
-                d.holdMember('presence-room', {
-                    id: 'u1',
-                    info: { name: 'Ada' },
-                }).then(() => {})
-            )
-            await both((d) =>
-                d.holdMember('presence-room', { id: 'u2' }).then(() => {})
-            )
-
-            assertEquals(
-                ids(
-                    (await onLive.readRoster!('presence-room', 1_000, []))
-                        .members,
-                ),
-                ['u1', 'u2'],
-                'the live broker did not record the roster',
-            )
-            assertEquals(
-                ids(
-                    (await onFake.readRoster!('presence-room', 1_000, []))
-                        .members,
-                ),
-                ids(
-                    (await onLive.readRoster!('presence-room', 1_000, []))
-                        .members,
-                ),
-                'the fake and the broker disagreed on the roster after adds',
+            const onLive = new RedisBroadcastDriver(live, nothing, {
+                prefix: `${NS}-live`,
+                revocationTtlSeconds: 300,
+            })
+            const onFake = new RedisBroadcastDriver(
+                { command: fake.command },
+                nothing,
+                {
+                    prefix: `${NS}-fake`,
+                    revocationTtlSeconds: 300,
+                },
             )
 
-            await both((d) =>
-                d.releaseMember('presence-room', 'u1').then(() => {})
-            )
+            // Empty on both, before anything is written.
             assertEquals(
-                ids(
-                    (await onLive.readRoster!('presence-room', 1_000, []))
-                        .members,
-                ),
-                ['u2'],
-                'the live broker did not remove the member',
-            )
-            assertEquals(
-                ids(
-                    (await onFake.readRoster!('presence-room', 1_000, []))
-                        .members,
-                ),
-                ids(
-                    (await onLive.readRoster!('presence-room', 1_000, []))
-                        .members,
-                ),
-                'the fake and the broker disagreed after removals',
+                (await onLive.listRevocations?.() ?? []).map((r) => r.target)
+                    .sort(),
+                (await onFake.listRevocations?.() ?? []).map((r) => r.target)
+                    .sort(),
+                'an empty revocation index disagreed',
             )
 
-            // Idempotence, on both. The manager's best-effort reclaim after
-            // a failed join issues a removal for a member that may never
-            // have been written, so a second remove must be a no-op rather
-            // than an error on either backend.
-            await both((d) =>
-                d.releaseMember('presence-room', 'u1').then(() => {})
+            for (const id of ['c1', 'c2', 'c3']) {
+                await onLive.markRevocation?.({ target: id })
+                await onFake.markRevocation?.({ target: id })
+            }
+
+            assertEquals(
+                (await onLive.listRevocations?.() ?? []).map((r) => r.target)
+                    .sort(),
+                ['c1', 'c2', 'c3'],
+                'the live broker did not record the revocations',
             )
             assertEquals(
-                ids(
-                    (await onFake.readRoster!('presence-room', 1_000, []))
-                        .members,
-                ),
-                ids(
-                    (await onLive.readRoster!('presence-room', 1_000, []))
-                        .members,
-                ),
-                'a repeated removal diverged',
+                (await onFake.listRevocations?.() ?? []).map((r) => r.target)
+                    .sort(),
+                (await onLive.listRevocations?.() ?? []).map((r) => r.target)
+                    .sort(),
+                'the fake and the broker disagreed on the live revocation set',
+            )
+
+            // **The SCORES, not just the membership.** Comparing the set of
+            // ids cannot see a wrong `t`: mutate the Lua subset's `[n]`
+            // indexing so `TIME[1]` reads the microseconds field instead of
+            // the seconds one, and every score becomes ~300 instead of
+            // ~now+300 — while `ZREMRANGEBYSCORE -inf t` still reaps nothing
+            // and the `score > t` filter still keeps everything. Identical
+            // membership, completely wrong expiry. Measured: that mutant
+            // survived until this block existed.
+            //
+            // This is an INVARIANT check rather than a differential one, and
+            // that is the point — it catches the class the diff structurally
+            // cannot, because both sides would be wrong in the same way only
+            // if the broker were wrong too.
+            const now = Math.floor(Date.now() / 1000)
+            for (
+                const [label, driver] of [
+                    ['broker', onLive],
+                    ['fake', onFake],
+                ] as const
+            ) {
+                const key = `${NS}-${
+                    label === 'broker' ? 'live' : 'fake'
+                }__revocations`
+                const client = label === 'broker'
+                    ? live
+                    : { command: fake.command }
+                const inWindow = await client.command(
+                    'ZRANGEBYSCORE',
+                    key,
+                    String(now + 300 - 60),
+                    String(now + 300 + 60),
+                ) as RespReply
+                assertEquals(
+                    inWindow.type === 'array' ? inWindow.value.length : -1,
+                    3,
+                    `${label}: revocation scores are not ~now+ttl — a wrong ` +
+                        'clock source would keep the membership identical',
+                )
+                assertEquals(typeof driver.listRevocations, 'function')
+            }
+
+            // Re-marking is idempotent on both — GT keeps the later expiry and
+            // the member count does not grow.
+            await onLive.markRevocation?.({ target: 'c1' })
+            await onFake.markRevocation?.({ target: 'c1' })
+            assertEquals(
+                (await onFake.listRevocations?.() ?? []).map((r) => r.target)
+                    .sort(),
+                (await onLive.listRevocations?.() ?? []).map((r) => r.target)
+                    .sort(),
+                'a re-mark diverged',
+            )
+
+            // #332/#337: the CHANNEL scope and the exact clear, on both
+            // backends. The composite is a plain member string, so the fake's
+            // ZSET arms carry it unchanged — but `clearRevocation` needs ZREM,
+            // which the fake did not model at all until #332, and an unmodelled
+            // command is exactly the divergence this file exists to catch.
+            //
+            // TWO marks for ONE pair, then a clear of the first (#337). The
+            // index semantics the fix rests on are the broker's: `ZADD GT`
+            // must ADD the second member rather than update the first, and
+            // `ZREM` must remove one exact member. A fake that got either
+            // wrong would let a pair-keyed clear pass here.
+            const first = '5f0c1c8e-8a4e-4a57-9d8e-2f4b6b1d7c01'
+            const second = '5f0c1c8e-8a4e-4a57-9d8e-2f4b6b1d7c02'
+            for (const driver of [onLive, onFake]) {
+                for (const id of [first, second]) {
+                    await driver.markRevocation?.({
+                        target: 'c1',
+                        channel: 'presence-room',
+                        id,
+                    })
+                }
+            }
+            const scoped = (rs: Revocation[]) =>
+                rs.map((r) =>
+                    r.channel === undefined
+                        ? `${r.target}/-`
+                        : `${r.target}/${r.channel}/${r.id}`
+                ).sort()
+            assertEquals(
+                scoped(await onFake.listRevocations?.() ?? []),
+                scoped(await onLive.listRevocations?.() ?? []),
+                'the channel-scoped records round-tripped differently — the ' +
+                    'SCOPE and the ID are asserted here, not merely the ' +
+                    'target, because a record that lost its channel is applied ' +
+                    'as a socket kill and one that lost its id cannot be cleared',
+            )
+            // Only c1's records: earlier steps in this test mark other targets.
+            const c1 = async () =>
+                scoped(await onLive.listRevocations?.() ?? []).filter((r) =>
+                    r.startsWith('c1/')
+                )
+            assertEquals(
+                await c1(),
+                [
+                    'c1/-',
+                    `c1/presence-room/${first}`,
+                    `c1/presence-room/${second}`,
+                ],
+                'two revocations of one pair are two records on the broker',
+            )
+
+            for (const driver of [onLive, onFake]) {
+                await driver.clearRevocation?.({
+                    target: 'c1',
+                    channel: 'presence-room',
+                    id: first,
+                })
+            }
+            assertEquals(
+                scoped(await onFake.listRevocations?.() ?? []),
+                scoped(await onLive.listRevocations?.() ?? []),
+                'clearing one record diverged',
+            )
+            assertEquals(
+                await c1(),
+                ['c1/-', `c1/presence-room/${second}`],
+                'the clear removed EXACTLY its own id: the newer record for the ' +
+                    "same pair and c1's connection-scoped record both survive",
             )
         } finally {
-            await onLive.close()
-            await onFake.close()
+            await teardown(live, NS)
+            await live.close()
         }
-    } finally {
-        await teardown(live, NS)
-    }
+    },
 })
 
-test('#341 the bounded roster read holds its contract on a real broker', {
-    skip: !LIVE_BROKER,
-}, async function () {
-    // `READ_ROSTER_SCRIPT` is the one read a presence subscribe issues, and
-    // three of its properties rest on broker behaviour the fake only
-    // imitates: `HRANDFIELD`'s count semantics, `HMGET`'s refusal of zero
-    // fields, and the order a whole small hash comes back in. Each row
-    // below runs the production script on a real interpreter.
-    const config = brokerConfig()
-    await preflight(config)
-    const live = new RedisClient(config)
-    const nothing = { psubscribe: () => {} }
-    let commands = 0
-    const counting = {
-        command: (...argv: string[]) => {
-            commands++
-            return live.command(...argv)
-        },
-    }
-    const prefix = `${NS}-live-bounded`
-    const ROOM = 'presence-room'
-    const key = `${prefix}__presence:${ROOM}`
-    const driver = new RedisBroadcastDriver(counting, nothing, { prefix })
-    const ids = (members: { id: string | number }[]) =>
-        members.map((m) => String(m.id))
+Deno.test({
+    name: '#323 the roster scripts agree, fake against broker',
+    ignore: !LIVE_BROKER,
+    async fn() {
+        // The same argument as the revocation arm, for the two scripts #323
+        // added. `holdMember` and `releaseMember` each became one `EVAL`, and the
+        // whole atomicity guarantee now rests on the fake's Lua subset agreeing
+        // with a real interpreter about two multi-key scripts — the file's
+        // first. Nothing else checks that.
+        //
+        // **What this arm can and cannot see.** It compares the OBSERVABLE
+        // roster through the production path on both backends, which is what
+        // the fake could get wrong. It cannot see cross-slot behaviour: a
+        // single-node broker accepts a multi-key `EVAL` that Redis Cluster would
+        // refuse, and that limitation is stated on HOLD_MEMBER_SCRIPT rather
+        // than pretended away here.
+        const config = brokerConfig()
+        await preflight(config)
+        const live = new RedisClient(config)
+        const fake = new FakeRedis()
+        const nothing = { psubscribe: () => {} }
 
-    try {
-        // Seven members, each carrying its own id in `info`, so a self
-        // matched to the wrong entry is visible (S3).
-        const seeded = ['u1', 'u2', 'u3', 'u4', 'u5', 'u6', 'u7']
-        for (const id of seeded) {
-            await driver.holdMember(ROOM, { id, info: { of: id } })
-        }
-        const hlen = await live.command('HLEN', key) as RespReply
-        assertEquals(hlen, { type: 'integer', value: 7 }, 'the fixture')
-
-        // min(K, N) DISTINCT members, and `total === HLEN`.
-        const sampled = await driver.readRoster(ROOM, 3, [])
-        assertEquals(sampled.members.length, 3, 'min(limit, total)')
-        assertEquals(
-            new Set(ids(sampled.members)).size,
-            3,
-            'a positive count never repeats a member',
-        )
-        for (const member of sampled.members) {
-            assert(seeded.includes(String(member.id)), 'a stored member')
-        }
-        assertEquals(
-            sampled.total,
-            7,
-            '`total` is HLEN, read in the script',
-        )
-
-        // A room at or below the limit is the WHOLE hash in HGETALL order
-        // (SC-002). If this row fails, the script owes an `HGETALL` branch
-        // when `HLEN <= limit` — inside the same EVAL (S5).
-        const hash = await live.command('HGETALL', key) as RespReply
-        const hashOrder = hash.type === 'array'
-            ? hash.value.filter((_, i) => i % 2 === 0).map((field) =>
-                field.type === 'bulk' ? field.value : ''
+        try {
+            const onLive = new RedisBroadcastDriver(live, nothing, {
+                prefix: `${NS}-live-roster`,
+            })
+            const onFake = new RedisBroadcastDriver(
+                { command: fake.command },
+                nothing,
+                { prefix: `${NS}-fake-roster` },
             )
-            : []
-        const whole = await driver.readRoster(ROOM, 10, [])
-        assertEquals(hashOrder.length, 7)
-        assertEquals(
-            ids(whole.members),
-            hashOrder,
-            'a room that fits comes back whole, in the hash order',
-        )
-        assertEquals(whole.total, 7)
+            const ids = (m: { id: string | number }[]) =>
+                m.map((x) => String(x.id)).sort()
+            const both = async (
+                run: (d: RedisBroadcastDriver) => Promise<void>,
+            ) => {
+                await run(onLive)
+                await run(onFake)
+            }
 
-        // Zero self ids is a valid read on a real `HMGET` (A1): the script
-        // pads with `''`, which no member id can be.
-        assertEquals((await driver.readRoster(ROOM, 1, [])).selves, [])
+            try {
+                await both((d) =>
+                    d.holdMember('presence-room', {
+                        id: 'u1',
+                        info: { name: 'Ada' },
+                    }).then(() => {})
+                )
+                await both((d) =>
+                    d.holdMember('presence-room', { id: 'u2' }).then(() => {})
+                )
 
-        // An ABSENT id between two present ones yields only the present
-        // entries, each matched to its own id (S3).
-        const window = await driver.readRoster(ROOM, 1, [
-            'u2',
-            'nobody',
-            'u6',
-        ])
-        assertEquals(
-            window.selves.map((m) => [String(m.id), m.info]).sort(),
-            [['u2', { of: 'u2' }], ['u6', { of: 'u6' }]],
-            'a nil element must not shift a later self onto another entry',
-        )
-        for (const self of window.selves) {
+                assertEquals(
+                    ids(
+                        (await onLive.readRoster!('presence-room', 1_000, []))
+                            .members,
+                    ),
+                    ['u1', 'u2'],
+                    'the live broker did not record the roster',
+                )
+                assertEquals(
+                    ids(
+                        (await onFake.readRoster!('presence-room', 1_000, []))
+                            .members,
+                    ),
+                    ids(
+                        (await onLive.readRoster!('presence-room', 1_000, []))
+                            .members,
+                    ),
+                    'the fake and the broker disagreed on the roster after adds',
+                )
+
+                await both((d) =>
+                    d.releaseMember('presence-room', 'u1').then(() => {})
+                )
+                assertEquals(
+                    ids(
+                        (await onLive.readRoster!('presence-room', 1_000, []))
+                            .members,
+                    ),
+                    ['u2'],
+                    'the live broker did not remove the member',
+                )
+                assertEquals(
+                    ids(
+                        (await onFake.readRoster!('presence-room', 1_000, []))
+                            .members,
+                    ),
+                    ids(
+                        (await onLive.readRoster!('presence-room', 1_000, []))
+                            .members,
+                    ),
+                    'the fake and the broker disagreed after removals',
+                )
+
+                // Idempotence, on both. The manager's best-effort reclaim after
+                // a failed join issues a removal for a member that may never
+                // have been written, so a second remove must be a no-op rather
+                // than an error on either backend.
+                await both((d) =>
+                    d.releaseMember('presence-room', 'u1').then(() => {})
+                )
+                assertEquals(
+                    ids(
+                        (await onFake.readRoster!('presence-room', 1_000, []))
+                            .members,
+                    ),
+                    ids(
+                        (await onLive.readRoster!('presence-room', 1_000, []))
+                            .members,
+                    ),
+                    'a repeated removal diverged',
+                )
+            } finally {
+                await onLive.close()
+                await onFake.close()
+            }
+        } finally {
+            await teardown(live, NS)
+        }
+    },
+})
+
+Deno.test({
+    name: '#341 the bounded roster read holds its contract on a real broker',
+    ignore: !LIVE_BROKER,
+    async fn() {
+        // `READ_ROSTER_SCRIPT` is the one read a presence subscribe issues, and
+        // three of its properties rest on broker behaviour the fake only
+        // imitates: `HRANDFIELD`'s count semantics, `HMGET`'s refusal of zero
+        // fields, and the order a whole small hash comes back in. Each row
+        // below runs the production script on a real interpreter.
+        const config = brokerConfig()
+        await preflight(config)
+        const live = new RedisClient(config)
+        const nothing = { psubscribe: () => {} }
+        let commands = 0
+        const counting = {
+            command: (...argv: string[]) => {
+                commands++
+                return live.command(...argv)
+            },
+        }
+        const prefix = `${NS}-live-bounded`
+        const ROOM = 'presence-room'
+        const key = `${prefix}__presence:${ROOM}`
+        const driver = new RedisBroadcastDriver(counting, nothing, { prefix })
+        const ids = (members: { id: string | number }[]) =>
+            members.map((m) => String(m.id))
+
+        try {
+            // Seven members, each carrying its own id in `info`, so a self
+            // matched to the wrong entry is visible (S3).
+            const seeded = ['u1', 'u2', 'u3', 'u4', 'u5', 'u6', 'u7']
+            for (const id of seeded) {
+                await driver.holdMember(ROOM, { id, info: { of: id } })
+            }
+            const hlen = await live.command('HLEN', key) as RespReply
+            assertEquals(hlen, { type: 'integer', value: 7 }, 'the fixture')
+
+            // min(K, N) DISTINCT members, and `total === HLEN`.
+            const sampled = await driver.readRoster(ROOM, 3, [])
+            assertEquals(sampled.members.length, 3, 'min(limit, total)')
             assertEquals(
-                'owner' in self,
-                false,
-                'the stored owner never leaves the driver (S4)',
+                new Set(ids(sampled.members)).size,
+                3,
+                'a positive count never repeats a member',
             )
-        }
+            for (const member of sampled.members) {
+                assert(seeded.includes(String(member.id)), 'a stored member')
+            }
+            assertEquals(
+                sampled.total,
+                7,
+                '`total` is HLEN, read in the script',
+            )
 
-        // Invalid inputs throw BEFORE any command reaches the broker (S2).
-        const tooMany = Array.from(
-            { length: MAX_ROSTER_READ_SELF_IDS + 1 },
-            (_, i) => `id${i}`,
-        )
-        for (
-            const [label, limit, selves] of [
-                ['limit -1', -1, []],
-                ['limit 0', 0, []],
-                ['limit 1.5', 1.5, []],
-                ['MAX + 1 self ids', 3, tooMany],
-            ] as const
-        ) {
-            const before = commands
-            await assertRejects(
-                () => driver.readRoster(ROOM, limit, selves),
-                Error,
-                'readRoster',
-                `${label} was not refused`,
+            // A room at or below the limit is the WHOLE hash in HGETALL order
+            // (SC-002). If this row fails, the script owes an `HGETALL` branch
+            // when `HLEN <= limit` — inside the same EVAL (S5).
+            const hash = await live.command('HGETALL', key) as RespReply
+            const hashOrder = hash.type === 'array'
+                ? hash.value.filter((_, i) => i % 2 === 0).map((field) =>
+                    field.type === 'bulk' ? field.value : ''
+                )
+                : []
+            const whole = await driver.readRoster(ROOM, 10, [])
+            assertEquals(hashOrder.length, 7)
+            assertEquals(
+                ids(whole.members),
+                hashOrder,
+                'a room that fits comes back whole, in the hash order',
             )
-            assertEquals(commands, before, `${label} reached the broker`)
+            assertEquals(whole.total, 7)
+
+            // Zero self ids is a valid read on a real `HMGET` (A1): the script
+            // pads with `''`, which no member id can be.
+            assertEquals((await driver.readRoster(ROOM, 1, [])).selves, [])
+
+            // An ABSENT id between two present ones yields only the present
+            // entries, each matched to its own id (S3).
+            const window = await driver.readRoster(ROOM, 1, [
+                'u2',
+                'nobody',
+                'u6',
+            ])
+            assertEquals(
+                window.selves.map((m) => [String(m.id), m.info]).sort(),
+                [['u2', { of: 'u2' }], ['u6', { of: 'u6' }]],
+                'a nil element must not shift a later self onto another entry',
+            )
+            for (const self of window.selves) {
+                assertEquals(
+                    'owner' in self,
+                    false,
+                    'the stored owner never leaves the driver (S4)',
+                )
+            }
+
+            // Invalid inputs throw BEFORE any command reaches the broker (S2).
+            const tooMany = Array.from(
+                { length: MAX_ROSTER_READ_SELF_IDS + 1 },
+                (_, i) => `id${i}`,
+            )
+            for (
+                const [label, limit, selves] of [
+                    ['limit -1', -1, []],
+                    ['limit 0', 0, []],
+                    ['limit 1.5', 1.5, []],
+                    ['MAX + 1 self ids', 3, tooMany],
+                ] as const
+            ) {
+                const before = commands
+                await assertRejects(
+                    () => driver.readRoster(ROOM, limit, selves),
+                    Error,
+                    'readRoster',
+                    `${label} was not refused`,
+                )
+                assertEquals(commands, before, `${label} reached the broker`)
+            }
+        } finally {
+            await driver.close()
+            await teardown(live, NS)
+            await live.close()
         }
-    } finally {
-        await driver.close()
-        await teardown(live, NS)
-        await live.close()
-    }
+    },
 })
 
-test(
-    '#341 a read carrying MAX_ROSTER_READ_SELF_IDS self ids agrees, fake against broker',
-    { skip: !LIVE_BROKER },
-    async function () {
+Deno.test({
+    name:
+        '#341 a read carrying MAX_ROSTER_READ_SELF_IDS self ids agrees, fake against broker',
+    ignore: !LIVE_BROKER,
+    async fn() {
         // The cap is the one place the script's `unpack(ARGV, 2)` spreads its
         // largest argument list: the `''` padding plus 1 000 ids. The fake's
         // Lua subset and a real interpreter must agree on that call — a stack
@@ -1125,7 +1133,7 @@ test(
             await live.close()
         }
     },
-)
+})
 
 /**
  * Two roster drivers per backend, sharing that backend (#345). The sweep timings
@@ -1148,10 +1156,11 @@ function holderPair(
     return { a: make(), b: make() }
 }
 
-test(
-    '#345 holds and releases agree with a real broker (W1, W3, W5, W8, W11, invariant)',
-    { skip: !LIVE_BROKER },
-    async function () {
+Deno.test({
+    name:
+        '#345 holds and releases agree with a real broker (W1, W3, W5, W8, W11, invariant)',
+    ignore: !LIVE_BROKER,
+    async fn() {
         const config = brokerConfig()
         await preflight(config)
         const live = new RedisClient(config)
@@ -1248,59 +1257,62 @@ test(
             await live.close()
         }
     },
-)
-
-test('#345 a sweep releases, it does not delete (W2, W6) on a real broker', {
-    skip: !LIVE_BROKER,
-}, async function () {
-    const config = brokerConfig()
-    await preflight(config)
-    const live = new RedisClient(config)
-    const prefix = `${NS}-live-sweep`
-    const CH = 'presence-room'
-    const { a, b } = holderPair(live, prefix)
-    try {
-        await b.holdMember(CH, { id: 7, info: { from: 'B' } })
-        await a.holdMember(CH, { id: 7, info: { from: 'A' } })
-        await a.close()
-        // A's liveness key lapses (1 s TTL); B's reconcile sweeps A. Wait
-        // on the sweep's own effect — A's hold gone from the holders hash —
-        // not on a fixed sleep: the lapse and the next reconcile tick both
-        // run on the broker's clock, and a loaded host stretches them.
-        const holders = `${prefix}__holders:${CH} 7`
-        const deadline = Date.now() + 15_000
-        for (;;) {
-            const n = await live.command('HLEN', holders) as RespReply
-            if (n.type === 'integer' && n.value === 1) break
-            if (Date.now() > deadline) {
-                throw new Error(
-                    `precondition: B never swept A within 15 s (holders ${
-                        JSON.stringify(n)
-                    })`,
-                )
-            }
-            await new Promise((resolve) => setTimeout(resolve, 100))
-        }
-        const window = await b.readRoster(CH, 1_000, [])
-        assertEquals(
-            window.members.map((m) => [m.id, m.info]),
-            [[7, { from: 'B' }]],
-            'W2: a dead holder never removes a slot a live one holds',
-        )
-        // W6: A, swept while it believed itself live, releases — B untouched.
-        assertEquals(await a.releaseMember(CH, 7), { gone: false })
-        assertEquals((await b.readRoster(CH, 1_000, [])).total, 1)
-    } finally {
-        await b.close()
-        await teardown(live, NS)
-        await live.close()
-    }
 })
 
-test(
-    '#344 W5 one presence-join and one presence-leave across two managers on a real broker',
-    { skip: !LIVE_BROKER },
-    async function () {
+Deno.test({
+    name: '#345 a sweep releases, it does not delete (W2, W6) on a real broker',
+    ignore: !LIVE_BROKER,
+    async fn() {
+        const config = brokerConfig()
+        await preflight(config)
+        const live = new RedisClient(config)
+        const prefix = `${NS}-live-sweep`
+        const CH = 'presence-room'
+        const { a, b } = holderPair(live, prefix)
+        try {
+            await b.holdMember(CH, { id: 7, info: { from: 'B' } })
+            await a.holdMember(CH, { id: 7, info: { from: 'A' } })
+            await a.close()
+            // A's liveness key lapses (1 s TTL); B's reconcile sweeps A. Wait
+            // on the sweep's own effect — A's hold gone from the holders hash —
+            // not on a fixed sleep: the lapse and the next reconcile tick both
+            // run on the broker's clock, and a loaded host stretches them.
+            const holders = `${prefix}__holders:${CH} 7`
+            const deadline = Date.now() + 15_000
+            for (;;) {
+                const n = await live.command('HLEN', holders) as RespReply
+                if (n.type === 'integer' && n.value === 1) break
+                if (Date.now() > deadline) {
+                    throw new Error(
+                        `precondition: B never swept A within 15 s (holders ${
+                            JSON.stringify(n)
+                        })`,
+                    )
+                }
+                await new Promise((resolve) => setTimeout(resolve, 100))
+            }
+            const window = await b.readRoster(CH, 1_000, [])
+            assertEquals(
+                window.members.map((m) => [m.id, m.info]),
+                [[7, { from: 'B' }]],
+                'W2: a dead holder never removes a slot a live one holds',
+            )
+            // W6: A, swept while it believed itself live, releases — B untouched.
+            assertEquals(await a.releaseMember(CH, 7), { gone: false })
+            assertEquals((await b.readRoster(CH, 1_000, [])).total, 1)
+        } finally {
+            await b.close()
+            await teardown(live, NS)
+            await live.close()
+        }
+    },
+})
+
+Deno.test({
+    name:
+        '#344 W5 one presence-join and one presence-leave across two managers on a real broker',
+    ignore: !LIVE_BROKER,
+    async fn() {
         const config = brokerConfig()
         await preflight(config)
         const live = new RedisClient(config)
@@ -1364,7 +1376,7 @@ test(
             await live.close()
         }
     },
-)
+})
 
 /**
  * Drive one release sequence through a holder pair on `inner` and collect every
@@ -1453,7 +1465,7 @@ function assertReleaseReplies(
 // The fake half needs no broker, so it runs on every `deno task test`: the
 // sweep's departure is only as good as the fake's release reply, and a gated
 // row left that unguarded wherever no broker is configured.
-test('#348 FR-010 the release reply is the released entry when the slot empties, KEPT while a holder remains, 0 for a non-holder, on the fake', async () => {
+Deno.test('#348 FR-010 the release reply is the released entry when the slot empties, KEPT while a holder remains, 0 for a non-holder, on the fake', async () => {
     const fake = new FakeRedis()
     assertReleaseReplies(
         'fake',
@@ -1462,10 +1474,11 @@ test('#348 FR-010 the release reply is the released entry when the slot empties,
     fake.assertNoRejections()
 })
 
-test(
-    '#348 FR-010 the release reply is the released entry when the slot empties, KEPT while a holder remains, 0 for a non-holder, and the fake agrees with the broker',
-    { skip: !LIVE_BROKER },
-    async function () {
+Deno.test({
+    name:
+        '#348 FR-010 the release reply is the released entry when the slot empties, KEPT while a holder remains, 0 for a non-holder, and the fake agrees with the broker',
+    ignore: !LIVE_BROKER,
+    async fn() {
         const config = brokerConfig()
         await preflight(config)
         const live = new RedisClient(config)
@@ -1492,7 +1505,7 @@ test(
             await live.close()
         }
     },
-)
+})
 
 // --- #355 WC: the sweep's four release replies and three deregistration replies
 
@@ -1731,7 +1744,7 @@ async function assertSweepReplies(
 // The fake half needs no broker and runs on every `deno task test`, like the
 // FR-010 row above: the sweep's count and its "renewed" line are only as good
 // as the fake's replies.
-test('#355 WC the four release replies and three deregistration replies of a sweep, on the fake', async () => {
+Deno.test('#355 WC the four release replies and three deregistration replies of a sweep, on the fake', async () => {
     const fake = new FakeRedis()
     await assertSweepReplies(
         'fake',
@@ -1741,10 +1754,11 @@ test('#355 WC the four release replies and three deregistration replies of a swe
     fake.assertNoRejections()
 })
 
-test(
-    '#355 WC the four release replies and three deregistration replies of a sweep, and the fake agrees with the broker',
-    { skip: !LIVE_BROKER },
-    async function () {
+Deno.test({
+    name:
+        '#355 WC the four release replies and three deregistration replies of a sweep, and the fake agrees with the broker',
+    ignore: !LIVE_BROKER,
+    async fn() {
         const config = brokerConfig()
         await preflight(config)
         const live = new RedisClient(config)
@@ -1771,7 +1785,7 @@ test(
             await live.close()
         }
     },
-)
+})
 
 /**
  * Run `argv` on `client`, answering its reply or the message it was refused
@@ -1791,10 +1805,11 @@ async function replyOrRefusal(
     }
 }
 
-test(
-    '#349 WC SET … EX … GET answers nil, then the previous string, and refuses a hash — the fake agrees with the broker',
-    { skip: !LIVE_BROKER },
-    async function () {
+Deno.test({
+    name:
+        '#349 WC SET … EX … GET answers nil, then the previous string, and refuses a hash — the fake agrees with the broker',
+    ignore: !LIVE_BROKER,
+    async fn() {
         // The heartbeat reads its lapse bit from this reply (#349 FR-001).
         // Not a SEQUENCES entry: `GET` over a hash is refused by BOTH sides
         // (WRONGTYPE), and that runner asserts the broker ACCEPTS every
@@ -1878,7 +1893,7 @@ test(
             await live.close()
         }
     },
-)
+})
 
 /**
  * Walk `key` with `SSCAN … COUNT count` from cursor `0` back to `0`,
@@ -1911,10 +1926,11 @@ async function scanAll(
     return { members, calls }
 }
 
-test(
-    '#358 WC a full SSCAN iteration returns every seeded member, on the fake and on the broker — which needed more than one call',
-    { skip: !LIVE_BROKER },
-    async function () {
+Deno.test({
+    name:
+        '#358 WC a full SSCAN iteration returns every seeded member, on the fake and on the broker — which needed more than one call',
+    ignore: !LIVE_BROKER,
+    async fn() {
         // The one SCAN guarantee the sweep relies on: a member present for
         // the whole iteration is returned. Page CONTENTS are the hashtable
         // walk and legitimately differ, so the comparison is the union. The
@@ -1951,7 +1967,7 @@ test(
             await live.close()
         }
     },
-)
+})
 
 /**
  * Walk `key` with `ZSCAN … COUNT count` from cursor `0` back to `0`,
@@ -1993,10 +2009,11 @@ async function zscanAll(
     return { pairs, calls }
 }
 
-test(
-    '#359 WC a full ZSCAN iteration returns every seeded (member, score) pair, on the fake and on the broker — which needed more than one call',
-    { skip: !LIVE_BROKER },
-    async function () {
+Deno.test({
+    name:
+        '#359 WC a full ZSCAN iteration returns every seeded (member, score) pair, on the fake and on the broker — which needed more than one call',
+    ignore: !LIVE_BROKER,
+    async fn() {
         // The one SCAN guarantee the revocation pass relies on — a record
         // present for the whole iteration is returned — plus the score each
         // record carries, since the pass reads liveness from it. Page CONTENTS
@@ -2043,12 +2060,13 @@ test(
             await live.close()
         }
     },
-)
+})
 
-test(
-    '#359 WC a score MARK_REVOKED_SCRIPT writes reads back through ZSCAN as a decimal-integer string, on the fake and on the broker',
-    { skip: !LIVE_BROKER },
-    async function () {
+Deno.test({
+    name:
+        '#359 WC a score MARK_REVOKED_SCRIPT writes reads back through ZSCAN as a decimal-integer string, on the fake and on the broker',
+    ignore: !LIVE_BROKER,
+    async fn() {
         // The pass parses every score it reads with one strict grammar
         // (canonical epoch seconds). A broker that wrote `1.8e9`, or `1800000300.0`,
         // would leave every revocation unenforced — so the format the
@@ -2094,7 +2112,7 @@ test(
             await live.close()
         }
     },
-)
+})
 
 /**
  * #380 WC: the revocation floor one driver leaves behind, read raw on each
@@ -2147,10 +2165,11 @@ for (
         ],
     ] as const
 ) {
-    test(
-        `#380 WC ${row} writes the same revocation floor, fake against broker`,
-        { skip: !LIVE_BROKER },
-        async function () {
+    Deno.test({
+        name:
+            `#380 WC ${row} writes the same revocation floor, fake against broker`,
+        ignore: !LIVE_BROKER,
+        async fn() {
             const config = brokerConfig()
             await preflight(config)
             const live = new RedisClient(config)
@@ -2209,5 +2228,5 @@ for (
                 await live.close()
             }
         },
-    )
+    })
 }

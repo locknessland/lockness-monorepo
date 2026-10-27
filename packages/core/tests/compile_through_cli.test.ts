@@ -15,12 +15,11 @@
  * @module @lockness/core/tests/compile_through_cli
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { Cli } from '@lockness/cli'
 import { registerCoreCommands } from '../mod.ts'
 
-test('compile - through a real Cli, no kernel file exits 1 with one ❌ line', async () => {
+Deno.test('compile - through a real Cli, no kernel file exits 1 with one ❌ line', async () => {
     const dir = await Deno.makeTempDir({ prefix: 'lockness-compile-cli-' })
     const previous = Deno.cwd()
     const original = { log: console.log, error: console.error }

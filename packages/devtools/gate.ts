@@ -17,8 +17,7 @@
  */
 
 import { isExplicitlyDevelopment } from '@lockness/contract'
-import { readEnvVar } from '@lockness/contract/environment/read/internal'
-import { getConnInfo } from '@lockness/hono/deno'
+import { getConnInfo } from '@lockness/hono'
 import type { Context } from '@lockness/hono'
 import { collector } from './collector.ts'
 import type { DevtoolsConfig } from './types.ts'
@@ -29,12 +28,9 @@ import type { DevtoolsConfig } from './types.ts'
  * `true` only when the environment is **explicitly** development
  * (`APP_ENV` is `development`) or the operator opts in with
  * `LOCKNESS_DEVTOOLS=1`. Ambiguous, unset, production, and no-`--allow-env`
- * states all resolve to `false` (fail closed). The opt-in is read through
- * contract's prompt-free read, an unreadable switch being off (#624).
+ * states all resolve to `false` (fail closed). Never throws.
  *
  * @returns `true` when devtools is allowed to be active.
- * @throws {Deno.errors.InvalidData} When `LOCKNESS_DEVTOOLS` holds a value that
- *   is not valid Unicode.
  *
  * @example
  * ```typescript
@@ -43,7 +39,11 @@ import type { DevtoolsConfig } from './types.ts'
  */
 export function devtoolsActive(): boolean {
     if (isExplicitlyDevelopment()) return true
-    return readEnvVar('LOCKNESS_DEVTOOLS') === '1'
+    try {
+        return Deno.env.get('LOCKNESS_DEVTOOLS') === '1'
+    } catch {
+        return false
+    }
 }
 
 /**

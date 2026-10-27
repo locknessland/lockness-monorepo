@@ -42,7 +42,7 @@ Every Lockness project ships an `AGENTS.md` (symlinked to `CLAUDE.md`) at its
 root with the framework's hard rules, and a per-package `AGENTS.md` beside each
 `packages/*`. Tools that read project files (Claude Code, Cursor, and similar)
 pick these up automatically — no configuration needed. They carry the rules a
-docs page cannot: "import from `@lockness/core`, never `hono`", the per-package
+docs page cannot: "import from `@lockness/core`, never `hono`", the JSR-only
 dependency policy, the MVC layering, and so on.
 
 ## Which to use

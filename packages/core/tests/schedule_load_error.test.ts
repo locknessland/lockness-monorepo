@@ -18,7 +18,6 @@
  * hand-built error would prove nothing.
  */
 
-import { test } from 'node:test'
 import {
     assert,
     assertEquals,
@@ -140,7 +139,7 @@ async function complaints(body: () => Promise<unknown>): Promise<string> {
     return lines.join('\n')
 }
 
-test('#521 a schedule file importing an unresolvable specifier refuses the boot, naming the file', async () => {
+Deno.test('#521 a schedule file importing an unresolvable specifier refuses the boot, naming the file', async () => {
     await withScheduler(() =>
         withDir(
             { 'healthy.ts': HEALTHY, 'unresolvable_schedule.ts': UNRESOLVABLE },
@@ -160,7 +159,7 @@ test('#521 a schedule file importing an unresolvable specifier refuses the boot,
     )
 })
 
-test('#521 a schedule file in a nested subdirectory that throws while it loads refuses the boot', async () => {
+Deno.test('#521 a schedule file in a nested subdirectory that throws while it loads refuses the boot', async () => {
     await withScheduler(() =>
         withDir({ 'nested/throwing_schedule.ts': THROWING }, async (rel) => {
             const error = await refusal({ schedulesDir: rel })
@@ -170,7 +169,7 @@ test('#521 a schedule file in a nested subdirectory that throws while it loads r
     )
 })
 
-test('#521 a schedule module that throws NotFound is a broken file, not an absent directory', async () => {
+Deno.test('#521 a schedule module that throws NotFound is a broken file, not an absent directory', async () => {
     await withScheduler(() =>
         withDir({ 'reads_missing.ts': READS_MISSING }, async (rel) => {
             const error = await refusal({ schedulesDir: rel })
@@ -180,7 +179,7 @@ test('#521 a schedule module that throws NotFound is a broken file, not an absen
     )
 })
 
-test('#521 createApp() rejects with ScheduleLoadError when a schedule module throws NotFound', async () => {
+Deno.test('#521 createApp() rejects with ScheduleLoadError when a schedule module throws NotFound', async () => {
     await withScheduler(() =>
         withDir({ 'reads_missing.ts': READS_MISSING }, async (rel) => {
             @Kernel({
@@ -199,7 +198,7 @@ test('#521 createApp() rejects with ScheduleLoadError when a schedule module thr
     )
 })
 
-test('#521 the error carries no cause, so an uncaught refusal prints only the rendered line', async () => {
+Deno.test('#521 the error carries no cause, so an uncaught refusal prints only the rendered line', async () => {
     await withDir({ 'throwing.ts': THROWING }, async (rel) => {
         const error = await assertRejects(
             () => discoverSchedules(rel, new Scheduler()),
@@ -209,7 +208,7 @@ test('#521 the error carries no cause, so an uncaught refusal prints only the re
     })
 })
 
-test('#521 a refused boot names the file on one line, outside a stack trace', async () => {
+Deno.test('#521 a refused boot names the file on one line, outside a stack trace', async () => {
     await withDir({ 'broken.ts': UNRESOLVABLE }, async (rel) => {
         const error = await assertRejects(
             () => discoverSchedules(rel, new Scheduler()),
@@ -223,7 +222,7 @@ test('#521 a refused boot names the file on one line, outside a stack trace', as
     })
 })
 
-test('#521 a duplicate task name is still reported as itself, not as a load failure', async () => {
+Deno.test('#521 a duplicate task name is still reported as itself, not as a load failure', async () => {
     // The wrap covers the import only. The duplicate-name refusal raised while
     // registering must keep its own message, which names both files.
     const source = (cls: string) =>
@@ -239,7 +238,7 @@ test('#521 a duplicate task name is still reported as itself, not as a load fail
     })
 })
 
-test('#521 discoverSchedules still reports an absent directory as NotFound', async () => {
+Deno.test('#521 discoverSchedules still reports an absent directory as NotFound', async () => {
     await assertRejects(
         () => discoverSchedules(ABSENT, new Scheduler()),
         Deno.errors.NotFound,
@@ -252,7 +251,7 @@ class ExplicitSchedule {
     purge(): void {}
 }
 
-test('#521 an absent schedules directory boots silently and the explicit schedules register', async () => {
+Deno.test('#521 an absent schedules directory boots silently and the explicit schedules register', async () => {
     await withScheduler(async () => {
         const output = await complaints(() =>
             Promise.resolve(

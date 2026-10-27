@@ -9,7 +9,6 @@
  * @module @lockness/cli/tests/make_action
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { Cli } from '../mod.ts'
 import { MAKE_COMMANDS } from '../commands/make/index.ts'
@@ -73,8 +72,8 @@ function coreImportNames(content: string): string[] {
     return match[1].split(',').map((name) => name.trim())
 }
 
-test('make:action - decorator import', async (t) => {
-    await t.test('--method=post adds Post to the stub import', async () => {
+Deno.test('make:action - decorator import', async (t) => {
+    await t.step('--method=post adds Post to the stub import', async () => {
         const { status, controller, error } = await runAction(
             ['User', 'store', '--method=post'],
             () => writeStubController('User'),
@@ -85,7 +84,7 @@ test('make:action - decorator import', async (t) => {
         assert(!controller.includes("'lockness/core'"), controller)
     })
 
-    await t.test(
+    await t.step(
         'a class named like the decorator does not hide it',
         async () => {
             // `PostController` contains `Post`; the import still lacks it.
@@ -99,7 +98,7 @@ test('make:action - decorator import', async (t) => {
         },
     )
 
-    await t.test('a decorator already imported is not repeated', async () => {
+    await t.step('a decorator already imported is not repeated', async () => {
         const { controller } = await runAction(
             ['User', 'about'],
             () => writeStubController('User'),
@@ -109,7 +108,7 @@ test('make:action - decorator import', async (t) => {
         assertEquals(names.filter((name) => name === 'Get').length, 1)
     })
 
-    await t.test(
+    await t.step(
         'a controller without the import gets one at the top',
         async () => {
             const { status, controller, error } = await runAction(
@@ -136,8 +135,8 @@ test('make:action - decorator import', async (t) => {
     )
 })
 
-test('make:action - view import', async (t) => {
-    await t.test(
+Deno.test('make:action - view import', async (t) => {
+    await t.step(
         '--view imports the view right after @lockness/core',
         async () => {
             const { status, controller, error } = await runAction(

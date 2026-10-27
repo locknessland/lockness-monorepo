@@ -7,7 +7,6 @@
  * literal.
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { join } from '@std/path'
 import { renderError } from '../logging/sanitize.ts'
@@ -64,7 +63,7 @@ const REJECTED: [string, unknown][] = [
     ['a symbol', Symbol('ENOENT')],
 ]
 
-test('#491 a code spelled like a runtime or driver code is shown', () => {
+Deno.test('#491 a code spelled like a runtime or driver code is shown', () => {
     assertEquals(LONGEST_NODE_CODE.length, 43)
     for (const code of ACCEPTED) {
         assert(isShowableErrorCode(code), code)
@@ -72,7 +71,7 @@ test('#491 a code spelled like a runtime or driver code is shown', () => {
     }
 })
 
-test('#491 a code spelled like anything else is never shown', () => {
+Deno.test('#491 a code spelled like anything else is never shown', () => {
     for (const [label, code] of REJECTED) {
         assertEquals(isShowableErrorCode(code), false, label)
         const out = renderError(withCode(code))
@@ -81,7 +80,7 @@ test('#491 a code spelled like anything else is never shown', () => {
     }
 })
 
-test('#491 a pg-shaped error shows its SQLSTATE and never its detail or hint', () => {
+Deno.test('#491 a pg-shaped error shows its SQLSTATE and never its detail or hint', () => {
     const detailMarker = `${M}-detail`
     const hintMarker = `${M}-hint`
     const error = Object.assign(
@@ -107,7 +106,7 @@ test('#491 a pg-shaped error shows its SQLSTATE and never its detail or hint', (
     assertAbsent(out, M)
 })
 
-test('#491 a cause link shows its own code; a link past the cap never does', () => {
+Deno.test('#491 a cause link shows its own code; a link past the cap never does', () => {
     const third = Object.assign(new Error('three'), { code: '42P01' })
     const second = new Error('two', { cause: third })
     const first = Object.assign(new Error('one', { cause: second }), {
@@ -121,7 +120,7 @@ test('#491 a cause link shows its own code; a link past the cap never does', () 
     assertAbsent(out, '42P01')
 })
 
-test('#491 with followCause false, only the head shows its code', () => {
+Deno.test('#491 with followCause false, only the head shows its code', () => {
     const cause = Object.assign(new Error('inner'), { code: 'ECONNREFUSED' })
     const head = Object.assign(new Error('outer', { cause }), {
         code: 'ENOENT',
@@ -132,7 +131,7 @@ test('#491 with followCause false, only the head shows its code', () => {
     )
 })
 
-test('#491 a throwing code getter renders a sentinel, name and message intact', () => {
+Deno.test('#491 a throwing code getter renders a sentinel, name and message intact', () => {
     const error = new Error('boom')
     Object.defineProperty(error, 'code', {
         get(): never {
@@ -144,7 +143,7 @@ test('#491 a throwing code getter renders a sentinel, name and message intact', 
     assertAbsent(out, M)
 })
 
-test('#491 an AggregateError shows its own code, never its members', () => {
+Deno.test('#491 an AggregateError shows its own code, never its members', () => {
     const member = () =>
         Object.assign(new Error('refused'), { code: 'ECONNREFUSED' })
     const own = Object.assign(new AggregateError([member(), member()], ''), {
@@ -157,7 +156,7 @@ test('#491 an AggregateError shows its own code, never its members', () => {
     assertEquals(renderError(membersOnly), 'AggregateError: ')
 })
 
-test('#491 a real missing file renders NotFound with its ENOENT', async () => {
+Deno.test('#491 a real missing file renders NotFound with its ENOENT', async () => {
     const dir = await Deno.makeTempDir({ prefix: 'error-code-491-' })
     try {
         let caught: unknown

@@ -1,4 +1,3 @@
-import { test } from 'node:test'
 import { assertStringIncludes } from '@std/assert'
 import { RootLayout } from '../components/RootLayout/mod.tsx'
 
@@ -10,8 +9,8 @@ function renderToString(component: unknown): string {
     return result.toString()
 }
 
-test('RootLayout component', async (t) => {
-    await t.test('renders HTML5 boilerplate', () => {
+Deno.test('RootLayout component', async (t) => {
+    await t.step('renders HTML5 boilerplate', () => {
         const html = renderToString(
             <RootLayout>
                 <div>Content</div>
@@ -24,7 +23,7 @@ test('RootLayout component', async (t) => {
         assertStringIncludes(html, 'viewport')
     })
 
-    await t.test('renders default title', () => {
+    await t.step('renders default title', () => {
         const html = renderToString(
             <RootLayout>
                 <div>Content</div>
@@ -33,7 +32,7 @@ test('RootLayout component', async (t) => {
         assertStringIncludes(html, '<title>Lockness App</title>')
     })
 
-    await t.test('renders custom title', () => {
+    await t.step('renders custom title', () => {
         const html = renderToString(
             <RootLayout title='My Custom App'>
                 <div>Content</div>
@@ -42,7 +41,7 @@ test('RootLayout component', async (t) => {
         assertStringIncludes(html, '<title>My Custom App</title>')
     })
 
-    await t.test('includes Unpoly CDN links', () => {
+    await t.step('includes Unpoly CDN links', () => {
         const html = renderToString(
             <RootLayout>
                 <div>Content</div>
@@ -60,7 +59,7 @@ test('RootLayout component', async (t) => {
         )
     })
 
-    await t.test('renders children content', () => {
+    await t.step('renders children content', () => {
         const html = renderToString(
             <RootLayout>
                 <main class='container'>
@@ -72,7 +71,7 @@ test('RootLayout component', async (t) => {
         assertStringIncludes(html, '<h1>Hello World</h1>')
     })
 
-    await t.test('renders custom meta tags', () => {
+    await t.step('renders custom meta tags', () => {
         const html = renderToString(
             <RootLayout
                 meta={[
@@ -92,7 +91,7 @@ test('RootLayout component', async (t) => {
         assertStringIncludes(html, 'property="og:title"')
     })
 
-    await t.test('renders custom styles', () => {
+    await t.step('renders custom styles', () => {
         const html = renderToString(
             <RootLayout
                 styles={[
@@ -107,7 +106,7 @@ test('RootLayout component', async (t) => {
         assertStringIncludes(html, 'body { margin: 0; }')
     })
 
-    await t.test('renders custom scripts', () => {
+    await t.step('renders custom scripts', () => {
         const html = renderToString(
             <RootLayout
                 scripts={[
@@ -123,7 +122,7 @@ test('RootLayout component', async (t) => {
         assertStringIncludes(html, 'console.log')
     })
 
-    await t.test('renders complete page structure', () => {
+    await t.step('renders complete page structure', () => {
         const html = renderToString(
             <RootLayout
                 title='Dashboard'

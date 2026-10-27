@@ -10,7 +10,6 @@
  * @module @lockness/auth-provider/tests/token_provider_base
  */
 
-import { test } from 'node:test'
 import {
     assert,
     assertEquals,
@@ -41,7 +40,7 @@ async function sha256(value: string): Promise<string> {
 // Issue
 // -----------------------------------------------------------------------------
 
-test('createToken stores only the SHA-256 hash, never the plaintext', async () => {
+Deno.test('createToken stores only the SHA-256 hash, never the plaintext', async () => {
     const { provider, alice } = setup()
     const token = await provider.createToken(alice, 'cli')
 
@@ -60,7 +59,7 @@ test('createToken stores only the SHA-256 hash, never the plaintext', async () =
     assertEquals(token.identifier, row.id)
 })
 
-test('createToken writes an expiry — one year by default, expiresIn milliseconds otherwise', async () => {
+Deno.test('createToken writes an expiry — one year by default, expiresIn milliseconds otherwise', async () => {
     using _time = new FakeTime(new Date('2026-01-01T00:00:00Z'))
     const { provider, alice } = setup()
 
@@ -75,7 +74,7 @@ test('createToken writes an expiry — one year by default, expiresIn millisecon
     assertEquals(hourly.expiresAt?.getTime(), Date.now() + 60 * MINUTE)
 })
 
-test('createToken refuses an expiresIn that is not a finite positive duration', async () => {
+Deno.test('createToken refuses an expiresIn that is not a finite positive duration', async () => {
     const { provider, alice } = setup()
     for (const bad of [0, -1, Number.NaN, Infinity, 8.64e15 + 1]) {
         await assertRejects(
@@ -86,7 +85,7 @@ test('createToken refuses an expiresIn that is not a finite positive duration', 
     assertEquals(provider.rows.size, 0, 'nothing stored on refusal')
 })
 
-test('a tokenLength under 16 bytes is refused, a larger one honoured', async () => {
+Deno.test('a tokenLength under 16 bytes is refused, a larger one honoured', async () => {
     assertThrows(() => setup({ tokenLength: 15 }), RangeError)
     assertThrows(() => setup({ tokenLength: 16.5 }), RangeError)
     const { provider, alice } = setup({ tokenLength: 16 })
@@ -98,7 +97,7 @@ test('a tokenLength under 16 bytes is refused, a larger one honoured', async () 
 // Verify — allow
 // -----------------------------------------------------------------------------
 
-test('a minted token verifies, and the verified token carries no plaintext', async () => {
+Deno.test('a minted token verifies, and the verified token carries no plaintext', async () => {
     const { provider, alice } = setup()
     const issued = await provider.createToken(alice, 'cli')
 
@@ -115,7 +114,7 @@ test('a minted token verifies, and the verified token carries no plaintext', asy
 // Verify — deny
 // -----------------------------------------------------------------------------
 
-test('an unknown, empty or non-string token does not verify', async () => {
+Deno.test('an unknown, empty or non-string token does not verify', async () => {
     const { provider, alice } = setup()
     await provider.createToken(alice, 'cli')
     assertEquals(await provider.verifyToken('never-issued'), null)
@@ -126,7 +125,7 @@ test('an unknown, empty or non-string token does not verify', async () => {
     )
 })
 
-test('an expired token does not verify — including exactly at expiresAt', async () => {
+Deno.test('an expired token does not verify — including exactly at expiresAt', async () => {
     using time = new FakeTime(new Date('2026-01-01T00:00:00Z'))
     const { provider, alice } = setup()
     const issued = await provider.createToken(alice, 'cli', MINUTE)
@@ -142,7 +141,7 @@ test('an expired token does not verify — including exactly at expiresAt', asyn
     assertEquals(provider.rows.size, 1, 'expired rows are not deleted')
 })
 
-test('a row with a null or Invalid Date expiry does not verify', async () => {
+Deno.test('a row with a null or Invalid Date expiry does not verify', async () => {
     const { provider, alice } = setup()
     const issued = await provider.createToken(alice, 'cli')
 
@@ -153,7 +152,7 @@ test('a row with a null or Invalid Date expiry does not verify', async () => {
     assertEquals(await provider.verifyToken(issued.value), null)
 })
 
-test('deleteToken revokes, and only the owner can revoke', async () => {
+Deno.test('deleteToken revokes, and only the owner can revoke', async () => {
     const { provider, alice, bob } = setup()
     const issued = await provider.createToken(alice, 'cli')
 
@@ -168,7 +167,7 @@ test('deleteToken revokes, and only the owner can revoke', async () => {
     assertEquals(await provider.verifyToken(issued.value), null)
 })
 
-test("deleteAllTokens revokes every token of that user and leaves other users' tokens live", async () => {
+Deno.test("deleteAllTokens revokes every token of that user and leaves other users' tokens live", async () => {
     const { provider, alice, bob } = setup()
     const a1 = await provider.createToken(alice, 'one')
     const a2 = await provider.createToken(alice, 'two')
@@ -180,14 +179,14 @@ test("deleteAllTokens revokes every token of that user and leaves other users' t
     assert(await provider.verifyToken(b1.value), "bob's token stays live")
 })
 
-test('an orphan token (its user is gone) does not verify', async () => {
+Deno.test('an orphan token (its user is gone) does not verify', async () => {
     const { provider, alice } = setup()
     const issued = await provider.createToken(alice, 'cli')
     provider.users.delete(1)
     assertEquals(await provider.verifyToken(issued.value), null)
 })
 
-test('a lookup that returns a row with another hash does not verify', async () => {
+Deno.test('a lookup that returns a row with another hash does not verify', async () => {
     const { provider, alice } = setup()
     const victim = await provider.createToken(alice, 'cli')
     provider.wrongRow = { ...[...provider.rows.values()][0] }
@@ -198,7 +197,7 @@ test('a lookup that returns a row with another hash does not verify', async () =
     assert(await provider.verifyToken(victim.value))
 })
 
-test('a throwing lookup makes verifyToken reject, never allow', async () => {
+Deno.test('a throwing lookup makes verifyToken reject, never allow', async () => {
     const { provider, alice } = setup()
     const issued = await provider.createToken(alice, 'cli')
     provider.failLookup = true
@@ -209,7 +208,7 @@ test('a throwing lookup makes verifyToken reject, never allow', async () => {
     )
 })
 
-test('a throwing findById makes verifyToken reject, never allow', async () => {
+Deno.test('a throwing findById makes verifyToken reject, never allow', async () => {
     const { provider, alice } = setup()
     const issued = await provider.createToken(alice, 'cli')
     provider.failFindById = true
@@ -224,7 +223,7 @@ test('a throwing findById makes verifyToken reject, never allow', async () => {
 // Last use
 // -----------------------------------------------------------------------------
 
-test('a failed last-use write still verifies, and warns once without the plaintext', async () => {
+Deno.test('a failed last-use write still verifies, and warns once without the plaintext', async () => {
     const { provider, alice } = setup()
     const issued = await provider.createToken(alice, 'cli')
     provider.failTouch = true
@@ -242,7 +241,7 @@ test('a failed last-use write still verifies, and warns once without the plainte
     }
 })
 
-test('lastUsedAt is written on first use, then at most once a minute', async () => {
+Deno.test('lastUsedAt is written on first use, then at most once a minute', async () => {
     using time = new FakeTime(new Date('2026-01-01T00:00:00Z'))
     const { provider, alice } = setup()
     const issued = await provider.createToken(alice, 'cli')

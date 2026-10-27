@@ -9,7 +9,6 @@
  * @module @lockness/realtime/tests/presence_roster_guard
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertThrows } from '@std/assert'
 import { ChannelManager, presenceRoster } from '../manager.ts'
 import type {
@@ -51,14 +50,14 @@ class PartialPresenceDriver implements BroadcastDriver {
     // releaseMember + readRoster intentionally absent.
 }
 
-test('presenceRoster narrows a fully presence-capable driver', async () => {
+Deno.test('presenceRoster narrows a fully presence-capable driver', async () => {
     const roster = presenceRoster(new FullPresenceDriver())
     assert(roster !== undefined)
     // The narrowed type exposes the ops without a per-call probe.
     assertEquals((await roster.readRoster('presence-lobby', 1, [])).members, [])
 })
 
-test('presenceRoster narrows the memory driver — it now owns an in-process roster', async () => {
+Deno.test('presenceRoster narrows the memory driver — it now owns an in-process roster', async () => {
     // US2 moved the roster onto the driver, including the memory driver (FR-005,
     // decision-table §5): it is now presence-capable, in-process.
     const roster = presenceRoster(new MemoryBroadcastDriver())
@@ -72,11 +71,11 @@ class BareDriver implements BroadcastDriver {
     onMessage(_handler: (message: BroadcastMessage) => void): void {}
 }
 
-test('presenceRoster returns undefined for a driver with no roster ops', () => {
+Deno.test('presenceRoster returns undefined for a driver with no roster ops', () => {
     assertEquals(presenceRoster(new BareDriver()), undefined)
 })
 
-test('presenceRoster returns undefined when any op is missing (all-or-nothing)', () => {
+Deno.test('presenceRoster returns undefined when any op is missing (all-or-nothing)', () => {
     assertEquals(presenceRoster(new PartialPresenceDriver()), undefined)
 })
 
@@ -93,7 +92,7 @@ const bounded = () => ({
     readRoster: () => window,
 })
 
-test('#341 presenceRoster is holdMember + releaseMember + readRoster', () => {
+Deno.test('#341 presenceRoster is holdMember + releaseMember + readRoster', () => {
     const driver: BroadcastDriver = bounded()
     const roster = presenceRoster(driver)
     assert(roster !== undefined, 'a bounded-read driver owns the roster')
@@ -107,7 +106,7 @@ test('#341 presenceRoster is holdMember + releaseMember + readRoster', () => {
     )
 })
 
-test('#341 a driver still carrying listMembers is refused at construction, naming readRoster (US4)', () => {
+Deno.test('#341 a driver still carrying listMembers is refused at construction, naming readRoster (US4)', () => {
     const { readRoster: _dropped, ...preBounded } = bounded()
     for (
         const legacy of [
@@ -130,7 +129,7 @@ test('#341 a driver still carrying listMembers is refused at construction, namin
     }
 })
 
-test('#341 a driver with readRoster and no listMembers constructs', () => {
+Deno.test('#341 a driver with readRoster and no listMembers constructs', () => {
     const m = new ChannelManager({ driver: bounded() })
     assert(m instanceof ChannelManager)
     assert(

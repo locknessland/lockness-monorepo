@@ -5,7 +5,6 @@
  * allowlist) and that the meta excerpt is plain, markup-free text (S3).
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import {
     plaintextExcerpt,
@@ -19,39 +18,39 @@ async function toHtml(node: unknown): Promise<string> {
     return String(resolved)
 }
 
-test('renderPostBody - drops <script> from the output (allowlist)', async () => {
+Deno.test('renderPostBody - drops <script> from the output (allowlist)', async () => {
     const html = await toHtml(
         await renderPostBody('Hello\n\n<script>alert(1)</script>'),
     )
     assert(!html.includes('<script'), 'no <script> tag may survive')
 })
 
-test('renderPostBody - drops onerror handler attributes (allowlist)', async () => {
+Deno.test('renderPostBody - drops onerror handler attributes (allowlist)', async () => {
     const html = await toHtml(
         await renderPostBody('<img src=x onerror="alert(2)">'),
     )
     assert(!html.includes('onerror'), 'no onerror handler may survive')
 })
 
-test('plaintextExcerpt - strips markdown to plain text (S3)', () => {
+Deno.test('plaintextExcerpt - strips markdown to plain text (S3)', () => {
     const excerpt = plaintextExcerpt('# Title\n\nHello **world** and `code`.')
     assertEquals(excerpt, 'Hello world and code.')
 })
 
-test('plaintextExcerpt - strips HTML tags so the meta is not markup (S3)', () => {
+Deno.test('plaintextExcerpt - strips HTML tags so the meta is not markup (S3)', () => {
     const excerpt = plaintextExcerpt('<b>bold</b> visible text')
     assert(!excerpt.includes('<'), 'excerpt must contain no angle brackets')
     assert(!excerpt.includes('>'), 'excerpt must contain no angle brackets')
     assertEquals(excerpt, 'bold visible text')
 })
 
-test('plaintextExcerpt - truncates long bodies with an ellipsis', () => {
+Deno.test('plaintextExcerpt - truncates long bodies with an ellipsis', () => {
     const excerpt = plaintextExcerpt('word '.repeat(100), 20)
     assert(excerpt.length <= 21, 'truncated to the cap plus the ellipsis')
     assert(excerpt.endsWith('…'), 'a truncated excerpt ends with an ellipsis')
 })
 
-test('plaintextExcerpt - keeps link text, drops the URL', () => {
+Deno.test('plaintextExcerpt - keeps link text, drops the URL', () => {
     const excerpt = plaintextExcerpt(
         'See [the docs](https://example.com/path).',
     )

@@ -10,7 +10,6 @@
  * @module @lockness/redis/tests/lua_eval
  */
 
-import { test } from 'node:test'
 import { assertEquals, assertThrows } from '@std/assert'
 import { evalLua, LuaEvalUnsupportedError } from './lua_eval.ts'
 
@@ -26,7 +25,7 @@ function recorder(replies: Record<string, string | string[]> = {}) {
     }
 }
 
-test('lua_eval - resolves KEYS, ARGV and literals into a call', () => {
+Deno.test('lua_eval - resolves KEYS, ARGV and literals into a call', () => {
     const r = recorder()
     evalLua(
         "redis.call('ZADD', KEYS[1], 'GT', ARGV[1], ARGV[2])",
@@ -40,13 +39,13 @@ test('lua_eval - resolves KEYS, ARGV and literals into a call', () => {
     ]])
 })
 
-test('lua_eval - indexes a call result, as TIME[1] requires', () => {
+Deno.test('lua_eval - indexes a call result, as TIME[1] requires', () => {
     const r = recorder({ TIME: ['1400', '512'] })
     const out = evalLua("return redis.call('TIME')[1]", [], [], r.call)
     assertEquals(out, '1400')
 })
 
-test("lua_eval - redis.call(...)['ok'] reads a status reply's flattened text (#405)", () => {
+Deno.test("lua_eval - redis.call(...)['ok'] reads a status reply's flattened text (#405)", () => {
     const r = recorder({ TYPE: 'string' })
     const out = evalLua(
         "return redis.call('TYPE', KEYS[1])['ok']",
@@ -57,7 +56,7 @@ test("lua_eval - redis.call(...)['ok'] reads a status reply's flattened text (#4
     assertEquals(out, 'string')
 })
 
-test("lua_eval - redis.call(...)['ok'] THROWS when the result is not a string", () => {
+Deno.test("lua_eval - redis.call(...)['ok'] THROWS when the result is not a string", () => {
     const r = recorder({ TIME: ['1000', '0'] })
     assertThrows(
         () => evalLua("return redis.call('TIME')['ok']", [], [], r.call),
@@ -65,7 +64,7 @@ test("lua_eval - redis.call(...)['ok'] THROWS when the result is not a string", 
     )
 })
 
-test('lua_eval - does integer arithmetic between resolved operands', () => {
+Deno.test('lua_eval - does integer arithmetic between resolved operands', () => {
     const r = recorder({ TIME: ['1000', '0'] })
     evalLua(
         "local t = redis.call('TIME')[1]\n" +
@@ -77,7 +76,7 @@ test('lua_eval - does integer arithmetic between resolved operands', () => {
     assertEquals(r.calls[1], ['ZADD', ['k', 'GT', '1300', 'conn-1']])
 })
 
-test('lua_eval - runs statements in order and returns the last call', () => {
+Deno.test('lua_eval - runs statements in order and returns the last call', () => {
     const r = recorder({ TIME: ['500', '0'], ZRANGEBYSCORE: ['a', 'b'] })
     const out = evalLua(
         "local t = redis.call('TIME')[1]\n" +
@@ -96,7 +95,7 @@ test('lua_eval - runs statements in order and returns the last call', () => {
     assertEquals(out, ['a', 'b'])
 })
 
-test('lua_eval - ignores comments and blank lines', () => {
+Deno.test('lua_eval - ignores comments and blank lines', () => {
     const r = recorder({ TIME: ['7', '0'] })
     const out = evalLua(
         "-- a comment\n\nreturn redis.call('TIME')[1] -- trailing\n",
@@ -107,7 +106,7 @@ test('lua_eval - ignores comments and blank lines', () => {
     assertEquals(out, '7')
 })
 
-test('lua_eval - THROWS on a construct it does not model, never skips it', () => {
+Deno.test('lua_eval - THROWS on a construct it does not model, never skips it', () => {
     const r = recorder()
     assertThrows(
         () => evalLua('for i = 1, 10 do end', [], [], r.call),
@@ -116,7 +115,7 @@ test('lua_eval - THROWS on a construct it does not model, never skips it', () =>
     assertEquals(r.calls.length, 0, 'nothing ran')
 })
 
-test('lua_eval - THROWS on an unbound variable rather than resolving it to nil', () => {
+Deno.test('lua_eval - THROWS on an unbound variable rather than resolving it to nil', () => {
     assertThrows(
         () =>
             evalLua("redis.call('SET', mystery, '1')", [], [], recorder().call),
@@ -124,7 +123,7 @@ test('lua_eval - THROWS on an unbound variable rather than resolving it to nil',
     )
 })
 
-test('lua_eval - expands unpack(ARGV, n) into the trailing arguments of a call', () => {
+Deno.test('lua_eval - expands unpack(ARGV, n) into the trailing arguments of a call', () => {
     const r = recorder()
     evalLua(
         "redis.call('HMGET', KEYS[1], unpack(ARGV, 2))",
@@ -135,7 +134,7 @@ test('lua_eval - expands unpack(ARGV, n) into the trailing arguments of a call',
     assertEquals(r.calls, [['HMGET', ['h', '', 'a', 'b']]])
 })
 
-test('lua_eval - unpack past the end of ARGV expands to no argument', () => {
+Deno.test('lua_eval - unpack past the end of ARGV expands to no argument', () => {
     const r = recorder()
     evalLua(
         "redis.call('HMGET', KEYS[1], unpack(ARGV, 3))",
@@ -146,7 +145,7 @@ test('lua_eval - unpack past the end of ARGV expands to no argument', () => {
     assertEquals(r.calls, [['HMGET', ['h']]])
 })
 
-test('lua_eval - THROWS on unpack anywhere but the last argument', () => {
+Deno.test('lua_eval - THROWS on unpack anywhere but the last argument', () => {
     // Lua truncates a non-final multi-value expression to its first value; a
     // silent full expansion here would pass a script that sends different
     // arguments on a real broker.
@@ -164,7 +163,7 @@ test('lua_eval - THROWS on unpack anywhere but the last argument', () => {
     assertEquals(r.calls.length, 0, 'nothing ran')
 })
 
-test('lua_eval - THROWS on unpack of anything but ARGV', () => {
+Deno.test('lua_eval - THROWS on unpack of anything but ARGV', () => {
     assertThrows(
         () =>
             evalLua(
@@ -177,7 +176,7 @@ test('lua_eval - THROWS on unpack of anything but ARGV', () => {
     )
 })
 
-test('lua_eval - returns a table constructor of nested tables, numbers and false', () => {
+Deno.test('lua_eval - returns a table constructor of nested tables, numbers and false', () => {
     const calls: Array<[string, string[]]> = []
     const out = evalLua(
         "local n = redis.call('HLEN', KEYS[1])\n" +
@@ -199,7 +198,7 @@ test('lua_eval - returns a table constructor of nested tables, numbers and false
     assertEquals(calls[2][1], ['h', '', 'a'])
 })
 
-test('lua_eval - a number from a call is usable as an argument', () => {
+Deno.test('lua_eval - a number from a call is usable as an argument', () => {
     const r = recorder()
     evalLua(
         "local n = redis.call('HLEN', KEYS[1])\nredis.call('SET', KEYS[1], n)",
@@ -210,7 +209,7 @@ test('lua_eval - a number from a call is usable as an argument', () => {
     assertEquals(r.calls, [['SET', ['k', '4']]])
 })
 
-test('lua_eval - a table constructor stops at the first nil, as a Redis reply does', () => {
+Deno.test('lua_eval - a table constructor stops at the first nil, as a Redis reply does', () => {
     const out = evalLua(
         'return {ARGV[1], ARGV[9], ARGV[2]}',
         [],
@@ -220,14 +219,14 @@ test('lua_eval - a table constructor stops at the first nil, as a Redis reply do
     assertEquals(out, ['a'])
 })
 
-test('lua_eval - THROWS on a table constructor outside the modelled form', () => {
+Deno.test('lua_eval - THROWS on a table constructor outside the modelled form', () => {
     assertThrows(
         () => evalLua("return {x = 'a'}", [], [], recorder().call),
         LuaEvalUnsupportedError,
     )
 })
 
-test('lua_eval - THROWS when false is used where a scalar argument is required', () => {
+Deno.test('lua_eval - THROWS when false is used where a scalar argument is required', () => {
     assertThrows(
         () =>
             evalLua(
@@ -336,7 +335,7 @@ const holdArgv = (instance: string, entry: string) => [
 ]
 const RELEASE_KEYS = ['presence', 'holders', 'owned:A']
 
-test('lua_eval - HOLD script: the first holder reports 1 (arrived)', () => {
+Deno.test('lua_eval - HOLD script: the first holder reports 1 (arrived)', () => {
     const s = slotStore()
     const out = evalLua(HOLD_SCRIPT, HOLD_KEYS, holdArgv('A', 'e-A'), s.call)
     assertEquals(out, 1)
@@ -345,7 +344,7 @@ test('lua_eval - HOLD script: the first holder reports 1 (arrived)', () => {
     assertEquals(s.sets.get('instances'), new Set(['A']))
 })
 
-test('lua_eval - HOLD script: a second instance adds a holder and reports 0', () => {
+Deno.test('lua_eval - HOLD script: a second instance adds a holder and reports 0', () => {
     const s = slotStore()
     evalLua(HOLD_SCRIPT, HOLD_KEYS, holdArgv('A', 'e-A'), s.call)
     const out = evalLua(HOLD_SCRIPT, HOLD_KEYS, holdArgv('B', 'e-B'), s.call)
@@ -355,7 +354,7 @@ test('lua_eval - HOLD script: a second instance adds a holder and reports 0', ()
     assertEquals(s.hashes.get('holders')?.size, 2)
 })
 
-test('lua_eval - HOLD script: a re-hold by the same instance reports 0', () => {
+Deno.test('lua_eval - HOLD script: a re-hold by the same instance reports 0', () => {
     const s = slotStore()
     evalLua(HOLD_SCRIPT, HOLD_KEYS, holdArgv('A', 'e-A'), s.call)
     const out = evalLua(HOLD_SCRIPT, HOLD_KEYS, holdArgv('A', 'e-A2'), s.call)
@@ -363,7 +362,7 @@ test('lua_eval - HOLD script: a re-hold by the same instance reports 0', () => {
     assertEquals(s.hashes.get('presence')?.get('7'), 'e-A2')
 })
 
-test('lua_eval - RELEASE script: the last holder deletes the field and reports 1', () => {
+Deno.test('lua_eval - RELEASE script: the last holder deletes the field and reports 1', () => {
     const s = slotStore()
     evalLua(HOLD_SCRIPT, HOLD_KEYS, holdArgv('A', 'e-A'), s.call)
     const out = evalLua(
@@ -377,7 +376,7 @@ test('lua_eval - RELEASE script: the last holder deletes the field and reports 1
     assertEquals(s.sets.get('owned:A')?.has('ch 7'), false)
 })
 
-test('lua_eval - RELEASE script: a non-holder on an empty slot reports 0 (mine == false)', () => {
+Deno.test('lua_eval - RELEASE script: a non-holder on an empty slot reports 0 (mine == false)', () => {
     const s = slotStore()
     const out = evalLua(
         RELEASE_SCRIPT,
@@ -392,7 +391,7 @@ test('lua_eval - RELEASE script: a non-holder on an empty slot reports 0 (mine =
     )
 })
 
-test('lua_eval - RELEASE script: releasing the SHOWN holder copies a remaining one in', () => {
+Deno.test('lua_eval - RELEASE script: releasing the SHOWN holder copies a remaining one in', () => {
     const s = slotStore()
     evalLua(HOLD_SCRIPT, HOLD_KEYS, holdArgv('A', 'e-A'), s.call)
     evalLua(HOLD_SCRIPT, HOLD_KEYS, holdArgv('B', 'e-B'), s.call)
@@ -409,7 +408,7 @@ test('lua_eval - RELEASE script: releasing the SHOWN holder copies a remaining o
     assertEquals(random?.[1], ['holders', '1', 'WITHVALUES'])
 })
 
-test('lua_eval - RELEASE script: releasing a holder that is NOT shown copies nothing', () => {
+Deno.test('lua_eval - RELEASE script: releasing a holder that is NOT shown copies nothing', () => {
     const s = slotStore()
     evalLua(HOLD_SCRIPT, HOLD_KEYS, holdArgv('A', 'e-A'), s.call)
     evalLua(HOLD_SCRIPT, HOLD_KEYS, holdArgv('B', 'e-B'), s.call)
@@ -424,7 +423,7 @@ test('lua_eval - RELEASE script: releasing a holder that is NOT shown copies not
     assertEquals(s.calls.some((c) => c[0] === 'HRANDFIELD'), false)
 })
 
-test("lua_eval - == is type-strict: '1' == 1 is false", () => {
+Deno.test("lua_eval - == is type-strict: '1' == 1 is false", () => {
     const script = "if ARGV[1] == 1 then\nreturn 'equal'\nend\nreturn 'differ'"
     assertEquals(evalLua(script, [], ['1'], recorder().call), 'differ')
     const byNumber = "local n = redis.call('HLEN', KEYS[1])\n" +
@@ -433,11 +432,11 @@ test("lua_eval - == is type-strict: '1' == 1 is false", () => {
     assertEquals(evalLua(byNumber, ['h'], [], () => '1'), 'differ')
 })
 
-test('lua_eval - a numeric literal is a number, returned as one', () => {
+Deno.test('lua_eval - a numeric literal is a number, returned as one', () => {
     assertEquals(evalLua('return 1', [], [], recorder().call), 1)
 })
 
-test('lua_eval - false is a literal, equal only to false', () => {
+Deno.test('lua_eval - false is a literal, equal only to false', () => {
     const script = "local v = redis.call('HGET', KEYS[1], 'f')\n" +
         "if v == false then\nreturn 'absent'\nend\nreturn 'present'"
     assertEquals(evalLua(script, ['h'], [], () => false), 'absent')
@@ -445,7 +444,7 @@ test('lua_eval - false is a literal, equal only to false', () => {
     assertEquals(evalLua(script, ['h'], [], () => 0), 'present')
 })
 
-test('lua_eval - a return nested two blocks deep ends the script', () => {
+Deno.test('lua_eval - a return nested two blocks deep ends the script', () => {
     const r = recorder()
     const out = evalLua(
         "if 1 == 1 then\nif 'a' == 'a' then\nreturn 'inner'\nend\n" +
@@ -458,7 +457,7 @@ test('lua_eval - a return nested two blocks deep ends the script', () => {
     assertEquals(r.calls.length, 0, 'nothing after the return ran')
 })
 
-test('lua_eval - indexes a bound local, 1-based', () => {
+Deno.test('lua_eval - indexes a bound local, 1-based', () => {
     const out = evalLua(
         "local pair = redis.call('HRANDFIELD', KEYS[1], 1, 'WITHVALUES')\n" +
             'return pair[2]',
@@ -469,7 +468,7 @@ test('lua_eval - indexes a bound local, 1-based', () => {
     assertEquals(out, 'value')
 })
 
-test('lua_eval - THROWS when indexing a local that is not a table', () => {
+Deno.test('lua_eval - THROWS when indexing a local that is not a table', () => {
     assertThrows(
         () =>
             evalLua(
@@ -482,7 +481,7 @@ test('lua_eval - THROWS when indexing a local that is not a table', () => {
     )
 })
 
-test('lua_eval - THROWS on a return that is not the last statement of its block', () => {
+Deno.test('lua_eval - THROWS on a return that is not the last statement of its block', () => {
     const r = recorder()
     assertThrows(
         () =>
@@ -497,7 +496,7 @@ test('lua_eval - THROWS on a return that is not the last statement of its block'
     assertEquals(r.calls.length, 0, 'refused at parse, nothing ran')
 })
 
-test('lua_eval - THROWS on every operator but ==', () => {
+Deno.test('lua_eval - THROWS on every operator but ==', () => {
     for (
         const condition of [
             'ARGV[1] ~= 1',
@@ -524,7 +523,7 @@ test('lua_eval - THROWS on every operator but ==', () => {
     }
 })
 
-test('lua_eval - THROWS on else, a missing end, a stray end and a loop', () => {
+Deno.test('lua_eval - THROWS on else, a missing end, a stray end and a loop', () => {
     for (
         const script of [
             'if 1 == 1 then\nreturn 1\nelse\nreturn 0\nend',
@@ -546,7 +545,7 @@ test('lua_eval - THROWS on else, a missing end, a stray end and a loop', () => {
     }
 })
 
-test('lua_eval - THROWS on an unmodelled statement even in a branch not taken', () => {
+Deno.test('lua_eval - THROWS on an unmodelled statement even in a branch not taken', () => {
     assertThrows(
         () =>
             evalLua(
@@ -569,7 +568,7 @@ for (
         'if ARGV[1] == ARGV[2] or ARGV[3] then\nreturn 1\nend',
     ]
 ) {
-    test(`lua_eval - THROWS at parse on \`${statement}\` in a branch not taken`, () => {
+    Deno.test(`lua_eval - THROWS at parse on \`${statement}\` in a branch not taken`, () => {
         const r = recorder()
         assertThrows(
             () =>
@@ -587,14 +586,14 @@ for (
     })
 }
 
-test('lua_eval - arithmetic yields a NUMBER, comparable to a numeric literal', () => {
+Deno.test('lua_eval - arithmetic yields a NUMBER, comparable to a numeric literal', () => {
     const script = "local n = redis.call('HLEN', KEYS[1]) - 1\n" +
         "if n == 0 then\nreturn 'empty'\nend\nreturn 'held'"
     assertEquals(evalLua(script, ['h'], [], () => 1), 'empty')
     assertEquals(evalLua(script, ['h'], [], () => 2), 'held')
 })
 
-test('lua_eval - a returned sum is an integer reply, not a bulk string', () => {
+Deno.test('lua_eval - a returned sum is an integer reply, not a bulk string', () => {
     const out = evalLua(
         "local n = redis.call('HLEN', KEYS[1])\nreturn n + 1",
         ['h'],
@@ -604,11 +603,11 @@ test('lua_eval - a returned sum is an integer reply, not a bulk string', () => {
     assertEquals(out, 5)
 })
 
-test('lua_eval - + and - associate to the left, as Lua does', () => {
+Deno.test('lua_eval - + and - associate to the left, as Lua does', () => {
     assertEquals(evalLua('return 10 - 3 + 2', [], [], recorder().call), 9)
 })
 
-test('lua_eval - THROWS on a table or a call as a comparison operand', () => {
+Deno.test('lua_eval - THROWS on a table or a call as a comparison operand', () => {
     assertThrows(
         () =>
             evalLua(
@@ -632,7 +631,7 @@ test('lua_eval - THROWS on a table or a call as a comparison operand', () => {
     )
 })
 
-test('lua_eval - THROWS when indexing a non-array reply', () => {
+Deno.test('lua_eval - THROWS when indexing a non-array reply', () => {
     const r = recorder({ GET: 'scalar' })
     assertThrows(
         () =>

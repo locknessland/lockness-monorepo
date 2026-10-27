@@ -29,7 +29,6 @@
  * @module @lockness/drizzle/tests/fresh_postgres_live
  */
 
-import { test } from 'node:test'
 import {
     assert,
     assertEquals,
@@ -88,7 +87,7 @@ const ACCEPTED: readonly string[] = [
 ]
 
 for (const url of ACCEPTED) {
-    test(`#435 live guard: accepts ${url}`, async () => {
+    Deno.test(`#435 live guard: accepts ${url}`, async () => {
         assertEquals(await assertLoopback(url), url)
     })
 }
@@ -109,7 +108,7 @@ const REFUSED: ReadonlyArray<readonly [string, string]> = [
 ]
 
 for (const [label, url] of REFUSED) {
-    test(
+    Deno.test(
         `#435 live guard: refuses ${label}, without quoting it`,
         async () => {
             const error = await assertRejects(() => assertLoopback(url), Error)
@@ -280,20 +279,22 @@ const ESCAPES: ReadonlyArray<
 ]
 
 for (const [label, plant, named] of ESCAPES) {
-    test(`#435 R7 live: ${label} rolls the reset back and is named`, {
-        skip: !LIVE,
-    }, () =>
-        live(async (admin, maintenance) => {
-            await run(admin, plant)
+    Deno.test({
+        name: `#435 R7 live: ${label} rolls the reset back and is named`,
+        ignore: !LIVE,
+        fn: () =>
+            live(async (admin, maintenance) => {
+                await run(admin, plant)
 
-            const error = await rejected(() =>
-                resetDatabase(maintenance, SETTINGS)
-            )
+                const error = await rejected(() =>
+                    resetDatabase(maintenance, SETTINGS)
+                )
 
-            assertStringIncludes(error.message, 'rolled back')
-            assertStringIncludes(error.message, named)
-            await assertUntouched(admin)
-        }))
+                assertStringIncludes(error.message, 'rolled back')
+                assertStringIncludes(error.message, named)
+                await assertUntouched(admin)
+            }),
+    })
 }
 
 // -----------------------------------------------------------------------------
@@ -360,10 +361,10 @@ const IN_SCOPE: ReadonlyArray<readonly [string, readonly string[]]> = [
 ]
 
 for (const [label, plant] of IN_SCOPE) {
-    test(
-        `#435 R7 live: ${label} resets without a rollback`,
-        { skip: !LIVE },
-        () =>
+    Deno.test({
+        name: `#435 R7 live: ${label} resets without a rollback`,
+        ignore: !LIVE,
+        fn: () =>
             live(async (admin, maintenance) => {
                 await run(admin, plant)
 
@@ -379,7 +380,7 @@ for (const [label, plant] of IN_SCOPE) {
                     'the bookkeeping sequence survived',
                 )
             }),
-    )
+    })
 }
 
 // -----------------------------------------------------------------------------
@@ -399,10 +400,11 @@ async function keptSchema(
     return { oid: row.oid, owner: row.owner, acl: row.acl }
 }
 
-test(
-    '#446 live: the kept schema comes out of a reset with its owner and its ACL',
-    { skip: !LIVE },
-    () =>
+Deno.test({
+    name:
+        '#446 live: the kept schema comes out of a reset with its owner and its ACL',
+    ignore: !LIVE,
+    fn: () =>
         live(async (admin, maintenance) => {
             // A non-default owner and grant: a schema dropped and re-created
             // by the resetting superuser would come back with neither.
@@ -420,7 +422,7 @@ test(
             await assertReset(admin)
             assertEquals(await keptSchema(admin), before)
         }),
-)
+})
 
 // -----------------------------------------------------------------------------
 // Concurrency: a second session commits between baseline and check
@@ -455,10 +457,11 @@ function interleaved(
     }, () => Promise.reject(new Error('not used')))
 }
 
-test(
-    '#435 R7 live: an object committed by another session mid-reset does not fail it',
-    { skip: !LIVE },
-    () =>
+Deno.test({
+    name:
+        '#435 R7 live: an object committed by another session mid-reset does not fail it',
+    ignore: !LIVE,
+    fn: () =>
         live(async (admin, _maintenance, url) => {
             const client = postgres(url, { max: 1, onnotice: () => {} })
             try {
@@ -470,12 +473,13 @@ test(
             await assertReset(admin)
             assert(await exists(admin, `${OTHER}.x`), 'the concurrent table')
         }),
-)
+})
 
-test(
-    '#435 R7 live: an object committed by another session mid-reset does not mask an escape',
-    { skip: !LIVE },
-    () =>
+Deno.test({
+    name:
+        '#435 R7 live: an object committed by another session mid-reset does not mask an escape',
+    ignore: !LIVE,
+    fn: () =>
         live(async (admin, _maintenance, url) => {
             await run(admin, [
                 `CREATE VIEW ${OTHER}.v AS SELECT id FROM ${SCOPE}.t`,
@@ -495,12 +499,13 @@ test(
             await assertUntouched(admin)
             assert(await exists(admin, `${OTHER}.x`), 'the concurrent table')
         }),
-)
+})
 
-test(
-    '#447 R7 live: an outside object another session drops mid-reset does not roll it back, at REPEATABLE READ',
-    { skip: !LIVE },
-    () =>
+Deno.test({
+    name:
+        '#447 R7 live: an outside object another session drops mid-reset does not roll it back, at REPEATABLE READ',
+    ignore: !LIVE,
+    fn: () =>
         live(async (admin, _maintenance, url) => {
             // In the baseline; dropped by another session before the check.
             // At READ COMMITTED the check would see it gone and roll a sound
@@ -519,7 +524,7 @@ test(
             await assertReset(admin)
             assertEquals(await exists(admin, `${OTHER}.gone`), false)
         }),
-)
+})
 
 // -----------------------------------------------------------------------------
 // The bookkeeping location reaches drizzle-orm's migrator
@@ -554,10 +559,11 @@ async function writeMigration(folder: string): Promise<void> {
     )
 }
 
-test(
-    '#435 live: migrate keeps its bookkeeping in migrations.schema and migrations.table',
-    { skip: !LIVE },
-    () =>
+Deno.test({
+    name:
+        '#435 live: migrate keeps its bookkeeping in migrations.schema and migrations.table',
+    ignore: !LIVE,
+    fn: () =>
         live(async (admin, maintenance) => {
             const folder = await Deno.makeTempDir({ prefix: 'lockness_fresh_' })
             try {
@@ -592,16 +598,17 @@ test(
                 await Deno.remove(folder, { recursive: true })
             }
         }),
-)
+})
 
 // -----------------------------------------------------------------------------
 // #447: one connection — REPEATABLE READ, and the migrate on the same backend
 // -----------------------------------------------------------------------------
 
-test(
-    '#447 live: the planner reads at REPEATABLE READ, and query and migrate run on the same backend',
-    { skip: !LIVE },
-    () =>
+Deno.test({
+    name:
+        '#447 live: the planner reads at REPEATABLE READ, and query and migrate run on the same backend',
+    ignore: !LIVE,
+    fn: () =>
         live(async (_admin, maintenance) => {
             const folder = await Deno.makeTempDir({ prefix: 'lockness_fresh_' })
             try {
@@ -634,16 +641,17 @@ test(
                 await Deno.remove(folder, { recursive: true })
             }
         }),
-)
+})
 
 // -----------------------------------------------------------------------------
 // R6: a schema the reset would drop holds an extension
 // -----------------------------------------------------------------------------
 
-test(
-    '#435 R6 live: a scope schema holding an extension, which a migration re-creates, is refused before any drop',
-    { skip: !LIVE },
-    () =>
+Deno.test({
+    name:
+        '#435 R6 live: a scope schema holding an extension, which a migration re-creates, is refused before any drop',
+    ignore: !LIVE,
+    fn: () =>
         live(async (admin, maintenance) => {
             // citext ships with postgres:16 and is a trusted extension. It
             // lives in the scope schema, so the teardown's DROP SCHEMA takes
@@ -670,7 +678,7 @@ test(
             )
             assertEquals(Number(row.n), 1, 'the extension is gone')
         }),
-)
+})
 
 // -----------------------------------------------------------------------------
 // #454: db:fresh prints no raw server notice
@@ -739,10 +747,11 @@ async function freshTwice(
     return lines
 }
 
-test(
-    '#454 live: db:fresh twice prints no raw notice object and no "already exists, skipping"',
-    { skip: !LIVE },
-    () =>
+Deno.test({
+    name:
+        '#454 live: db:fresh twice prints no raw notice object and no "already exists, skipping"',
+    ignore: !LIVE,
+    fn: () =>
         live(async (_admin, _maintenance, url) => {
             const output = (await freshTwice(url)).join('\n')
 
@@ -754,12 +763,13 @@ test(
                 output,
             )
         }),
-)
+})
 
-test(
-    '#454 live: a reporter passed to connect receives the "already exists, skipping" notice at debug',
-    { skip: !LIVE },
-    () =>
+Deno.test({
+    name:
+        '#454 live: a reporter passed to connect receives the "already exists, skipping" notice at debug',
+    ignore: !LIVE,
+    fn: () =>
         live(async (_admin, _maintenance, url) => {
             const debug: string[] = []
             const notices: NoticeReporter = {
@@ -798,4 +808,4 @@ test(
                 }`,
             )
         }),
-)
+})

@@ -11,11 +11,10 @@
  * @module @lockness/auth/tests/user_revocation
  */
 
-import { test } from 'node:test'
 import { assertEquals, assertRejects } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
-import { Hono } from '@lockness/hono'
-import type { Context } from '@lockness/hono'
+import { Hono } from 'hono'
+import type { Context } from 'hono'
 import {
     CookieSessionDriver,
     generateAppKey,
@@ -180,7 +179,7 @@ async function replay(
     return await driver.read('sid') as Record<string, unknown> | null
 }
 
-test('user revocation (guard) - logoutEverywhere evicts a remember-me session and drops the tokens (SC-006)', async () => {
+Deno.test('user revocation (guard) - logoutEverywhere evicts a remember-me session and drops the tokens (SC-006)', async () => {
     using time = new FakeTime(1_700_000_000_000)
     const store = sharedStore()
     const provider = new RememberProvider()
@@ -208,7 +207,7 @@ test('user revocation (guard) - logoutEverywhere evicts a remember-me session an
     assertEquals(after, null, 'the remember-me session is evicted')
 })
 
-test('user revocation (guard) - logoutEverywhere kills the acting session in the SAME second (SC-003)', async () => {
+Deno.test('user revocation (guard) - logoutEverywhere kills the acting session in the SAME second (SC-003)', async () => {
     using _time = new FakeTime(1_700_000_000_000)
     const store = sharedStore()
     const provider = new RememberProvider()
@@ -230,7 +229,7 @@ test('user revocation (guard) - logoutEverywhere kills the acting session in the
     assertEquals(after, null, 'the acting session dies even in the same second')
 })
 
-test('user revocation (guard) - a captured remember-me cookie cannot re-mint after eviction (SC-006)', async () => {
+Deno.test('user revocation (guard) - a captured remember-me cookie cannot re-mint after eviction (SC-006)', async () => {
     using _time = new FakeTime(1_700_000_000_000)
     const store = sharedStore()
     const provider = new RememberProvider()
@@ -256,7 +255,7 @@ test('user revocation (guard) - a captured remember-me cookie cannot re-mint aft
     )
 })
 
-test('user revocation (guard) - logoutOthers spares the acting session, refuses older ones (SC-002)', async () => {
+Deno.test('user revocation (guard) - logoutOthers spares the acting session, refuses older ones (SC-002)', async () => {
     using time = new FakeTime(1_700_000_000_000)
     const store = sharedStore()
     const provider = new RememberProvider()
@@ -302,7 +301,7 @@ test('user revocation (guard) - logoutOthers spares the acting session, refuses 
     )
 })
 
-test('user revocation (guard) - recovery on device A evicts device B end-to-end (SC-006, ASVS 7.4.2)', async () => {
+Deno.test('user revocation (guard) - recovery on device A evicts device B end-to-end (SC-006, ASVS 7.4.2)', async () => {
     using time = new FakeTime(1_700_000_000_000)
     const store = sharedStore()
     const provider = new RememberProvider()
@@ -329,7 +328,7 @@ test('user revocation (guard) - recovery on device A evicts device B end-to-end 
     assertEquals(provider.liveTokens.size, 0, 'device B remember token dropped')
 })
 
-test('user revocation (guard) - eviction throws when unauthenticated (security S3 / R7)', async () => {
+Deno.test('user revocation (guard) - eviction throws when unauthenticated (security S3 / R7)', async () => {
     const store = sharedStore()
     const provider = new MockSessionProvider()
     const { guard } = await device(undefined, store, provider)
@@ -348,7 +347,7 @@ test('user revocation (guard) - eviction throws when unauthenticated (security S
     )
 })
 
-test('user revocation - the public session surface exposes no raw subject-taking revoke (R7)', () => {
+Deno.test('user revocation - the public session surface exposes no raw subject-taking revoke (R7)', () => {
     const names = Object.keys(sessionSurface)
     assertEquals(
         names.includes('revokeUser'),
@@ -362,7 +361,7 @@ test('user revocation - the public session surface exposes no raw subject-taking
     )
 })
 
-test('user revocation (guard) - login() sets an evictable sub (arch A5)', async () => {
+Deno.test('user revocation (guard) - login() sets an evictable sub (arch A5)', async () => {
     using time = new FakeTime(1_700_000_000_000)
     const store = sharedStore()
     const provider = new RememberProvider()

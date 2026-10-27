@@ -13,7 +13,6 @@
  * @module @lockness/realtime/tests/control_auth
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { ChannelManager } from '../manager.ts'
 import { RedisBroadcastDriver } from '../drivers/redis.ts'
@@ -101,7 +100,7 @@ async function warningsFrom(body: () => Promise<void>): Promise<string[]> {
     return captured
 }
 
-test('SC-008: an absent-MAC control frame is dropped and never obeyed', async () => {
+Deno.test('SC-008: an absent-MAC control frame is dropped and never obeyed', async () => {
     const redis = new FakeRedis()
     const b = driver(redis)
     try {
@@ -128,7 +127,7 @@ test('SC-008: an absent-MAC control frame is dropped and never obeyed', async ()
     }
 })
 
-test('SC-008/FR-014: a forged-MAC evict is dropped AT THE MAC GATE', async () => {
+Deno.test('SC-008/FR-014: a forged-MAC evict is dropped AT THE MAC GATE', async () => {
     const redis = new FakeRedis()
     const b = driver(redis)
     try {
@@ -160,7 +159,7 @@ test('SC-008/FR-014: a forged-MAC evict is dropped AT THE MAC GATE', async () =>
     }
 })
 
-test('SC-008: a spoofed presence-join member is dropped and never obeyed', async () => {
+Deno.test('SC-008: a spoofed presence-join member is dropped and never obeyed', async () => {
     const redis = new FakeRedis()
     const b = driver(redis)
     try {
@@ -191,7 +190,7 @@ test('SC-008: a spoofed presence-join member is dropped and never obeyed', async
     }
 })
 
-test('SC-008: end-to-end — a forged evict on the bus never closes an owned socket', async () => {
+Deno.test('SC-008: end-to-end — a forged evict on the bus never closes an owned socket', async () => {
     const redis = new FakeRedis()
     const b = driver(redis)
     const manager = new ChannelManager<User>({ driver: b, authorize })
@@ -230,7 +229,7 @@ test('SC-008: end-to-end — a forged evict on the bus never closes an owned soc
     }
 })
 
-test('SC-008/FR-019: a validly-signed evict with an out-of-charset target is dropped', async () => {
+Deno.test('SC-008/FR-019: a validly-signed evict with an out-of-charset target is dropped', async () => {
     const redis = new FakeRedis()
     const b = driver(redis)
     try {

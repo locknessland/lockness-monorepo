@@ -5,7 +5,6 @@
  * @module @lockness/mail/tests/preview
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import type { MailMessage } from '../types.ts'
 import { configureMail, mail } from '../mod.ts'
@@ -22,7 +21,7 @@ function msg(subject: string, html: string): MailMessage {
     return { to: [{ email: 'a@b.c' }], subject, html } as MailMessage
 }
 
-test('SC-006: captures only when enabled', () => {
+Deno.test('SC-006: captures only when enabled', () => {
     resetMailPreview()
     capturePreview(msg('S1', '<p>1</p>')) // disabled → no-op
     assertEquals(capturedMails().length, 0)
@@ -32,7 +31,7 @@ test('SC-006: captures only when enabled', () => {
     resetMailPreview()
 })
 
-test('SC-006: the store is bounded (keeps the most recent N)', () => {
+Deno.test('SC-006: the store is bounded (keeps the most recent N)', () => {
     resetMailPreview()
     enableMailPreview({ max: 3 })
     for (let i = 0; i < 5; i++) capturePreview(msg(`S${i}`, `<p>${i}</p>`))
@@ -42,7 +41,7 @@ test('SC-006: the store is bounded (keeps the most recent N)', () => {
     resetMailPreview()
 })
 
-test('SC-006a: a body is served only in a sandboxed CSP response; metadata encoded', () => {
+Deno.test('SC-006a: a body is served only in a sandboxed CSP response; metadata encoded', () => {
     resetMailPreview()
     enableMailPreview()
     capturePreview(msg('<script>alert(1)</script>', '<img onerror=alert(1)>'))
@@ -66,7 +65,7 @@ test('SC-006a: a body is served only in a sandboxed CSP response; metadata encod
     })
 })
 
-test('SC-006a: with APP_ENV=production the handler 404s and captures nothing', () => {
+Deno.test('SC-006a: with APP_ENV=production the handler 404s and captures nothing', () => {
     const prior = Deno.env.get('APP_ENV')
     Deno.env.set('APP_ENV', 'production')
     try {
@@ -83,7 +82,7 @@ test('SC-006a: with APP_ENV=production the handler 404s and captures nothing', (
     }
 })
 
-test('the mail send() tap captures when the preview is enabled', async () => {
+Deno.test('the mail send() tap captures when the preview is enabled', async () => {
     configureMail({ driver: 'memory' })
     resetMailPreview()
     enableMailPreview()
@@ -92,7 +91,7 @@ test('the mail send() tap captures when the preview is enabled', async () => {
     resetMailPreview()
 })
 
-test('SC-006a: a prod-like env (staging) is fail-closed like production', () => {
+Deno.test('SC-006a: a prod-like env (staging) is fail-closed like production', () => {
     const prior = Deno.env.get('APP_ENV')
     Deno.env.set('APP_ENV', 'staging')
     try {
@@ -133,7 +132,7 @@ function withEnv(
     }
 }
 
-test('#504: the preview reads the framework environment — APP_ENV normalised', () => {
+Deno.test('#504: the preview reads the framework environment — APP_ENV normalised', () => {
     // A CRLF .env line used to read as 'production\r', which is not blocked.
     withEnv({ APP_ENV: ' Production\r' }, () => {
         resetMailPreview()
@@ -143,7 +142,7 @@ test('#504: the preview reads the framework environment — APP_ENV normalised',
     })
 })
 
-test('#504: DENO_ENV is not an environment signal for the preview', () => {
+Deno.test('#504: DENO_ENV is not an environment signal for the preview', () => {
     // APP_ENV is the one signal; the preview used to fall back to DENO_ENV.
     withEnv({ DENO_ENV: 'staging' }, () => {
         resetMailPreview()
@@ -153,7 +152,7 @@ test('#504: DENO_ENV is not an environment signal for the preview', () => {
     })
 })
 
-test('disableMailPreview clears the store', () => {
+Deno.test('disableMailPreview clears the store', () => {
     resetMailPreview()
     enableMailPreview()
     capturePreview(msg('S', '<p>x</p>'))

@@ -16,7 +16,6 @@
  * @module @lockness/cli/tests/nessy_stub
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { fromFileUrl, join } from '@std/path'
 import { Stub } from '../stubs.ts'
@@ -51,21 +50,24 @@ function runNessy(args: string[]) {
 }
 
 for (const command of ['install', 'bump']) {
-    test(`./nessy ${command} with no argument exits 1, one ❌ line on stderr`, {
-        skip: Deno.build.os === 'windows',
-    }, async () => {
-        const { code, stdout, stderr } = await runNessy([command])
+    Deno.test({
+        name:
+            `./nessy ${command} with no argument exits 1, one ❌ line on stderr`,
+        ignore: Deno.build.os === 'windows',
+        fn: async () => {
+            const { code, stdout, stderr } = await runNessy([command])
 
-        assertEquals(code, 1)
-        assertEquals(stdout, '')
-        const lines = stderr.trimEnd().split('\n')
-        assertEquals(lines.length, 1, stderr)
-        assert(lines[0].startsWith('❌ '), stderr)
-        assertStringIncludes(lines[0], `./nessy ${command} `)
+            assertEquals(code, 1)
+            assertEquals(stdout, '')
+            const lines = stderr.trimEnd().split('\n')
+            assertEquals(lines.length, 1, stderr)
+            assert(lines[0].startsWith('❌ '), stderr)
+            assertStringIncludes(lines[0], `./nessy ${command} `)
+        },
     })
 }
 
-test('nessy.cmd install with no argument exits 1', async () => {
+Deno.test('nessy.cmd install with no argument exits 1', async () => {
     const script = await renderNessy('nessy.cmd')
     const start = script.indexOf('IF "%COMMAND%"=="install" (')
     assert(start >= 0, 'the install branch exists')

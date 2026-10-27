@@ -11,7 +11,6 @@
  * @module @lockness/drizzle/tests/make_failure
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { Cli } from '@lockness/cli'
 import { registerDrizzleCommands } from '../mod.ts'
@@ -80,7 +79,7 @@ for (
         ['make:model', 'Please provide a model name'],
     ] as const
 ) {
-    test(`#436 ${command} with no name exits 1 with one ❌ line`, async () => {
+    Deno.test(`#436 ${command} with no name exits 1 with one ❌ line`, async () => {
         const { status, errors } = await dispatchIn([command])
 
         assertEquals(status, 1)
@@ -91,7 +90,7 @@ for (
     })
 }
 
-test('#436 make:model with no name folds its usage into the one line', async () => {
+Deno.test('#436 make:model with no name folds its usage into the one line', async () => {
     const { errors } = await dispatchIn(['make:model'])
 
     assertStringIncludes(errors[0], 'make:model <Name>')
@@ -104,7 +103,7 @@ for (
         ['make:seeder', './database/seeders'],
     ] as const
 ) {
-    test(`#436 ${command} exits 1 when the file cannot be written, printed once`, async () => {
+    Deno.test(`#436 ${command} exits 1 when the file cannot be written, printed once`, async () => {
         const { status, errors } = await dispatchIn(
             [command, 'User'],
             () => blockDirectory(blocked),
@@ -118,7 +117,7 @@ for (
     })
 }
 
-test('#436 make:model -a writes every file it can, then exits 1 naming the failed step', async () => {
+Deno.test('#436 make:model -a writes every file it can, then exits 1 naming the failed step', async () => {
     const { status, errors } = await dispatchIn(
         ['make:model', 'Post', '-a'],
         () => blockDirectory('./app/repository'),
@@ -137,7 +136,7 @@ test('#436 make:model -a writes every file it can, then exits 1 naming the faile
     )
 })
 
-test('#436 make:model -a keeps going after the model itself fails', async () => {
+Deno.test('#436 make:model -a keeps going after the model itself fails', async () => {
     const { status, errors } = await dispatchIn(
         ['make:model', 'Post', '-a'],
         () => blockDirectory('./app/model'),
@@ -156,7 +155,7 @@ test('#436 make:model -a keeps going after the model itself fails', async () => 
     )
 })
 
-test('#436 make:model counts only the steps its flags selected', async () => {
+Deno.test('#436 make:model counts only the steps its flags selected', async () => {
     const { status, errors } = await dispatchIn(
         ['make:model', 'Post', '-s'],
         () => blockDirectory('./database/seeders'),
@@ -170,7 +169,7 @@ test('#436 make:model counts only the steps its flags selected', async () => {
     )
 })
 
-test('#436 make:model -a succeeds with status 0 and no error output', async () => {
+Deno.test('#436 make:model -a succeeds with status 0 and no error output', async () => {
     const { status, errors } = await dispatchIn(
         ['make:model', 'Post', '-a'],
         undefined,

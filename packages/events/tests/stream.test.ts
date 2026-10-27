@@ -7,7 +7,6 @@
  * enabled, so it is the only one no flag protects.
  */
 
-import { test } from 'node:test'
 import {
     assertEquals,
     assertRejects,
@@ -28,7 +27,7 @@ function recorder() {
     return { reports, report: (r: OverflowReport) => void reports.push(r) }
 }
 
-test('createEventQueue - an unconsumed buffer never exceeds its bound', async () => {
+Deno.test('createEventQueue - an unconsumed buffer never exceeds its bound', async () => {
     // SC-001. The first version of this test could not fail: it called
     // `next()` without awaiting, checked a flag a microtask had not yet set,
     // and broke on the first iteration — so it compared 0 <= 10 and stayed
@@ -65,7 +64,7 @@ test('createEventQueue - an unconsumed buffer never exceeds its bound', async ()
     ])
 })
 
-test('createEventQueue - close() releases a consumer parked in next()', async () => {
+Deno.test('createEventQueue - close() releases a consumer parked in next()', async () => {
     // Without the waiter drain in close(), a `for await` on a stream that ends
     // hangs forever — and nothing would be red, because a hung promise fails no
     // assertion. The test has to be able to time out rather than to assert.
@@ -78,7 +77,7 @@ test('createEventQueue - close() releases a consumer parked in next()', async ()
     assertEquals(result.done, true, 'the parked consumer was released')
 })
 
-test('createEventQueue - a SECOND overflow episode reports its own start', async () => {
+Deno.test('createEventQueue - a SECOND overflow episode reports its own start', async () => {
     // Episode recovery: `dropped` has to reset when the buffer drains, or the
     // `dropped === 1` guard silences every episode after the first.
     const { reports, report } = recorder()
@@ -106,7 +105,7 @@ test('createEventQueue - a SECOND overflow episode reports its own start', async
     queue.close()
 })
 
-test('the default overflow report encodes the event name', () => {
+Deno.test('the default overflow report encodes the event name', () => {
     // The report ships ENABLED while the debug path is off by default, so this
     // was the one line in the package writing an unencoded name — using the
     // encoder this branch deliberately moved into @lockness/contract, one
@@ -139,7 +138,7 @@ test('the default overflow report encodes the event name', () => {
     }
 })
 
-test('createEventQueue - drop-oldest keeps the NEWEST frames', async () => {
+Deno.test('createEventQueue - drop-oldest keeps the NEWEST frames', async () => {
     const { report } = recorder()
     const queue = createEventQueue<number>('x', () => {}, {
         bufferSize: 3,
@@ -154,7 +153,7 @@ test('createEventQueue - drop-oldest keeps the NEWEST frames', async () => {
     assertEquals(seen, [3, 4, 5])
 })
 
-test('createEventQueue - drop-newest keeps the OLDEST frames', async () => {
+Deno.test('createEventQueue - drop-newest keeps the OLDEST frames', async () => {
     const { report } = recorder()
     const queue = createEventQueue<number>('x', () => {}, {
         bufferSize: 3,
@@ -169,7 +168,7 @@ test('createEventQueue - drop-newest keeps the OLDEST frames', async () => {
     assertEquals(seen, [1, 2, 3])
 })
 
-test('createEventQueue - an unrecognised policy is refused, not defaulted', () => {
+Deno.test('createEventQueue - an unrecognised policy is refused, not defaulted', () => {
     assertThrows(
         () =>
             createEventQueue<number>('x', () => {}, {
@@ -180,7 +179,7 @@ test('createEventQueue - an unrecognised policy is refused, not defaulted', () =
     )
 })
 
-test('createEventQueue - the overflow report never carries the dropped frame', () => {
+Deno.test('createEventQueue - the overflow report never carries the dropped frame', () => {
     // The finding that made this test exist: FR-009's report ships ENABLED,
     // while FR-012's payload rule guards only the debug path, which is off by
     // default. A dropped frame is a lifecycle event holding the request
@@ -210,7 +209,7 @@ test('createEventQueue - the overflow report never carries the dropped frame', (
     }
 })
 
-test('createEventQueue - an episode is reported once at its start, once at its end', () => {
+Deno.test('createEventQueue - an episode is reported once at its start, once at its end', () => {
     // NOT once per dropped frame: under a stalled consumer that is one line per
     // event, which is the flood the report exists to replace.
     const { reports, report } = recorder()
@@ -234,7 +233,7 @@ test('createEventQueue - an episode is reported once at its start, once at its e
     assertEquals(reports[1].dropped, 50)
 })
 
-test('createEventQueue - bufferSize bounds are enforced at both edges', () => {
+Deno.test('createEventQueue - bufferSize bounds are enforced at both edges', () => {
     for (const bad of [0, -1, 1.5, Number.NaN, 1e21, MAX_BUFFER_SIZE + 1]) {
         assertThrows(
             () => createEventQueue<number>('x', () => {}, { bufferSize: bad }),
@@ -254,7 +253,7 @@ test('createEventQueue - bufferSize bounds are enforced at both edges', () => {
         .close()
 })
 
-test('createEventQueue - ending the iterator detaches, by every route', async () => {
+Deno.test('createEventQueue - ending the iterator detaches, by every route', async () => {
     // return()
     let detached = 0
     const byReturn = createEventQueue<number>('x', () => void detached++)
@@ -274,7 +273,7 @@ test('createEventQueue - ending the iterator detaches, by every route', async ()
     assertEquals(detached, 3, 'closed once, detached once')
 })
 
-test('eventStream - is bounded by default and detaches on break', async () => {
+Deno.test('eventStream - is bounded by default and detaches on break', async () => {
     const emitter = new EventEmitter()
     const stream = eventStream<number>(emitter, 'tick')
 
@@ -292,7 +291,7 @@ test('eventStream - is bounded by default and detaches on break', async () => {
     )
 })
 
-test('eventStream - two streams on one event have independent buffers', async () => {
+Deno.test('eventStream - two streams on one event have independent buffers', async () => {
     const a = recorder()
     const b = recorder()
     const qa = createEventQueue<number>(
@@ -324,7 +323,7 @@ test('eventStream - two streams on one event have independent buffers', async ()
     assertEquals(seen, [0, 1, 2])
 })
 
-test('the default bound is documented and stable', () => {
+Deno.test('the default bound is documented and stable', () => {
     // A caller sizing `streams × bufferSize × sizeof(Context)` depends on this
     // number; changing it is a behaviour change for every consumer.
     assertEquals(DEFAULT_BUFFER_SIZE, 1024)
@@ -335,7 +334,7 @@ test('the default bound is documented and stable', () => {
 // anyEvent() — FR-006, FR-007 / US3
 // =============================================================================
 
-test('anyEvent - yields { event, data }, the same shape onAny delivers', async () => {
+Deno.test('anyEvent - yields { event, data }, the same shape onAny delivers', async () => {
     // #135 suggested `[name, data]`, which came from Emittery's API — and
     // Emittery is what #91 proposed and we did not adopt. A tuple beside
     // onAny()'s object would be two shapes for one concept.
@@ -350,7 +349,7 @@ test('anyEvent - yields { event, data }, the same shape onAny delivers', async (
     await stream.return!()
 })
 
-test('anyEvent - delivers different events in dispatch order', async () => {
+Deno.test('anyEvent - delivers different events in dispatch order', async () => {
     const emitter = new EventEmitter()
     const stream = emitter.anyEvent()
 
@@ -367,7 +366,7 @@ test('anyEvent - delivers different events in dispatch order', async () => {
     await stream.return!()
 })
 
-test('anyEvent - break detaches the wildcard listener', async () => {
+Deno.test('anyEvent - break detaches the wildcard listener', async () => {
     const emitter = new EventEmitter()
     // listenerCount() reads listenerMap and cannot see a wildcard, so it is the
     // wrong instrument here. A second wildcard that keeps counting is the right
@@ -386,7 +385,7 @@ test('anyEvent - break detaches the wildcard listener', async () => {
     assertEquals((await stream.next()).done, true)
 })
 
-test('anyEvent - and eventStream open at once both receive the event', async () => {
+Deno.test('anyEvent - and eventStream open at once both receive the event', async () => {
     const emitter = new EventEmitter()
     const all = emitter.anyEvent()
     const one = eventStream<number>(emitter, 'tick')
@@ -400,7 +399,7 @@ test('anyEvent - and eventStream open at once both receive the event', async () 
     await one.return!()
 })
 
-test('anyEvent - honours bufferSize and onOverflow identically', async () => {
+Deno.test('anyEvent - honours bufferSize and onOverflow identically', async () => {
     // 'drop-newest', NOT 'drop-oldest'. The latter is DEFAULT_OVERFLOW, so
     // passing it is indistinguishable from omitting it: the forwarding this
     // test is named for would survive being deleted from anyEvent().
@@ -428,7 +427,7 @@ test('anyEvent - honours bufferSize and onOverflow identically', async () => {
     await stream.return!()
 })
 
-test('anyEvent - rejects a bad bufferSize the same way eventStream does', () => {
+Deno.test('anyEvent - rejects a bad bufferSize the same way eventStream does', () => {
     const emitter = new EventEmitter()
     assertThrows(
         () => emitter.anyEvent({ bufferSize: 1e21 }),

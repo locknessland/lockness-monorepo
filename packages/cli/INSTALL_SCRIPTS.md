@@ -5,25 +5,6 @@ configuration.
 
 ## For Package Authors
 
-### Prefer a setup step
-
-A package that may not depend on `@lockness/cli` exports a `./setup` entry whose
-**named** `setup` export is a `PackageSetup` from `@lockness/contract/setup`
-(#592). `package:install <name>` imports `@lockness/<name>/setup` first and
-calls it with a `SetupContext`: `root`, the project directory, and
-`registerPackage(name)`, which refuses a directory with no `deno.json(c)` and
-registers the package. It falls back to `./install`'s default export (below),
-then to registering the package alone. `@lockness/deprecation-contracts/setup`
-is the reference.
-
-```ts
-import type { PackageSetup } from '@lockness/contract/setup'
-
-export const setup: PackageSetup = async (context) => {
-    await context.registerPackage('my-package')
-}
-```
-
 ### Creating an Install Script
 
 Create an `install.ts` file in your package root. Its work is the module's

@@ -10,12 +10,14 @@
  * @module @lockness/i18n/tests/cli_commands
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import { Cli as RealCli } from '@lockness/cli'
-import type { CommandRegistry } from '@lockness/contract/command'
-import { isContained } from '@lockness/contract/fs/internal'
-import { handleMakeLang, registerI18nCommands } from '../cli_commands.ts'
+import {
+    type Cli,
+    handleMakeLang,
+    isContained,
+    registerI18nCommands,
+} from '../cli_commands.ts'
 
 /** Run `fn` with `console.error` recorded instead of printed. */
 async function captureErrors<T>(
@@ -42,7 +44,7 @@ function assertCommandFailure(error: Error, fragment: string): void {
     )
 }
 
-test('SC-006: make:lang fr-fr scaffolds resources/lang/fr_fr.ts', async () => {
+Deno.test('SC-006: make:lang fr-fr scaffolds resources/lang/fr_fr.ts', async () => {
     const dir = await Deno.makeTempDir()
     const prev = Deno.cwd()
     Deno.chdir(dir)
@@ -60,7 +62,7 @@ test('SC-006: make:lang fr-fr scaffolds resources/lang/fr_fr.ts', async () => {
     }
 })
 
-test('S2: make:lang rejects a traversal locale and writes nothing', async () => {
+Deno.test('S2: make:lang rejects a traversal locale and writes nothing', async () => {
     const dir = await Deno.makeTempDir()
     const prev = Deno.cwd()
     Deno.chdir(dir)
@@ -81,23 +83,20 @@ test('S2: make:lang rejects a traversal locale and writes nothing', async () => 
     }
 })
 
-test('isContained rejects escapes and accepts children', () => {
+Deno.test('isContained rejects escapes and accepts children', () => {
     assert(isContained('./resources/lang', './resources/lang/fr_fr.ts'))
     assert(!isContained('./resources/lang', './resources/lang/../../etc'))
 })
 
-test('registerI18nCommands registers make:lang + i18n:extract', () => {
+Deno.test('registerI18nCommands registers make:lang + i18n:extract', () => {
     const registered: string[] = []
-    const cli: CommandRegistry = {
-        register: (name) => void registered.push(name),
-        registerCommand: () => {},
-    }
+    const cli: Cli = { register: (name) => void registered.push(name) }
     registerI18nCommands(cli)
     assert(registered.includes('make:lang'))
     assert(registered.includes('i18n:extract'))
 })
 
-test('make:lang with no locale throws a failure with exitCode 1 and prints nothing', async () => {
+Deno.test('make:lang with no locale throws a failure with exitCode 1 and prints nothing', async () => {
     const { result: error, errors } = await captureErrors(() =>
         assertRejects(() => handleMakeLang([]), Error)
     )
@@ -105,7 +104,7 @@ test('make:lang with no locale throws a failure with exitCode 1 and prints nothi
     assertEquals(errors.length, 0, 'the dispatcher is the only printer')
 })
 
-test('make:lang through the real Cli.dispatch exits 1 with exactly one ❌ line', async () => {
+Deno.test('make:lang through the real Cli.dispatch exits 1 with exactly one ❌ line', async () => {
     const cli = new RealCli()
     registerI18nCommands(cli)
     const { result: status, errors } = await captureErrors(() =>

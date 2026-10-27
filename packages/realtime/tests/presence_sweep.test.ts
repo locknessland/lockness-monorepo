@@ -10,7 +10,6 @@
  * @module @lockness/realtime/tests/presence_sweep
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
 import { RedisBroadcastDriver } from '../drivers/redis.ts'
@@ -44,7 +43,7 @@ async function flushMicrotasks(times = 50): Promise<void> {
     for (let i = 0; i < times; i++) await Promise.resolve()
 }
 
-test('SC-005: a crashed instance leaves no permanent ghost roster members', async () => {
+Deno.test('SC-005: a crashed instance leaves no permanent ghost roster members', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-05T10:00:00Z'))
     const a = driver(redis)

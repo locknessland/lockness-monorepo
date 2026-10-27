@@ -4,11 +4,10 @@
  * @module @lockness/vite/tests/hmr
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { hmrPlugin } from '../src/plugins/hmr.ts'
 
-test('hmrPlugin - server-reload change re-inits the app and reloads; css/ignore do not', async () => {
+Deno.test('hmrPlugin - server-reload change re-inits the app and reloads; css/ignore do not', async () => {
     let reloads = 0
     const sent: string[] = []
     let onChange: ((p: string) => void) | undefined

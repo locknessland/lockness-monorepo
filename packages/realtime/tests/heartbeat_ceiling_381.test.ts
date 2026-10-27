@@ -17,7 +17,6 @@
  * @module @lockness/realtime/tests/heartbeat_ceiling_381
  */
 
-import { test } from 'node:test'
 import { assertEquals, assertStringIncludes, assertThrows } from '@std/assert'
 import { RedisBroadcastDriver } from '../drivers/redis.ts'
 
@@ -54,7 +53,7 @@ function build(intervalMs: number, livenessTtlSeconds?: number) {
     )
 }
 
-test('#381 H1 an interval one past the timer ceiling is refused at construction', () => {
+Deno.test('#381 H1 an interval one past the timer ceiling is refused at construction', () => {
     // 2^31 is the FIRST delay Deno clamps to 1 ms: a guard one too loose
     // (`> 2 ** 31`) still admits it, so this value is the one that matters.
     const error = assertThrows(() => build(CEILING_MS + 1), Error)
@@ -65,13 +64,13 @@ test('#381 H1 an interval one past the timer ceiling is refused at construction'
     assertThrows(() => build(10 * CEILING_MS), Error, REFUSAL)
 })
 
-test('#381 H2 an interval of exactly the timer ceiling is accepted', () => {
+Deno.test('#381 H2 an interval of exactly the timer ceiling is accepted', () => {
     // The ceiling is the largest delay that still waits; the guard is
     // `> ceiling`, not `>= ceiling`. Pinned so a tightening is seen.
     build(CEILING_MS)
 })
 
-test('#381 H3 the refusal names the interval, the liveness TTL and the ceiling', () => {
+Deno.test('#381 H3 the refusal names the interval, the liveness TTL and the ceiling', () => {
     const interval = CEILING_MS + 1
     const ttl = admittingTtlSeconds(interval)
     const error = assertThrows(() => build(interval, ttl), Error, REFUSAL)

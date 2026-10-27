@@ -28,8 +28,8 @@ names does not belong here._
 | **Must never import**                     | `notification` — each already reaches this package, so importing one closes a cycle |
 
 Enforced by `deno task deps:analyze` against `deps.policy.jsonc`. A soft edge is
-an optional peer in this package's `package.json`, never a dependency: the
-consuming application installs it, or the feature stays off.
+deliberately **not** declared in this package's `deno.json`: the consuming
+application installs it, or the feature stays off.
 
 <!-- /generated:deps -->
 
@@ -37,13 +37,13 @@ consuming application installs it, or the feature stays off.
 
 <!-- generated:surface -->
 
-| Kind      | Exports                                                                                                                                                                                                                                                                                                                                                       |
-| :-------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| class     | `ConsoleMailDriver`, `Mail`, `MailPackageMissingError`, `MailQueueNotConfiguredError`, `Mailable`, `MemoryMailDriver`, `ResendMailDriver`, `SmtpMailDriver`                                                                                                                                                                                                   |
-| function  | `capturePreview`, `capturedMails`, `configureMail`, `configureMailQueue`, `disableMailPreview`, `enableMailPreview`, `getMailConfig`, `getMailableFactory`, `handleMailJob`, `isMailPreviewEnabled`, `mail`, `mailPreviewHandler`, `queueMailable`, `registerMailCommands`, `registerMailable`, `resetMailPreview`, `resetMailQueue`, `resetMailableRegistry` |
-| interface | `CapturedMail`, `MailAddress`, `MailAttachment`, `MailConfig`, `MailDriver`, `MailMessage`, `MailResult`, `MailableContent`, `QueuedMailJob`                                                                                                                                                                                                                  |
-| typeAlias | `MailDispatcher`, `MailableFactory`, `ModuleImporter`                                                                                                                                                                                                                                                                                                         |
-| variable  | `MAIL_DIR`                                                                                                                                                                                                                                                                                                                                                    |
+| Kind      | Exports                                                                                                                                                                                                                                                                                                                                                                      |
+| :-------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| class     | `ConsoleMailDriver`, `Mail`, `MailPackageMissingError`, `MailQueueNotConfiguredError`, `Mailable`, `MemoryMailDriver`, `ResendMailDriver`, `SmtpMailDriver`                                                                                                                                                                                                                  |
+| function  | `capturePreview`, `capturedMails`, `configureMail`, `configureMailQueue`, `disableMailPreview`, `enableMailPreview`, `getMailConfig`, `getMailableFactory`, `handleMailJob`, `isContained`, `isMailPreviewEnabled`, `mail`, `mailPreviewHandler`, `queueMailable`, `registerMailCommands`, `registerMailable`, `resetMailPreview`, `resetMailQueue`, `resetMailableRegistry` |
+| interface | `CapturedMail`, `Cli`, `MailAddress`, `MailAttachment`, `MailConfig`, `MailDriver`, `MailMessage`, `MailResult`, `MailableContent`, `QueuedMailJob`                                                                                                                                                                                                                          |
+| typeAlias | `MailDispatcher`, `MailableFactory`, `ModuleImporter`                                                                                                                                                                                                                                                                                                                        |
+| variable  | `MAIL_DIR`                                                                                                                                                                                                                                                                                                                                                                   |
 
 Anything not listed is internal and free to change.
 
@@ -66,13 +66,12 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-6 test files for 14 source files:
+5 test files for 14 source files:
 
 - `packages/mail/tests/cli_commands.test.ts`
 - `packages/mail/tests/mail.test.ts`
 - `packages/mail/tests/mailable.test.ts`
 - `packages/mail/tests/preview.test.ts`
-- `packages/mail/tests/preview_unreadable.deno.test.ts`
 - `packages/mail/tests/queued.test.ts`
 
 <!-- /generated:tests -->
@@ -88,7 +87,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 6 test files directly —
+Then, specific to this package: run its 5 test files directly —
 
 ```bash
 deno test -A packages/mail/

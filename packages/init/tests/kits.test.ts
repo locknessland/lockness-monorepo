@@ -8,7 +8,6 @@
  * the same class of mistake in milliseconds, on every commit.
  */
 
-import { test } from 'node:test'
 import { assertEquals, assertThrows } from '@std/assert'
 import { dirname, fromFileUrl, join } from '@std/path'
 import { CommandFailedError } from '@lockness/cli/command-failure'
@@ -27,7 +26,7 @@ async function exists(path: string): Promise<boolean> {
     }
 }
 
-test('every file a kit lists actually exists', async () => {
+Deno.test('every file a kit lists actually exists', async () => {
     const missing: string[] = []
 
     for (const kit of KIT_NAMES) {
@@ -46,7 +45,7 @@ test('every file a kit lists actually exists', async () => {
     assertEquals(missing, [], `manifest names files that are not on disk`)
 })
 
-test('every overlay file on disk is claimed by its kit', async () => {
+Deno.test('every overlay file on disk is claimed by its kit', async () => {
     // The other direction: a stub written and then never listed is dead weight
     // that reads like shipped code.
     const orphans: string[] = []
@@ -74,7 +73,7 @@ async function* walk(dir: string): AsyncGenerator<string> {
     }
 }
 
-test('resolveKit - defaults, accepts, and refuses', () => {
+Deno.test('resolveKit - defaults, accepts, and refuses', () => {
     assertEquals(resolveKit(undefined), DEFAULT_KIT)
     assertEquals(resolveKit(''), DEFAULT_KIT)
     for (const kit of KIT_NAMES) assertEquals(resolveKit(kit), kit)
@@ -94,7 +93,7 @@ test('resolveKit - defaults, accepts, and refuses', () => {
     assertThrows(() => resolveKit('nope'), CommandFailedError, 'web, api, slim')
 })
 
-test('slim ships none of what it says it omits', () => {
+Deno.test('slim ships none of what it says it omits', () => {
     // The one file under app/view/ is no view: it is the JSON error handler,
     // at the path core reads it from (#479).
     const files = [...KITS.slim.base, ...KITS.slim.overlay].filter((f) =>
@@ -113,7 +112,7 @@ test('slim ships none of what it says it omits', () => {
     assertEquals(KITS.slim.binaries, [], 'no favicons without a browser')
 })
 
-test('api ships no view layer and no session', () => {
+Deno.test('api ships no view layer and no session', () => {
     const files = [...KITS.api.base, ...KITS.api.overlay]
 
     for (const forbidden of ['app/view/', 'postcss', 'config/session']) {
@@ -125,7 +124,7 @@ test('api ships no view layer and no session', () => {
     }
 })
 
-test('web is the default, and the only kit with binaries', () => {
+Deno.test('web is the default, and the only kit with binaries', () => {
     assertEquals(DEFAULT_KIT, 'web')
     for (const kit of KIT_NAMES) {
         if (kit === 'web') continue
@@ -133,7 +132,7 @@ test('web is the default, and the only kit with binaries', () => {
     }
 })
 
-test('each kit scaffolds a deno.json, a kernel and a smoke test', () => {
+Deno.test('each kit scaffolds a deno.json, a kernel and a smoke test', () => {
     // The three files without which "it boots" cannot be true.
     for (const kit of KIT_NAMES) {
         const files = [...KITS[kit].base, ...KITS[kit].overlay]
@@ -156,7 +155,7 @@ test('each kit scaffolds a deno.json, a kernel and a smoke test', () => {
     }
 })
 
-test('a kit never lists the same path twice within one tree', () => {
+Deno.test('a kit never lists the same path twice within one tree', () => {
     // A duplicate is harmless at runtime — the second write wins with identical
     // content — but it means someone edited the manifest twice for one file,
     // and the next edit will only find one of them.
@@ -172,7 +171,7 @@ test('a kit never lists the same path twice within one tree', () => {
     }
 })
 
-test('#503 every kit defines the build task its Dockerfile runs', async () => {
+Deno.test('#503 every kit defines the build task its Dockerfile runs', async () => {
     // The shared Dockerfile stub runs `deno task build` for every kit. A kit
     // without one fails `docker build`; a build that skips routes:generate
     // ships whatever app/routes.ts the image context happened to hold.
@@ -202,11 +201,11 @@ const MIGRATING_KITS = KIT_NAMES.filter((kit) =>
     KITS[kit].overlay.some((f) => f.startsWith('database/migrations/'))
 )
 
-test('#444 web and api ship migrations; slim ships none', () => {
+Deno.test('#444 web and api ship migrations; slim ships none', () => {
     assertEquals(MIGRATING_KITS, ['web', 'api'])
 })
 
-test('#444 a migrating kit ships drizzle.config.ts and registers db:*', async () => {
+Deno.test('#444 a migrating kit ships drizzle.config.ts and registers db:*', async () => {
     for (const kit of KIT_NAMES) {
         const migrates = MIGRATING_KITS.includes(kit)
         // Without the config, db:migrate and db:fresh have nothing
@@ -230,7 +229,7 @@ test('#444 a migrating kit ships drizzle.config.ts and registers db:*', async ()
     }
 })
 
-test('#444 drizzle.config.ts never falls back to an empty url', async () => {
+Deno.test('#444 drizzle.config.ts never falls back to an empty url', async () => {
     const config = await Deno.readTextFile(
         join(STUBS, 'init', 'drizzle.config.ts.stub'),
     )
@@ -243,7 +242,7 @@ test('#444 drizzle.config.ts never falls back to an empty url', async () => {
     )
 })
 
-test('#444 every shipped migration is in the journal, with its snapshot', async () => {
+Deno.test('#444 every shipped migration is in the journal, with its snapshot', async () => {
     const dir = 'database/migrations/'
     for (const kit of MIGRATING_KITS) {
         const overlay = KITS[kit].overlay

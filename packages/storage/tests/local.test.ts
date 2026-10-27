@@ -2,11 +2,10 @@
  * Tests for @lockness/storage - Local Driver
  */
 
-import { test } from 'node:test'
 import { assertEquals, assertExists, assertRejects } from '@std/assert'
 import { createMockStorage } from './support/mock_driver.ts'
 
-test('LocalStorageDriver - put and get text file', async () => {
+Deno.test('LocalStorageDriver - put and get text file', async () => {
     const driver = createMockStorage()
 
     await driver.put('test.txt', 'Hello, World!')
@@ -15,7 +14,7 @@ test('LocalStorageDriver - put and get text file', async () => {
     assertEquals(content, 'Hello, World!')
 })
 
-test('LocalStorageDriver - put and get binary file', async () => {
+Deno.test('LocalStorageDriver - put and get binary file', async () => {
     const driver = createMockStorage()
 
     const data = new Uint8Array([1, 2, 3, 4, 5])
@@ -25,7 +24,7 @@ test('LocalStorageDriver - put and get binary file', async () => {
     assertEquals(content, data)
 })
 
-test('LocalStorageDriver - put and get stream', async () => {
+Deno.test('LocalStorageDriver - put and get stream', async () => {
     const driver = createMockStorage()
 
     const data = 'Stream content'
@@ -42,7 +41,7 @@ test('LocalStorageDriver - put and get stream', async () => {
     assertEquals(content, data)
 })
 
-test('LocalStorageDriver - exists', async () => {
+Deno.test('LocalStorageDriver - exists', async () => {
     const driver = createMockStorage()
 
     assertEquals(await driver.exists('nonexistent.txt'), false)
@@ -51,7 +50,7 @@ test('LocalStorageDriver - exists', async () => {
     assertEquals(await driver.exists('exists.txt'), true)
 })
 
-test('LocalStorageDriver - metadata', async () => {
+Deno.test('LocalStorageDriver - metadata', async () => {
     const driver = createMockStorage()
 
     const content = 'Hello, metadata!'
@@ -64,7 +63,7 @@ test('LocalStorageDriver - metadata', async () => {
     assertExists(meta.lastModified)
 })
 
-test('LocalStorageDriver - list files', async () => {
+Deno.test('LocalStorageDriver - list files', async () => {
     const driver = createMockStorage()
 
     await driver.put('list/file1.txt', 'File 1')
@@ -81,7 +80,7 @@ test('LocalStorageDriver - list files', async () => {
     ])
 })
 
-test('LocalStorageDriver - copy file', async () => {
+Deno.test('LocalStorageDriver - copy file', async () => {
     const driver = createMockStorage()
 
     await driver.put('source.txt', 'Copy me')
@@ -94,7 +93,7 @@ test('LocalStorageDriver - copy file', async () => {
     assertEquals(dest, 'Copy me')
 })
 
-test('LocalStorageDriver - move file', async () => {
+Deno.test('LocalStorageDriver - move file', async () => {
     const driver = createMockStorage()
 
     await driver.put('old-location.txt', 'Move me')
@@ -107,14 +106,14 @@ test('LocalStorageDriver - move file', async () => {
     assertEquals(content, 'Move me')
 })
 
-test('LocalStorageDriver - publicUrl', () => {
+Deno.test('LocalStorageDriver - publicUrl', () => {
     const driver = createMockStorage()
 
     const url = driver.publicUrl('test.txt')
     assertEquals(url, 'memory://test.txt')
 })
 
-test('LocalStorageDriver - signedUrl throws error', async () => {
+Deno.test('LocalStorageDriver - signedUrl throws error', async () => {
     const driver = createMockStorage()
 
     await assertRejects(
@@ -124,7 +123,7 @@ test('LocalStorageDriver - signedUrl throws error', async () => {
     )
 })
 
-test('LocalStorageDriver - nested directories', async () => {
+Deno.test('LocalStorageDriver - nested directories', async () => {
     const driver = createMockStorage()
 
     await driver.put('deep/nested/structure/file.txt', 'Deep content')
@@ -133,7 +132,7 @@ test('LocalStorageDriver - nested directories', async () => {
     assertEquals(content, 'Deep content')
 })
 
-test('LocalStorageDriver - getStream integration', async () => {
+Deno.test('LocalStorageDriver - getStream integration', async () => {
     const driver = createMockStorage()
 
     const content = 'Stream test content'

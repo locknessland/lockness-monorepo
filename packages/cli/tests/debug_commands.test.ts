@@ -8,7 +8,6 @@
  * @module @lockness/cli/tests/debug_commands
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { fromFileUrl } from '@std/path'
 import {
@@ -56,7 +55,7 @@ const BROKEN_IMPORT = fromFileUrl(
 
 // --- collectListeners (integration over fixtures) -------------------------
 
-test('collectListeners - finds top-level and nested listeners (A2)', async () => {
+Deno.test('collectListeners - finds top-level and nested listeners (A2)', async () => {
     const rows = await collectListeners(FIXTURES)
     const byClass = (c: string) => rows.filter((r) => r.listenerClass === c)
 
@@ -74,7 +73,7 @@ test('collectListeners - finds top-level and nested listeners (A2)', async () =>
     assertEquals(beta[0].priority, 0, 'default priority')
 })
 
-test('collectListeners - symbol method name is coerced to string (A6)', async () => {
+Deno.test('collectListeners - symbol method name is coerced to string (A6)', async () => {
     const rows = await collectListeners(FIXTURES)
     const sym = rows.find((r) => r.listenerClass === 'SymbolListener')
     assert(sym, 'symbol-method listener found')
@@ -82,7 +81,7 @@ test('collectListeners - symbol method name is coerced to string (A6)', async ()
     assertStringIncludes(sym!.methodName, 'symHandle')
 })
 
-test('collectListeners - a throwing constructor is NOT dropped (A1)', async () => {
+Deno.test('collectListeners - a throwing constructor is NOT dropped (A1)', async () => {
     // BadListener's @Listener initializer runs during construction, before the
     // constructor body throws — so reading metadata OUTSIDE the try/catch still
     // captures it. The listing resolves and BadListener still appears.
@@ -97,7 +96,7 @@ test('collectListeners - a throwing constructor is NOT dropped (A1)', async () =
     )
 })
 
-test('collectListeners - is idempotent across repeated calls (dedup)', async () => {
+Deno.test('collectListeners - is idempotent across repeated calls (dedup)', async () => {
     // Metadata accumulates on the cached class each construction; dedup keeps the
     // count stable no matter how many times the command runs in one process.
     await collectListeners(FIXTURES)
@@ -109,12 +108,12 @@ test('collectListeners - is idempotent across repeated calls (dedup)', async () 
     )
 })
 
-test('collectListeners - absent directory yields no rows, no throw', async () => {
+Deno.test('collectListeners - absent directory yields no rows, no throw', async () => {
     const rows = await collectListeners(`${FIXTURES}/does-not-exist`)
     assertEquals(rows, [])
 })
 
-test('collectListeners - a file that fails to import warns and is skipped; the rest are still listed (#150, US1)', async () => {
+Deno.test('collectListeners - a file that fails to import warns and is skipped; the rest are still listed (#150, US1)', async () => {
     // Home of the rule (plan §5 row 1): the per-file try/catch in
     // collectListeners.walk. `throws_on_import.ts` rejects at import() → warn +
     // continue; `ok_listener.ts` must still come through.
@@ -132,7 +131,7 @@ test('collectListeners - a file that fails to import warns and is skipped; the r
     )
 })
 
-test('collectListeners - @lockness/events absent → info line and no rows, no throw (#150, US2)', async () => {
+Deno.test('collectListeners - @lockness/events absent → info line and no rows, no throw (#150, US2)', async () => {
     // Home of the rule (plan §5 row 2): the top-level try/catch in
     // collectListeners. The injected loadEvents rejects, standing in for the
     // package being unavailable — the only way to reach this branch, since the
@@ -165,7 +164,7 @@ const sample: ListenerRow[] = [
     },
 ]
 
-test('filterRows - substring match on event or class, case-insensitive', () => {
+Deno.test('filterRows - substring match on event or class, case-insensitive', () => {
     assertEquals(filterRows(sample, 'kernel').length, 1)
     assertEquals(
         filterRows(sample, 'metrics')[0].listenerClass,
@@ -182,7 +181,7 @@ test('filterRows - substring match on event or class, case-insensitive', () => {
 
 // --- formatGrouped (unit) -------------------------------------------------
 
-test('formatGrouped - groups by event with count, priority-sorted, singular/plural', () => {
+Deno.test('formatGrouped - groups by event with count, priority-sorted, singular/plural', () => {
     const rows: ListenerRow[] = [
         { eventName: 'E', listenerClass: 'A', methodName: 'a', priority: 0 },
         { eventName: 'E', listenerClass: 'B', methodName: 'b', priority: 50 },
@@ -198,7 +197,7 @@ test('formatGrouped - groups by event with count, priority-sorted, singular/plur
 
 // --- runDebugEventDispatcher (handler) ------------------------------------
 
-test('handler - grouped output over a fixture dir (US1)', async () => {
+Deno.test('handler - grouped output over a fixture dir (US1)', async () => {
     const { log: out } = await capture(() =>
         runDebugEventDispatcher([], FIXTURES)
     )
@@ -207,21 +206,21 @@ test('handler - grouped output over a fixture dir (US1)', async () => {
     assertStringIncludes(out, 'Event: BetaEvent')
 })
 
-test('handler - no listeners → friendly message, no throw (SC-003)', async () => {
+Deno.test('handler - no listeners → friendly message, no throw (SC-003)', async () => {
     const { log: out } = await capture(() =>
         runDebugEventDispatcher([], `${FIXTURES}/does-not-exist`)
     )
     assertStringIncludes(out, 'No event listeners found')
 })
 
-test('handler - no match → friendly message (US2)', async () => {
+Deno.test('handler - no match → friendly message (US2)', async () => {
     const { log: out } = await capture(() =>
         runDebugEventDispatcher(['zzz-no-such-listener'], FIXTURES)
     )
     assertStringIncludes(out, 'No listeners match')
 })
 
-test('handler - --dispatcher flag is accepted and ignored for filtering (FR-004)', async () => {
+Deno.test('handler - --dispatcher flag is accepted and ignored for filtering (FR-004)', async () => {
     const { log: out } = await capture(() =>
         runDebugEventDispatcher(['--dispatcher=global'], FIXTURES)
     )

@@ -4,7 +4,7 @@
  * @module @lockness/markdown/types
  */
 
-import type { FC } from '@lockness/hono/jsx'
+import type { FC } from 'hono/jsx'
 
 /**
  * Parsed Markdown AST node types

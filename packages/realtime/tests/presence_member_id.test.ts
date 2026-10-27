@@ -11,7 +11,6 @@
  * @module @lockness/realtime/tests/presence_member_id
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { ChannelManager } from '../manager.ts'
 import { PresenceMemberIdError } from '../presence_member.ts'
@@ -36,7 +35,7 @@ function managerReturning(member: PresenceMember | true) {
     return new ChannelManager<User>({ authorize: () => member })
 }
 
-test('#306 the FRAMEWORK path is unaffected — authorize() returning true', async () => {
+Deno.test('#306 the FRAMEWORK path is unaffected — authorize() returning true', async () => {
     // The acceptance criterion that matters most: `authorize: () => true`
     // yields `{ id: connection.id }`, and a connection id is already charset-
     // and length-bounded by #304. A guard that tripped on the framework's own
@@ -48,7 +47,7 @@ test('#306 the FRAMEWORK path is unaffected — authorize() returning true', asy
     assertEquals(result.ok, true)
 })
 
-test('#306 an application id the charset would REJECT is accepted', async () => {
+Deno.test('#306 an application id the charset would REJECT is accepted', async () => {
     // The decision, pinned. `isValidName` rejects every one of these, and all
     // three are ordinary presence identities. Borrowing Connection.id's
     // charset here would break real deployments to buy nothing — RESP bulk
@@ -63,7 +62,7 @@ test('#306 an application id the charset would REJECT is accepted', async () => 
     }
 })
 
-test('#306 an OVERSIZED member id is refused before anything is written', async () => {
+Deno.test('#306 an OVERSIZED member id is refused before anything is written', async () => {
     // Length is the one thing no layer below bounds: the caps upstream are a
     // 10 MiB RESP frame and an 8 KiB control payload, and the roster write
     // happens BEFORE the control publish — so without this guard an oversized
@@ -85,7 +84,7 @@ test('#306 an OVERSIZED member id is refused before anything is written', async 
     )
 })
 
-test('#306 the boundary is EXACT — 200 passes, 201 does not', async () => {
+Deno.test('#306 the boundary is EXACT — 200 passes, 201 does not', async () => {
     // Pinned so a later "round it down for safety" edit is a visible change of
     // contract rather than a silent one.
     const ok = managerReturning({ id: 'x'.repeat(MAX_NAME_LENGTH) })
@@ -105,7 +104,7 @@ test('#306 the boundary is EXACT — 200 passes, 201 does not', async () => {
     assert(threw, `${MAX_NAME_LENGTH + 1} characters was accepted`)
 })
 
-test('#306 an EMPTY member id is refused', async () => {
+Deno.test('#306 an EMPTY member id is refused', async () => {
     const m = managerReturning({ id: '' })
     const c = conn(crypto.randomUUID())
     m.register(c)
@@ -118,7 +117,7 @@ test('#306 an EMPTY member id is refused', async () => {
     assert(threw, 'an empty member id was accepted as a roster field name')
 })
 
-test('#306 a NON-FINITE numeric id is refused, a large finite one is not', async () => {
+Deno.test('#306 a NON-FINITE numeric id is refused, a large finite one is not', async () => {
     // `String(NaN)` is "NaN" — an ordinary-looking hash field that every
     // NaN-identified member would silently SHARE, collapsing them into one
     // roster entry. Infinity is the same shape of problem.

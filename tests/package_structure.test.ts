@@ -12,7 +12,6 @@
  * or when package structure changes.
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { exists } from '@std/fs'
 import { join } from '@std/path'
@@ -68,7 +67,6 @@ const PACKAGES: string[] = [
     'queue',
     'redis',
     'crypto',
-    'runtime',
     'telemetry',
     'scheduler',
     'session',
@@ -76,7 +74,6 @@ const PACKAGES: string[] = [
     'sse',
     'storage',
     'testing',
-    'transform',
     'ui',
     'upgrade',
     'validator',
@@ -99,13 +96,13 @@ const EXEMPTIONS: Record<string, RequiredFile[]> = {
 // Test: All packages should have required files
 // =============================================================================
 
-test('Package Structure - all packages should have README.md', async (t) => {
+Deno.test('Package Structure - all packages should have README.md', async (t) => {
     const missing: string[] = []
 
     for (const pkg of PACKAGES) {
         if (EXEMPTIONS[pkg]?.includes('README.md')) continue
 
-        await t.test(`checking ${pkg}/README.md`, async () => {
+        await t.step(`checking ${pkg}/README.md`, async () => {
             const filePath = join('packages', pkg, 'README.md')
             const hasFile = await exists(filePath)
 
@@ -118,13 +115,13 @@ test('Package Structure - all packages should have README.md', async (t) => {
     assertEquals(missing.length, 0, `Missing README.md: ${missing.join(', ')}`)
 })
 
-test('Package Structure - all packages should have mod.ts', async (t) => {
+Deno.test('Package Structure - all packages should have mod.ts', async (t) => {
     const missing: string[] = []
 
     for (const pkg of PACKAGES) {
         if (EXEMPTIONS[pkg]?.includes('mod.ts')) continue
 
-        await t.test(`checking ${pkg}/mod.ts`, async () => {
+        await t.step(`checking ${pkg}/mod.ts`, async () => {
             // Check for either mod.ts or mod.tsx (JSX packages)
             const tsPath = join('packages', pkg, 'mod.ts')
             const tsxPath = join('packages', pkg, 'mod.tsx')
@@ -139,13 +136,13 @@ test('Package Structure - all packages should have mod.ts', async (t) => {
     assertEquals(missing.length, 0, `Missing mod.ts: ${missing.join(', ')}`)
 })
 
-test('Package Structure - all packages should have AGENTS.md', async (t) => {
+Deno.test('Package Structure - all packages should have AGENTS.md', async (t) => {
     const missing: string[] = []
 
     for (const pkg of PACKAGES) {
         if (EXEMPTIONS[pkg]?.includes('AGENTS.md')) continue
 
-        await t.test(`checking ${pkg}/AGENTS.md`, async () => {
+        await t.step(`checking ${pkg}/AGENTS.md`, async () => {
             const filePath = join('packages', pkg, 'AGENTS.md')
             const hasFile = await exists(filePath)
 
@@ -165,11 +162,11 @@ test('Package Structure - all packages should have AGENTS.md', async (t) => {
 // Note: llms.txt tests removed - packages now use dynamic LLM generation
 // from docs/DOCS.md files served via DocsLoader at /llms/{slug}.txt
 
-test('Package Structure - README.md files should not be empty', async (t) => {
+Deno.test('Package Structure - README.md files should not be empty', async (t) => {
     for (const pkg of PACKAGES) {
         if (EXEMPTIONS[pkg]?.includes('README.md')) continue
 
-        await t.test(`checking ${pkg}/README.md content`, async () => {
+        await t.step(`checking ${pkg}/README.md content`, async () => {
             const filePath = join('packages', pkg, 'README.md')
 
             if (await exists(filePath)) {
@@ -185,11 +182,11 @@ test('Package Structure - README.md files should not be empty', async (t) => {
     }
 })
 
-test('Package Structure - AGENTS.md files should be substantive', async (t) => {
+Deno.test('Package Structure - AGENTS.md files should be substantive', async (t) => {
     for (const pkg of PACKAGES) {
         if (EXEMPTIONS[pkg]?.includes('AGENTS.md')) continue
 
-        await t.test(`checking ${pkg}/AGENTS.md content`, async () => {
+        await t.step(`checking ${pkg}/AGENTS.md content`, async () => {
             const filePath = join('packages', pkg, 'AGENTS.md')
 
             if (await exists(filePath)) {
@@ -235,11 +232,11 @@ test('Package Structure - AGENTS.md files should be substantive', async (t) => {
     }
 })
 
-test('Package Structure - mod.ts should export something', async (t) => {
+Deno.test('Package Structure - mod.ts should export something', async (t) => {
     for (const pkg of PACKAGES) {
         if (EXEMPTIONS[pkg]?.includes('mod.ts')) continue
 
-        await t.test(`checking ${pkg}/mod.ts exports`, async () => {
+        await t.step(`checking ${pkg}/mod.ts exports`, async () => {
             const filePath = join('packages', pkg, 'mod.ts')
 
             if (await exists(filePath)) {
@@ -258,7 +255,7 @@ test('Package Structure - mod.ts should export something', async (t) => {
 // Test: Detect new packages not in the list
 // =============================================================================
 
-test('Package Structure - detect unconfigured packages', async () => {
+Deno.test('Package Structure - detect unconfigured packages', async () => {
     const knownPackages = new Set(PACKAGES)
     const unconfigured: string[] = []
 
@@ -285,7 +282,7 @@ test('Package Structure - detect unconfigured packages', async () => {
 // Test: Summary report
 // =============================================================================
 
-test('Package Structure - generate summary report', async () => {
+Deno.test('Package Structure - generate summary report', async () => {
     const report: Record<
         string,
         { readme: boolean; mod: boolean }

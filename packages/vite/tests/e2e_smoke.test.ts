@@ -16,7 +16,6 @@
  * @module @lockness/vite/tests/e2e_smoke
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { dirname, fromFileUrl, join } from '@std/path'
 import { defineViteConfig } from '../src/define_config.ts'
@@ -80,7 +79,7 @@ async function runDemoBuild(
     return { code: output.code, stderr, skip: false, reason: '' }
 }
 
-test('e2e - demo App.fetch renders the SSR home page (#115 dev SSR)', async () => {
+Deno.test('e2e - demo App.fetch renders the SSR home page (#115 dev SSR)', async () => {
     const res = await demoApp.fetch(new Request('http://localhost/'))
     assertEquals(res.status, 200)
     const body = await res.text()
@@ -88,7 +87,7 @@ test('e2e - demo App.fetch renders the SSR home page (#115 dev SSR)', async () =
     assertStringIncludes(body, 'data-testid="demo-heading"')
 })
 
-test('e2e - the dev bridge forwards the demo SSR response verbatim', async () => {
+Deno.test('e2e - the dev bridge forwards the demo SSR response verbatim', async () => {
     // A Vite-internal request is never forwarded to the app.
     assert(isViteInternalRequest('/@vite/client'))
     assert(!isViteInternalRequest('/'))
@@ -108,7 +107,7 @@ test('e2e - the dev bridge forwards the demo SSR response verbatim', async () =>
     assertStringIncludes(captured.body!, 'Lockness + Vite Demo')
 })
 
-test('e2e - production build manifest resolves the demo entry to hashed URLs (#115 prod)', async () => {
+Deno.test('e2e - production build manifest resolves the demo entry to hashed URLs (#115 prod)', async () => {
     // Shape of a real `vite build` manifest for the demo client entry.
     const dir = await Deno.makeTempDir()
     const manifestPath = join(dir, 'manifest.json')
@@ -138,7 +137,7 @@ test('e2e - production build manifest resolves the demo entry to hashed URLs (#1
     )
 })
 
-test('e2e - a real `vite build` compiles Tailwind utilities into the hashed CSS (#154/#156)', async () => {
+Deno.test('e2e - a real `vite build` compiles Tailwind utilities into the hashed CSS (#154/#156)', async () => {
     // Run the demo's actual production build — the config loads through Deno's
     // native runtime (--configLoader native), so bare @lockness/* + the JSX
     // runtime resolve; the denoResolver plugin handles the app graph. Bounded by

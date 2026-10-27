@@ -8,13 +8,12 @@
  * @module @lockness/realtime/tests/channels
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { ChannelManager } from '../manager.ts'
 import { channelKind } from '../channel.ts'
 import type { Connection } from '../types.ts'
 
-test('channelKind derives the kind from the name prefix', () => {
+Deno.test('channelKind derives the kind from the name prefix', () => {
     assertEquals(channelKind('presence-room.1'), 'presence')
     assertEquals(channelKind('private-orders'), 'private')
     assertEquals(channelKind('news'), 'public')
@@ -41,7 +40,7 @@ function fakeConn(id: string, identity: User | null): Connection<User> {
 const sentOf = (c: Connection<User>) =>
     (c as unknown as { _sent: string[] })._sent
 
-test('SC-003: a public channel delivers to all subscribers', async () => {
+Deno.test('SC-003: a public channel delivers to all subscribers', async () => {
     const m = new ChannelManager<User>()
     const a = fakeConn('a', null)
     m.register(a)
@@ -57,7 +56,7 @@ test('SC-003: a public channel delivers to all subscribers', async () => {
     assertEquals(JSON.parse(sentOf(a)[0]).event, 'headline')
 })
 
-test('SC-003: a private channel rejects an unauthorized subscribe and delivers nothing to it', async () => {
+Deno.test('SC-003: a private channel rejects an unauthorized subscribe and delivers nothing to it', async () => {
     const m = new ChannelManager<User>({
         authorize: (id) => id?.id === 1, // only user 1 may join
     })
@@ -77,7 +76,7 @@ test('SC-003: a private channel rejects an unauthorized subscribe and delivers n
     assertEquals(sentOf(denied).length, 0) // unauthorized receives nothing
 })
 
-test('SC-003: a private channel with a null identity is denied (S1)', async () => {
+Deno.test('SC-003: a private channel with a null identity is denied (S1)', async () => {
     const m = new ChannelManager<User>({ authorize: () => true })
     const anon = fakeConn('anon', null)
     m.register(anon)
@@ -87,7 +86,7 @@ test('SC-003: a private channel with a null identity is denied (S1)', async () =
     assertEquals(sentOf(anon).length, 0)
 })
 
-test('a public channel needs no authorizer', async () => {
+Deno.test('a public channel needs no authorizer', async () => {
     const m = new ChannelManager<User>() // no authorize
     const a = fakeConn('a', null)
     m.register(a)

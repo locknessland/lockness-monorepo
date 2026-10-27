@@ -5,7 +5,6 @@
  * @module @lockness/contract/tests/pagination
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import {
     clampPage,
@@ -18,7 +17,7 @@ import {
     toPaginationProps,
 } from '../pagination/mod.ts'
 
-test('clampPerPage bounds to [1, max] with a default', () => {
+Deno.test('clampPerPage bounds to [1, max] with a default', () => {
     assertEquals(clampPerPage(1_000_000), MAX_PER_PAGE)
     assertEquals(clampPerPage(undefined), DEFAULT_PER_PAGE)
     assertEquals(clampPerPage(0), 1)
@@ -28,7 +27,7 @@ test('clampPerPage bounds to [1, max] with a default', () => {
     assertEquals(clampPerPage(20, 10), 10)
 })
 
-test('clampPage floors to >=1 and caps to lastPage', () => {
+Deno.test('clampPage floors to >=1 and caps to lastPage', () => {
     assertEquals(clampPage(0), 1)
     assertEquals(clampPage(-3), 1)
     assertEquals(clampPage(undefined), 1)
@@ -37,7 +36,7 @@ test('clampPage floors to >=1 and caps to lastPage', () => {
     assertEquals(clampPage(5, 0), 1)
 })
 
-test('paginateOffset computes meta and relative links', () => {
+Deno.test('paginateOffset computes meta and relative links', () => {
     const env = paginateOffset([{ id: 16 }, { id: 17 }], {
         total: 57,
         page: 2,
@@ -58,7 +57,7 @@ test('paginateOffset computes meta and relative links', () => {
     assertEquals(env.links.self, '/users?page=2')
 })
 
-test('paginateOffset links are relative — a host in baseUrl is stripped', () => {
+Deno.test('paginateOffset links are relative — a host in baseUrl is stripped', () => {
     const env = paginateOffset([], {
         total: 0,
         page: 1,
@@ -71,7 +70,7 @@ test('paginateOffset links are relative — a host in baseUrl is stripped', () =
     assertEquals(env.links.next, null)
 })
 
-test('paginateOffset on an empty set: coherent meta, null from/to', () => {
+Deno.test('paginateOffset on an empty set: coherent meta, null from/to', () => {
     const env = paginateOffset([], {
         total: 0,
         page: 1,
@@ -85,7 +84,7 @@ test('paginateOffset on an empty set: coherent meta, null from/to', () => {
     assertEquals(env.data, [])
 })
 
-test('paginateOffset caps an oversized page to lastPage', () => {
+Deno.test('paginateOffset caps an oversized page to lastPage', () => {
     const env = paginateOffset([], {
         total: 30,
         page: 1_000_000,
@@ -96,7 +95,7 @@ test('paginateOffset caps an oversized page to lastPage', () => {
     assertEquals(env.meta.currentPage, 3)
 })
 
-test('paginateCursor omits total, exposes hasMore + opaque tokens', () => {
+Deno.test('paginateCursor omits total, exposes hasMore + opaque tokens', () => {
     const env = paginateCursor([{ id: 1 }, { id: 2 }], {
         perPage: 2,
         hasMore: true,
@@ -116,7 +115,7 @@ test('paginateCursor omits total, exposes hasMore + opaque tokens', () => {
     assertEquals('total' in env.meta, false)
 })
 
-test('paginateCursor on the last page: nextCursor null, hasMore false', () => {
+Deno.test('paginateCursor on the last page: nextCursor null, hasMore false', () => {
     const env = paginateCursor([{ id: 9 }], {
         perPage: 15,
         hasMore: false,
@@ -130,7 +129,7 @@ test('paginateCursor on the last page: nextCursor null, hasMore false', () => {
     assertEquals(env.links.prev, '/feed?cursor=PREV')
 })
 
-test('readPaginationParams reads + bounds query params', () => {
+Deno.test('readPaginationParams reads + bounds query params', () => {
     assertEquals(readPaginationParams({}), {
         page: 1,
         perPage: DEFAULT_PER_PAGE,
@@ -151,7 +150,7 @@ test('readPaginationParams reads + bounds query params', () => {
     )
 })
 
-test('toPaginationProps forwards pageParam so links cannot diverge', () => {
+Deno.test('toPaginationProps forwards pageParam so links cannot diverge', () => {
     const env = paginateOffset([], {
         total: 30,
         page: 2,

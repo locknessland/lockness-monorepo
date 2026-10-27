@@ -15,7 +15,6 @@
  * @module @lockness/auth-provider/tests/lazy_db
  */
 
-import { test } from 'node:test'
 import {
     assertEquals,
     assertRejects,
@@ -142,16 +141,16 @@ const notConnected = () => {
 }
 
 for (const c of cases) {
-    test(`${c.name} - a throwing resolver does not throw at construction`, () => {
+    Deno.test(`${c.name} - a throwing resolver does not throw at construction`, () => {
         c.build(notConnected)
     })
 
-    test(`${c.name} - a lookup rejects with the resolver's error, never null`, async () => {
+    Deno.test(`${c.name} - a lookup rejects with the resolver's error, never null`, async () => {
         const provider = c.build(notConnected)
         await assertRejects(() => c.lookup(provider), Error, NOT_CONNECTED)
     })
 
-    test(`${c.name} - the resolver is called per lookup, not cached`, async () => {
+    Deno.test(`${c.name} - the resolver is called per lookup, not cached`, async () => {
         const reached: string[] = []
         const instances = [fakeDb('A', reached), fakeDb('B', reached)]
         let calls = 0
@@ -163,7 +162,7 @@ for (const c of cases) {
         assertEquals(reached, ['A', 'B'])
     })
 
-    test(`${c.name} - a db that is not a function is refused at construction`, () => {
+    Deno.test(`${c.name} - a db that is not a function is refused at construction`, () => {
         const reached: string[] = []
         const error = assertThrows(
             () => c.build(fakeDb('instance', reached)),
@@ -173,7 +172,7 @@ for (const c of cases) {
     })
 }
 
-test('DrizzleTokenProvider - createToken rejects with the resolver error', async () => {
+Deno.test('DrizzleTokenProvider - createToken rejects with the resolver error', async () => {
     const provider = new DrizzleTokenProvider<Authenticatable>({
         db: notConnected,
         tokensTable: tokens,
@@ -223,7 +222,7 @@ const rememberCases: ReadonlyArray<
 ]
 
 for (const [name, build] of rememberCases) {
-    test(`${name} - with a remember table, construction never calls the resolver (#457)`, () => {
+    Deno.test(`${name} - with a remember table, construction never calls the resolver (#457)`, () => {
         let calls = 0
         build(() => {
             calls++
@@ -232,7 +231,7 @@ for (const [name, build] of rememberCases) {
         assertEquals(calls, 0)
     })
 
-    test(`${name} - remember-me calls reject with the resolver's error, never null (#457)`, async () => {
+    Deno.test(`${name} - remember-me calls reject with the resolver's error, never null (#457)`, async () => {
         const provider = build(notConnected)
         await assertRejects(
             () => provider.createRememberToken({ id: 1 }, 3600),

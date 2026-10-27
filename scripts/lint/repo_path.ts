@@ -43,14 +43,3 @@ export function isTestPath(path: string): boolean {
     if (/(^|\/)tests\//.test(path)) return true
     return /[._]test\.tsx?$/.test(path)
 }
-
-/**
- * Whether a repository-relative path is test code or a stub template (under a
- * `stubs/` directory). Package rules that lint shipped code skip both.
- *
- * @param path - A path from {@link repoPath}.
- * @returns `true` for test code and stub templates.
- */
-export function isTestOrStubPath(path: string): boolean {
-    return isTestPath(path) || /(^|\/)stubs\//.test(path)
-}

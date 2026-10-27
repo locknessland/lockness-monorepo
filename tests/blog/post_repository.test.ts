@@ -6,7 +6,6 @@
  * safety assertion (S1): `findPublishedBySlug` pins `draft = false` at the DB.
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import type { SQL } from 'drizzle-orm'
 import { PgDialect } from 'drizzle-orm/pg-core'
@@ -65,7 +64,7 @@ function makeRepo(rows: Post[]) {
     return { repo, captured }
 }
 
-test('findAllPublished - filters draft=false and orders date DESC', async () => {
+Deno.test('findAllPublished - filters draft=false and orders date DESC', async () => {
     const { repo, captured } = makeRepo([])
     await repo.findAllPublished()
 
@@ -76,7 +75,7 @@ test('findAllPublished - filters draft=false and orders date DESC', async () => 
     assertEquals(sqlOf(captured.orderBy!).sql, '"posts"."date" desc')
 })
 
-test('findAllIncludingDrafts - no WHERE, orders date DESC (A6)', async () => {
+Deno.test('findAllIncludingDrafts - no WHERE, orders date DESC (A6)', async () => {
     const { repo, captured } = makeRepo([])
     await repo.findAllIncludingDrafts()
 
@@ -84,7 +83,7 @@ test('findAllIncludingDrafts - no WHERE, orders date DESC (A6)', async () => {
     assertEquals(sqlOf(captured.orderBy!).sql, '"posts"."date" desc')
 })
 
-test('findPublishedBySlug - binds slug AND draft=false at the DB (S1)', async () => {
+Deno.test('findPublishedBySlug - binds slug AND draft=false at the DB (S1)', async () => {
     const { repo, captured } = makeRepo([])
     await repo.findPublishedBySlug('hello-world')
 
@@ -97,7 +96,7 @@ test('findPublishedBySlug - binds slug AND draft=false at the DB (S1)', async ()
     assertEquals(sqlOf(captured.orderBy!).sql, '"posts"."date" desc')
 })
 
-test('findBySlug - binds slug only, unfiltered by draft', async () => {
+Deno.test('findBySlug - binds slug only, unfiltered by draft', async () => {
     const { repo, captured } = makeRepo([])
     await repo.findBySlug('hello-world')
 
@@ -106,7 +105,7 @@ test('findBySlug - binds slug only, unfiltered by draft', async () => {
     assertEquals(where.params, ['hello-world'])
 })
 
-test('findPublishedBySlug - returns null when no row matches', async () => {
+Deno.test('findPublishedBySlug - returns null when no row matches', async () => {
     const { repo } = makeRepo([])
     assertEquals(await repo.findPublishedBySlug('nope'), null)
 })

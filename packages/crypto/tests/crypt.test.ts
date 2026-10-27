@@ -5,7 +5,6 @@
  * @module @lockness/crypto/tests/crypt
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { Crypt } from '../mod.ts'
 import { decodeBase64, encodeBase64, generateAppKey } from '@lockness/contract'
@@ -16,13 +15,13 @@ const CIPHERTEXT_OFFSET = 16 + 12 // past the salt and IV, into ciphertext/tag
 
 const KEY = generateAppKey()
 
-test('SC-001: decrypt(encrypt(x)) === x', async () => {
+Deno.test('SC-001: decrypt(encrypt(x)) === x', async () => {
     const plain = 'the quick brown fox — üñîçødé 🦊'
     const token = await Crypt.encrypt(plain, KEY)
     assertEquals(await Crypt.decrypt(token, KEY), plain)
 })
 
-test('SC-001: a flipped ciphertext/tag byte fails the GCM tag — no plaintext', async () => {
+Deno.test('SC-001: a flipped ciphertext/tag byte fails the GCM tag — no plaintext', async () => {
     const token = await Crypt.encrypt('secret', KEY)
     const combined = decodeBase64(token.slice(WIRE_PREFIX.length))
     // Deterministically mutate a byte INSIDE the ciphertext/tag region (past the
@@ -32,7 +31,7 @@ test('SC-001: a flipped ciphertext/tag byte fails the GCM tag — no plaintext',
     assertEquals(await Crypt.decrypt(tampered, KEY), null)
 })
 
-test('SC-001: two encryptions of the same input differ (fresh salt+IV)', async () => {
+Deno.test('SC-001: two encryptions of the same input differ (fresh salt+IV)', async () => {
     const a = await Crypt.encrypt('same', KEY)
     const b = await Crypt.encrypt('same', KEY)
     assert(a !== b, 'ciphertexts must differ')
@@ -40,7 +39,7 @@ test('SC-001: two encryptions of the same input differ (fresh salt+IV)', async (
     assertEquals(await Crypt.decrypt(b, KEY), 'same')
 })
 
-test('decrypt returns null for a wrong key, bad version, and malformed wire', async () => {
+Deno.test('decrypt returns null for a wrong key, bad version, and malformed wire', async () => {
     const token = await Crypt.encrypt('secret', KEY)
     assertEquals(await Crypt.decrypt(token, generateAppKey()), null) // wrong key
     assertEquals(await Crypt.decrypt('v9.' + token.slice(3), KEY), null) // bad version

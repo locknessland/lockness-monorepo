@@ -7,7 +7,6 @@
  * @module @lockness/drizzle/tests/notice
  */
 
-import { test } from 'node:test'
 import { assertEquals, assertStringIncludes } from '@std/assert'
 import {
     consoleNoticeReporter,
@@ -52,14 +51,14 @@ function captureConsole(fn: () => void) {
     return lines
 }
 
-test('#454 reportNotice - WARNING goes to warn', () => {
+Deno.test('#454 reportNotice - WARNING goes to warn', () => {
     const { calls, reporter } = spyReporter()
     reportNotice({ severity: 'WARNING', message: 'm' }, reporter)
     assertEquals(calls.map(([channel]) => channel), ['warn'])
 })
 
 for (const severity of ['NOTICE', 'INFO', 'LOG', 'DEBUG']) {
-    test(`#454 reportNotice - ${severity} goes to debug`, () => {
+    Deno.test(`#454 reportNotice - ${severity} goes to debug`, () => {
         const { calls, reporter } = spyReporter()
         reportNotice({ severity, message: 'm' }, reporter)
         assertEquals(calls.map(([channel]) => channel), ['debug'])
@@ -73,7 +72,7 @@ for (
         ['a non-string severity', { severity: 3, message: 'm' }],
     ] as const
 ) {
-    test(`#454 reportNotice - ${label} goes to warn`, () => {
+    Deno.test(`#454 reportNotice - ${label} goes to warn`, () => {
         const { calls, reporter } = spyReporter()
         reportNotice(notice, reporter)
         assertEquals(calls.map(([channel]) => channel), ['warn'])
@@ -81,7 +80,7 @@ for (
 }
 
 for (const notice of [null, undefined, 'text', 42]) {
-    test(`#454 reportNotice - a non-object (${String(notice)}) goes to warn with a placeholder`, () => {
+    Deno.test(`#454 reportNotice - a non-object (${String(notice)}) goes to warn with a placeholder`, () => {
         const { calls, reporter } = spyReporter()
         reportNotice(notice, reporter)
         assertEquals(calls.length, 1)
@@ -90,7 +89,7 @@ for (const notice of [null, undefined, 'text', 42]) {
     })
 }
 
-test('#454 reportNotice - passes on only the present string fields', () => {
+Deno.test('#454 reportNotice - passes on only the present string fields', () => {
     const { calls, reporter } = spyReporter()
     reportNotice({
         severity: 'NOTICE',
@@ -109,7 +108,7 @@ test('#454 reportNotice - passes on only the present string fields', () => {
     ]])
 })
 
-test('#454 consoleNoticeReporter - a WARNING writes exactly one stderr line, with no object dump', () => {
+Deno.test('#454 consoleNoticeReporter - a WARNING writes exactly one stderr line, with no object dump', () => {
     const lines = captureConsole(() =>
         reportNotice({
             severity: 'WARNING',
@@ -126,7 +125,7 @@ test('#454 consoleNoticeReporter - a WARNING writes exactly one stderr line, wit
     assertEquals(lines.warn[0].includes('{'), false)
 })
 
-test('#454 consoleNoticeReporter - a WARNING with a hint carries it on the same line', () => {
+Deno.test('#454 consoleNoticeReporter - a WARNING with a hint carries it on the same line', () => {
     const lines = captureConsole(() =>
         reportNotice(
             { severity: 'WARNING', message: 'm', hint: 'do x' },
@@ -136,7 +135,7 @@ test('#454 consoleNoticeReporter - a WARNING with a hint carries it on the same 
     assertEquals(lines.warn, ['⚠️  PostgreSQL warning: m — hint: do x'])
 })
 
-test('#454 consoleNoticeReporter - a NOTICE writes nothing', () => {
+Deno.test('#454 consoleNoticeReporter - a NOTICE writes nothing', () => {
     const lines = captureConsole(() =>
         reportNotice(
             { severity: 'NOTICE', message: 'already exists, skipping' },
@@ -146,7 +145,7 @@ test('#454 consoleNoticeReporter - a NOTICE writes nothing', () => {
     assertEquals(lines, { log: [], warn: [], error: [] })
 })
 
-test('#454 consoleNoticeReporter - control characters in a message come out escaped', () => {
+Deno.test('#454 consoleNoticeReporter - control characters in a message come out escaped', () => {
     const lines = captureConsole(() =>
         reportNotice(
             {

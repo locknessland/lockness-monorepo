@@ -23,7 +23,6 @@
  * @module @lockness/realtime/tests/revocation_clear_race_337
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { RedisBroadcastDriver } from '../drivers/redis.ts'
 import { ChannelManager } from '../manager.ts'
@@ -126,7 +125,7 @@ function instance(redis: FakeRedis) {
     return { bus, subscriber, driver, manager }
 }
 
-test('#337 WITNESS: an in-flight clear for an older revocation does not erase a newer one', async () => {
+Deno.test('#337 WITNESS: an in-flight clear for an older revocation does not erase a newer one', async () => {
     const redis = new FakeRedis()
     redis.setTime(1_000)
     const a = instance(redis)
@@ -206,7 +205,7 @@ test('#337 WITNESS: an in-flight clear for an older revocation does not erase a 
     }
 })
 
-test('#337 two marks for one pair in the SAME second: clearing the first leaves the second', async () => {
+Deno.test('#337 two marks for one pair in the SAME second: clearing the first leaves the second', async () => {
     // `TIME` is whole seconds and both marks use the same TTL, so the two
     // records share a score. That is what rules out comparing the score as
     // the clear's guard: the compare would match and delete the newer record.
@@ -244,7 +243,7 @@ test('#337 two marks for one pair in the SAME second: clearing the first leaves 
     }
 })
 
-test('#337 two records for one pair: ONE kick, both cleared, and no kick on the next tick', async () => {
+Deno.test('#337 two records for one pair: ONE kick, both cleared, and no kick on the next tick', async () => {
     // Both frames lost, so the reconcile meets two records for one pair. One
     // leave settles both. Applied one record at a time, the first leaves and
     // clears its own record, the second finds 'not-subscribed' and survives —
@@ -299,7 +298,7 @@ test('#337 two records for one pair: ONE kick, both cleared, and no kick on the 
     }
 })
 
-test('#337 a revoke-channel frame with NO revocation id is dropped', async () => {
+Deno.test('#337 a revoke-channel frame with NO revocation id is dropped', async () => {
     // A frame that names no record gives the owner nothing exact to clear,
     // and clearing by pair is the defect #337 removed. The durable record, if
     // one was written, carries its id and is recovered by the reconcile.

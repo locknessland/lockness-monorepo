@@ -7,7 +7,6 @@
  * error).
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { App, CacheServiceToken, container } from '@lockness/core'
 import { cache } from '@lockness/cache'
@@ -50,7 +49,7 @@ async function bootApp() {
     return app
 }
 
-test('GET /blog - 200 and lists posts newest-first', async () => {
+Deno.test('GET /blog - 200 and lists posts newest-first', async () => {
     useFakeService([
         post('newest', 'Newest', '2026-03-01'),
         post('older', 'Older', '2026-01-01'),
@@ -70,7 +69,7 @@ test('GET /blog - 200 and lists posts newest-first', async () => {
     assert(html.includes('/blog/newest'), 'each post links to its own page')
 })
 
-test('GET /blog - empty result renders an empty state, not an error', async () => {
+Deno.test('GET /blog - empty result renders an empty state, not an error', async () => {
     useFakeService([])
     const app = await bootApp()
 

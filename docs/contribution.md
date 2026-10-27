@@ -31,15 +31,7 @@ Each library in the workspace follows the Deno convention for its entry point:
 
 - **`mod.ts`**: This is the main entry point of the library. It exports the
   public API.
-- **`package.json`**: Each library's one hand-edited manifest — name, version,
-  dependencies, `engines`, exports, and a `lockness` key for what only Deno and
-  JSR need. Membership is the root `package.json` `workspaces` list. Published
-  runtime code imports only siblings, `node:` built-ins and npm packages, each
-  declared here; `@std/*` and other JSR-only packages are for tests and tooling
-  (hard rule #2 in [AGENTS.md](../AGENTS.md)).
-- **`deno.json`** and **`tsconfig.json`**: generated from `package.json` by
-  `deno task manifests` and committed. Never edit them by hand; the gate's
-  `manifests --check` step fails on a stale one.
+- **`deno.json`**: Each library has its own configuration and versioning.
 
 ### `mod.ts` is a barrel, not a home for implementation
 
@@ -93,59 +85,6 @@ deno task test
 
 This will run all tests for all libraries in the workspace.
 
-Before you push, run the full gate (`deno task gate`; the pre-push hook runs it
-too). Besides Deno (`.dvmrc`), the gate needs **Node and npm** on your `PATH`,
-at the version in `.node-version`: its `npm:build` and `npm:check` steps build
-each package whose `engines` names bun or node with `tsc`, then pack, install
-and import it as npm would ship it. Once such a package names Bun, the gate
-needs Bun too (`.bun-version`). A missing runtime, or one at another major
-version than its pin file, fails the step and names that file; nothing is
-skipped. See [releasing.md](releasing.md#the-npm-build-and-npmcheck).
-
-### Repository lint rules
-
-The gate's `lint` step runs Deno's rules and the repository's own plugins,
-registered in the root `deno.jsonc` under `lint.plugins`. Each lives in
-`scripts/lint/`, and its rule file names its scope and its owners — the only
-files allowed the form it forbids:
-
-| Rule                                              | Forbids                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| :------------------------------------------------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lockness/app-file-specifier`                     | a hand-built specifier for a file of the user's app in package source                                                                                                                                                                                                                                                                                                                                                                                              |
-| `lockness-env/env-signal`                         | a raw read of `APP_ENV` or `DENO_ENV` (`Deno.env.get`, `process.env.APP_ENV`, any `.APP_ENV` read, a read-first assignment such as `??=`, or destructuring) outside the contract resolver and `@lockness/transform`'s `hook.ts`. Matching any object also reports a name that is not the process environment (`parsed.APP_ENV` on a parsed `.env` map, a DTO): such a site carries `// deno-lint-ignore lockness-env/env-signal` with the reason on the line above |
-| `lockness-exit/process-exit`                      | `Deno.exit` / `process.exit`, `exit` destructured from `Deno` or `process` or imported from `node:process`, and `Deno.exitCode` / `process.exitCode` writes, in package code outside their owners                                                                                                                                                                                                                                                                  |
-| `lockness-exit/printed-failure`                   | a `❌` print in command code: a command fails by throwing                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `lockness-runtime/no-deno` (`runtime_neutral.ts`) | in runtime-neutral code: the `Deno` global, `hono/deno`, and `@lockness/hono/{deno,bun,node}` outside `packages/runtime/`                                                                                                                                                                                                                                                                                                                                          |
-| `lockness-runtime/neutral-imports`                | in a runtime-neutral script: a relative static import (type-only, re-exports and `import()` included) of a file outside the runtime-neutral scope. Bare specifiers are not checked                                                                                                                                                                                                                                                                                 |
-
-Runtime-neutral code is, tests and stubs excluded:
-
-- the source of every package whose `engines` names bun or node. Adding `bun` or
-  `node` to a package's `engines` therefore puts its source under the rule; use
-  a `node:` built-in or a web standard instead of `Deno.*`. A file that must
-  stay Deno-only is exempted by its exact path in `EXEMPT_FILES`, with the
-  reason beside it;
-- every script under `scripts/`, by default, except the modules listed in
-  `lint.plugins` (typed on `Deno.lint`, rewritten when the lint leaves Deno) and
-  the baseline in `scripts/lint/deno_bound_scripts.ts`. A new script is in scope
-  without opting in. The baseline holds the older scripts that still use Deno
-  and **only shrinks**: a test fails on an entry that complies or no longer
-  exists, so a script you migrate leaves the list in the same change. Adding an
-  entry is refused in review unless the script needs a Deno-only runtime API,
-  named in the commit.
-
-To run the packages that declare Bun or Node in their `package.json` `engines`
-on that runtime — what the `bun` and `node` CI lanes run — use:
-
-```bash
-deno task test:runtime --runtime=bun
-deno task test:runtime --runtime=node --package=<pkg>
-```
-
-It needs the runtime on your `PATH` (the CI versions are in `.bun-version` and
-`.node-version`). See
-[testing.md](testing.md#running-on-bun-and-node-the-runtime-lanes).
-
 ### Version Management
 
 When releasing a new version of Lockness, all packages in the monorepo need to
@@ -155,19 +94,22 @@ be bumped to the same version. Use the `bump` command with an increment:
 deno task bump --patch    # or --minor / --major, or a bare: minor
 ```
 
-It runs `scripts/bump.ts`, which:
+It delegates to Deno's native `deno bump-version` (Deno ≥ 2.8) in workspace
+mode, which automatically:
 
-- Updates the `version` field in every member's `package.json`, the source
-  manifest
-- Updates every `@lockness/*` range in their `dependencies`, `peerDependencies`
-  and `devDependencies` (e.g. `^0.1.0` → `^0.2.0`), keeping the `^` / `~` prefix
-- Updates the root `deno.jsonc` `version` and its `@lockness/*` imports,
-  preserving its comments
-- Regenerates every member's `deno.json` with `deno task manifests`
+- Updates the `version` field in all workspace packages' `deno.json`
+- Updates all inter-package dependencies (e.g., `@lockness/core@^0.1.0` →
+  `@lockness/core@^0.2.0`), preserving version prefixes (`^` / `~`) and subpath
+  exports (`@lockness/hono@^0.2.0/jsx-runtime`)
+- Preserves the comments in the root `deno.jsonc`
 
-An absolute `deno task bump 0.3.0` is accepted for any jump. The command ends by
-refreshing `deno.lock` with `deno install`; commit it with the manifests.
-`--dry-run` previews it without writing. See [releasing.md](releasing.md).
+An absolute `deno task bump 0.3.0` is accepted when it is exactly one step from
+the current version. For an arbitrary jump, use `deno task bump:legacy 0.3.0`
+(the pre-adoption script, kept as a fallback — see
+[releasing.md](releasing.md)).
+
+Both commands end by refreshing `deno.lock` with `deno install`; commit it with
+the manifests. `--dry-run` previews either one without writing.
 
 **After bumping:**
 

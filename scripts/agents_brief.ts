@@ -178,11 +178,7 @@ async function inventory(
         for await (const entry of Deno.readDir(dir)) {
             const path = join(dir, entry.name)
             if (entry.isDirectory) {
-                // dist/ is the gitignored npm build output (#595), never source.
-                if (
-                    entry.name === 'node_modules' || entry.name === 'docs' ||
-                    entry.name === 'dist'
-                ) {
+                if (entry.name === 'node_modules' || entry.name === 'docs') {
                     continue
                 }
                 await walk(path)
@@ -258,9 +254,9 @@ async function renderBlocks(name: string, graph: Graph): Promise<Blocks> {
         } |`,
         '',
         'Enforced by `deno task deps:analyze` against `deps.policy.jsonc`.',
-        "A soft edge is an optional peer in this package's `package.json`,",
-        'never a dependency: the consuming application installs it, or the',
-        'feature stays off.',
+        "A soft edge is deliberately **not** declared in this package's",
+        '`deno.json`: the consuming application installs it, or the feature',
+        'stays off.',
     ].join('\n')
 
     const surface = await publicSurface(name)

@@ -14,7 +14,6 @@
  * @module @lockness/drizzle/tests/reset
  */
 
-import { test } from 'node:test'
 import {
     assert,
     assertEquals,
@@ -98,7 +97,7 @@ function fakeMaintenance(answers: Record<string, Record<string, unknown>[]>) {
 // sqlite / libsql — the whole main database, one write batch
 // -----------------------------------------------------------------------------
 
-test('#435 sqlite plan defers FKs, then drops views, then tables', () => {
+Deno.test('#435 sqlite plan defers FKs, then drops views, then tables', () => {
     const plan = planSqliteReset([
         { type: 'table', name: 'users' },
         { type: 'view', name: 'active_users' },
@@ -119,7 +118,7 @@ test('#435 sqlite plan defers FKs, then drops views, then tables', () => {
     ])
 })
 
-test('#435 #447 sqlite reset reads the catalogue inside the unit, then runs one plan in it', async () => {
+Deno.test('#435 #447 sqlite reset reads the catalogue inside the unit, then runs one plan in it', async () => {
     const { calls, executed, maintenance } = fakeMaintenance({
         sqlite_master: [{ type: 'table', name: 't' }],
     })
@@ -150,7 +149,7 @@ function mysqlRows(
 /** A qualified MySQL DROP: `` DROP TABLE|VIEW IF EXISTS `db`.` ``… */
 const QUALIFIED_DROP = /^DROP (TABLE|VIEW) IF EXISTS `(?:[^`]|``)+`\.`/
 
-test('#435 mysql plan drops the bookkeeping table first, then views, then tables, each qualified by the database', () => {
+Deno.test('#435 mysql plan drops the bookkeeping table first, then views, then tables, each qualified by the database', () => {
     const plan = planMysqlReset(
         mysqlRows('we`ird', [
             ['__drizzle_migrations', 'BASE TABLE'],
@@ -171,7 +170,7 @@ test('#435 mysql plan drops the bookkeeping table first, then views, then tables
     ])
 })
 
-test('#435 mysql plan honours migrations.table', () => {
+Deno.test('#435 mysql plan honours migrations.table', () => {
     const plan = planMysqlReset(
         mysqlRows('app', [['history', 'BASE TABLE'], ['t', 'BASE TABLE']]),
         'history',
@@ -185,7 +184,7 @@ test('#435 mysql plan honours migrations.table', () => {
     ])
 })
 
-test('#435 mysql plan of an empty database: only the SETs and the bookkeeping drop', () => {
+Deno.test('#435 mysql plan of an empty database: only the SETs and the bookkeeping drop', () => {
     assertEquals(
         planMysqlReset(mysqlRows('app', []), '__drizzle_migrations'),
         [
@@ -196,7 +195,7 @@ test('#435 mysql plan of an empty database: only the SETs and the bookkeeping dr
     )
 })
 
-test('#435 every mysql DROP names the database', () => {
+Deno.test('#435 every mysql DROP names the database', () => {
     for (
         const rows of [
             mysqlRows('app', [['v', 'VIEW'], ['t', 'BASE TABLE']]),
@@ -213,7 +212,7 @@ test('#435 every mysql DROP names the database', () => {
     }
 })
 
-test('#435 R5 mysql plan refuses a NULL DATABASE()', () => {
+Deno.test('#435 R5 mysql plan refuses a NULL DATABASE()', () => {
     assertThrows(
         () => planMysqlReset(mysqlRows(null, []), '__drizzle_migrations'),
         RefusedError,
@@ -221,7 +220,7 @@ test('#435 R5 mysql plan refuses a NULL DATABASE()', () => {
     )
 })
 
-test('#435 mysql plan refuses rows naming more than one database', () => {
+Deno.test('#435 mysql plan refuses rows naming more than one database', () => {
     assertThrows(
         () =>
             planMysqlReset([
@@ -233,7 +232,7 @@ test('#435 mysql plan refuses rows naming more than one database', () => {
     )
 })
 
-test('#435 mysql plan refuses a catalogue that returned no row', () => {
+Deno.test('#435 mysql plan refuses a catalogue that returned no row', () => {
     const error = assertThrows(
         () => planMysqlReset([], '__drizzle_migrations'),
         RefusedError,
@@ -246,7 +245,7 @@ test('#435 mysql plan refuses a catalogue that returned no row', () => {
     )
 })
 
-test('#435 R5 mysql refuses when DATABASE() is NULL, before any drop', async () => {
+Deno.test('#435 R5 mysql refuses when DATABASE() is NULL, before any drop', async () => {
     const { calls, executed, maintenance } = fakeMaintenance({
         'information_schema.TABLES': mysqlRows(null, []),
     })
@@ -273,7 +272,7 @@ for (
         'INFORMATION_SCHEMA',
     ]
 ) {
-    test(`#435 mysql refuses the system database ${database}, before any drop`, async () => {
+    Deno.test(`#435 mysql refuses the system database ${database}, before any drop`, async () => {
         const { calls, executed, maintenance } = fakeMaintenance({
             'information_schema.TABLES': mysqlRows(database, [
                 ['user', 'BASE TABLE'],
@@ -291,7 +290,7 @@ for (
     })
 }
 
-test('#435 mysql reset reads the database and its catalogue in exactly one query', async () => {
+Deno.test('#435 mysql reset reads the database and its catalogue in exactly one query', async () => {
     const sqls: string[] = []
     const { calls, executed, maintenance } = fakeMaintenance({
         'information_schema.TABLES': mysqlRows('app', [['t', 'BASE TABLE']]),
@@ -332,7 +331,7 @@ const EMPTY: PostgresCatalogue = {
     extensionSchemas: [],
 }
 
-test('#435 postgres plan: bookkeeping, census baseline, CASCADE per object, census check', () => {
+Deno.test('#435 postgres plan: bookkeeping, census baseline, CASCADE per object, census check', () => {
     const plan = planPostgresReset({
         relations: [
             { schema: 'public', name: 'users', kind: 'r' },
@@ -389,7 +388,7 @@ function census(
 for (
     const schemaFilter of [['public'], ['public', 'auth']] as const
 ) {
-    test(
+    Deno.test(
         `#435 R7 postgres plan: the census baseline is taken before the first CASCADE and checked last, over ${
             schemaFilter.join(', ')
         }`,
@@ -419,7 +418,7 @@ for (
     )
 }
 
-test('#435 R7 the baseline is every user object pg_depend records as a dependent', () => {
+Deno.test('#435 R7 the baseline is every user object pg_depend records as a dependent', () => {
     const { baseline } = census()
 
     assertStringIncludes(
@@ -433,7 +432,7 @@ test('#435 R7 the baseline is every user object pg_depend records as a dependent
     )
 })
 
-test('#435 R7 the baseline names objects through pg_identify_object, the object and its owner', () => {
+Deno.test('#435 R7 the baseline names objects through pg_identify_object, the object and its owner', () => {
     const { baseline } = census()
 
     assertStringIncludes(
@@ -450,7 +449,7 @@ test('#435 R7 the baseline names objects through pg_identify_object, the object 
     )
 })
 
-test("#435 R7 an object without a schema is classified by its owner, through deptypes exactly ('a', 'i', 'P', 'S')", () => {
+Deno.test("#435 R7 an object without a schema is classified by its owner, through deptypes exactly ('a', 'i', 'P', 'S')", () => {
     const { baseline } = census()
 
     assertEquals(baseline.match(/deptype IN \([^)]*\)/g), [
@@ -460,7 +459,7 @@ test("#435 R7 an object without a schema is classified by its owner, through dep
     assertStringIncludes(baseline, 'WHEN o.schema IS NOT NULL THEN ')
 })
 
-test("#435 R7 the four exclusions apply to the object's own schema and to its owner's", () => {
+Deno.test("#435 R7 the four exclusions apply to the object's own schema and to its owner's", () => {
     const { baseline } = census(['public', "o'brien"])
 
     for (const column of ['o.schema', 'r.schema']) {
@@ -475,7 +474,7 @@ test("#435 R7 the four exclusions apply to the object's own schema and to its ow
     assertStringIncludes(baseline, 'AND NOT CASE\n')
 })
 
-test('#435 R7 the check probes pg_depend as it is now, never the census query again', () => {
+Deno.test('#435 R7 the check probes pg_depend as it is now, never the census query again', () => {
     const { check } = census()
 
     assertStringIncludes(check, 'FROM pg_temp.lockness_fresh_census c\n')
@@ -499,7 +498,7 @@ const ESCAPED_JOIN = [
     'd.objsubid = c.objsubid',
 ]
 
-test('#435 R7 no count comparison remains', () => {
+Deno.test('#435 R7 no count comparison remains', () => {
     const { baseline, check } = census()
 
     // The baseline records objects, never a total to compare against.
@@ -528,7 +527,7 @@ test('#435 R7 no count comparison remains', () => {
     assertEquals(/\bDISTINCT\s+FROM\b/i.test(check), false, check)
 })
 
-test('#435 R7 the RAISE names the count, the first ten escaped objects and the rollback', () => {
+Deno.test('#435 R7 the RAISE names the count, the first ten escaped objects and the rollback', () => {
     const { check } = census()
 
     assertStringIncludes(check, "concat_ws(' ', c.type, c.identity)")
@@ -542,13 +541,13 @@ test('#435 R7 the RAISE names the count, the first ten escaped objects and the r
     )
 })
 
-test('#435 postgres plan keeps the schema and never drops public', () => {
+Deno.test('#435 postgres plan keeps the schema and never drops public', () => {
     const plan = planPostgresReset(EMPTY, scope('postgres'))
     assertEquals(plan.some((s) => s.includes('SCHEMA')), false)
     assertEquals(plan.length, 3, 'bookkeeping, baseline, census check')
 })
 
-test('#435 postgres plan honours migrations.table and migrations.schema', () => {
+Deno.test('#435 postgres plan honours migrations.table and migrations.schema', () => {
     const plan = planPostgresReset(
         EMPTY,
         scope('postgres', { table: 'history', schema: 'meta' }),
@@ -556,7 +555,7 @@ test('#435 postgres plan honours migrations.table and migrations.schema', () => 
     assertEquals(plan[0], 'DROP TABLE IF EXISTS "meta"."history"')
 })
 
-test('#448 an unset migrations.schema means the default bookkeeping schema, everywhere', () => {
+Deno.test('#448 an unset migrations.schema means the default bookkeeping schema, everywhere', () => {
     // The settings always fill it in for postgres; the fallback must still
     // name the table drizzle-orm writes to, not a second default.
     const unset = scope('postgres', { schema: undefined })
@@ -585,7 +584,7 @@ test('#448 an unset migrations.schema means the default bookkeeping schema, ever
     )
 })
 
-test('#435 postgres plan skips the bookkeeping table when it lives in scope', () => {
+Deno.test('#435 postgres plan skips the bookkeeping table when it lives in scope', () => {
     const plan = planPostgresReset({
         ...EMPTY,
         relations: [{ schema: 'public', name: 'history', kind: 'r' }],
@@ -599,7 +598,7 @@ test('#435 postgres plan skips the bookkeeping table when it lives in scope', ()
     )
 })
 
-test('#435 postgres drops a scope schema a migration creates, and the objects in it with it', () => {
+Deno.test('#435 postgres drops a scope schema a migration creates, and the objects in it with it', () => {
     const plan = planPostgresReset(
         {
             ...EMPTY,
@@ -620,7 +619,7 @@ test('#435 postgres drops a scope schema a migration creates, and the objects in
     ])
 })
 
-test('#435 R6 refuses a migration that creates a schema outside the scope', () => {
+Deno.test('#435 R6 refuses a migration that creates a schema outside the scope', () => {
     const error = (() => {
         try {
             planPostgresReset(
@@ -635,7 +634,7 @@ test('#435 R6 refuses a migration that creates a schema outside the scope', () =
     assertStringIncludes(error.reason, '"audit"')
 })
 
-test('#435 R6 ignores CREATE SCHEMA IF NOT EXISTS, which re-runs cleanly', () => {
+Deno.test('#435 R6 ignores CREATE SCHEMA IF NOT EXISTS, which re-runs cleanly', () => {
     const plan = planPostgresReset(
         EMPTY,
         scope('postgres', {
@@ -645,7 +644,7 @@ test('#435 R6 ignores CREATE SCHEMA IF NOT EXISTS, which re-runs cleanly', () =>
     assertEquals(plan.some((s) => s.includes('audit')), false)
 })
 
-test('#435 R6 refuses to drop a schema that holds extension members', () => {
+Deno.test('#435 R6 refuses to drop a schema that holds extension members', () => {
     const error = (() => {
         try {
             planPostgresReset(
@@ -680,7 +679,7 @@ const SYSTEM_SCHEMA_SCOPES: ReadonlyArray<
 ]
 
 for (const [label, overrides] of SYSTEM_SCHEMA_SCOPES) {
-    test(`#435 #447 postgres refuses a system schema (${label}), before the unit opens`, async () => {
+    Deno.test(`#435 #447 postgres refuses a system schema (${label}), before the unit opens`, async () => {
         const { calls, maintenance } = fakeMaintenance({})
 
         const error = await assertRejects(
@@ -692,7 +691,7 @@ for (const [label, overrides] of SYSTEM_SCHEMA_SCOPES) {
         assertEquals(calls, [], 'it opened the unit, read or dropped')
     })
 
-    test(`#435 planPostgresReset refuses a system schema (${label})`, () => {
+    Deno.test(`#435 planPostgresReset refuses a system schema (${label})`, () => {
         assertThrows(
             () => planPostgresReset(EMPTY, scope('postgres', overrides)),
             RefusedError,
@@ -701,7 +700,7 @@ for (const [label, overrides] of SYSTEM_SCHEMA_SCOPES) {
     })
 }
 
-test('#435 postgres accepts a schema that merely contains pg_ or information_schema', () => {
+Deno.test('#435 postgres accepts a schema that merely contains pg_ or information_schema', () => {
     const plan = planPostgresReset(
         EMPTY,
         scope('postgres', {
@@ -715,7 +714,7 @@ test('#435 postgres accepts a schema that merely contains pg_ or information_sch
     )
 })
 
-test('#435 the catalogue reads exclude extension members and owned sequences', () => {
+Deno.test('#435 the catalogue reads exclude extension members and owned sequences', () => {
     const queries = postgresCatalogueQueries(['public'])
 
     for (const key of ['relations', 'types'] as const) {
@@ -732,7 +731,7 @@ test('#435 the catalogue reads exclude extension members and owned sequences', (
     assertStringIncludes(queries.routines, "deptype IN ('e', 'i')")
 })
 
-test('#435 R6 reads every extension and extension member in scope, and nothing else', () => {
+Deno.test('#435 R6 reads every extension and extension member in scope, and nothing else', () => {
     // Written out by hand, not derived: the R6 refusal is only as good as
     // this read. Each branch is scoped to the schemas (one quoted), and a
     // member is a `pg_depend` row of deptype 'e' — not 'a', 'i' or 'n'.
@@ -757,7 +756,7 @@ test('#435 R6 reads every extension and extension member in scope, and nothing e
     )
 })
 
-test('#435 #447 postgres reset reads the whole catalogue inside the transaction, before any statement', async () => {
+Deno.test('#435 #447 postgres reset reads the whole catalogue inside the transaction, before any statement', async () => {
     const { calls, executed, maintenance } = fakeMaintenance({
         'pg_catalog.pg_extension': [],
         'relkind IN': [{ schema: 'public', name: 'users', kind: 'r' }],
@@ -773,7 +772,7 @@ test('#435 #447 postgres reset reads the whole catalogue inside the transaction,
     )
 })
 
-test('#435 a catalogue row of the wrong shape is refused before any drop', async () => {
+Deno.test('#435 a catalogue row of the wrong shape is refused before any drop', async () => {
     const { calls, executed, maintenance } = fakeMaintenance({
         sqlite_master: [{ type: 'table', name: 42 }],
     })
@@ -789,7 +788,7 @@ test('#435 a catalogue row of the wrong shape is refused before any drop', async
 // #447 — a refusal reaches the caller as itself
 // -----------------------------------------------------------------------------
 
-test('#447 a refusal survives a connection whose execute re-wraps every failure', async () => {
+Deno.test('#447 a refusal survives a connection whose execute re-wraps every failure', async () => {
     const { maintenance } = fakeMaintenance({
         'information_schema.TABLES': mysqlRows(null, []),
     })
@@ -813,7 +812,7 @@ test('#447 a refusal survives a connection whose execute re-wraps every failure'
     assertStringIncludes(error.reason, 'no database selected')
 })
 
-test("#447 a statement failure is the connection's error, not mistaken for a refusal", async () => {
+Deno.test("#447 a statement failure is the connection's error, not mistaken for a refusal", async () => {
     const { maintenance } = fakeMaintenance({
         sqlite_master: [{ type: 'table', name: 't' }],
     })
@@ -851,7 +850,7 @@ async function warned(fn: () => Promise<void>): Promise<{
     }
 }
 
-test('#447 a connection that retries never sees a stale refusal rethrown after its statements ran', async () => {
+Deno.test('#447 a connection that retries never sees a stale refusal rethrown after its statements ran', async () => {
     // The first planner call reads a malformed row and refuses; the retry
     // reads a sound one, and its plan runs and commits.
     let calls = 0
@@ -888,7 +887,7 @@ test('#447 a connection that retries never sees a stale refusal rethrown after i
     ])
 })
 
-test('#447 a refusal a connection swallows is raised anyway', async () => {
+Deno.test('#447 a refusal a connection swallows is raised anyway', async () => {
     const swallowing: MaintenanceConnection = {
         query: () => Promise.resolve([]),
         execute: async (planner) => {
@@ -911,7 +910,7 @@ test('#447 a refusal a connection swallows is raised anyway', async () => {
     assertStringIncludes(error.reason, 'no database selected')
 })
 
-test('#447 a rollback that fails after a refusal keeps the refusal and logs the rollback failure', async () => {
+Deno.test('#447 a rollback that fails after a refusal keeps the refusal and logs the rollback failure', async () => {
     const failingRollback: MaintenanceConnection = {
         query: () => Promise.resolve([]),
         execute: async (planner) => {
@@ -936,7 +935,7 @@ test('#447 a rollback that fails after a refusal keeps the refusal and logs the 
     assertStringIncludes(lines[0], 'ROLLBACK failed: connection lost')
 })
 
-test('#447 an execute error that carries the refusal as its cause is not logged twice', async () => {
+Deno.test('#447 an execute error that carries the refusal as its cause is not logged twice', async () => {
     const { maintenance } = fakeMaintenance({
         'information_schema.TABLES': mysqlRows(null, []),
     })
@@ -963,7 +962,7 @@ test('#447 an execute error that carries the refusal as its cause is not logged 
 // The one line db:fresh prints
 // -----------------------------------------------------------------------------
 
-test('#435 the scope line names the dialect and the scope, never the DSN', () => {
+Deno.test('#435 the scope line names the dialect and the scope, never the DSN', () => {
     const withUrl = {
         ...scope('postgres', { schemaFilter: ['public', 'auth'] }),
         url: 'postgres://app:s3cret@db:5432/app',

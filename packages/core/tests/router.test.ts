@@ -2,11 +2,10 @@
  * Tests for router utility functions
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { namedRoutes, route } from '../routing/router.ts'
 
-test('route - returns path for registered route without params', () => {
+Deno.test('route - returns path for registered route without params', () => {
     namedRoutes.clear()
     namedRoutes.set('home', '/')
 
@@ -15,7 +14,7 @@ test('route - returns path for registered route without params', () => {
     assertEquals(result, '/')
 })
 
-test('route - replaces single parameter', () => {
+Deno.test('route - replaces single parameter', () => {
     namedRoutes.clear()
     namedRoutes.set('user.show', '/users/:id')
 
@@ -24,7 +23,7 @@ test('route - replaces single parameter', () => {
     assertEquals(result, '/users/123')
 })
 
-test('route - replaces multiple parameters', () => {
+Deno.test('route - replaces multiple parameters', () => {
     namedRoutes.clear()
     namedRoutes.set('post.comment', '/posts/:postId/comments/:commentId')
 
@@ -33,7 +32,7 @@ test('route - replaces multiple parameters', () => {
     assertEquals(result, '/posts/42/comments/7')
 })
 
-test('route - handles string parameters', () => {
+Deno.test('route - handles string parameters', () => {
     namedRoutes.clear()
     namedRoutes.set('blog.show', '/blog/:slug')
 
@@ -42,7 +41,7 @@ test('route - handles string parameters', () => {
     assertEquals(result, '/blog/hello-world')
 })
 
-test('route - handles numeric parameters', () => {
+Deno.test('route - handles numeric parameters', () => {
     namedRoutes.clear()
     namedRoutes.set('api.user', '/api/users/:id')
 
@@ -51,7 +50,7 @@ test('route - handles numeric parameters', () => {
     assertEquals(result, '/api/users/999')
 })
 
-test('route - throws error for non-existent route', () => {
+Deno.test('route - throws error for non-existent route', () => {
     namedRoutes.clear()
 
     let error: Error | undefined
@@ -67,7 +66,7 @@ test('route - throws error for non-existent route', () => {
     )
 })
 
-test('route - returns route path without params when no params provided', () => {
+Deno.test('route - returns route path without params when no params provided', () => {
     namedRoutes.clear()
     namedRoutes.set('user.list', '/users')
 
@@ -76,7 +75,7 @@ test('route - returns route path without params when no params provided', () => 
     assertEquals(result, '/users')
 })
 
-test('route - handles routes with query-like params in path', () => {
+Deno.test('route - handles routes with query-like params in path', () => {
     namedRoutes.clear()
     namedRoutes.set('search', '/search/:query/page/:page')
 
@@ -85,7 +84,7 @@ test('route - handles routes with query-like params in path', () => {
     assertEquals(result, '/search/deno/page/2')
 })
 
-test('route - only replaces matching parameter names', () => {
+Deno.test('route - only replaces matching parameter names', () => {
     namedRoutes.clear()
     namedRoutes.set('nested', '/users/:userId/posts/:postId')
 
@@ -94,7 +93,7 @@ test('route - only replaces matching parameter names', () => {
     assertEquals(result, '/users/5/posts/10')
 })
 
-test('route - leaves unmatched parameters in path', () => {
+Deno.test('route - leaves unmatched parameters in path', () => {
     namedRoutes.clear()
     namedRoutes.set('partial', '/users/:id/profile')
 
@@ -103,7 +102,7 @@ test('route - leaves unmatched parameters in path', () => {
     assertEquals(result, '/users/123/profile')
 })
 
-test('route - handles empty params object', () => {
+Deno.test('route - handles empty params object', () => {
     namedRoutes.clear()
     namedRoutes.set('about', '/about')
 
@@ -112,7 +111,7 @@ test('route - handles empty params object', () => {
     assertEquals(result, '/about')
 })
 
-test('namedRoutes - can be cleared and reused', () => {
+Deno.test('namedRoutes - can be cleared and reused', () => {
     namedRoutes.clear()
     namedRoutes.set('test1', '/path1')
 
@@ -123,7 +122,7 @@ test('namedRoutes - can be cleared and reused', () => {
     assertEquals(namedRoutes.get('test1'), undefined)
 })
 
-test('namedRoutes - can store multiple routes', () => {
+Deno.test('namedRoutes - can store multiple routes', () => {
     namedRoutes.clear()
     namedRoutes.set('home', '/')
     namedRoutes.set('about', '/about')
@@ -135,7 +134,7 @@ test('namedRoutes - can store multiple routes', () => {
     assertEquals(namedRoutes.get('contact'), '/contact')
 })
 
-test('route - handles consecutive parameters', () => {
+Deno.test('route - handles consecutive parameters', () => {
     namedRoutes.clear()
     namedRoutes.set('api.nested', '/api/:version/:resource/:id')
 
@@ -148,7 +147,7 @@ test('route - handles consecutive parameters', () => {
     assertEquals(result, '/api/v1/users/42')
 })
 
-test('route - converts number zero to string', () => {
+Deno.test('route - converts number zero to string', () => {
     namedRoutes.clear()
     namedRoutes.set('item', '/items/:id')
 

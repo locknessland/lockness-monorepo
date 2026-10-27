@@ -14,7 +14,6 @@
  * 7200s one.
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { MemorySessionDriver } from '../drivers/memory.ts'
 
@@ -26,7 +25,7 @@ function sessionsOf(driver: MemorySessionDriver): SessionsMap {
     return (driver as unknown as { sessions: SessionsMap }).sessions
 }
 
-test('memory regenerate - the new id carries the passed lifetime, not the old remaining one (A-M1)', async () => {
+Deno.test('memory regenerate - the new id carries the passed lifetime, not the old remaining one (A-M1)', async () => {
     const driver = new MemorySessionDriver()
     const data = { userId: 42 }
 
@@ -53,7 +52,7 @@ test('memory regenerate - the new id carries the passed lifetime, not the old re
     )
 })
 
-test('memory regenerate - the old id no longer resolves, the new one carries the data', async () => {
+Deno.test('memory regenerate - the old id no longer resolves, the new one carries the data', async () => {
     const driver = new MemorySessionDriver()
     const data = { userId: 99, role: 'admin' }
     await driver.write('mem-old', data, 3600)

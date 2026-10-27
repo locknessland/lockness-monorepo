@@ -51,8 +51,7 @@ import { healthStep } from './steps/health.ts'
  * Get the default bootstrap steps in execution order.
  *
  * Steps are ordered by their `order` property (lower values execute first):
- * - 1: Environment checks (warns on an unreadable `APP_ENV`; the `DENO_ENV`
- *   tripwire refuses a conflicting environment)
+ * - 1: `DENO_ENV` tripwire (refuses a conflicting environment)
  * - 10: Events debug switch
  * - 100: Database initialization
  * - 110: Session configuration
@@ -74,9 +73,8 @@ import { healthStep } from './steps/health.ts'
  */
 export function getDefaultSteps(): readonly BootstrapStep[] {
     return [
-        // Order 1 — one warning when APP_ENV is unreadable, then the DENO_ENV
-        // tripwire refuses a conflicting environment, before any step acts on
-        // APP_ENV.
+        // Order 1 — the DENO_ENV tripwire refuses a conflicting environment
+        // before any step acts on APP_ENV.
         environmentStep,
         // Order 10 — before anything can emit, so the switch is on for the
         // boot it was turned on to diagnose.

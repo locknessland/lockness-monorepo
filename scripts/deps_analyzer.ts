@@ -20,12 +20,8 @@
  *
  * **Soft edges cannot be parsed.** `loadConfiguredPackage(config, 'database', …)`
  * passes the specifier as a *string argument*, so it never appears in any module
- * graph. A package declares them as optional peers in its `package.json`
- * (`peerDependencies` + `peerDependenciesMeta.<name>.optional`) — the fact,
- * and the only way they can be seen at all (#591). They are folded into
- * check A, and check C holds each one against the package's `soft` list in
- * `deps.policy.jsonc` — the permission — exactly as it holds every observed
- * static edge against `allow`.
+ * graph. Those edges are declared in `deps.policy.jsonc` under `soft` and folded
+ * into check A — declaring them is the only way they can be seen at all.
  *
  * @module
  */
@@ -53,7 +49,7 @@ interface PolicyEntry {
 }
 
 /** The hand-written policy input. */
-export interface Policy {
+interface Policy {
     tiers: Record<string, number>
     packages: Record<string, PolicyEntry>
     /** Pre-existing cycles that are accepted for now, each with its ticket. */
@@ -69,14 +65,12 @@ interface KnownCycle {
     why: string
 }
 
-/** A package as read from its own manifests. */
-export interface PackageInfo {
+/** A package as read from its own `deno.json`. */
+interface PackageInfo {
     name: string
     version: string
     /** Entry points from `exports`, repo-relative. */
     entries: string[]
-    /** Short names of its optional `@lockness/*` peers: its soft edges. */
-    optionalPeers: string[]
 }
 
 const ROOT = Deno.cwd()
@@ -149,36 +143,6 @@ async function sourceFiles(packageDir: string): Promise<string[]> {
 }
 
 /**
- * The optional `@lockness/*` peers a `package.json` declares, by short name.
- *
- * A peer is optional when `peerDependenciesMeta.<name>.optional` is `true`;
- * a non-optional peer is not a soft edge.
- *
- * @param manifest - A parsed `package.json`.
- * @returns Short names (`cache`, not `@lockness/cache`), in declaration order.
- * @example
- * ```ts
- * optionalPeersOf({
- *     peerDependencies: { '@lockness/cache': '^0.4.0' },
- *     peerDependenciesMeta: { '@lockness/cache': { optional: true } },
- * }) // ['cache']
- * ```
- */
-export function optionalPeersOf(manifest: unknown): string[] {
-    if (typeof manifest !== 'object' || manifest === null) return []
-    const { peerDependencies, peerDependenciesMeta } = manifest as {
-        peerDependencies?: Record<string, unknown>
-        peerDependenciesMeta?: Record<string, { optional?: unknown }>
-    }
-    return Object.keys(peerDependencies ?? {})
-        .filter((name) =>
-            name.startsWith('@lockness/') &&
-            peerDependenciesMeta?.[name]?.optional === true
-        )
-        .map((name) => name.slice('@lockness/'.length))
-}
-
-/**
  * Read every workspace package from `packages/`.
  *
  * @returns The packages, keyed by short name (`core`, not `@lockness/core`).
@@ -198,14 +162,10 @@ async function readPackages(): Promise<Map<string, PackageInfo>> {
         }
 
         const config = JSON.parse(raw)
-        const pkgJson = await Deno.readTextFile(
-            join(PACKAGES_DIR, entry.name, 'package.json'),
-        ).then((text) => JSON.parse(text) as unknown, () => null)
         packages.set(entry.name, {
             name: entry.name,
             version: config.version ?? '0.0.0',
             entries: await sourceFiles(join(PACKAGES_DIR, entry.name)),
-            optionalPeers: optionalPeersOf(pkgJson),
         })
     }
 
@@ -319,21 +279,16 @@ async function buildGraph(
 }
 
 /**
- * Every package's optional peers, as `soft` edges.
+ * Fold the policy's declared soft edges into the edge list.
  *
- * @param packages - The workspace packages.
- * @returns One `soft` edge per declared optional peer.
- * @example
- * ```ts
- * softEdges(new Map([['mail', { name: 'mail', version: '0.4.0', entries: [], optionalPeers: ['queue'] }]]))
- * // [{ from: 'mail', to: 'queue', kind: 'soft', at: '' }]
- * ```
+ * @param policy - The parsed policy.
+ * @returns One `soft` edge per declared target.
  */
-export function softEdges(packages: Map<string, PackageInfo>): Edge[] {
+function softEdges(policy: Policy): Edge[] {
     const edges: Edge[] = []
-    for (const pkg of packages.values()) {
-        for (const to of pkg.optionalPeers) {
-            edges.push({ from: pkg.name, to, kind: 'soft', at: '' })
+    for (const [from, entry] of Object.entries(policy.packages)) {
+        for (const to of entry.soft ?? []) {
+            edges.push({ from, to, kind: 'soft', at: '' })
         }
     }
     return edges
@@ -351,7 +306,7 @@ export function softEdges(packages: Map<string, PackageInfo>): Edge[] {
  * @param includeTypes - Count `type` edges as binding. Defaults to `false`.
  * @returns Each cycle as a package list whose first and last entries match.
  */
-export function findCycles(edges: Edge[], includeTypes = false): string[][] {
+function findCycles(edges: Edge[], includeTypes = false): string[][] {
     const adjacency = new Map<string, Set<string>>()
     for (const edge of edges) {
         if (edge.kind === 'type' && !includeTypes) continue
@@ -437,21 +392,13 @@ function partitionCycles(
 /**
  * Check C — every edge must be permitted by the policy.
  *
- * A `soft` edge (an optional peer declared in `package.json`) is checked
- * against the package's `soft` list; every other kind against `allow`.
+ * A `soft` edge is checked against `soft`; every other kind against `allow`.
  *
  * @param edges - All edges, including the folded soft ones.
  * @param policy - The parsed policy.
  * @returns One finding per violating edge, deduplicated by `from → to`.
- * @example
- * ```ts
- * findTierViolations(
- *     [{ from: 'mail', to: 'queue', kind: 'soft', at: '' }],
- *     { tiers: {}, packages: { mail: { tier: 'x', allow: [] } } },
- * ) // the edge: mail does not permit queue as soft
- * ```
  */
-export function findTierViolations(edges: Edge[], policy: Policy): Edge[] {
+function findTierViolations(edges: Edge[], policy: Policy): Edge[] {
     const findings = new Map<string, Edge>()
     for (const edge of edges) {
         const entry = policy.packages[edge.from]
@@ -485,7 +432,7 @@ function generateMarkdown(
         '> 🤖 Auto-generated by `deno task deps:analyze`. Do not edit by hand.',
         '>',
         '> The graph below is the **resolved module graph** reported by',
-        '> `deno info`, plus the optional peers each `package.json` declares.',
+        '> `deno info`, plus the soft edges declared in `deps.policy.jsonc`.',
         '',
         '## Overview',
         '',
@@ -622,7 +569,7 @@ async function main(): Promise<void> {
                 entries: p.entries,
             })),
             edges: staticEdges,
-            soft: softEdges(packages),
+            soft: parsed === null ? [] : softEdges(parsed),
             policy: parsed,
         }))
         return
@@ -648,7 +595,7 @@ async function main(): Promise<void> {
         Deno.exit(1)
     }
 
-    const edges = [...staticEdges, ...softEdges(packages)]
+    const edges = [...staticEdges, ...softEdges(policy)]
     let failed = false
 
     // ---- Check A: cycles -------------------------------------------------

@@ -8,9 +8,8 @@
  * @module @lockness/core/tests/environment
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
-import { Hono } from '@lockness/hono'
+import { Hono } from 'hono'
 import { isDevelopment, isProduction, resolveEnvName } from '../environment.ts'
 import { App } from '../app.ts'
 import { formatErrorForConsole } from '../exceptions/formatter.ts'
@@ -43,31 +42,31 @@ function withEnv(
 
 // --- resolveEnvName: the four combinations -------------------------------
 
-test('resolveEnvName - DENO_ENV alone is not read (#504)', () => {
+Deno.test('resolveEnvName - DENO_ENV alone is not read (#504)', () => {
     withEnv({ DENO_ENV: 'production' }, () => {
         assertEquals(resolveEnvName(), 'development')
     })
 })
 
-test('resolveEnvName - APP_ENV alone is honoured', () => {
+Deno.test('resolveEnvName - APP_ENV alone is honoured', () => {
     withEnv({ APP_ENV: 'production' }, () => {
         assertEquals(resolveEnvName(), 'production')
     })
 })
 
-test('resolveEnvName - APP_ENV decides when both are set (#504)', () => {
+Deno.test('resolveEnvName - APP_ENV decides when both are set (#504)', () => {
     withEnv({ DENO_ENV: 'production', APP_ENV: 'development' }, () => {
         assertEquals(resolveEnvName(), 'development')
     })
 })
 
-test('resolveEnvName - neither set defaults to development', () => {
+Deno.test('resolveEnvName - neither set defaults to development', () => {
     withEnv({}, () => {
         assertEquals(resolveEnvName(), 'development')
     })
 })
 
-test('isProduction / isDevelopment are built on resolveEnvName', () => {
+Deno.test('isProduction / isDevelopment are built on resolveEnvName', () => {
     withEnv({ APP_ENV: 'production' }, () => {
         assert(isProduction())
         assert(!isDevelopment())
@@ -85,7 +84,7 @@ test('isProduction / isDevelopment are built on resolveEnvName', () => {
 
 // --- NotCapable safety: never throws without --allow-env ------------------
 
-test('resolveEnvName - a NotCapable read resolves to development, never throws', () => {
+Deno.test('resolveEnvName - a NotCapable read resolves to development, never throws', () => {
     // deno-lint-ignore no-explicit-any
     const envAny = Deno.env as any
     const original = envAny.get
@@ -102,7 +101,7 @@ test('resolveEnvName - a NotCapable read resolves to development, never throws',
 
 // --- App getters (sites 1 & 2) -------------------------------------------
 
-test('App.isProduction / isDevelopment reflect the resolved env', () => {
+Deno.test('App.isProduction / isDevelopment reflect the resolved env', () => {
     const app = new App()
     withEnv({ APP_ENV: 'production' }, () => {
         assert(app.isProduction)
@@ -124,7 +123,7 @@ test('App.isProduction / isDevelopment reflect the resolved env', () => {
 
 // --- formatter fail-closed (site 3) --------------------------------------
 
-test('formatErrorForConsole - production hides the verbose stack dump (site 3)', () => {
+Deno.test('formatErrorForConsole - production hides the verbose stack dump (site 3)', () => {
     const logs: string[] = []
     const errs: string[] = []
     const origLog = console.log
@@ -178,7 +177,7 @@ async function bodyForEnv(
     return body
 }
 
-test('defaultErrorHandler - production 500 leaks no stack detail (site 4)', async () => {
+Deno.test('defaultErrorHandler - production 500 leaks no stack detail (site 4)', async () => {
     const prod = await bodyForEnv({ APP_ENV: 'production' })
     assert(
         !prod.includes('STACK-MARKER-SHOULD-NOT-LEAK'),
@@ -190,7 +189,7 @@ test('defaultErrorHandler - production 500 leaks no stack detail (site 4)', asyn
     assertStringIncludes(dev, 'STACK-MARKER-SHOULD-NOT-LEAK')
 })
 
-test('defaultErrorHandler - an unset/ambiguous environment fails closed (H1 regression #165)', async () => {
+Deno.test('defaultErrorHandler - an unset/ambiguous environment fails closed (H1 regression #165)', async () => {
     // The security-critical case the production/development pair above never
     // exercised: APP_ENV unset. The 500 detail gate must
     // fail CLOSED here — an unset environment is the default state of a freshly
@@ -203,7 +202,7 @@ test('defaultErrorHandler - an unset/ambiguous environment fails closed (H1 regr
     )
 })
 
-test('defaultErrorHandler - a NotCapable env read fails closed (H1 regression #165)', async () => {
+Deno.test('defaultErrorHandler - a NotCapable env read fails closed (H1 regression #165)', async () => {
     // A compiled binary run without --allow-env: every env read raises
     // NotCapable. The gate must still fail closed rather than default to
     // showing details.

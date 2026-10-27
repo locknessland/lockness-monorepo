@@ -1,4 +1,3 @@
-import { test } from 'node:test'
 import { assertStringIncludes } from '@std/assert'
 import {
     PricingCard,
@@ -21,8 +20,8 @@ function renderToString(component: unknown): string {
     return result.toString()
 }
 
-test('Pricing components', async (t) => {
-    await t.test('PricingCard renders with base styles', () => {
+Deno.test('Pricing components', async (t) => {
+    await t.step('PricingCard renders with base styles', () => {
         const html = renderToString(
             <PricingCard>
                 <div>Content</div>
@@ -33,7 +32,7 @@ test('Pricing components', async (t) => {
         assertStringIncludes(html, 'Content')
     })
 
-    await t.test('PricingCard renders with featured style', () => {
+    await t.step('PricingCard renders with featured style', () => {
         const html = renderToString(
             <PricingCard featured>Content</PricingCard>,
         )
@@ -42,7 +41,7 @@ test('Pricing components', async (t) => {
         assertStringIncludes(html, 'scale-105')
     })
 
-    await t.test('PricingCardHeader renders with title', () => {
+    await t.step('PricingCardHeader renders with title', () => {
         const html = renderToString(
             <PricingCardHeader title='Pro Plan' />,
         )
@@ -50,7 +49,7 @@ test('Pricing components', async (t) => {
         assertStringIncludes(html, 'text-center')
     })
 
-    await t.test('PricingCardHeader renders with badge', () => {
+    await t.step('PricingCardHeader renders with badge', () => {
         const html = renderToString(
             <PricingCardHeader title='Pro' badge='Popular' />,
         )
@@ -58,13 +57,13 @@ test('Pricing components', async (t) => {
         assertStringIncludes(html, 'Popular')
     })
 
-    await t.test('PricingCardPrice renders with default currency', () => {
+    await t.step('PricingCardPrice renders with default currency', () => {
         const html = renderToString(<PricingCardPrice price={29} />)
         assertStringIncludes(html, '29')
         assertStringIncludes(html, '$')
     })
 
-    await t.test('PricingCardPrice renders with custom currency', () => {
+    await t.step('PricingCardPrice renders with custom currency', () => {
         const html = renderToString(
             <PricingCardPrice price={29} currency='€' />,
         )
@@ -72,7 +71,7 @@ test('Pricing components', async (t) => {
         assertStringIncludes(html, '€')
     })
 
-    await t.test('PricingCardPrice renders with period', () => {
+    await t.step('PricingCardPrice renders with period', () => {
         const html = renderToString(
             <PricingCardPrice price={29} period='month' />,
         )
@@ -80,7 +79,7 @@ test('Pricing components', async (t) => {
         assertStringIncludes(html, '/month')
     })
 
-    await t.test('PricingCardPrice renders with original price', () => {
+    await t.step('PricingCardPrice renders with original price', () => {
         const html = renderToString(
             <PricingCardPrice price={29} originalPrice={49} />,
         )
@@ -89,7 +88,7 @@ test('Pricing components', async (t) => {
         assertStringIncludes(html, 'line-through')
     })
 
-    await t.test('PricingCardPrice renders with description', () => {
+    await t.step('PricingCardPrice renders with description', () => {
         const html = renderToString(
             <PricingCardPrice price={0} description='Free forever' />,
         )
@@ -97,12 +96,12 @@ test('Pricing components', async (t) => {
         assertStringIncludes(html, 'Free forever')
     })
 
-    await t.test('PricingCardPrice handles string price', () => {
+    await t.step('PricingCardPrice handles string price', () => {
         const html = renderToString(<PricingCardPrice price='Custom' />)
         assertStringIncludes(html, 'Custom')
     })
 
-    await t.test('PricingCardDescription renders text', () => {
+    await t.step('PricingCardDescription renders text', () => {
         const html = renderToString(
             <PricingCardDescription>
                 Perfect for individuals
@@ -112,7 +111,7 @@ test('Pricing components', async (t) => {
         assertStringIncludes(html, 'text-center')
     })
 
-    await t.test('PricingCardFeatures renders container', () => {
+    await t.step('PricingCardFeatures renders container', () => {
         const html = renderToString(
             <PricingCardFeatures>
                 <PricingCardFeature>Feature 1</PricingCardFeature>
@@ -122,7 +121,7 @@ test('Pricing components', async (t) => {
         assertStringIncludes(html, '<ul')
     })
 
-    await t.test('PricingCardFeature renders with check icon', () => {
+    await t.step('PricingCardFeature renders with check icon', () => {
         const html = renderToString(
             <PricingCardFeature>Unlimited projects</PricingCardFeature>,
         )
@@ -131,7 +130,7 @@ test('Pricing components', async (t) => {
         assertStringIncludes(html, 'text-primary')
     })
 
-    await t.test(
+    await t.step(
         'PricingCardFeature renders with cross icon when not included',
         () => {
             const html = renderToString(
@@ -144,7 +143,7 @@ test('Pricing components', async (t) => {
         },
     )
 
-    await t.test('PricingCardAction renders button', () => {
+    await t.step('PricingCardAction renders button', () => {
         const html = renderToString(
             <PricingCardAction>Get Started</PricingCardAction>,
         )
@@ -152,7 +151,7 @@ test('Pricing components', async (t) => {
         assertStringIncludes(html, 'w-full')
     })
 
-    await t.test('PricingCardAction renders with custom variant', () => {
+    await t.step('PricingCardAction renders with custom variant', () => {
         const html = renderToString(
             <PricingCardAction variant='outline'>
                 Sign Up
@@ -161,7 +160,7 @@ test('Pricing components', async (t) => {
         assertStringIncludes(html, 'Sign Up')
     })
 
-    await t.test('PricingCardAction renders as link with href', () => {
+    await t.step('PricingCardAction renders as link with href', () => {
         const html = renderToString(
             <PricingCardAction href='/signup'>Subscribe</PricingCardAction>,
         )
@@ -169,28 +168,28 @@ test('Pricing components', async (t) => {
         assertStringIncludes(html, '/signup')
     })
 
-    await t.test('PricingToggle renders with monthly selected', () => {
+    await t.step('PricingToggle renders with monthly selected', () => {
         const html = renderToString(<PricingToggle selected='monthly' />)
         assertStringIncludes(html, 'Monthly')
         assertStringIncludes(html, 'Yearly')
         assertStringIncludes(html, 'data-billing-period="monthly"')
     })
 
-    await t.test('PricingToggle renders with yearly selected', () => {
+    await t.step('PricingToggle renders with yearly selected', () => {
         const html = renderToString(<PricingToggle selected='yearly' />)
         assertStringIncludes(html, 'Monthly')
         assertStringIncludes(html, 'Yearly')
         assertStringIncludes(html, 'data-billing-period="yearly"')
     })
 
-    await t.test('PricingToggle renders with yearly badge', () => {
+    await t.step('PricingToggle renders with yearly badge', () => {
         const html = renderToString(
             <PricingToggle selected='yearly' yearlyBadge='Save 20%' />,
         )
         assertStringIncludes(html, 'Save 20%')
     })
 
-    await t.test('PricingToggle renders with custom labels', () => {
+    await t.step('PricingToggle renders with custom labels', () => {
         const html = renderToString(
             <PricingToggle
                 monthlyLabel='Per Month'
@@ -201,7 +200,7 @@ test('Pricing components', async (t) => {
         assertStringIncludes(html, 'Per Year')
     })
 
-    await t.test('PricingSection renders with 2 columns', () => {
+    await t.step('PricingSection renders with 2 columns', () => {
         const html = renderToString(
             <PricingSection columns={2}>
                 <div>Card 1</div>
@@ -213,7 +212,7 @@ test('Pricing components', async (t) => {
         assertStringIncludes(html, 'Card 2')
     })
 
-    await t.test('PricingSection renders with 3 columns', () => {
+    await t.step('PricingSection renders with 3 columns', () => {
         const html = renderToString(
             <PricingSection columns={3}>
                 <div>Card 1</div>
@@ -227,7 +226,7 @@ test('Pricing components', async (t) => {
         assertStringIncludes(html, 'Card 3')
     })
 
-    await t.test('PricingComparison renders table with headers', () => {
+    await t.step('PricingComparison renders table with headers', () => {
         const html = renderToString(
             <PricingComparison
                 tiers={['Free', 'Pro', 'Enterprise']}
@@ -244,7 +243,7 @@ test('Pricing components', async (t) => {
         assertStringIncludes(html, 'Features')
     })
 
-    await t.test('PricingComparison renders feature rows', () => {
+    await t.step('PricingComparison renders feature rows', () => {
         const html = renderToString(
             <PricingComparison
                 tiers={['Free', 'Pro']}
@@ -262,7 +261,7 @@ test('Pricing components', async (t) => {
         assertStringIncludes(html, '100 GB')
     })
 
-    await t.test('PricingComparison renders boolean values as icons', () => {
+    await t.step('PricingComparison renders boolean values as icons', () => {
         const html = renderToString(
             <PricingComparison
                 tiers={['Free', 'Pro']}
@@ -279,7 +278,7 @@ test('Pricing components', async (t) => {
         assertStringIncludes(html, 'text-muted-foreground')
     })
 
-    await t.test('renders full pricing card composition', () => {
+    await t.step('renders full pricing card composition', () => {
         const html = renderToString(
             <PricingCard featured>
                 <PricingCardHeader title='Pro' badge='Popular' />
@@ -310,7 +309,7 @@ test('Pricing components', async (t) => {
         assertStringIncludes(html, '/signup')
     })
 
-    await t.test('all components forward custom classes', () => {
+    await t.step('all components forward custom classes', () => {
         const cardHtml = renderToString(
             <PricingCard class='custom-card'>Test</PricingCard>,
         )

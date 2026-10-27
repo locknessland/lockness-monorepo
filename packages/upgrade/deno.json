@@ -2,14 +2,7 @@
     "name": "@lockness/upgrade",
     "version": "0.4.0",
     "license": "MIT",
-    "description": "Automated upgrade tool for Lockness projects - updates all @lockness/* dependencies to latest or specified version",
-    "exports": {
-        ".": "./mod.ts"
-    },
-    "tasks": {
-        "test": "deno test -A tests/",
-        "test:watch": "deno test -A --watch tests/"
-    },
+    "exports": "./mod.ts",
     "publish": {
         "include": [
             "mod.ts",
@@ -21,9 +14,7 @@
             "deno.json"
         ],
         "exclude": [
-            "tests/",
-            "package.json",
-            "tsconfig.json"
+            "tests/"
         ]
     },
     "imports": {
@@ -32,5 +23,10 @@
         "@std/jsonc": "jsr:@std/jsonc@^1.0.0",
         "@std/path": "jsr:@std/path@^1.0.0",
         "@std/assert": "jsr:@std/assert@1"
-    }
+    },
+    "tasks": {
+        "test": "deno test -A tests/",
+        "test:watch": "deno test -A --watch tests/"
+    },
+    "description": "Automated upgrade tool for Lockness projects - updates all @lockness/* dependencies to latest or specified version"
 }

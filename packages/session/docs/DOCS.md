@@ -19,13 +19,6 @@ unencrypted mode: a cookie-driver application with no usable key **does not
 start** in production, and outside production it runs on a random key generated
 for that process only (so sessions do not survive a restart).
 
-"Production" includes a process that **cannot read `APP_ENV`**: a `deno compile`
-binary whose `compile.flags` narrow `--allow-env` (the default build uses `-A`),
-or a run whose narrowed `--allow-env` does not grant `APP_ENV`. Such a process
-may be production, so it refuses too rather than starting on a per-process key.
-Grant `--allow-env=APP_ENV`, or set `APP_KEY`. An `APP_ENV` that is readable and
-unset still gets the per-process key.
-
 ### If you have been running on a placeholder key — rotate
 
 Earlier versions fell back to a key committed to this repository, and the cookie

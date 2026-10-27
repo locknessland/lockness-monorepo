@@ -8,7 +8,6 @@
  * the events side.
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import * as core from '../mod.ts'
 import { getDefaultSteps } from '../kernel/bootstrap/registry.ts'
@@ -41,7 +40,7 @@ const DELIBERATELY_INTERNAL = [
     'resolveDeadlineMs',
 ] as const
 
-test('shutdown - every runtime symbol is reachable from @lockness/core', () => {
+Deno.test('shutdown - every runtime symbol is reachable from @lockness/core', () => {
     const missing = REQUIRED.filter((name) =>
         (core as Record<string, unknown>)[name] === undefined
     )
@@ -53,7 +52,7 @@ test('shutdown - every runtime symbol is reachable from @lockness/core', () => {
     )
 })
 
-test("shutdown - the internal machinery stays off core's surface", () => {
+Deno.test("shutdown - the internal machinery stays off core's surface", () => {
     const leaked = DELIBERATELY_INTERNAL.filter((name) =>
         (core as Record<string, unknown>)[name] !== undefined
     )
@@ -67,7 +66,7 @@ test("shutdown - the internal machinery stays off core's surface", () => {
     )
 })
 
-test('shutdown - App carries the public lifecycle surface', () => {
+Deno.test('shutdown - App carries the public lifecycle surface', () => {
     const app = new core.App()
 
     assertEquals(typeof app.onShutdown, 'function')
@@ -75,7 +74,7 @@ test('shutdown - App carries the public lifecycle surface', () => {
     assertEquals(app.isShuttingDown, false)
 })
 
-test('shutdown - the bootstrap step is actually wired into the registry', () => {
+Deno.test('shutdown - the bootstrap step is actually wired into the registry', () => {
     // Asserting the step's own id and order says nothing about whether any
     // application runs it. Delete one line from registry.ts and the whole
     // feature is dead in every running app, suite fully green.

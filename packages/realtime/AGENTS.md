@@ -42,8 +42,8 @@ satisfies `@lockness/notification`'s `BroadcasterLike`.
 | **Must never import**                     | nothing — no package depends on this one             |
 
 Enforced by `deno task deps:analyze` against `deps.policy.jsonc`. A soft edge is
-an optional peer in this package's `package.json`, never a dependency: the
-consuming application installs it, or the feature stays off.
+deliberately **not** declared in this package's `deno.json`: the consuming
+application installs it, or the feature stays off.
 
 <!-- /generated:deps -->
 
@@ -1192,10 +1192,9 @@ of what the re-check's counts mean.
 
 <!-- generated:tests -->
 
-113 test files for 28 source files:
+112 test files for 28 source files:
 
 - `packages/realtime/tests/announce_swept_guard_419.test.ts`
-- `packages/realtime/tests/apply_revocation_376.deno.test.ts`
 - `packages/realtime/tests/apply_revocation_376.test.ts`
 - `packages/realtime/tests/authorize_denial_331.test.ts`
 - `packages/realtime/tests/authorize_result_347.test.ts`
@@ -1225,7 +1224,7 @@ of what the re-check's counts mean.
 - `packages/realtime/tests/driver_redis_live.test.ts`
 - `packages/realtime/tests/emit_isolation_323.test.ts`
 - `packages/realtime/tests/emit_presence_warn_395.test.ts`
-- `packages/realtime/tests/escape_watcher.deno.test.ts`
+- `packages/realtime/tests/escape_watcher.test.ts`
 - `packages/realtime/tests/escaping_sinks_395.test.ts`
 - `packages/realtime/tests/events_bridge.test.ts`
 - `packages/realtime/tests/eviction_control.test.ts`
@@ -1387,7 +1386,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 113 test files directly —
+Then, specific to this package: run its 112 test files directly —
 
 ```bash
 deno test -A packages/realtime/

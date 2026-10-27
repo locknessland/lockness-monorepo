@@ -55,11 +55,10 @@ than package-shaped, or crosses several packages.
 
 Every agent and the main session obey the framework
 [hard rules](../.claude/CLAUDE.md#-hard-rules-every-agent-must-respect): no
-direct `hono` import, published runtime dependencies declared per package with
-no `@std/*`, no `any` in exported APIs, Tailwind v4 CSS-variable syntax, the
-pre-completion gate, no hand-edited `deno.lock`, JSDoc on public APIs (enforced
-for module `@fileoverview` by `deno task docs:coverage`), MVC layering, and
-one-category-per-commit.
+direct `hono` import, JSR-only specifiers, no `any` in exported APIs, Tailwind
+v4 CSS-variable syntax, the pre-completion gate, no hand-edited `deno.lock`,
+JSDoc on public APIs (enforced for module `@fileoverview` by
+`deno task docs:coverage`), MVC layering, and one-category-per-commit.
 
 ## Keeping this map honest
 

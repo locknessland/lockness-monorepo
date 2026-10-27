@@ -11,39 +11,38 @@
  * @module @lockness/core/ssg/tests/paths
  */
 
-import { test } from 'node:test'
 import { assertEquals, assertThrows } from '@std/assert'
 import { join, resolve } from '@std/path'
 import { outputPathFor } from '../paths.ts'
 
 const DIST = resolve('dist')
 
-test('outputPathFor - root maps to dist/index.html', () => {
+Deno.test('outputPathFor - root maps to dist/index.html', () => {
     assertEquals(outputPathFor('/', DIST), join(DIST, 'index.html'))
 })
 
-test('outputPathFor - nested path maps to a directory index', () => {
+Deno.test('outputPathFor - nested path maps to a directory index', () => {
     assertEquals(
         outputPathFor('/x/y', DIST),
         join(DIST, 'x', 'y', 'index.html'),
     )
 })
 
-test('outputPathFor - a locale prefix nests correctly', () => {
+Deno.test('outputPathFor - a locale prefix nests correctly', () => {
     assertEquals(
         outputPathFor('/en/us/docs', DIST),
         join(DIST, 'en', 'us', 'docs', 'index.html'),
     )
 })
 
-test('outputPathFor - trailing slash is ignored', () => {
+Deno.test('outputPathFor - trailing slash is ignored', () => {
     assertEquals(
         outputPathFor('/docs/', DIST),
         join(DIST, 'docs', 'index.html'),
     )
 })
 
-test('outputPathFor - rejects a .. traversal segment', () => {
+Deno.test('outputPathFor - rejects a .. traversal segment', () => {
     assertThrows(
         () => outputPathFor('/../etc/passwd', DIST),
         Error,
@@ -51,25 +50,25 @@ test('outputPathFor - rejects a .. traversal segment', () => {
     )
 })
 
-test('outputPathFor - rejects an embedded .. segment', () => {
+Deno.test('outputPathFor - rejects an embedded .. segment', () => {
     assertThrows(() => outputPathFor('/docs/../../x', DIST), Error)
 })
 
-test('outputPathFor - rejects an absolute-looking / control-char segment', () => {
+Deno.test('outputPathFor - rejects an absolute-looking / control-char segment', () => {
     // A NUL byte in a segment.
     assertThrows(() => outputPathFor('/do\x00cs', DIST), Error)
 })
 
-test('outputPathFor - rejects an uppercase / space / disallowed char segment', () => {
+Deno.test('outputPathFor - rejects an uppercase / space / disallowed char segment', () => {
     assertThrows(() => outputPathFor('/Docs', DIST), Error)
     assertThrows(() => outputPathFor('/a b', DIST), Error)
 })
 
-test('outputPathFor - rejects a leading-dot segment (hidden/.., ., .git)', () => {
+Deno.test('outputPathFor - rejects a leading-dot segment (hidden/.., ., .git)', () => {
     assertThrows(() => outputPathFor('/.git/config', DIST), Error)
 })
 
-test('outputPathFor - a file-like last segment is written literally', () => {
+Deno.test('outputPathFor - a file-like last segment is written literally', () => {
     // A route like /docs/llms.txt must land at dist/docs/llms.txt, not
     // dist/docs/llms.txt/index.html (which no plain host serves at that URL).
     assertEquals(
@@ -79,7 +78,7 @@ test('outputPathFor - a file-like last segment is written literally', () => {
     assertEquals(outputPathFor('/sitemap.xml', DIST), join(DIST, 'sitemap.xml'))
 })
 
-test('outputPathFor - allows the allowlisted characters', () => {
+Deno.test('outputPathFor - allows the allowlisted characters', () => {
     // Dotted last segment → literal file (consistent with the file-like rule).
     assertEquals(outputPathFor('/a-b_c.2', DIST), join(DIST, 'a-b_c.2'))
     // Dot in a non-final segment keeps the directory-index convention.

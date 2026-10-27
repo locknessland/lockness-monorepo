@@ -1,25 +1,21 @@
 {
     "name": "@lockness/cache",
+    "description": "High-performance caching system with multiple driver support (Memory, Deno KV) and TTL management",
     "version": "0.4.0",
     "license": "MIT",
-    "description": "High-performance caching system with multiple driver support (Memory, Deno KV) and TTL management",
-    "exports": {
-        ".": "./mod.ts"
-    },
+    "exports": "./mod.ts",
     "tasks": {
         "test": "deno test -A tests/",
         "test:watch": "deno test -A --watch tests/"
     },
     "publish": {
         "exclude": [
-            "tests/",
-            "package.json",
-            "tsconfig.json"
+            "tests/"
         ]
     },
     "imports": {
+        "@std/assert": "jsr:@std/assert@1",
         "@lockness/contract": "jsr:@lockness/contract@^0.4.0",
-        "@lockness/container": "jsr:@lockness/container@^0.4.0",
-        "@std/assert": "jsr:@std/assert@1"
+        "@lockness/container": "jsr:@lockness/container@^0.4.0"
     }
 }

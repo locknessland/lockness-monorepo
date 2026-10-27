@@ -1,4 +1,3 @@
-import { test } from 'node:test'
 import { assertEquals, assertExists } from '@std/assert'
 import { Controller, Get } from '@lockness/core'
 import { ApiDoc, generateOpenAPISpec } from '../mod.ts'
@@ -35,7 +34,7 @@ class TestController {
     }
 }
 
-test('OpenAPI - generateOpenAPISpec', () => {
+Deno.test('OpenAPI - generateOpenAPISpec', () => {
     const controllers = [TestController] as unknown as ControllerClass[]
 
     // Trigger decorators by instantiating the controller
@@ -63,7 +62,7 @@ test('OpenAPI - generateOpenAPISpec', () => {
     assertEquals(spec.paths['/users/:id']?.get?.parameters?.length, 1)
 })
 
-test('OpenAPI - tags generation', () => {
+Deno.test('OpenAPI - tags generation', () => {
     const controllers = [TestController] as unknown as ControllerClass[]
     new TestController()
 

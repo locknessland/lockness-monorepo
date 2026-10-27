@@ -7,11 +7,10 @@
  * which is exactly how the feature would have shipped unreachable.
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import * as core from '../mod.ts'
 
-test('core re-exports everything #135 added', () => {
+Deno.test('core re-exports everything #135 added', () => {
     const missing = [
         'EventEmitter',
         'eventStream',
@@ -29,7 +28,7 @@ test('core re-exports everything #135 added', () => {
     assertEquals(missing, [], 'unreachable from @lockness/core')
 })
 
-test('core re-exports anyEvent through the emitter and the dispatcher', () => {
+Deno.test('core re-exports anyEvent through the emitter and the dispatcher', () => {
     const emitter = new core.EventEmitter()
     assertEquals(typeof emitter.anyEvent, 'function')
     assertEquals(typeof core.dispatcher().anyEvent, 'function')

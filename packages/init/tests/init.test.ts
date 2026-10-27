@@ -4,7 +4,7 @@
  * Tests for the project scaffolding functionality
  */
 
-import { afterEach, beforeEach, describe, it } from 'node:test'
+import { afterEach, beforeEach, describe, it } from '@std/testing/bdd'
 import { expect } from '@std/expect'
 import { existsSync } from '@std/fs'
 

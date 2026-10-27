@@ -2,7 +2,6 @@
  * Tests for Container (Dependency Injection)
  */
 
-import { test } from 'node:test'
 import { assertEquals, assertExists } from '@std/assert'
 import { container } from '../mod.ts'
 
@@ -24,26 +23,26 @@ class AnotherService {
     }
 }
 
-test('container system', async (t) => {
-    await t.test('container.set registers a service instance', () => {
+Deno.test('container system', async (t) => {
+    await t.step('container.set registers a service instance', () => {
         container.set(TestService, new TestService())
     })
 
-    await t.test('container.get retrieves a service instance', () => {
+    await t.step('container.get retrieves a service instance', () => {
         const instance = container.get<TestService>(TestService)
 
         assertExists(instance)
         assertEquals(instance instanceof TestService, true)
     })
 
-    await t.test('container.get auto-creates and returns singleton', () => {
+    await t.step('container.get auto-creates and returns singleton', () => {
         const instance1 = container.get<AnotherService>(AnotherService)
         const instance2 = container.get<AnotherService>(AnotherService)
 
         assertEquals(instance1.getId(), instance2.getId())
     })
 
-    await t.test('service methods work correctly', () => {
+    await t.step('service methods work correctly', () => {
         const instance = container.get<TestService>(TestService)
 
         assertEquals(instance.getValue(), 'test-value')

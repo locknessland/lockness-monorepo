@@ -26,7 +26,6 @@
  * @module @lockness/drizzle/tests/fresh_mysql_live
  */
 
-import { test } from 'node:test'
 import {
     assert,
     assertEquals,
@@ -79,7 +78,7 @@ const ACCEPTED: readonly string[] = [
 ]
 
 for (const url of ACCEPTED) {
-    test(`#446 live guard: accepts ${url}`, () => {
+    Deno.test(`#446 live guard: accepts ${url}`, () => {
         assertEquals(assertMysqlLoopback(url), url)
     })
 }
@@ -96,7 +95,7 @@ const REFUSED: ReadonlyArray<readonly [string, string]> = [
 ]
 
 for (const [label, url] of REFUSED) {
-    test(`#446 live guard: refuses ${label}, without quoting it`, () => {
+    Deno.test(`#446 live guard: refuses ${label}, without quoting it`, () => {
         let message = ''
         try {
             assertMysqlLoopback(url)
@@ -334,10 +333,11 @@ async function freshTwice(url: string): Promise<string> {
     return lines.join('\n')
 }
 
-test(
-    '#446 live: db:fresh over an FK chain and a view leaves DATABASE() holding the migrated tables and one bookkeeping row per journal entry',
-    { skip: !LIVE },
-    () =>
+Deno.test({
+    name:
+        '#446 live: db:fresh over an FK chain and a view leaves DATABASE() holding the migrated tables and one bookkeeping row per journal entry',
+    ignore: !LIVE,
+    fn: () =>
         live(async (admin, url) => {
             const output = await freshTwice(url)
 
@@ -367,7 +367,7 @@ test(
             )
             assertEquals(Number(kept[0].n), 1, 'the outside row is gone')
         }),
-)
+})
 
 // -----------------------------------------------------------------------------
 // The maintenance connection is never a pool member
@@ -443,10 +443,11 @@ async function assertDiscarded(
     assertEquals(Number(next.fk), 1, 'the pool lent FOREIGN_KEY_CHECKS = 0')
 }
 
-test(
-    '#446 #447 live: the maintenance connection is gone once closed after a reset that succeeds',
-    { skip: !LIVE },
-    () =>
+Deno.test({
+    name:
+        '#446 #447 live: the maintenance connection is gone once closed after a reset that succeeds',
+    ignore: !LIVE,
+    fn: () =>
         live((admin, url) =>
             withMaintenance(url, SCOPE, async (maintenance, handle) => {
                 await resetDatabase(
@@ -463,12 +464,13 @@ test(
                 )
             })
         ),
-)
+})
 
-test(
-    '#446 #447 live: the maintenance connection is gone once closed after a reset that fails with FK checks off',
-    { skip: !LIVE },
-    () =>
+Deno.test({
+    name:
+        '#446 #447 live: the maintenance connection is gone once closed after a reset that fails with FK checks off',
+    ignore: !LIVE,
+    fn: () =>
         live((admin, url) =>
             withMaintenance(url, SCOPE, async (maintenance, handle) => {
                 // The plan's first statement turns FK checks off; the next
@@ -497,7 +499,7 @@ test(
                 )
             })
         ),
-)
+})
 
 // -----------------------------------------------------------------------------
 // A system DATABASE() is refused before any statement runs
@@ -506,10 +508,11 @@ test(
 for (
     const system of ['mysql', 'sys', 'performance_schema', 'information_schema']
 ) {
-    test(
-        `#446 live: a DATABASE() of \`${system}\` is refused before any statement runs`,
-        { skip: !LIVE },
-        () =>
+    Deno.test({
+        name:
+            `#446 live: a DATABASE() of \`${system}\` is refused before any statement runs`,
+        ignore: !LIVE,
+        fn: () =>
             live((admin, url) =>
                 withMaintenance(url, system, async (maintenance) => {
                     const before = await objectsOf(admin, system)
@@ -535,17 +538,18 @@ for (
                     assertEquals(await objectsOf(admin, system), before)
                 })
             ),
-    )
+    })
 }
 
 // -----------------------------------------------------------------------------
 // #447: the migrate runs on the connection the reset ran on
 // -----------------------------------------------------------------------------
 
-test(
-    '#447 live: CONNECTION_ID() read by the planner is the one the migrate leaves behind',
-    { skip: !LIVE },
-    () =>
+Deno.test({
+    name:
+        '#447 live: CONNECTION_ID() read by the planner is the one the migrate leaves behind',
+    ignore: !LIVE,
+    fn: () =>
         live((admin, url) =>
             withMaintenance(url, SCOPE, async (maintenance) => {
                 const folder = await Deno.makeTempDir({
@@ -585,4 +589,4 @@ test(
                 }
             })
         ),
-)
+})

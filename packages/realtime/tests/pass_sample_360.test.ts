@@ -45,7 +45,6 @@
  * @module @lockness/realtime/tests/pass_sample_360
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
 import {
@@ -367,7 +366,7 @@ const settle = () => new Promise<void>((done) => REAL_SET_TIMEOUT(done, 0))
 // US1 — every completed pass reports its duration and its pages
 // ---------------------------------------------------------------------------
 
-test('#360 P1 one revocation record, one timer pass: exactly one frozen sample with one page', async () => {
+Deno.test('#360 P1 one revocation record, one timer pass: exactly one frozen sample with one page', async () => {
     await withClock(async ({ time }) => {
         const f = fleet()
         await plantRevocation(f.redis, 'c1')
@@ -389,7 +388,7 @@ test('#360 P1 one revocation record, one timer pass: exactly one frozen sample w
     })
 })
 
-test('#360 P2 a paged revocation pass counts the ZSCAN pages the fake served, and the next pass counts its own', async () => {
+Deno.test('#360 P2 a paged revocation pass counts the ZSCAN pages the fake served, and the next pass counts its own', async () => {
     await withClock(async ({ time }) => {
         const f = fleet()
         for (let i = 1; i <= 250; i++) await plantRevocation(f.redis, `c${i}`)
@@ -416,7 +415,7 @@ test('#360 P2 a paged revocation pass counts the ZSCAN pages the fake served, an
     })
 })
 
-test('#360 P3 (i) a sweep of one dead instance counts the SSCAN pages the fake served', async () => {
+Deno.test('#360 P3 (i) a sweep of one dead instance counts the SSCAN pages the fake served', async () => {
     await withClock(async ({ time }) => {
         const f = fleet()
         f.record()
@@ -437,7 +436,7 @@ test('#360 P3 (i) a sweep of one dead instance counts the SSCAN pages the fake s
     })
 })
 
-test('#360 P3 (ii) a sweep with no dead instance is one sample of zero pages', async () => {
+Deno.test('#360 P3 (ii) a sweep with no dead instance is one sample of zero pages', async () => {
     await withClock(async ({ time }) => {
         const f = fleet()
         f.record()
@@ -454,7 +453,7 @@ test('#360 P3 (ii) a sweep with no dead instance is one sample of zero pages', a
     })
 })
 
-test('#360 P3 (iii) a sweep of two dead instances counts the pages of both', async () => {
+Deno.test('#360 P3 (iii) a sweep of two dead instances counts the pages of both', async () => {
     await withClock(async ({ time }) => {
         const f = fleet()
         f.record()
@@ -476,7 +475,7 @@ test('#360 P3 (iii) a sweep of two dead instances counts the pages of both', asy
     })
 })
 
-test('#360 P9 (revocation) the duration is read on the pass clock, not the wall clock', async () => {
+Deno.test('#360 P9 (revocation) the duration is read on the pass clock, not the wall clock', async () => {
     await withClock(async ({ time, clock }) => {
         const f = fleet()
         f.record()
@@ -506,7 +505,7 @@ test('#360 P9 (revocation) the duration is read on the pass clock, not the wall 
     })
 })
 
-test('#360 P9 (sweep) the duration is read on the pass clock, not the wall clock', async () => {
+Deno.test('#360 P9 (sweep) the duration is read on the pass clock, not the wall clock', async () => {
     await withClock(async ({ time, clock }) => {
         const f = fleet()
         f.record()
@@ -534,7 +533,7 @@ test('#360 P9 (sweep) the duration is read on the pass clock, not the wall clock
     })
 })
 
-test("#360 P10 (i) a handler registered mid-pass receives that pass's sample", async () => {
+Deno.test("#360 P10 (i) a handler registered mid-pass receives that pass's sample", async () => {
     await withClock(async ({ time }) => {
         const f = fleet()
         f.listen()
@@ -554,7 +553,7 @@ test("#360 P10 (i) a handler registered mid-pass receives that pass's sample", a
     })
 })
 
-test('#360 P10 (ii) registering again replaces the handler', async () => {
+Deno.test('#360 P10 (ii) registering again replaces the handler', async () => {
     await withClock(async ({ time }) => {
         const f = fleet()
         const first: PassSample[] = []
@@ -574,7 +573,7 @@ test('#360 P10 (ii) registering again replaces the handler', async () => {
 // US2 — a reconnect's catch-up is its own series
 // ---------------------------------------------------------------------------
 
-test('#360 P5 a reconnect pass is tagged reconnect, and its retry reconnect-retry', async () => {
+Deno.test('#360 P5 a reconnect pass is tagged reconnect, and its retry reconnect-retry', async () => {
     await withClock(async ({ time }) => {
         const f = fleet()
         f.record()
@@ -608,7 +607,7 @@ test('#360 P5 a reconnect pass is tagged reconnect, and its retry reconnect-retr
     })
 })
 
-test('#360 P6 three reconnects during a held pass: two samples, the first is the ended pass', async () => {
+Deno.test('#360 P6 three reconnects during a held pass: two samples, the first is the ended pass', async () => {
     await withClock(async ({ time }) => {
         const f = fleet()
         f.record()
@@ -637,7 +636,7 @@ test('#360 P6 three reconnects during a held pass: two samples, the first is the
 // US3 — a failed pass says so
 // ---------------------------------------------------------------------------
 
-test('#360 P4 (i) a refused reap fails the revocation pass', async () => {
+Deno.test('#360 P4 (i) a refused reap fails the revocation pass', async () => {
     await withClock(async ({ time }) => {
         const f = fleet()
         f.port.failFrom(isReap)
@@ -654,7 +653,7 @@ test('#360 P4 (i) a refused reap fails the revocation pass', async () => {
     })
 })
 
-test('#360 P4 (ii) a refused instance-set read fails the sweep', async () => {
+Deno.test('#360 P4 (ii) a refused instance-set read fails the sweep', async () => {
     await withClock(async ({ time }) => {
         const f = fleet()
         f.record()
@@ -671,7 +670,7 @@ test('#360 P4 (ii) a refused instance-set read fails the sweep', async () => {
     })
 })
 
-test('#360 P4 (iii) one dead instance whose release fails is contained: the sweep is ok', async () => {
+Deno.test('#360 P4 (iii) one dead instance whose release fails is contained: the sweep is ok', async () => {
     await withClock(async ({ time }) => {
         const f = fleet()
         f.record()
@@ -685,7 +684,7 @@ test('#360 P4 (iii) one dead instance whose release fails is contained: the swee
     })
 })
 
-test('#360 P4 (iv) (a) an instance-set reply that is not an array fails the sweep with one WARN', async () => {
+Deno.test('#360 P4 (iv) (a) an instance-set reply that is not an array fails the sweep with one WARN', async () => {
     await withClock(async ({ time, logs }) => {
         const f = fleet()
         f.record()
@@ -703,7 +702,7 @@ test('#360 P4 (iv) (a) an instance-set reply that is not an array fails the swee
     })
 })
 
-test('#360 P4 (iv) (b) an EXISTS reply that is not an integer fails the sweep', async () => {
+Deno.test('#360 P4 (iv) (b) an EXISTS reply that is not an integer fails the sweep', async () => {
     await withClock(async ({ time, logs }) => {
         const f = fleet()
         f.record()
@@ -718,7 +717,7 @@ test('#360 P4 (iv) (b) an EXISTS reply that is not an integer fails the sweep', 
     })
 })
 
-test('#360 P12 (i) a revocation pass that rejects records failed, and #362 writes its marked line', async () => {
+Deno.test('#360 P12 (i) a revocation pass that rejects records failed, and #362 writes its marked line', async () => {
     await withClock(async ({ time, logs, escaped }) => {
         const f = fleet()
         f.record()
@@ -745,7 +744,7 @@ test('#360 P12 (i) a revocation pass that rejects records failed, and #362 write
 // US4 — observability never breaks a pass
 // ---------------------------------------------------------------------------
 
-test('#360 P7 (i) close() during a revocation pass: no sample, then or later', async () => {
+Deno.test('#360 P7 (i) close() during a revocation pass: no sample, then or later', async () => {
     await withClock(async ({ time }) => {
         const f = fleet()
         f.record()
@@ -764,7 +763,7 @@ test('#360 P7 (i) close() during a revocation pass: no sample, then or later', a
     })
 })
 
-test('#360 P7 (ii) close() during a sweep: no sample, then or later', async () => {
+Deno.test('#360 P7 (ii) close() during a sweep: no sample, then or later', async () => {
     await withClock(async ({ time }) => {
         const f = fleet()
         f.record()
@@ -783,7 +782,7 @@ test('#360 P7 (ii) close() during a sweep: no sample, then or later', async () =
     })
 })
 
-test('#360 P8 (i) a throwing handler is one WARN per pass, and both loops go on', async () => {
+Deno.test('#360 P8 (i) a throwing handler is one WARN per pass, and both loops go on', async () => {
     await withClock(async ({ time, logs, escaped }) => {
         const f = fleet()
         f.driver.onPassComplete((s) => {
@@ -805,7 +804,7 @@ test('#360 P8 (i) a throwing handler is one WARN per pass, and both loops go on'
     })
 })
 
-test('#360 P8 (ii) a handler whose promise rejects is one WARN per pass, and nothing escapes', async () => {
+Deno.test('#360 P8 (ii) a handler whose promise rejects is one WARN per pass, and nothing escapes', async () => {
     await withClock(async ({ time, logs, escaped }) => {
         const f = fleet()
         f.driver.onPassComplete((s) => {
@@ -827,7 +826,7 @@ test('#360 P8 (ii) a handler whose promise rejects is one WARN per pass, and not
     })
 })
 
-test('#360 P8 (iii) a throwing handler while console.warn throws is one marked ERROR per pass, and the sweep re-arms', async () => {
+Deno.test('#360 P8 (iii) a throwing handler while console.warn throws is one marked ERROR per pass, and the sweep re-arms', async () => {
     await withClock(async ({ time, logs, escaped }) => {
         const f = fleet()
         f.driver.onPassComplete((s) => {
@@ -852,7 +851,7 @@ test('#360 P8 (iii) a throwing handler while console.warn throws is one marked E
     })
 })
 
-test('#360 P8 (iv) a handler that never settles holds nothing: close() resolves', async () => {
+Deno.test('#360 P8 (iv) a handler that never settles holds nothing: close() resolves', async () => {
     await withClock(async ({ time }) => {
         const f = fleet()
         f.driver.onPassComplete((s) => {
@@ -876,7 +875,7 @@ test('#360 P8 (iv) a handler that never settles holds nothing: close() resolves'
     })
 })
 
-test('#360 P8 (v) (i) a returned promise whose constructor getter throws is one WARN', async () => {
+Deno.test('#360 P8 (v) (i) a returned promise whose constructor getter throws is one WARN', async () => {
     await withClock(async ({ time, logs, escaped }) => {
         const f = fleet()
         f.driver.onPassComplete((s) => {
@@ -902,7 +901,7 @@ test('#360 P8 (v) (i) a returned promise whose constructor getter throws is one 
     })
 })
 
-test('#360 P8 (v) (ii) a thenable that rejects three times is ONE WARN', async () => {
+Deno.test('#360 P8 (v) (ii) a thenable that rejects three times is ONE WARN', async () => {
     await withClock(async ({ time, logs, escaped }) => {
         const f = fleet()
         f.driver.onPassComplete((s) => {
@@ -925,7 +924,7 @@ test('#360 P8 (v) (ii) a thenable that rejects three times is ONE WARN', async (
     })
 })
 
-test("#360 P14 the sweep's next pass is armed before its sample is taken, even when the handler and console.warn both throw", async () => {
+Deno.test("#360 P14 the sweep's next pass is armed before its sample is taken, even when the handler and console.warn both throw", async () => {
     await withClock(async ({ time, logs }) => {
         const f = fleet()
         f.driver.onPassComplete((s) => {
@@ -947,7 +946,7 @@ test("#360 P14 the sweep's next pass is armed before its sample is taken, even w
     })
 })
 
-test('#360 P12 (ii) a ghost released while console.warn throws: ok, one marked line at #sweepInstance, and the loop goes on', async () => {
+Deno.test('#360 P12 (ii) a ghost released while console.warn throws: ok, one marked line at #sweepInstance, and the loop goes on', async () => {
     await withClock(async ({ time, logs, escaped }) => {
         const f = fleet()
         f.record()
@@ -987,7 +986,7 @@ test('#360 P12 (ii) a ghost released while console.warn throws: ok, one marked l
 // US5 — nothing wired, nothing new
 // ---------------------------------------------------------------------------
 
-test('#360 P11 no handler: both loops run five passes, and no pass-sample line is written', async () => {
+Deno.test('#360 P11 no handler: both loops run five passes, and no pass-sample line is written', async () => {
     await withClock(async ({ time, logs, escaped }) => {
         const f = fleet()
         await f.startSweep()
@@ -1012,7 +1011,7 @@ test('#360 P11 no handler: both loops run five passes, and no pass-sample line i
     })
 })
 
-test("#360 P13 #362's suite is still green", async () => {
+Deno.test("#360 P13 #362's suite is still green", async () => {
     const suite = new URL(
         './revocation_pass_bound_362.test.ts',
         import.meta.url,

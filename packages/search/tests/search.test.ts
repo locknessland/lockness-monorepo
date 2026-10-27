@@ -4,7 +4,6 @@
  * @module @lockness/search/tests/search
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import {
     configureSearch,
@@ -21,7 +20,7 @@ import {
 } from '../driver.ts'
 import { handleMakeSearchable } from '../cli_commands.ts'
 
-test('SC-003: index + query returns matching ids ranked', async () => {
+Deno.test('SC-003: index + query returns matching ids ranked', async () => {
     resetSearch()
     const posts = search('posts')
     await posts.index('1', 'Deno framework release notes')
@@ -35,7 +34,7 @@ test('SC-003: index + query returns matching ids ranked', async () => {
     resetSearch()
 })
 
-test('SC-003: re-indexing an id replaces it (no duplicate); delete removes it', async () => {
+Deno.test('SC-003: re-indexing an id replaces it (no duplicate); delete removes it', async () => {
     resetSearch()
     const idx = search('docs')
     await idx.index('1', 'alpha beta')
@@ -48,14 +47,14 @@ test('SC-003: re-indexing an id replaces it (no duplicate); delete removes it', 
     resetSearch()
 })
 
-test('SC-003: a no-match query returns empty', async () => {
+Deno.test('SC-003: a no-match query returns empty', async () => {
     resetSearch()
     await search('x').index('1', 'hello world')
     assertEquals(await search('x').query('absent'), [])
     resetSearch()
 })
 
-test('SC-003a: a regex-metachar query is matched as literal tokens (no regex/ReDoS)', async () => {
+Deno.test('SC-003a: a regex-metachar query is matched as literal tokens (no regex/ReDoS)', async () => {
     resetSearch()
     await search('x').index('1', 'plus c99 and more')
     // '.*+' etc. are tokenised, not compiled — they match nothing, never hang.
@@ -64,13 +63,13 @@ test('SC-003a: a regex-metachar query is matched as literal tokens (no regex/ReD
     resetSearch()
 })
 
-test('SC-003a: tokeniser is bounded (query length + token count)', () => {
+Deno.test('SC-003a: tokeniser is bounded (query length + token count)', () => {
     const huge = 'word '.repeat(MAX_TOKENS + 5000)
     assert(tokenize(huge).length <= MAX_TOKENS)
     assert(MAX_QUERY_LENGTH > 0)
 })
 
-test('indexSearchable indexes a record via its own projection', async () => {
+Deno.test('indexSearchable indexes a record via its own projection', async () => {
     resetSearch()
     await indexSearchable({
         searchableId: () => '7',
@@ -83,7 +82,7 @@ test('indexSearchable indexes a record via its own projection', async () => {
     resetSearch()
 })
 
-test('configureSearch injects a pluggable driver that query() routes to', async () => {
+Deno.test('configureSearch injects a pluggable driver that query() routes to', async () => {
     resetSearch()
     const calls: string[] = []
     const stub: SearchDriver = {
@@ -101,7 +100,7 @@ test('configureSearch injects a pluggable driver that query() routes to', async 
     resetSearch()
 })
 
-test('reindex() rebuilds an index from a record set', async () => {
+Deno.test('reindex() rebuilds an index from a record set', async () => {
     resetSearch()
     await search('docs').reindex([
         { id: '1', document: 'alpha beta' },
@@ -112,7 +111,7 @@ test('reindex() rebuilds an index from a record set', async () => {
     resetSearch()
 })
 
-test('SC-007: make:searchable scaffolds + rejects a traversal name', async () => {
+Deno.test('SC-007: make:searchable scaffolds + rejects a traversal name', async () => {
     const dir = await Deno.makeTempDir()
     const prev = Deno.cwd()
     Deno.chdir(dir)

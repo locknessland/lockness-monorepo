@@ -9,13 +9,12 @@
  * @module @lockness/scheduler/tests/reporting
  */
 
-import { test } from 'node:test'
 import { assertEquals, assertStringIncludes } from '@std/assert'
 import { stub } from '@std/testing/mock'
 import { report } from '../reporting.ts'
 import type { SchedulerReporter } from '../types.ts'
 
-test('report - the reporter succeeds and console is never touched', () => {
+Deno.test('report - the reporter succeeds and console is never touched', () => {
     const consoleWarn = stub(console, 'warn')
     try {
         const calls: Array<[string, Record<string, unknown>]> = []
@@ -31,7 +30,7 @@ test('report - the reporter succeeds and console is never touched', () => {
     }
 })
 
-test('report - no reporter falls back to console', () => {
+Deno.test('report - no reporter falls back to console', () => {
     const consoleWarn = stub(console, 'warn')
     try {
         report(undefined, 'warn', 'hello', { a: 1 })
@@ -42,7 +41,7 @@ test('report - no reporter falls back to console', () => {
     }
 })
 
-test('report - a throwing reporter falls back to console', () => {
+Deno.test('report - a throwing reporter falls back to console', () => {
     const consoleError = stub(console, 'error')
     try {
         const reporter: SchedulerReporter = {
@@ -59,7 +58,7 @@ test('report - a throwing reporter falls back to console', () => {
     }
 })
 
-test('report - a throwing reporter AND a throwing console fall back to stderr', () => {
+Deno.test('report - a throwing reporter AND a throwing console fall back to stderr', () => {
     const consoleWarn = stub(console, 'warn', () => {
         throw new Error('console is down')
     })
@@ -86,7 +85,7 @@ test('report - a throwing reporter AND a throwing console fall back to stderr', 
     }
 })
 
-test('report - reporter, console AND stderr all throwing drops the message without throwing', () => {
+Deno.test('report - reporter, console AND stderr all throwing drops the message without throwing', () => {
     const consoleWarn = stub(console, 'warn', () => {
         throw new Error('console is down')
     })
@@ -112,7 +111,7 @@ test('report - reporter, console AND stderr all throwing drops the message witho
     }
 })
 
-test('report - fields that JSON.stringify refuses still reach stderr as the message alone', () => {
+Deno.test('report - fields that JSON.stringify refuses still reach stderr as the message alone', () => {
     const consoleWarn = stub(console, 'warn', () => {
         throw new Error('console is down')
     })
@@ -140,7 +139,7 @@ test('report - fields that JSON.stringify refuses still reach stderr as the mess
     }
 })
 
-test('report - a CR/LF-bearing message is escaped before reaching console', () => {
+Deno.test('report - a CR/LF-bearing message is escaped before reaching console', () => {
     const consoleWarn = stub(console, 'warn')
     try {
         report(undefined, 'warn', 'line one\r\nFAKE LOG LINE', {})
@@ -154,7 +153,7 @@ test('report - a CR/LF-bearing message is escaped before reaching console', () =
     }
 })
 
-test('report - a CR/LF-bearing field value is escaped before reaching console', () => {
+Deno.test('report - a CR/LF-bearing field value is escaped before reaching console', () => {
     const consoleWarn = stub(console, 'warn')
     try {
         report(undefined, 'warn', 'hello', { task: 'a\r\nFAKE LOG LINE' })
@@ -169,7 +168,7 @@ test('report - a CR/LF-bearing field value is escaped before reaching console', 
     }
 })
 
-test('report - a CR/LF-bearing message is escaped before reaching stderr', () => {
+Deno.test('report - a CR/LF-bearing message is escaped before reaching stderr', () => {
     const consoleWarn = stub(console, 'warn', () => {
         throw new Error('console is down')
     })
@@ -193,7 +192,7 @@ test('report - a CR/LF-bearing message is escaped before reaching stderr', () =>
     }
 })
 
-test('report - a CR/LF-bearing field value is escaped before reaching stderr', () => {
+Deno.test('report - a CR/LF-bearing field value is escaped before reaching stderr', () => {
     const consoleWarn = stub(console, 'warn', () => {
         throw new Error('console is down')
     })
@@ -221,7 +220,7 @@ test('report - a CR/LF-bearing field value is escaped before reaching stderr', (
     }
 })
 
-test('report - the reporter receives the escaped message but raw, structured fields', () => {
+Deno.test('report - the reporter receives the escaped message but raw, structured fields', () => {
     const calls: Array<[string, Record<string, unknown>]> = []
     const reporter: SchedulerReporter = {
         warn: (m, f) => void calls.push([m, f]),
@@ -241,7 +240,7 @@ test('report - the reporter receives the escaped message but raw, structured fie
     assertEquals(fields.task, 'a\r\nFAKE LOG LINE')
 })
 
-test('report - a BigInt field on the fields-drop path reaches renderLine unchanged and does not throw', () => {
+Deno.test('report - a BigInt field on the fields-drop path reaches renderLine unchanged and does not throw', () => {
     // Pins the ordering the #410 disposition requires: the encoder only
     // touches strings and must not throw on a BigInt, so this reaches
     // `renderLine`'s existing `JSON.stringify` catch exactly as it did before
@@ -271,7 +270,7 @@ test('report - a BigInt field on the fields-drop path reaches renderLine unchang
     }
 })
 
-test('report - a CR/LF-bearing message stays on one line even on the fields-drop path', () => {
+Deno.test('report - a CR/LF-bearing message stays on one line even on the fields-drop path', () => {
     // #410's ordering guarantee (b): `message` is encoded before the try that
     // can drop `fields`, so a forged message still renders single-line on the
     // path where JSON.stringify(fields) throws — the escape is NOT supplied

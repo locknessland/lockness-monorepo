@@ -12,7 +12,6 @@
  * @module @lockness/realtime/tests/revocation_retry
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
 import { RedisBroadcastDriver } from '../drivers/redis.ts'
@@ -56,7 +55,7 @@ function driverWith(seam: ReturnType<typeof seamSubscriber>) {
     )
 }
 
-test('#308 the WARN names WHICH trigger failed', async () => {
+Deno.test('#308 the WARN names WHICH trigger failed', async () => {
     // Both lines read identically before this, so an operator watching a WARN
     // stream could not tell the fast path had been lost from a routine pass
     // having failed — and those want different responses.
@@ -92,7 +91,7 @@ test('#308 the WARN names WHICH trigger failed', async () => {
     }
 })
 
-test('#308 a failed SEAM reconcile is retried exactly once', async () => {
+Deno.test('#308 a failed SEAM reconcile is retried exactly once', async () => {
     const seam = seamSubscriber()
     const driver = driverWith(seam)
     const time = new FakeTime(new Date('2026-09-07T10:00:00Z'))
@@ -128,7 +127,7 @@ test('#308 a failed SEAM reconcile is retried exactly once', async () => {
     }
 })
 
-test('#308 a failed TIMER reconcile is NOT retried — its next pass is already due', async () => {
+Deno.test('#308 a failed TIMER reconcile is NOT retried — its next pass is already due', async () => {
     // The asymmetry, pinned. Retrying the timer would double its rate for as
     // long as the broker is unhealthy, which is a self-inflicted load spike at
     // precisely the wrong moment.
@@ -153,7 +152,7 @@ test('#308 a failed TIMER reconcile is NOT retried — its next pass is already 
     }
 })
 
-test('#308 close() leaves no pending retry behind', async () => {
+Deno.test('#308 close() leaves no pending retry behind', async () => {
     const seam = seamSubscriber()
     const driver = driverWith(seam)
     const time = new FakeTime(new Date('2026-09-07T10:00:00Z'))

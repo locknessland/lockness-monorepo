@@ -24,7 +24,6 @@
  * @module @lockness/drizzle/tests/maintenance
  */
 
-import { test } from 'node:test'
 import {
     assert,
     assertEquals,
@@ -155,7 +154,7 @@ async function openPostgres(onNotice?: (notice: unknown) => void) {
     return { ...fake, handle, connection }
 }
 
-test('#447 postgres open builds a dedicated max: 1 client with the routed onnotice, apart from the pool', async () => {
+Deno.test('#447 postgres open builds a dedicated max: 1 client with the routed onnotice, apart from the pool', async () => {
     const received: unknown[] = []
     const { built, connection } = await openPostgres((notice) =>
         void received.push(notice)
@@ -174,7 +173,7 @@ test('#447 postgres open builds a dedicated max: 1 client with the routed onnoti
     await connection.close()
 })
 
-test('#447 postgres execute reads inside BEGIN ISOLATION LEVEL REPEATABLE READ, before the first statement', async () => {
+Deno.test('#447 postgres execute reads inside BEGIN ISOLATION LEVEL REPEATABLE READ, before the first statement', async () => {
     const { events, connection } = await openPostgres()
 
     await connection.execute(PLANNER)
@@ -190,7 +189,7 @@ test('#447 postgres execute reads inside BEGIN ISOLATION LEVEL REPEATABLE READ, 
     ])
 })
 
-test('#447 postgres: a planner that refuses rolls back with its own error, and no statement ran', async () => {
+Deno.test('#447 postgres: a planner that refuses rolls back with its own error, and no statement ran', async () => {
     const { events, connection } = await openPostgres()
 
     await assertRejects(() => connection.execute(REFUSING), RefusedError, 'no')
@@ -202,7 +201,7 @@ test('#447 postgres: a planner that refuses rolls back with its own error, and n
     ])
 })
 
-test('#447 postgres: query, the migrator and close all use the dedicated client, never the pool', async () => {
+Deno.test('#447 postgres: query, the migrator and close all use the dedicated client, never the pool', async () => {
     const { events, wrapped, connection } = await openPostgres()
 
     await connection.query('SELECT 1')
@@ -270,7 +269,7 @@ function fakeMysql(drizzleFailsOnConnection = false) {
     return { events, wrapped, connections, pool, load }
 }
 
-test('#447 mysql: reads, statements and the migrator all run on the one connection createConnection opened', async () => {
+Deno.test('#447 mysql: reads, statements and the migrator all run on the one connection createConnection opened', async () => {
     const fake = fakeMysql()
     const handle = await mysqlDriverFactory(fake.load)(MYSQL_URL)
     assert(handle.maintenance, 'the mysql handle has no maintenance')
@@ -297,7 +296,7 @@ test('#447 mysql: reads, statements and the migrator all run on the one connecti
     assertEquals('getConnection' in (fake.connections[0] as object), false)
 })
 
-test('#447 mysql: a planner that refuses runs no statement and keeps its own error', async () => {
+Deno.test('#447 mysql: a planner that refuses runs no statement and keeps its own error', async () => {
     const fake = fakeMysql()
     const handle = await mysqlDriverFactory(fake.load)(MYSQL_URL)
     const connection = await handle.maintenance!.open()
@@ -307,7 +306,7 @@ test('#447 mysql: a planner that refuses runs no statement and keeps its own err
     assertEquals(fake.events, ['1:connect', '1:READ 1'])
 })
 
-test("#447 mysql: a connection drizzle cannot wrap is closed, and open fails with drizzle's error", async () => {
+Deno.test("#447 mysql: a connection drizzle cannot wrap is closed, and open fails with drizzle's error", async () => {
     const fake = fakeMysql(true)
     const handle = await mysqlDriverFactory(fake.load)(MYSQL_URL)
 
@@ -354,7 +353,7 @@ function fakeLibsql(closeFails = false) {
     return { events, client }
 }
 
-test('#447 libsql: reads and statements run on one write transaction, committed once', async () => {
+Deno.test('#447 libsql: reads and statements run on one write transaction, committed once', async () => {
     const { events, client } = fakeLibsql()
     const connection = libsqlConnection(client, () => Promise.resolve())
 
@@ -375,7 +374,7 @@ test('#447 libsql: reads and statements run on one write transaction, committed 
     ])
 })
 
-test('#447 libsql: a planner that refuses closes the transaction uncommitted, with its own error', async () => {
+Deno.test('#447 libsql: a planner that refuses closes the transaction uncommitted, with its own error', async () => {
     const { events, client } = fakeLibsql()
     const connection = libsqlConnection(client, () => Promise.resolve())
 
@@ -384,7 +383,7 @@ test('#447 libsql: a planner that refuses closes the transaction uncommitted, wi
     assertEquals(events, ['transaction:write', 'tx:READ 1', 'close'])
 })
 
-test("#447 libsql: a transaction close that fails keeps the planner's refusal, and is logged", async () => {
+Deno.test("#447 libsql: a transaction close that fails keeps the planner's refusal, and is logged", async () => {
     const { events, client } = fakeLibsql(true)
     const connection = libsqlConnection(client, () => Promise.resolve())
 
@@ -396,7 +395,7 @@ test("#447 libsql: a transaction close that fails keeps the planner's refusal, a
     assert(lines[0].includes('ROLLBACK failed'), lines[0])
 })
 
-test("#447 libsql: a transaction close that fails keeps the statement's error, and is logged", async () => {
+Deno.test("#447 libsql: a transaction close that fails keeps the statement's error, and is logged", async () => {
     const { client } = fakeLibsql(true)
     const failing: LibsqlMaintenanceClient = {
         ...client,
@@ -423,7 +422,7 @@ test("#447 libsql: a transaction close that fails keeps the statement's error, a
     assert(lines[0].includes('ROLLBACK failed'), lines[0])
 })
 
-test("#447 libsql: close leaves the handle's client open", async () => {
+Deno.test("#447 libsql: close leaves the handle's client open", async () => {
     const { events, client } = fakeLibsql()
     const connection = libsqlConnection(client, () => Promise.resolve())
 
@@ -498,7 +497,7 @@ async function connected(factory: DriverFactory): Promise<Database> {
     return db
 }
 
-test('#435 #447 maintenance passes each call through to the connection', async () => {
+Deno.test('#435 #447 maintenance passes each call through to the connection', async () => {
     const { factory, calls } = maintainedFactory()
     const db = await connected(factory)
 
@@ -524,7 +523,7 @@ test('#435 #447 maintenance passes each call through to the connection', async (
     ])
 })
 
-test('#435 maintenance is undefined when the handle has none (a custom factory)', async () => {
+Deno.test('#435 maintenance is undefined when the handle has none (a custom factory)', async () => {
     const db = new Database()
     db.setDriverFactory('postgres', () =>
         Promise.resolve({
@@ -537,7 +536,7 @@ test('#435 maintenance is undefined when the handle has none (a custom factory)'
     assertStrictEquals(db.maintenance, undefined)
 })
 
-test('#435 maintenance throws "not connected" before connect() and after close()', async () => {
+Deno.test('#435 maintenance throws "not connected" before connect() and after close()', async () => {
     const db = new Database()
     let threw = false
     try {
@@ -595,7 +594,7 @@ const FAILING_CALLS: ReadonlyArray<
 ]
 
 for (const [failAt, run] of FAILING_CALLS) {
-    test(`#435 #447 a ${failAt} failure quoting the DSN is redacted by identity`, async () => {
+    Deno.test(`#435 #447 a ${failAt} failure quoting the DSN is redacted by identity`, async () => {
         const { factory } = maintainedFactory(failAt, `missing on ${DSN}`)
         const db = await connected(factory)
 
@@ -605,7 +604,7 @@ for (const [failAt, run] of FAILING_CALLS) {
         assertEquals(error.message.includes('<dsn redacted>'), true)
     })
 
-    test(`#435 #447 a ${failAt} failure holding the password is withheld whole`, async () => {
+    Deno.test(`#435 #447 a ${failAt} failure holding the password is withheld whole`, async () => {
         const { factory } = maintainedFactory(failAt, 'password s3cretPw bad')
         const db = await connected(factory)
 
@@ -616,7 +615,7 @@ for (const [failAt, run] of FAILING_CALLS) {
     })
 }
 
-test('#447 an error the planner throws comes back unchanged through the redacting capability', async () => {
+Deno.test('#447 an error the planner throws comes back unchanged through the redacting capability', async () => {
     const { factory } = maintainedFactory()
     const db = await connected(factory)
     const connection = await db.maintenance!.open()
@@ -629,7 +628,7 @@ test('#447 an error the planner throws comes back unchanged through the redactin
     assertStrictEquals(error, refusal)
 })
 
-test('#447 the capability keeps the DSN it was read with, after close()', async () => {
+Deno.test('#447 the capability keeps the DSN it was read with, after close()', async () => {
     const { factory } = maintainedFactory('query', `missing on ${DSN}`)
     const db = await connected(factory)
     const maintenance = db.maintenance!

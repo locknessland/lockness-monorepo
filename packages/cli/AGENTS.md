@@ -18,18 +18,16 @@ User-facing documentation: [README.md](README.md) ·
   throwing; `report.ts` (internal) is the one place that prints it (once) and
   maps it to a status, for `Cli.dispatch()` and for `runEntry`
   (`@lockness/cli/entry`, the standalone tools) alike, and its `applyExitStatus`
-  is the one `process.exitCode` write (through `node:process`, so the path names
-  no runtime — #597). A failure prints `❌ <message>` through `renderMessage`,
-  then `caused by: <cause>` through `renderError`. Automation branches on that
-  status, not on output text. The `lockness-exit` lint plugin
+  is the one `Deno.exitCode` write. A failure prints `❌ <message>` through
+  `renderMessage`, then `caused by: <cause>` through `renderError`. Automation
+  branches on that status, not on output text. The `lockness-exit` lint plugin
   (`scripts/lint/exit_contract.ts`) guards it: `process-exit` rejects
-  `Deno.exit` / `process.exit` and `Deno.exitCode` / `process.exitCode` writes
-  outside their owners (the owners keep both spellings), and `printed-failure`
-  rejects a `❌` print in command code. Breaks when:
+  `Deno.exit` and `Deno.exitCode` writes outside their owners, and
+  `printed-failure` rejects a `❌` print in command code. Breaks when:
   - a handler prints `❌` and returns — the process exits 0 and CI reads the
     failure as success;
-  - `run()` calls `process.exit()` — `finally` blocks (a `db.close()`) are
-    skipped and buffered output is cut off;
+  - `run()` calls `Deno.exit()` — `finally` blocks (a `db.close()`) are skipped
+    and buffered output is cut off;
   - the failure check becomes `instanceof CommandFailedError` — it is matched by
     **shape** (any `Error` with an integer `exitCode`) so packages that must not
     import cli (core, mail, notification, features, search, i18n) can meet it
@@ -52,12 +50,8 @@ User-facing documentation: [README.md](README.md) ·
     throw but `NotCapable` becomes a `<not valid Unicode>` / `<unreadable>`
     notice (#508);
   - the switch is read with a bare `Deno.env.get` — in a terminal Deno then
-    prompts for the permission mid-report. The default reader is
-    `@lockness/contract`'s `readEnvVar`
-    (`@lockness/contract/environment/read/internal`), which asks
-    `Deno.permissions.querySync` first; a reader's failure is classified by
-    error `name` (`NotCapable`, `InvalidData`), never `instanceof Deno.errors`,
-    so `raw_errors.ts` names no runtime;
+    prompts for the permission mid-report. `readEnvWithoutPrompt` asks
+    `Deno.permissions.querySync` first;
   - a state prints twice or returns other than `1` — scripts read the status,
     and `cli_dispatch.test.ts` pins one `console.error` per state.
 - **`command_failure.ts`'s only import is `exit_status.ts`, which imports
@@ -72,16 +66,16 @@ User-facing documentation: [README.md](README.md) ·
 
 <!-- generated:deps -->
 
-| Direction                                 | Packages                                                                                                                                   |
-| :---------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------- |
-| Imports (static)                          | `contract`, `events`                                                                                                                       |
-| Imports (soft, loaded at runtime by name) | —                                                                                                                                          |
-| Imported by                               | `drizzle`, `init`, `openapi`, `ui`, `upgrade`                                                                                              |
-| **Must never import**                     | `core`, `drizzle`, `init`, `notification`, `openapi`, `ui`, `upgrade` — each already reaches this package, so importing one closes a cycle |
+| Direction                                 | Packages                                                                                                                                                                        |
+| :---------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Imports (static)                          | `contract`, `events`, `queue`                                                                                                                                                   |
+| Imports (soft, loaded at runtime by name) | —                                                                                                                                                                               |
+| Imported by                               | `deprecation-contracts`, `drizzle`, `init`, `openapi`, `ui`, `upgrade`                                                                                                          |
+| **Must never import**                     | `core`, `deprecation-contracts`, `drizzle`, `init`, `notification`, `openapi`, `realtime`, `ui`, `upgrade` — each already reaches this package, so importing one closes a cycle |
 
 Enforced by `deno task deps:analyze` against `deps.policy.jsonc`. A soft edge is
-an optional peer in this package's `package.json`, never a dependency: the
-consuming application installs it, or the feature stays off.
+deliberately **not** declared in this package's `deno.json`: the consuming
+application installs it, or the feature stays off.
 
 <!-- /generated:deps -->
 
@@ -93,7 +87,7 @@ consuming application installs it, or the feature stays off.
 | :-------- | :----------------------------------------------------------------------------------------------------- |
 | class     | `Cli`, `CommandFailedError`, `Stub`                                                                    |
 | function  | `Command`, `addPackage`, `loadPackageCommands`, `registerAll`, `registerCoreCommands`, `removePackage` |
-| interface | `CommandContext`, `CommandContract`, `CommandFailedErrorOptions`, `CommandMetadata`, `CommandRegistry` |
+| interface | `CommandContext`, `CommandContract`, `CommandFailedErrorOptions`, `CommandMetadata`                    |
 | typeAlias | `CommandClass`, `CommandFailure`, `CommandHandler`                                                     |
 | variable  | `cli`                                                                                                  |
 
@@ -122,15 +116,13 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-30 test files for 54 source files:
+26 test files for 46 source files:
 
 - `packages/cli/tests/app_file.test.ts`
-- `packages/cli/tests/cli_dispatch.deno.test.ts`
 - `packages/cli/tests/cli_dispatch.test.ts`
 - `packages/cli/tests/command_failures.test.ts`
 - `packages/cli/tests/debug_commands.test.ts`
 - `packages/cli/tests/discover_commands.test.ts`
-- `packages/cli/tests/entry.deno.test.ts`
 - `packages/cli/tests/entry.test.ts`
 - `packages/cli/tests/make_action.test.ts`
 - `packages/cli/tests/make_command.test.ts`
@@ -146,10 +138,8 @@ Anything not listed is internal and free to change.
 - `packages/cli/tests/make_service.test.ts`
 - `packages/cli/tests/make_view.test.ts`
 - `packages/cli/tests/nessy_stub.test.ts`
-- `packages/cli/tests/package_install.test.ts`
 - `packages/cli/tests/package_loader.test.ts`
-- `packages/cli/tests/queue_dispatch.test.ts`
-- `packages/cli/tests/raw_errors.deno.test.ts`
+- `packages/cli/tests/queue_commands.test.ts`
 - `packages/cli/tests/raw_errors.test.ts`
 - `packages/cli/tests/report.test.ts`
 - `packages/cli/tests/run_steps.test.ts`
@@ -168,7 +158,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 30 test files directly —
+Then, specific to this package: run its 26 test files directly —
 
 ```bash
 deno test -A packages/cli/

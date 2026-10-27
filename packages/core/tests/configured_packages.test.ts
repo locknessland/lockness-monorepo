@@ -9,7 +9,6 @@
  * used to be, printed on every boot of the slim kit.
  */
 
-import { test } from 'node:test'
 import {
     assertEquals,
     assertRejects,
@@ -47,7 +46,7 @@ import {
     RequestCompleted,
     RequestStarted,
 } from '@lockness/events'
-import { Hono } from '@lockness/hono'
+import { Hono } from 'hono'
 
 /** Run `fn` with the given variables set (or deleted), then restore them. */
 async function withEnv<T>(
@@ -106,7 +105,7 @@ function contextFor(
     }
 }
 
-test('a full boot with an empty kernel config imports no optional package', async () => {
+Deno.test('a full boot with an empty kernel config imports no optional package', async () => {
     const { importModule, calls } = refusingImporter()
     const skipped: string[] = []
     const originalWarn = console.warn
@@ -200,7 +199,7 @@ const REFUSALS: ReadonlyArray<{
 ]
 
 for (const row of REFUSALS) {
-    test(`${row.step.id} - a set key whose package does not resolve refuses the boot`, async () => {
+    Deno.test(`${row.step.id} - a set key whose package does not resolve refuses the boot`, async () => {
         const { importModule, calls } = refusingImporter()
 
         const error = await withEnv(
@@ -222,7 +221,7 @@ for (const row of REFUSALS) {
     })
 }
 
-test('schedulerStep - logger: true without @lockness/logger refuses the boot', async () => {
+Deno.test('schedulerStep - logger: true without @lockness/logger refuses the boot', async () => {
     const { importModule, calls } = refusingImporter()
     try {
         const error = await assertRejects(
@@ -242,7 +241,7 @@ test('schedulerStep - logger: true without @lockness/logger refuses the boot', a
     }
 })
 
-test('devtools outside development imports nothing, whatever the key says', async () => {
+Deno.test('devtools outside development imports nothing, whatever the key says', async () => {
     const { importModule, calls } = refusingImporter()
 
     await withEnv({ APP_ENV: 'production' }, async () => {
@@ -255,7 +254,7 @@ test('devtools outside development imports nothing, whatever the key says', asyn
     assertEquals(calls, [])
 })
 
-test('database_teardown - no database configured imports nothing', async () => {
+Deno.test('database_teardown - no database configured imports nothing', async () => {
     // It used to import @lockness/drizzle BEFORE reading config.database, so
     // every boot without a database still probed — and warned — once more.
     const { importModule, calls } = refusingImporter()
@@ -265,7 +264,7 @@ test('database_teardown - no database configured imports nothing', async () => {
     assertEquals(calls, [])
 })
 
-test('telemetry - telemetry: true installs the middleware the package provides', async () => {
+Deno.test('telemetry - telemetry: true installs the middleware the package provides', async () => {
     let built = 0
     const importModule: ImportModule = (specifier) => {
         assertEquals(specifier, '@lockness/telemetry')
@@ -284,7 +283,7 @@ test('telemetry - telemetry: true installs the middleware the package provides',
     assertEquals(built, 1)
 })
 
-test('the refusal names the fix in words an operator can act on', async () => {
+Deno.test('the refusal names the fix in words an operator can act on', async () => {
     const { importModule } = refusingImporter()
 
     const error = await assertRejects(
@@ -300,7 +299,7 @@ test('the refusal names the fix in words an operator can act on', async () => {
     assertStrictEquals(error.cause instanceof TypeError, true)
 })
 
-test('events - KernelBooted reaches a listener without consulting the importer', async () => {
+Deno.test('events - KernelBooted reaches a listener without consulting the importer', async () => {
     // #505: the step used to load @lockness/events through the variable
     // specifier, which resolves against the APPLICATION's import map. A
     // JSR-installed app does not map @lockness/events, so KernelBooted never
@@ -322,7 +321,7 @@ test('events - KernelBooted reaches a listener without consulting the importer',
     assertEquals(calls, [])
 })
 
-test('lifecycle middleware - emits RequestStarted and RequestCompleted for a request', async () => {
+Deno.test('lifecycle middleware - emits RequestStarted and RequestCompleted for a request', async () => {
     const seen: string[] = []
     const offStarted = dispatcher().on(RequestStarted, () => {
         seen.push('started')
@@ -345,7 +344,7 @@ test('lifecycle middleware - emits RequestStarted and RequestCompleted for a req
     assertEquals(seen, ['started', 'completed'])
 })
 
-test("schedulerStep - schedulerLock.driver 'redis' without @lockness/redis refuses the boot", async () => {
+Deno.test("schedulerStep - schedulerLock.driver 'redis' without @lockness/redis refuses the boot", async () => {
     // It used to log once and install no lock, so every replica ran each
     // onOneServer task — the duplicate the lock exists to prevent.
     const { importModule, calls } = refusingImporter()

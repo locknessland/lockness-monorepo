@@ -29,7 +29,6 @@
  * @module @lockness/realtime/tests/authorize_result_357
  */
 
-import { test } from 'node:test'
 import {
     assert,
     assertEquals,
@@ -287,7 +286,7 @@ const REFUSED: ReadonlyArray<
 
 for (const [backendName, makeBackend] of BACKENDS) {
     for (const [valueName, value, errorClass, keys] of REFUSED) {
-        test(`#357 (a) ${backendName} ${PRIVATE}: ${valueName} throws ${errorClass.name} — no connection, no delivery`, async () => {
+        Deno.test(`#357 (a) ${backendName} ${PRIVATE}: ${valueName} throws ${errorClass.name} — no connection, no delivery`, async () => {
             const backend = makeBackend()
             try {
                 const m = new ChannelManager<User>({
@@ -400,7 +399,7 @@ const KIND_TABLE: ReadonlyArray<readonly [string, () => unknown, string]> = [
 
 for (const [backendName, makeBackend] of BACKENDS) {
     for (const [valueName, value, expected] of KIND_TABLE) {
-        test(`#357 (b) ${backendName}: ${valueName} gets the same outcome on private and presence (${expected})`, async () => {
+        Deno.test(`#357 (b) ${backendName}: ${valueName} gets the same outcome on private and presence (${expected})`, async () => {
             const backend = makeBackend()
             try {
                 const m = new ChannelManager<User>({
@@ -451,7 +450,7 @@ const ADMITTED: ReadonlyArray<readonly [string, Authorizer<User>]> = [
 
 for (const [backendName, makeBackend] of BACKENDS) {
     for (const [valueName, authorize] of ADMITTED) {
-        test(`#357 (c) ${backendName} ${PRIVATE}: ${valueName} admits, the broadcast is delivered, and the member is discarded`, async () => {
+        Deno.test(`#357 (c) ${backendName} ${PRIVATE}: ${valueName} admits, the broadcast is delivered, and the member is discarded`, async () => {
             const backend = makeBackend()
             try {
                 const m = new ChannelManager<User>({
@@ -515,7 +514,7 @@ for (const [backendName, makeBackend] of BACKENDS) {
 // --- (d) Ordering, and #331 --------------------------------------------------
 
 for (const [backendName, makeBackend] of BACKENDS) {
-    test(`#357 (d) ${backendName}: a full connection whose private result is a KV miss hears PresenceMemberShapeError, not ChannelLimitError, and nothing is written`, async () => {
+    Deno.test(`#357 (d) ${backendName}: a full connection whose private result is a KV miss hears PresenceMemberShapeError, not ChannelLimitError, and nothing is written`, async () => {
         const backend = makeBackend()
         try {
             const m = new ChannelManager<User>({
@@ -558,7 +557,7 @@ for (const [backendName, makeBackend] of BACKENDS) {
         }
     })
 
-    test(`#357 (d) ${backendName}: a held private subscription whose authorizer flips to a KV miss throws, and keeps its subscription and delivery (#331)`, async () => {
+    Deno.test(`#357 (d) ${backendName}: a held private subscription whose authorizer flips to a KV miss throws, and keeps its subscription and delivery (#331)`, async () => {
         const backend = makeBackend()
         try {
             const state = { broken: false }
@@ -593,7 +592,7 @@ for (const [backendName, makeBackend] of BACKENDS) {
 // --- (e) One read, one rule --------------------------------------------------
 
 for (const [backendName, makeBackend] of BACKENDS) {
-    test(`#357 (e) ${backendName} ${PRIVATE}: a counting Proxy result sees ownKeys once, get id once and get info once`, async () => {
+    Deno.test(`#357 (e) ${backendName} ${PRIVATE}: a counting Proxy result sees ownKeys once, get id once and get info once`, async () => {
         const backend = makeBackend()
         try {
             const counts = { ownKeys: 0, id: 0, info: 0 }
@@ -622,7 +621,7 @@ for (const [backendName, makeBackend] of BACKENDS) {
         }
     })
 
-    test(`#357 (e) ${backendName} ${PRIVATE}: { id: 7, info: new Date(0) } throws PresenceMemberShapeError naming string — the PARSED check, not an in-memory one`, async () => {
+    Deno.test(`#357 (e) ${backendName} ${PRIVATE}: { id: 7, info: new Date(0) } throws PresenceMemberShapeError naming string — the PARSED check, not an in-memory one`, async () => {
         const backend = makeBackend()
         try {
             const m = new ChannelManager<User>({
@@ -653,7 +652,7 @@ for (const [backendName, makeBackend] of BACKENDS) {
 
 // --- (f) No echo, and the hint ----------------------------------------------
 
-test(`#357 (f) ${PRIVATE}: a KV miss names \`key\`, never echoes its content, and carries the private-channel hint`, async () => {
+Deno.test(`#357 (f) ${PRIVATE}: a KV miss names \`key\`, never echoes its content, and carries the private-channel hint`, async () => {
     const m = new ChannelManager<User>({
         driver: new MemoryBroadcastDriver(),
         authorize: suspectAuthorizer(() => KV_SENTINEL_MISS),
@@ -675,7 +674,7 @@ test(`#357 (f) ${PRIVATE}: a KV miss names \`key\`, never echoes its content, an
     )
 })
 
-test('#357 (f) every member error carries the private-channel hint', () => {
+Deno.test('#357 (f) every member error carries the private-channel hint', () => {
     const errors: Error[] = [
         new PresenceMemberShapeError({ extraKeys: ['rows'] }),
         new PresenceMemberShapeError({ infoType: 'string' }),
@@ -693,7 +692,7 @@ test('#357 (f) every member error carries the private-channel hint', () => {
 
 // --- (g) Public channels are unchanged ---------------------------------------
 
-test('#357 (g) a public channel admits without calling the authorizer, even one that would return a KV miss', async () => {
+Deno.test('#357 (g) a public channel admits without calling the authorizer, even one that would return a KV miss', async () => {
     let calls = 0
     const m = new ChannelManager<User>({
         driver: new MemoryBroadcastDriver(),
@@ -710,7 +709,7 @@ test('#357 (g) a public channel admits without calling the authorizer, even one 
 
 // --- (h) WebSocket routing (the #352 harness) --------------------------------
 
-test(`#357 (h) ${PRIVATE}: a KV-miss result reaches onError as PresenceMemberShapeError, sends nothing and keeps the socket open`, async () => {
+Deno.test(`#357 (h) ${PRIVATE}: a KV-miss result reaches onError as PresenceMemberShapeError, sends nothing and keeps the socket open`, async () => {
     const manager = new ChannelManager<User>({
         driver: new MemoryBroadcastDriver(),
         authorize: (() => KV_MISS) as unknown as Authorizer<User>,

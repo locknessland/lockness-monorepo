@@ -4,12 +4,11 @@
  * @module @lockness/realtime/tests/memory_driver
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { MemoryBroadcastDriver } from '../drivers/memory.ts'
 import type { BroadcastMessage } from '../driver.ts'
 
-test('memory driver loops a published message back to the local handler', () => {
+Deno.test('memory driver loops a published message back to the local handler', () => {
     const driver = new MemoryBroadcastDriver()
     const got: BroadcastMessage[] = []
     driver.onMessage((m) => got.push(m))
@@ -17,7 +16,7 @@ test('memory driver loops a published message back to the local handler', () => 
     assertEquals(got, [{ channel: 'c', event: 'e', data: 1 }])
 })
 
-test('SC-004: the memory driver stays single-process (no shared state)', () => {
+Deno.test('SC-004: the memory driver stays single-process (no shared state)', () => {
     const a = new MemoryBroadcastDriver()
     const b = new MemoryBroadcastDriver()
     const gotB: BroadcastMessage[] = []

@@ -10,7 +10,6 @@
  * @module @lockness/session/tests/redis_lifecycle
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { RedisSessionDriver } from '../drivers/redis.ts'
 import { startFakeRedis } from './fake_redis.ts'
@@ -44,7 +43,7 @@ async function withConnectStub(
  */
 type Connectable = { connect(): Promise<Deno.Conn> }
 
-test('redis lifecycle - connect() is single-flighted: concurrent callers open ONE socket (FR-004)', async () => {
+Deno.test('redis lifecycle - connect() is single-flighted: concurrent callers open ONE socket (FR-004)', async () => {
     // The command mutex serializes reads, so a burst of READS alone cannot prove
     // the single-flight — the mutex would keep connects==1 even without the
     // guard (review H1). So drive connect() DIRECTLY and concurrently, with a
@@ -80,7 +79,7 @@ test('redis lifecycle - connect() is single-flighted: concurrent callers open ON
     redis.stop()
 })
 
-test('redis lifecycle - a burst of reads opens ONE connection and issues AUTH once (SC-001)', async () => {
+Deno.test('redis lifecycle - a burst of reads opens ONE connection and issues AUTH once (SC-001)', async () => {
     const redis = await startFakeRedis()
     for (let i = 0; i < 6; i++) {
         redis.store.set(`session:${id(i)}`, JSON.stringify({ i }))
@@ -115,7 +114,7 @@ test('redis lifecycle - a burst of reads opens ONE connection and issues AUTH on
     redis.stop()
 })
 
-test('redis lifecycle - close() closes the socket, is idempotent, and QUIT does not reopen (SC-005/FR-009)', async () => {
+Deno.test('redis lifecycle - close() closes the socket, is idempotent, and QUIT does not reopen (SC-005/FR-009)', async () => {
     const redis = await startFakeRedis()
     redis.store.set(`session:${id(1)}`, JSON.stringify({ v: 1 }))
     const real = Deno.connect
@@ -140,7 +139,7 @@ test('redis lifecycle - close() closes the socket, is idempotent, and QUIT does 
     redis.stop()
 })
 
-test('redis lifecycle - close() QUIT drains after an in-flight command, not through it (FR-008)', async () => {
+Deno.test('redis lifecycle - close() QUIT drains after an in-flight command, not through it (FR-008)', async () => {
     const redis = await startFakeRedis()
     redis.store.set(`session:${id(3)}`, JSON.stringify({ v: 3 }))
     const driver = new RedisSessionDriver({
@@ -163,7 +162,7 @@ test('redis lifecycle - close() QUIT drains after an in-flight command, not thro
     }
 })
 
-test('redis lifecycle - a connect rejection self-heals on the next command (SC-006/FR-005)', async () => {
+Deno.test('redis lifecycle - a connect rejection self-heals on the next command (SC-006/FR-005)', async () => {
     const redis = await startFakeRedis()
     redis.store.set(`session:${id(4)}`, JSON.stringify({ up: true }))
     const real = Deno.connect
@@ -211,7 +210,7 @@ test('redis lifecycle - a connect rejection self-heals on the next command (SC-0
     redis.stop()
 })
 
-test('redis lifecycle - a mid-stream command failure self-heals on the next command (SC-006/FR-005)', async () => {
+Deno.test('redis lifecycle - a mid-stream command failure self-heals on the next command (SC-006/FR-005)', async () => {
     const redis = await startFakeRedis()
     redis.store.set(`session:${id(2)}`, JSON.stringify({ recovered: true }))
     const real = Deno.connect

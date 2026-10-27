@@ -25,7 +25,6 @@
  * @module @lockness/realtime/tests/roster_slot_key_408
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { ChannelManager } from '../manager.ts'
 import type { BroadcastDriver } from '../driver.ts'
@@ -135,7 +134,7 @@ function presenceDriver() {
     }
 }
 
-test(
+Deno.test(
     '#408 W1 the roster slot key round-trips a channel using every ' +
         '`isValidName` punctuation and a member id embedding a NUL of its ' +
         'own — the drain still recovers the exact channel and completes ' +

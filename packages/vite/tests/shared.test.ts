@@ -4,11 +4,10 @@
  * @module @lockness/vite/tests/shared
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { classifyChange } from '../src/shared.ts'
 
-test('classifyChange - server-reload globs win over CSS on overlap', () => {
+Deno.test('classifyChange - server-reload globs win over CSS on overlap', () => {
     // A .tsx under app/controller/ matches BOTH sets → server-reload wins.
     assertEquals(classifyChange('app/controller/home.tsx'), 'server-reload')
     assertEquals(classifyChange('app/service/user.ts'), 'server-reload')
@@ -17,12 +16,12 @@ test('classifyChange - server-reload globs win over CSS on overlap', () => {
     assertEquals(classifyChange('config/app.ts'), 'server-reload')
 })
 
-test('classifyChange - a view .tsx is a CSS rebuild', () => {
+Deno.test('classifyChange - a view .tsx is a CSS rebuild', () => {
     assertEquals(classifyChange('app/view/components/card.tsx'), 'css')
     assertEquals(classifyChange('./app/view/pages/home.tsx'), 'css')
 })
 
-test('classifyChange - unrelated paths are ignored', () => {
+Deno.test('classifyChange - unrelated paths are ignored', () => {
     assertEquals(classifyChange('README.md'), 'ignore')
     assertEquals(classifyChange('packages/core/mod.ts'), 'ignore')
     assertEquals(classifyChange('app/view/assets/app.css'), 'ignore')

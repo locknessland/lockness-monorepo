@@ -7,7 +7,6 @@
  * @module @lockness/upgrade/tests/cli_main
  */
 
-import { test } from 'node:test'
 import {
     assertEquals,
     assertInstanceOf,
@@ -53,14 +52,14 @@ const PROJECT = {
     imports: { '@lockness/core': 'jsr:@lockness/core@^0.1.0' },
 }
 
-test('upgrade main - --help prints usage and touches nothing', async () => {
+Deno.test('upgrade main - --help prints usage and touches nothing', async () => {
     await inProject(undefined, async (_dir, logs) => {
         await main(['--help'], fixedProvider('9.9.9'))
         assertStringIncludes(logs.join('\n'), 'Lockness Upgrade Tool')
     })
 })
 
-test('upgrade main - no Lockness package is a command failure', async () => {
+Deno.test('upgrade main - no Lockness package is a command failure', async () => {
     await inProject(
         { imports: { '@std/path': 'jsr:@std/path@^1' } },
         async () => {
@@ -73,7 +72,7 @@ test('upgrade main - no Lockness package is a command failure', async () => {
     )
 })
 
-test('upgrade main - a missing deno.json propagates as itself', async () => {
+Deno.test('upgrade main - a missing deno.json propagates as itself', async () => {
     await inProject(undefined, async () => {
         const error = await assertRejects(() =>
             main([], fixedProvider('9.9.9'))
@@ -82,7 +81,7 @@ test('upgrade main - a missing deno.json propagates as itself', async () => {
     })
 })
 
-test('upgrade main - a dry run lists the upgrades and writes nothing', async () => {
+Deno.test('upgrade main - a dry run lists the upgrades and writes nothing', async () => {
     await inProject(PROJECT, async (dir, logs) => {
         await main(['--dry-run'], fixedProvider('0.5.0'))
         const out = logs.join('\n')
@@ -96,7 +95,7 @@ test('upgrade main - a dry run lists the upgrades and writes nothing', async () 
     })
 })
 
-test('upgrade main - an applied upgrade rewrites deno.json', async () => {
+Deno.test('upgrade main - an applied upgrade rewrites deno.json', async () => {
     await inProject(PROJECT, async (dir, logs) => {
         await main([], fixedProvider('0.5.0'))
         assertStringIncludes(logs.join('\n'), 'deno.json updated successfully')
@@ -105,7 +104,7 @@ test('upgrade main - an applied upgrade rewrites deno.json', async () => {
     })
 })
 
-test('upgrade main - packages already current say so', async () => {
+Deno.test('upgrade main - packages already current say so', async () => {
     await inProject(PROJECT, async (_dir, logs) => {
         await main(['0.1.0'], fixedProvider('9.9.9'))
         assertStringIncludes(logs.join('\n'), 'already up to date')

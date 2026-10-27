@@ -33,7 +33,6 @@
  * @module @lockness/realtime/tests/leave_outcome_332
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { ChannelManager } from '../manager.ts'
 import type { BroadcastDriver } from '../driver.ts'
@@ -106,7 +105,7 @@ function recordingDriver() {
 const authorize = (identity: User | null): PresenceMember | false =>
     identity ? { id: identity.id } : false
 
-test("#332 a leave from a room that still holds SOMEONE ELSE reports 'left'", async () => {
+Deno.test("#332 a leave from a room that still holds SOMEONE ELSE reports 'left'", async () => {
     // THE COMMON CASE, and the one no other fixture in this package reaches.
     // A report taken from the tail of `#leaveLocal` — after the 1→0 branch —
     // answers 'not-subscribed' here and passes every single-member test.
@@ -137,7 +136,7 @@ test("#332 a leave from a room that still holds SOMEONE ELSE reports 'left'", as
     assertEquals(await m.unsubscribe('c2', ROOM), 'left')
 })
 
-test('#332 the three outcomes are distinguishable', async () => {
+Deno.test('#332 the three outcomes are distinguishable', async () => {
     const { driver, commands } = recordingDriver()
     const m = new ChannelManager<User>({ driver, authorize })
     const holder = conn('c1', 1)
@@ -173,7 +172,7 @@ test('#332 the three outcomes are distinguishable', async () => {
     )
 })
 
-test('#332 the outcome is the same on a channel with no roster', async () => {
+Deno.test('#332 the outcome is the same on a channel with no roster', async () => {
     // A private channel has no presence block at all, so the outcome cannot be
     // a side effect of the roster path.
     const { driver } = recordingDriver()
@@ -187,7 +186,7 @@ test('#332 the outcome is the same on a channel with no roster', async () => {
     assertEquals(await m.unsubscribe('elsewhere', PRIVATE), 'not-owned')
 })
 
-test('#332 disconnect reports whether it owned the socket', async () => {
+Deno.test('#332 disconnect reports whether it owned the socket', async () => {
     const { driver, roster, commands } = recordingDriver()
     const m = new ChannelManager<User>({ driver, authorize })
     const c1 = conn('c1', 1)
@@ -223,7 +222,7 @@ test('#332 disconnect reports whether it owned the socket', async () => {
     )
 })
 
-test('#332 a connection with no channels still disconnects as OWNED', async () => {
+Deno.test('#332 a connection with no channels still disconnects as OWNED', async () => {
     // `#channelsByClient` is empty for a registered connection that never
     // subscribed, so a disconnect that derived ownership from it — rather than
     // from `connections` — would call that a wrong process.

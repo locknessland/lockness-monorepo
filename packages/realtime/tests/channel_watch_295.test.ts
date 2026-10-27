@@ -11,7 +11,6 @@
  * @module @lockness/realtime/tests/channel_watch_295
  */
 
-import { test } from 'node:test'
 import {
     assert,
     assertEquals,
@@ -100,7 +99,7 @@ function conn(id: string): Connection<null> {
     } as unknown as Connection<null>
 }
 
-test('#295/FR-003: the watch fires on 0→1 and the unwatch on 1→0, and at no other time', async () => {
+Deno.test('#295/FR-003: the watch fires on 0→1 and the unwatch on 1→0, and at no other time', async () => {
     const { driver, ops } = watchingDriver()
     const m = new ChannelManager({ driver })
     const a = conn('a')
@@ -127,7 +126,7 @@ test('#295/FR-003: the watch fires on 0→1 and the unwatch on 1→0, and at no 
     )
 })
 
-test('#295/FR-011: an emptied channel leaves no entry behind, so re-joining watches again', async () => {
+Deno.test('#295/FR-011: an emptied channel leaves no entry behind, so re-joining watches again', async () => {
     // "Not hosted" must have ONE spelling. An empty `Set` left in the map is a
     // second one, it grows without bound, and a re-join against it reads as
     // already-hosted so the wire op never fires.
@@ -143,7 +142,7 @@ test('#295/FR-011: an emptied channel leaves no entry behind, so re-joining watc
     assertEquals(ops, ['watch:news', 'unwatch:news', 'watch:news'])
 })
 
-test("#295/FR-012: disconnect unwatches THIS connection's channels, not every channel hosted", async () => {
+Deno.test("#295/FR-012: disconnect unwatches THIS connection's channels, not every channel hosted", async () => {
     // `disconnect` used to iterate every channel this instance had ever hosted
     // and call `unsubscribe` for each. That was harmless only while a 1→0
     // transition had no wire op — it acquired one here. It was also O(channels
@@ -166,7 +165,7 @@ test("#295/FR-012: disconnect unwatches THIS connection's channels, not every ch
     )
 })
 
-test('#295/FR-002: a refused watch keeps the membership and warns', async () => {
+Deno.test('#295/FR-002: a refused watch keeps the membership and warns', async () => {
     // A rejection means the frame did not reach the socket. It does NOT mean
     // the channel is unhosted: the driver re-issues from its own recorded set,
     // so dropping the membership here would turn a transient write failure into
@@ -199,7 +198,7 @@ test('#295/FR-002: a refused watch keeps the membership and warns', async () => 
     await m.unsubscribe('a', 'news')
 })
 
-test("#295/FR-025: a driver with watch and NO unwatch keeps today's behaviour", async () => {
+Deno.test("#295/FR-025: a driver with watch and NO unwatch keeps today's behaviour", async () => {
     // Detected as a SET. Watching without unwatching makes the subscribed set
     // monotonic over the process lifetime — one permanent subscription per
     // channel ever hosted, strictly worse than the prefix-wide subscription it
@@ -213,7 +212,7 @@ test("#295/FR-025: a driver with watch and NO unwatch keeps today's behaviour", 
     assertEquals(ops, [], 'neither op fires: the pair is all-or-nothing')
 })
 
-test('#295: a driver with neither op is untouched — the memory driver stays single-glob', async () => {
+Deno.test('#295: a driver with neither op is untouched — the memory driver stays single-glob', async () => {
     const plain: BroadcastDriver = { publish: () => {}, onMessage: () => {} }
     const m = new ChannelManager({ driver: plain })
     const a = conn('a')
@@ -223,7 +222,7 @@ test('#295: a driver with neither op is untouched — the memory driver stays si
     await m.disconnect('a')
 })
 
-test('#322/SC-005: the per-connection cap REFUSES, and mutates nothing', async () => {
+Deno.test('#322/SC-005: the per-connection cap REFUSES, and mutates nothing', async () => {
     // #295 shipped this cap inert — a `console.warn` naming the count, then the
     // subscribe admitted. #322 makes it refuse. The assertion that matters is
     // not that it throws: it is that NOTHING moved. A partial join would be
@@ -275,7 +274,7 @@ test('#322/SC-005: the per-connection cap REFUSES, and mutates nothing', async (
     )
 })
 
-test('#295/FR-017: a join that grows NO set is not charged against a cap', async () => {
+Deno.test('#295/FR-017: a join that grows NO set is not charged against a cap', async () => {
     // A second client on a hosted channel adds no broker subscription, and a
     // client re-joining a channel it already holds adds nothing either.
     // Charging for those refuses work that costs the broker nothing — and it is
@@ -302,7 +301,7 @@ test('#295/FR-017: a join that grows NO set is not charged against a cap', async
     assertEquals(await m.subscribe(b, 'ch0'), { ok: true })
 })
 
-test('#295/FR-019: the delivered TOPIC decides the channel, never the watched one', async () => {
+Deno.test('#295/FR-019: the delivered TOPIC decides the channel, never the watched one', async () => {
     // The shape an implementer reaches for, because `channel` is right there in
     // scope: `watchChannel(ch)` closing over `ch` and handing it to the
     // handler. It looks correct. It also makes `onMessage`'s deny-by-default
@@ -340,7 +339,7 @@ test('#295/FR-019: the delivered TOPIC decides the channel, never the watched on
     }
 })
 
-test('#295/FR-019: a topic outside the marker is dropped, not renamed', async () => {
+Deno.test('#295/FR-019: a topic outside the marker is dropped, not renamed', async () => {
     // The other half, and the reason the first one matters. Deny by default:
     // a topic the subscription could not have produced must reach nothing, not
     // become a plausible channel name nobody chose.
@@ -376,7 +375,7 @@ test('#295/FR-019: a topic outside the marker is dropped, not renamed', async ()
     )
 })
 
-test('#322/SC-004: the INSTANCE cap is a distinct branch, and it refuses on its own', async () => {
+Deno.test('#322/SC-004: the INSTANCE cap is a distinct branch, and it refuses on its own', async () => {
     // Driven with one IDENTIFIED connection per channel: one per channel keeps
     // the per-connection cap well clear so only the instance branch can fire,
     // and identified keeps #322's anonymous reservation clear so the branch
@@ -410,7 +409,7 @@ test('#322/SC-004: the INSTANCE cap is a distinct branch, and it refuses on its 
     assertEquals(ops.length, watchesBefore, 'the refused subscribe watched')
 })
 
-test('#322/SC-006: at the INSTANCE cap, a join that grows no set is still admitted', async () => {
+Deno.test('#322/SC-006: at the INSTANCE cap, a join that grows no set is still admitted', async () => {
     // SC-006's other half. #295's exemption witness only ever reached the
     // per-connection cap — it loops 100 channels on one connection, so
     // `subscriptions.size` never approached the instance cap. The exemption
@@ -440,7 +439,7 @@ test('#322/SC-006: at the INSTANCE cap, a join that grows no set is still admitt
     )
 })
 
-test('#322/SC-013: anonymous callers cannot spend the reserved share', async () => {
+Deno.test('#322/SC-013: anonymous callers cannot spend the reserved share', async () => {
     // The security seat's HIGH finding. `subscribe` runs no authorizer for a
     // public channel, so an anonymous socket can drive the hosted set on its
     // own. While the cap only WARNed that was unbounded growth; making it
@@ -487,7 +486,7 @@ test('#322/SC-013: anonymous callers cannot spend the reserved share', async () 
     assertEquals(await m.subscribe(anonExtra, 'ch-new'), { ok: true })
 })
 
-test('#322/SC-014: anonymousHostingShare of 1 disables the reservation', async () => {
+Deno.test('#322/SC-014: anonymousHostingShare of 1 disables the reservation', async () => {
     // A deployment that authenticates nobody must not be degraded to 80% of
     // its own cap. It sets the share to 1 and carries the original exposure
     // knowingly — which is the same posture the docs already described, now
@@ -516,7 +515,7 @@ test('#322/SC-014: anonymousHostingShare of 1 disables the reservation', async (
     assertEquals(error.limit, 10)
 })
 
-test('#322/SC-007: a raised cap admits what the default refuses', async () => {
+Deno.test('#322/SC-007: a raised cap admits what the default refuses', async () => {
     const { driver } = watchingDriver()
     const m = new ChannelManager({
         driver,
@@ -536,7 +535,7 @@ test('#322/SC-007: a raised cap admits what the default refuses', async () => {
     assertEquals(error.limit, MAX_CHANNELS_PER_CONNECTION + 5)
 })
 
-test('#322/SC-008: an unusable cap is refused at CONSTRUCTION', () => {
+Deno.test('#322/SC-008: an unusable cap is refused at CONSTRUCTION', () => {
     // At construction, not at the thousandth subscribe. A cap discovered when
     // it first bites is a misconfiguration discovered in production.
     const { driver } = watchingDriver()
@@ -585,7 +584,7 @@ test('#322/SC-008: an unusable cap is refused at CONSTRUCTION', () => {
     )
 })
 
-test('#322/SC-015: an unusable anonymousHostingShare is refused too', () => {
+Deno.test('#322/SC-015: an unusable anonymousHostingShare is refused too', () => {
     // Its own predicate: a fraction, not a count. `Number.isInteger` would
     // refuse every legitimate value.
     const { driver } = watchingDriver()
@@ -601,7 +600,7 @@ test('#322/SC-015: an unusable anonymousHostingShare is refused too', () => {
     new ChannelManager({ driver, anonymousHostingShare: 0.5 })
 })
 
-test('#322/SC-010: ChannelLimitError carries the numbers OFF its message', async () => {
+Deno.test('#322/SC-010: ChannelLimitError carries the numbers OFF its message', async () => {
     // #295 exported this type unraisable so an application could catch it
     // before it could be thrown. #322 raises it — and takes the numbers out of
     // the message, which is the security seat's finding: `subscribe` runs no
@@ -650,7 +649,7 @@ test('#322/SC-010: ChannelLimitError carries the numbers OFF its message', async
     )
 })
 
-test('#322/FR-007: the cap is checked AFTER authorization, never before', async () => {
+Deno.test('#322/FR-007: the cap is checked AFTER authorization, never before', async () => {
     // The review gate's one HIGH, and the plan asked for exactly this: FR-007
     // says the ordering is "asserted rather than assumed". Every other cap
     // witness subscribes a PUBLIC channel on a manager with no authorizer, so
@@ -704,7 +703,7 @@ test('#322/FR-007: the cap is checked AFTER authorization, never before', async 
     assertEquals(ops.length, watchesBefore, 'a refused subscribe watched')
 })
 
-test('#322/SC-004: a presence cap breach leaves the roster untouched', async () => {
+Deno.test('#322/SC-004: a presence cap breach leaves the roster untouched', async () => {
     // Presence is the branch with the most state to corrupt: a member map, a
     // driver roster and a control publish, all after the cap check. No cap
     // witness reached it, so a check that moved below the roster write would
@@ -750,7 +749,7 @@ test('#322/SC-004: a presence cap breach leaves the roster untouched', async () 
     assertEquals(ops.length, watchesBefore, 'the refused join watched')
 })
 
-test('#322: a reservation that floors to zero is refused at construction', () => {
+Deno.test('#322: a reservation that floors to zero is refused at construction', () => {
     // Two individually valid options that combine into "no anonymous
     // connection may ever host a channel". Fail-closed, so nothing leaks — but
     // a deployment meaning to reserve a fifth of its budget and instead
@@ -775,7 +774,7 @@ test('#322: a reservation that floors to zero is refused at construction', () =>
     })
 })
 
-test('#322: the ceiling FLOORS a fractional product', async () => {
+Deno.test('#322: the ceiling FLOORS a fractional product', async () => {
     // `Math.floor` was never exercised at a fractional product — every other
     // fixture uses a share that divides the cap exactly, so replacing it with
     // `Math.ceil` or `Math.round` changed nothing observable.

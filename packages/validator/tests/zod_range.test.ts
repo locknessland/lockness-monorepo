@@ -8,7 +8,6 @@
  * gets a second copy, and the bridge then rejects the app's schemas.
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertMatch } from '@std/assert'
 
 /** The bridge version whose zod peer range {@link BRIDGE_ZOD_FLOOR} records. */
@@ -20,7 +19,7 @@ const BRIDGE_VERSION = '0.7.6'
  */
 const BRIDGE_ZOD_FLOOR: readonly [number, number, number] = [3, 25, 0]
 
-test('the lockfile resolves the bridge whose peer floor this guard records', async () => {
+Deno.test('the lockfile resolves the bridge whose peer floor this guard records', async () => {
     const lock = JSON.parse(
         await Deno.readTextFile(new URL('../../../deno.lock', import.meta.url)),
     ) as { specifiers: Record<string, string> }
@@ -38,7 +37,7 @@ test('the lockfile resolves the bridge whose peer floor this guard records', asy
     )
 })
 
-test('validator declares a zod floor inside the bridge peer range', async () => {
+Deno.test('validator declares a zod floor inside the bridge peer range', async () => {
     const manifest = JSON.parse(
         await Deno.readTextFile(new URL('../deno.json', import.meta.url)),
     ) as { imports: Record<string, string> }

@@ -2,7 +2,6 @@
  * Tests for @lockness/logger - Formatters
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import {
     JsonFormatter,
@@ -11,8 +10,8 @@ import {
     TextFormatter,
 } from '../mod.ts'
 
-test('Logger - Formatters', async (t) => {
-    await t.test('TextFormatter formats correctly', () => {
+Deno.test('Logger - Formatters', async (t) => {
+    await t.step('TextFormatter formats correctly', () => {
         const formatter = new TextFormatter()
         const entry = {
             level: LogLevel.INFO,
@@ -29,7 +28,7 @@ test('Logger - Formatters', async (t) => {
         assertEquals(formatted.includes('"key":"value"'), true)
     })
 
-    await t.test('JsonFormatter outputs valid JSON', () => {
+    await t.step('JsonFormatter outputs valid JSON', () => {
         const formatter = new JsonFormatter()
         const entry = {
             level: LogLevel.ERROR,
@@ -46,7 +45,7 @@ test('Logger - Formatters', async (t) => {
         assertEquals(parsed.error, 'details')
     })
 
-    await t.test('PrettyFormatter includes icons and colors', () => {
+    await t.step('PrettyFormatter includes icons and colors', () => {
         const formatter = new PrettyFormatter()
         const entry = {
             level: LogLevel.WARN,

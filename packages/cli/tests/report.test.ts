@@ -11,9 +11,6 @@
  * @module @lockness/cli/tests/report
  */
 
-import process from 'node:process'
-import { test } from 'node:test'
-import { inspect } from 'node:util'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { Cli, CommandFailedError } from '../mod.ts'
 import { reportThrown } from '../report.ts'
@@ -52,12 +49,12 @@ function onlyLine(error: unknown[][]): string {
     assertEquals(
         error.length,
         1,
-        `expected one console.error: ${inspect(error)}`,
+        `expected one console.error: ${Deno.inspect(error)}`,
     )
     assertEquals(
         error[0].length,
         1,
-        `expected one argument: ${inspect(error[0])}`,
+        `expected one argument: ${Deno.inspect(error[0])}`,
     )
     assertEquals(typeof error[0][0], 'string')
     return error[0][0] as string
@@ -78,7 +75,7 @@ function withThrowingGetter(
     return failure
 }
 
-test('report - a credential in a failure message and in its cause never reaches stderr', async () => {
+Deno.test('report - a credential in a failure message and in its cause never reaches stderr', async () => {
     const [inMessage, inCause] = ['msg', 'cause'].map(fakeSecret)
     const failure = new CommandFailedError(
         `Cannot reach postgres://app:${inMessage}@db.test/app`,
@@ -98,7 +95,7 @@ test('report - a credential in a failure message and in its cause never reaches 
     )
 })
 
-test('report - a failure prints its message and rendered cause on one line, with no frames', async () => {
+Deno.test('report - a failure prints its message and rendered cause on one line, with no frames', async () => {
     const failure = new CommandFailedError('Route generation failed', {
         cause: new TypeError('x is undefined'),
         exitCode: 3,
@@ -115,7 +112,7 @@ test('report - a failure prints its message and rendered cause on one line, with
     assert(!line.includes('\n'), line)
 })
 
-test('report - an escape character or a newline in a failure message is encoded', async () => {
+Deno.test('report - an escape character or a newline in a failure message is encoded', async () => {
     const failure = new CommandFailedError(
         'bad name \x1b[2J\n❌ forged line',
     )
@@ -128,7 +125,7 @@ test('report - an escape character or a newline in a failure message is encoded'
     assertEquals(line, '❌ bad name \\x1b[2J\\x0a❌ forged line')
 })
 
-test('report - an unknown command name is rendered, not printed raw', async () => {
+Deno.test('report - an unknown command name is rendered, not printed raw', async () => {
     const cli = new Cli()
     const { result, error } = await captureErrors(() =>
         cli.dispatch(['nope\x1b[31m'])
@@ -137,7 +134,7 @@ test('report - an unknown command name is rendered, not printed raw', async () =
     assertEquals(error, [['❌ Unknown command: nope\\x1b[31m']])
 })
 
-test('report - a throwing message getter does not escape the printer', async () => {
+Deno.test('report - a throwing message getter does not escape the printer', async () => {
     const { result, error } = await captureErrors(() =>
         cliThrowing(withThrowingGetter('message')).dispatch(['task'])
     )
@@ -148,7 +145,7 @@ test('report - a throwing message getter does not escape the printer', async () 
     )
 })
 
-test('report - a throwing cause getter does not escape the printer', async () => {
+Deno.test('report - a throwing cause getter does not escape the printer', async () => {
     const { result, error } = await captureErrors(() =>
         cliThrowing(withThrowingGetter('cause')).dispatch(['task'])
     )
@@ -159,7 +156,7 @@ test('report - a throwing cause getter does not escape the printer', async () =>
     )
 })
 
-test('report - a throwing exitCode getter prints one fallback line and exits 1', async () => {
+Deno.test('report - a throwing exitCode getter prints one fallback line and exits 1', async () => {
     const { result, error } = await captureErrors(() =>
         cliThrowing(withThrowingGetter('exitCode')).dispatch(['task'])
     )
@@ -167,9 +164,9 @@ test('report - a throwing exitCode getter prints one fallback line and exits 1',
     assertEquals(onlyLine(error), '❌ task failed: [unreportable error]')
 })
 
-test('reportThrown - a non-failure prints the catch-all branch under the label and returns 1', async () => {
-    const original = process.env.LOCKNESS_CLI_RAW_ERRORS
-    delete process.env.LOCKNESS_CLI_RAW_ERRORS
+Deno.test('reportThrown - a non-failure prints the catch-all branch under the label and returns 1', async () => {
+    const original = Deno.env.get('LOCKNESS_CLI_RAW_ERRORS')
+    Deno.env.delete('LOCKNESS_CLI_RAW_ERRORS')
     try {
         const { result, error } = await captureErrors(() =>
             reportThrown('tool', new TypeError('boom'))
@@ -183,12 +180,12 @@ test('reportThrown - a non-failure prints the catch-all branch under the label a
         assertStringIncludes(line, 'LOCKNESS_CLI_RAW_ERRORS=1')
     } finally {
         if (original !== undefined) {
-            process.env.LOCKNESS_CLI_RAW_ERRORS = original
+            Deno.env.set('LOCKNESS_CLI_RAW_ERRORS', original)
         }
     }
 })
 
-test('reportThrown - a failure without a cause prints its message alone', async () => {
+Deno.test('reportThrown - a failure without a cause prints its message alone', async () => {
     const { result, error } = await captureErrors(() =>
         reportThrown('tool', new CommandFailedError('No kit named "x"'))
     )
@@ -196,7 +193,7 @@ test('reportThrown - a failure without a cause prints its message alone', async 
     assertEquals(onlyLine(error), '❌ No kit named "x"')
 })
 
-test('report - a credential in an unexpected error never reaches stderr', async () => {
+Deno.test('report - a credential in an unexpected error never reaches stderr', async () => {
     const [password, apiKey] = ['pw', 'key'].map(fakeSecret)
     const thrown = new TypeError(
         `connect postgres://app:${password}@db.test/app then ` +
@@ -213,7 +210,7 @@ test('report - a credential in an unexpected error never reaches stderr', async 
     assert(!line.includes(apiKey), line)
 })
 
-test('reportThrown - the label is rendered on the catch-all branch', async () => {
+Deno.test('reportThrown - the label is rendered on the catch-all branch', async () => {
     const { error } = await withRawErrors(
         undefined,
         () =>
@@ -225,7 +222,7 @@ test('reportThrown - the label is rendered on the catch-all branch', async () =>
     assert(line.startsWith('❌ tool\\x1b[2J failed: '), line)
 })
 
-test('reportThrown - the label is rendered on the raw branch', async () => {
+Deno.test('reportThrown - the label is rendered on the raw branch', async () => {
     const { error } = await withRawErrors(
         '1',
         () =>
@@ -239,7 +236,7 @@ test('reportThrown - the label is rendered on the raw branch', async () => {
     assertStringIncludes(banner, '❌ tool\\x1b[2J failed:')
 })
 
-test('reportThrown - a broken stderr does not make it throw', () => {
+Deno.test('reportThrown - a broken stderr does not make it throw', () => {
     const original = console.error
     console.error = () => {
         throw new Error('stderr is closed')
@@ -263,14 +260,14 @@ async function withRawErrors<T>(
     value: string | undefined,
     fn: () => Promise<T>,
 ): Promise<T> {
-    const original = process.env.LOCKNESS_CLI_RAW_ERRORS
-    if (value === undefined) delete process.env.LOCKNESS_CLI_RAW_ERRORS
-    else process.env.LOCKNESS_CLI_RAW_ERRORS = value
+    const original = Deno.env.get('LOCKNESS_CLI_RAW_ERRORS')
+    if (value === undefined) Deno.env.delete('LOCKNESS_CLI_RAW_ERRORS')
+    else Deno.env.set('LOCKNESS_CLI_RAW_ERRORS', value)
     try {
         return await fn()
     } finally {
         if (original === undefined) {
-            delete process.env.LOCKNESS_CLI_RAW_ERRORS
-        } else process.env.LOCKNESS_CLI_RAW_ERRORS = original
+            Deno.env.delete('LOCKNESS_CLI_RAW_ERRORS')
+        } else Deno.env.set('LOCKNESS_CLI_RAW_ERRORS', original)
     }
 }

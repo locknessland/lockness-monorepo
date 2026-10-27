@@ -6,7 +6,6 @@
  * tested end to end against the real loaders.
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { App, CacheServiceToken, container } from '@lockness/core'
 import { cache } from '@lockness/cache'
@@ -28,7 +27,7 @@ function serviceWith(docs: LoaderStub, ui: LoaderStub): LlmSectionService {
     return svc
 }
 
-test('generateFullText - inlines every section with heading and source URL', async () => {
+Deno.test('generateFullText - inlines every section with heading and source URL', async () => {
     const svc = serviceWith(
         {
             getAvailableLlmsSlugs: () => ['routing'],
@@ -58,7 +57,7 @@ test('generateFullText - inlines every section with heading and source URL', asy
     assertStringIncludes(text, 'BUTTON BODY')
 })
 
-test('generateFullText - skips an unreadable section, keeps the rest', async () => {
+Deno.test('generateFullText - skips an unreadable section, keeps the rest', async () => {
     const svc = serviceWith(
         {
             getAvailableLlmsSlugs: () => ['ok', 'broken'],
@@ -80,7 +79,7 @@ test('generateFullText - skips an unreadable section, keeps the rest', async () 
     assert(!text.includes('## broken'), 'the unreadable section is skipped')
 })
 
-test('GET /llms-full.txt - returns the corpus as plain text', async () => {
+Deno.test('GET /llms-full.txt - returns the corpus as plain text', async () => {
     container.set(CacheServiceToken, cache())
     const app = new App()
     await app.init({ controllers: [LlmController] })

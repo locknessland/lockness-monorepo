@@ -49,22 +49,6 @@ jobs:
               with:
                   deno-version-file: .dvmrc
 
-            # The gate builds and checks the npm packages (#595): npm:check
-            # packs, installs and imports them with npm and Node, from the
-            # version in .node-version. No id-token here (see above).
-            - name: Setup Node
-              uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-              with:
-                  node-version-file: .node-version
-                  package-manager-cache: false
-
-            # npm:check also imports each scoped package on Bun when its
-            # engines name bun (@lockness/runtime does), from .bun-version.
-            - name: Setup Bun
-              uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
-              with:
-                  bun-version-file: .bun-version
-
             # The same versioned gate the pre-push hook and test.yml run
             # (#388, #396): the ordered step list lives in scripts/gate.ts
             # only, so this workflow cannot drift from it the way it did

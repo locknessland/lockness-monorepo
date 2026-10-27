@@ -11,7 +11,6 @@
  * @module @lockness/core/ssg/tests/build
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import { join } from '@std/path'
 import { runSsgBuild } from '../build.ts'
@@ -34,7 +33,7 @@ const target = (url: string, outputPath: string): RenderTarget => ({
     action: 'a',
 })
 
-test('runSsgBuild - writes each target and reports it', async () => {
+Deno.test('runSsgBuild - writes each target and reports it', async () => {
     const dist = await Deno.makeTempDir()
     try {
         const app = stubApp({
@@ -65,7 +64,7 @@ test('runSsgBuild - writes each target and reports it', async () => {
     }
 })
 
-test('runSsgBuild - aborts naming the route when a render is not 2xx (FR-009/SC-005)', async () => {
+Deno.test('runSsgBuild - aborts naming the route when a render is not 2xx (FR-009/SC-005)', async () => {
     const dist = await Deno.makeTempDir()
     try {
         const app = stubApp({
@@ -86,7 +85,7 @@ test('runSsgBuild - aborts naming the route when a render is not 2xx (FR-009/SC-
     }
 })
 
-test('runSsgBuild - aborts naming the route when fetch throws (FR-009/SC-005)', async () => {
+Deno.test('runSsgBuild - aborts naming the route when fetch throws (FR-009/SC-005)', async () => {
     const dist = await Deno.makeTempDir()
     try {
         const app = {
@@ -105,7 +104,7 @@ test('runSsgBuild - aborts naming the route when fetch throws (FR-009/SC-005)', 
     }
 })
 
-test('runSsgBuild - aborts on an output-path collision (FR-011)', async () => {
+Deno.test('runSsgBuild - aborts on an output-path collision (FR-011)', async () => {
     const dist = await Deno.makeTempDir()
     try {
         const app = stubApp({
@@ -124,7 +123,7 @@ test('runSsgBuild - aborts on an output-path collision (FR-011)', async () => {
     }
 })
 
-test('runSsgBuild - an empty target list writes nothing', async () => {
+Deno.test('runSsgBuild - an empty target list writes nothing', async () => {
     const dist = await Deno.makeTempDir()
     try {
         const result = await runSsgBuild(stubApp({}), [])

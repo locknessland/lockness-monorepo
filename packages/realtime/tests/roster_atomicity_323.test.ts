@@ -28,7 +28,6 @@
  * @module @lockness/realtime/tests/roster_atomicity_323
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
 import { RedisBroadcastDriver } from '../drivers/redis.ts'
@@ -56,7 +55,7 @@ const touchesOwnedSet = (args: string[]): boolean =>
 const touchesRosterKey = (args: string[]): boolean =>
     args.some((a) => a.startsWith(OWNED_PREFIX) || a.includes(CHANNEL))
 
-test('#323 holdMember is ONE operation — there is no between', async () => {
+Deno.test('#323 holdMember is ONE operation — there is no between', async () => {
     const redis = new FakeRedis()
     const issued: string[][] = []
     const counting = (...args: string[]): Promise<unknown> => {
@@ -96,7 +95,7 @@ test('#323 holdMember is ONE operation — there is no between', async () => {
     }
 })
 
-test('#323 releaseMember is ONE operation — the owned set cannot lie', async () => {
+Deno.test('#323 releaseMember is ONE operation — the owned set cannot lie', async () => {
     const redis = new FakeRedis()
     const issued: string[][] = []
     const counting = (...args: string[]): Promise<unknown> => {
@@ -128,7 +127,7 @@ test('#323 releaseMember is ONE operation — the owned set cannot lie', async (
     }
 })
 
-test('#323 a rejected add leaves NEITHER structure', async () => {
+Deno.test('#323 a rejected add leaves NEITHER structure', async () => {
     const redis = new FakeRedis()
     // Reject the write that touches the owned set. Under the two-command shape
     // that is the SADD, and the HSET has already landed — the unreclaimable
@@ -164,7 +163,7 @@ test('#323 a rejected add leaves NEITHER structure', async () => {
     }
 })
 
-test('#323 a rejected remove leaves the member wholly present', async () => {
+Deno.test('#323 a rejected remove leaves the member wholly present', async () => {
     const redis = new FakeRedis()
     let armed = false
     const failing = (...args: string[]): Promise<unknown> => {
@@ -218,7 +217,7 @@ async function flushMicrotasks(times = 50): Promise<void> {
     for (let i = 0; i < times; i++) await Promise.resolve()
 }
 
-test(
+Deno.test(
     "#323 a stale owned entry would make the sweep delete somebody else's LIVE member",
     async () => {
         // The destructive direction, end to end. `#sweepInstance` HDELs whatever

@@ -1,11 +1,10 @@
-import { test } from 'node:test'
 import { assertEquals, assertStringIncludes } from '@std/assert'
-import { Hono } from '@lockness/hono'
+import { Hono } from 'hono'
 import { inertiaMiddleware } from '../middleware.ts'
 import type { Inertia } from '../inertia.ts'
 import type { InertiaContextVariables } from '../types.ts'
 
-test('Inertia.render - returns JSON for Inertia requests', async () => {
+Deno.test('Inertia.render - returns JSON for Inertia requests', async () => {
     const app = new Hono<{ Variables: InertiaContextVariables }>()
 
     app.use(inertiaMiddleware({ version: '1.0' }))
@@ -33,7 +32,7 @@ test('Inertia.render - returns JSON for Inertia requests', async () => {
     assertEquals(json.version, '1.0')
 })
 
-test('Inertia.render - returns HTML for initial page loads', async () => {
+Deno.test('Inertia.render - returns HTML for initial page loads', async () => {
     const app = new Hono<{ Variables: InertiaContextVariables }>()
 
     app.use(inertiaMiddleware({ version: '1.0' }))
@@ -53,7 +52,7 @@ test('Inertia.render - returns HTML for initial page loads', async () => {
     assertStringIncludes(html, 'HomePage')
 })
 
-test('Inertia.share - merges shared props into render', async () => {
+Deno.test('Inertia.share - merges shared props into render', async () => {
     const app = new Hono<{ Variables: InertiaContextVariables }>()
 
     app.use(inertiaMiddleware({ version: '1.0' }))
@@ -82,7 +81,7 @@ test('Inertia.share - merges shared props into render', async () => {
     assertEquals(json.props.stats, 42)
 })
 
-test('Inertia.render - resolves lazy props', async () => {
+Deno.test('Inertia.render - resolves lazy props', async () => {
     const app = new Hono<{ Variables: InertiaContextVariables }>()
 
     app.use(inertiaMiddleware({ version: '1.0' }))
@@ -108,7 +107,7 @@ test('Inertia.render - resolves lazy props', async () => {
     assertEquals(json.props.count, 2)
 })
 
-test('Inertia.render - includes errors object', async () => {
+Deno.test('Inertia.render - includes errors object', async () => {
     const app = new Hono<{ Variables: InertiaContextVariables }>()
 
     app.use(inertiaMiddleware({ version: '1.0' }))

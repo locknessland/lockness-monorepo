@@ -35,7 +35,6 @@
  * @module @lockness/realtime/tests/presence_rejoin_327
  */
 
-import { test } from 'node:test'
 import { assertEquals, assertThrows } from '@std/assert'
 import { ChannelManager, ConnectionIdInUseError } from '../manager.ts'
 import type { BroadcastDriver } from '../driver.ts'
@@ -119,7 +118,7 @@ const authorize = (
 ): PresenceMember | false =>
     identity ? { id: identity.id, info: info ?? { seat: 'original' } } : false
 
-test('#327 a re-join announces NOTHING and writes NOTHING', async () => {
+Deno.test('#327 a re-join announces NOTHING and writes NOTHING', async () => {
     const { driver, calls } = countingDriver()
     const m = new ChannelManager<User>({ driver, authorize })
     const holder = conn('c1', 1)
@@ -181,7 +180,7 @@ test('#327 a re-join announces NOTHING and writes NOTHING', async () => {
     )
 })
 
-test('#327 a re-join still returns the authoritative roster', async () => {
+Deno.test('#327 a re-join still returns the authoritative roster', async () => {
     // Constraint 2, and the reason the work is deleted rather than refused: a
     // client re-subscribing after a network blip is legitimate traffic and
     // must not be able to tell its re-join from a first join.
@@ -214,7 +213,7 @@ test('#327 a re-join still returns the authoritative roster', async () => {
     )
 })
 
-test('#327 K pipelined subscribe frames produce exactly ONE join', async () => {
+Deno.test('#327 K pipelined subscribe frames produce exactly ONE join', async () => {
     // The window the guard would leave if it checked AFTER `#joinLocal`:
     // `#joinLocal` awaits `#watch`, and `onMessage` is dispatched as
     // `void guard(...)`, so nothing serializes these. All K would read
@@ -260,7 +259,7 @@ test('#327 K pipelined subscribe frames produce exactly ONE join', async () => {
     )
 })
 
-test('#327 a re-join DISCARDS its payload rather than broadcasting an update', async () => {
+Deno.test('#327 a re-join DISCARDS its payload rather than broadcasting an update', async () => {
     // A deliberate behaviour change, tested so it is documented rather than
     // discovered. Detecting a changed `info` means deep-equality over
     // unbounded application data (#326) — per-frame cost proportional to what
@@ -302,7 +301,7 @@ test('#327 a re-join DISCARDS its payload rather than broadcasting an update', a
     )
 })
 
-test('#327 a reconnect re-binds the socket, and frames follow the NEW one', async () => {
+Deno.test('#327 a reconnect re-binds the socket, and frames follow the NEW one', async () => {
     // The case the whole disposition exists to protect: a client whose socket
     // dropped re-subscribes to everything it held — and the frames must
     // follow the new socket, never the dead one. Since #370/#363 a subscribe
@@ -372,7 +371,7 @@ test('#327 a reconnect re-binds the socket, and frames follow the NEW one', asyn
     )
 })
 
-test('#327 a re-join degrades like a first join when the roster read fails', async () => {
+Deno.test('#327 a re-join degrades like a first join when the roster read fails', async () => {
     // `#closingRead` is shared by both exits precisely so a re-join cannot
     // answer differently from a first join — including when it answers badly.
     // Without this the re-join exit was witnessed happy-path only, and the

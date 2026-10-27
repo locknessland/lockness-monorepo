@@ -11,15 +11,14 @@
  * @module @lockness/session/tests/cookie_revocation
  */
 
-import { test } from 'node:test'
 import {
     assertEquals,
     AssertionError,
     assertRejects,
     assertThrows,
 } from '@std/assert'
-import { Hono } from '@lockness/hono'
-import type { Context } from '@lockness/hono'
+import { Hono } from 'hono'
+import type { Context } from 'hono'
 import { deleteCookie } from '@lockness/hono'
 import { drainDisposables } from '@lockness/contract/lifecycle/internal'
 import {
@@ -41,7 +40,7 @@ function reset(): void {
     drainDisposables()
 }
 
-test('cookie revocation - a replayed pre-logout cookie is refused end-to-end (SC-006)', async () => {
+Deno.test('cookie revocation - a replayed pre-logout cookie is refused end-to-end (SC-006)', async () => {
     reset()
     configureSession({
         driver: 'cookie',
@@ -121,7 +120,7 @@ const REV_CONFIG: SessionConfig = {
     sameSite: 'Lax',
 }
 
-test('cookie revocation - a store read error fails CLOSED (SC-010 read path)', async () => {
+Deno.test('cookie revocation - a store read error fails CLOSED (SC-010 read path)', async () => {
     const throwingStore: RevocationStore = {
         isRevoked: () => Promise.reject(new Error('kv down')),
         revoke: () => Promise.resolve(),
@@ -144,7 +143,7 @@ test('cookie revocation - a store read error fails CLOSED (SC-010 read path)', a
     )
 })
 
-test('cookie revocation - a revoke error propagates from destroy (SC-010 write path)', async () => {
+Deno.test('cookie revocation - a revoke error propagates from destroy (SC-010 write path)', async () => {
     const throwingStore: RevocationStore = {
         isRevoked: () => Promise.resolve(false),
         revoke: () => Promise.reject(new Error('kv down')),
@@ -169,7 +168,7 @@ test('cookie revocation - a revoke error propagates from destroy (SC-010 write p
     )
 })
 
-test('cookie revocation - a revoked jti stays revoked through a re-seal (SC-007)', async () => {
+Deno.test('cookie revocation - a revoked jti stays revoked through a re-seal (SC-007)', async () => {
     const revoked = new Set<string>()
     const store: RevocationStore = {
         isRevoked: (jti) => Promise.resolve(revoked.has(jti)),
@@ -211,7 +210,7 @@ test('cookie revocation - a revoked jti stays revoked through a re-seal (SC-007)
     )
 })
 
-test('cookie revocation - regenerate() revokes the old jti then resets the identity', async () => {
+Deno.test('cookie revocation - regenerate() revokes the old jti then resets the identity', async () => {
     const revoked = new Set<string>()
     const store: RevocationStore = {
         isRevoked: (jti) => Promise.resolve(revoked.has(jti)),
@@ -247,7 +246,7 @@ test('cookie revocation - regenerate() revokes the old jti then resets the ident
     )
 })
 
-test('cookie revocation - destroy() suppresses the trailing re-seal (no logout re-issue)', async () => {
+Deno.test('cookie revocation - destroy() suppresses the trailing re-seal (no logout re-issue)', async () => {
     const store: RevocationStore = {
         isRevoked: () => Promise.resolve(false),
         revoke: () => Promise.resolve(),
@@ -279,7 +278,7 @@ test('cookie revocation - destroy() suppresses the trailing re-seal (no logout r
     )
 })
 
-test('cookie revocation - without absoluteLifetime, destroy fails loud and leaves the cookie in place', async () => {
+Deno.test('cookie revocation - without absoluteLifetime, destroy fails loud and leaves the cookie in place', async () => {
     // The core boot gate refuses `revocation` without `absoluteLifetime`; a
     // caller that bypasses it (a direct `configureSession`) must get an error,
     // not a revocation entry with a NaN TTL — the store would drop it silently
@@ -322,7 +321,7 @@ test('cookie revocation - without absoluteLifetime, destroy fails loud and leave
     )
 })
 
-test('cookie revocation - negative control: the no-cookie assertion fails when a cookie is present', async () => {
+Deno.test('cookie revocation - negative control: the no-cookie assertion fails when a cookie is present', async () => {
     // #398: the assertion above (`getSetCookie()` is `[]`) previously had no
     // direct proof that it CAN fail — only the #389 mutation battery showed
     // that, by reordering `destroy()` so the cookie is deleted before the

@@ -26,7 +26,6 @@
  * @module tests/mutations/signal_restore
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import { fromFileUrl } from '@std/path'
 import { spy, stub } from '@std/testing/mock'
@@ -114,7 +113,7 @@ function fixtureRow(subject: URL): Mutation {
     }
 }
 
-test('#356 runBattery removes its signal listeners on return', async () => {
+Deno.test('#356 runBattery removes its signal listeners on return', async () => {
     await withFixture(async ({ subject, suite }) => {
         using add = spy(Deno, 'addSignalListener')
         using remove = spy(Deno, 'removeSignalListener')
@@ -130,7 +129,7 @@ test('#356 runBattery removes its signal listeners on return', async () => {
     })
 })
 
-test('#356 runBattery writes nothing asynchronously', async () => {
+Deno.test('#356 runBattery writes nothing asynchronously', async () => {
     // Every async write API the harness could reach. Any of them, pending when
     // a signal lands, can complete after the synchronous restore.
     await withFixture(async ({ subject, suite }) => {
@@ -156,7 +155,7 @@ test('#356 runBattery writes nothing asynchronously', async () => {
     })
 })
 
-test('#356 runBattery removes its signal listeners when it throws', async () => {
+Deno.test('#356 runBattery removes its signal listeners when it throws', async () => {
     await withFixture(async ({ dir, suite }) => {
         using add = spy(Deno, 'addSignalListener')
         using remove = spy(Deno, 'removeSignalListener')
@@ -177,7 +176,7 @@ test('#356 runBattery removes its signal listeners when it throws', async () => 
     })
 })
 
-test('#356 a restore that fails keeps the lock over the still-mutated file', async () => {
+Deno.test('#356 a restore that fails keeps the lock over the still-mutated file', async () => {
     // Releasing the lock over a live mutant hands the next run a mutated
     // source with nothing to say a run died on it: its baseline would read
     // the mutant as the pristine file.
@@ -224,7 +223,7 @@ function tick(ms: number): Promise<'tick'> {
     return new Promise((resolve) => setTimeout(() => resolve('tick'), ms))
 }
 
-test('#356 a SIGHUP mid-mutant restores the source, and the battery exits 128 + 1', async () => {
+Deno.test('#356 a SIGHUP mid-mutant restores the source, and the battery exits 128 + 1', async () => {
     await withFixture(async ({ dir, subject, suite }) => {
         const battery = `${dir}/battery.ts`
         const harness = new URL('./harness.ts', import.meta.url).href

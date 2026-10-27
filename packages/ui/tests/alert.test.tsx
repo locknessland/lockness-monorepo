@@ -1,4 +1,3 @@
-import { test } from 'node:test'
 import { assertStringIncludes } from '@std/assert'
 import {
     Alert,
@@ -14,8 +13,8 @@ function renderToString(component: unknown): string {
     return result.toString()
 }
 
-test('Alert component', async (t) => {
-    await t.test('renders with default props', () => {
+Deno.test('Alert component', async (t) => {
+    await t.step('renders with default props', () => {
         const html = renderToString(
             <Alert>
                 <AlertTitle>Alert Title</AlertTitle>
@@ -27,7 +26,7 @@ test('Alert component', async (t) => {
         assertStringIncludes(html, 'role="alert"')
     })
 
-    await t.test('renders default variant', () => {
+    await t.step('renders default variant', () => {
         const html = renderToString(
             <Alert variant='default'>
                 <AlertTitle>Info</AlertTitle>
@@ -37,7 +36,7 @@ test('Alert component', async (t) => {
         assertStringIncludes(html, 'border-(--alert-default-border)')
     })
 
-    await t.test('renders destructive variant', () => {
+    await t.step('renders destructive variant', () => {
         const html = renderToString(
             <Alert variant='destructive'>
                 <AlertTitle>Error</AlertTitle>
@@ -47,7 +46,7 @@ test('Alert component', async (t) => {
         assertStringIncludes(html, 'border-(--alert-destructive-border)')
     })
 
-    await t.test('renders success variant', () => {
+    await t.step('renders success variant', () => {
         const html = renderToString(
             <Alert variant='success'>
                 <AlertTitle>Success</AlertTitle>
@@ -57,7 +56,7 @@ test('Alert component', async (t) => {
         assertStringIncludes(html, 'border-(--alert-success-border)')
     })
 
-    await t.test('renders warning variant', () => {
+    await t.step('renders warning variant', () => {
         const html = renderToString(
             <Alert variant='warning'>
                 <AlertTitle>Warning</AlertTitle>
@@ -67,7 +66,7 @@ test('Alert component', async (t) => {
         assertStringIncludes(html, 'border-(--alert-warning-border)')
     })
 
-    await t.test('renders with icon when showIcon is true', () => {
+    await t.step('renders with icon when showIcon is true', () => {
         const html = renderToString(
             <Alert variant='success' showIcon>
                 <AlertTitle>Success</AlertTitle>
@@ -77,7 +76,7 @@ test('Alert component', async (t) => {
         assertStringIncludes(html, 'text-(--alert-icon-color)')
     })
 
-    await t.test('forwards custom class names', () => {
+    await t.step('forwards custom class names', () => {
         const html = renderToString(
             <Alert class='custom-class'>
                 <AlertTitle>Test</AlertTitle>
@@ -86,7 +85,7 @@ test('Alert component', async (t) => {
         assertStringIncludes(html, 'custom-class')
     })
 
-    await t.test('forwards HTML attributes', () => {
+    await t.step('forwards HTML attributes', () => {
         const html = renderToString(
             <Alert id='test-alert' data-testid='alert'>
                 Test
@@ -97,16 +96,16 @@ test('Alert component', async (t) => {
     })
 })
 
-test('AlertTitle component', async (t) => {
-    await t.test('renders with content', () => {
+Deno.test('AlertTitle component', async (t) => {
+    await t.step('renders with content', () => {
         const html = renderToString(<AlertTitle>Title</AlertTitle>)
         assertStringIncludes(html, 'Title')
         assertStringIncludes(html, '--alert-title-font-size')
     })
 })
 
-test('AlertDescription component', async (t) => {
-    await t.test('renders with content', () => {
+Deno.test('AlertDescription component', async (t) => {
+    await t.step('renders with content', () => {
         const html = renderToString(
             <AlertDescription>Description</AlertDescription>,
         )

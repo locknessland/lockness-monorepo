@@ -5,7 +5,6 @@
  * @module @lockness/cli/tests/run_steps
  */
 
-import { test } from 'node:test'
 import {
     assert,
     assertEquals,
@@ -31,17 +30,17 @@ function step(ran: string[], label: string, error?: unknown): CommandStep {
     }
 }
 
-test('runSteps - resolves when every step passes, running each in order', async () => {
+Deno.test('runSteps - resolves when every step passes, running each in order', async () => {
     const ran: string[] = []
     await runSteps([step(ran, 'model'), step(ran, 'factory')])
     assertEquals(ran, ['model', 'factory'])
 })
 
-test('runSteps - resolves for an empty list', async () => {
+Deno.test('runSteps - resolves for an empty list', async () => {
     await runSteps([])
 })
 
-test('runSteps - runs every step after a failure, then throws one failure naming the failed steps', async () => {
+Deno.test('runSteps - runs every step after a failure, then throws one failure naming the failed steps', async () => {
     const ran: string[] = []
     const first = new Error('repository write failed')
     const error = await assertRejects(
@@ -60,7 +59,7 @@ test('runSteps - runs every step after a failure, then throws one failure naming
     assertEquals(error.exitCode, 1)
 })
 
-test('runSteps - a synchronous throw is a failed step too', async () => {
+Deno.test('runSteps - a synchronous throw is a failed step too', async () => {
     const ran: string[] = []
     const error = await assertRejects(
         () =>
@@ -80,7 +79,7 @@ test('runSteps - a synchronous throw is a failed step too', async () => {
     assertInstanceOf(error.cause, Error)
 })
 
-test('runSteps - the message never carries the cause text', async () => {
+Deno.test('runSteps - the message never carries the cause text', async () => {
     const secret = ['fx', 'step', crypto.randomUUID().slice(0, 8)].join('')
     const error = await assertRejects(
         () => runSteps([step([], 'view', new Error(`token=${secret}`))]),

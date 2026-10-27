@@ -8,7 +8,7 @@
  * @module @lockness/socialite/tests/state_csrf
  */
 
-import { describe, it } from 'node:test'
+import { describe, it } from '@std/testing/bdd'
 import { expect } from '@std/expect'
 import {
     BaseOAuth2Driver,
@@ -16,7 +16,7 @@ import {
     type ProviderConfig,
     type SocialUser,
 } from '../mod.ts'
-import type { Context } from '@lockness/hono'
+import type { Context } from 'hono'
 
 const config: ProviderConfig = {
     clientId: 'id',

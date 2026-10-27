@@ -10,7 +10,6 @@
  * @module @lockness/redis/tests/client
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
 import { drainDisposables } from '@lockness/contract/lifecycle/internal'
@@ -71,7 +70,7 @@ async function withConnectStub(
     }
 }
 
-test('client - a SET then GET round-trips its value', async () => {
+Deno.test('client - a SET then GET round-trips its value', async () => {
     const server = await startFakeServer()
     const client = new RedisClient({ hostname: '127.0.0.1', port: server.port })
     try {
@@ -86,7 +85,7 @@ test('client - a SET then GET round-trips its value', async () => {
     }
 })
 
-test('client - connect() is single-flighted: concurrent callers open ONE socket', async () => {
+Deno.test('client - connect() is single-flighted: concurrent callers open ONE socket', async () => {
     const server = await startFakeServer()
     const real = Deno.connect
     let opens = 0
@@ -111,7 +110,7 @@ test('client - connect() is single-flighted: concurrent callers open ONE socket'
     server.stop()
 })
 
-test('client - a burst of commands opens ONE connection and AUTHs once', async () => {
+Deno.test('client - a burst of commands opens ONE connection and AUTHs once', async () => {
     const server = await startFakeServer()
     for (let i = 0; i < 6; i++) server.store.set(`k${i}`, `v${i}`)
     const real = Deno.connect
@@ -148,7 +147,7 @@ test('client - a burst of commands opens ONE connection and AUTHs once', async (
     server.stop()
 })
 
-test('client - a connect rejection self-heals on the next command', async () => {
+Deno.test('client - a connect rejection self-heals on the next command', async () => {
     const server = await startFakeServer()
     server.store.set('k', 'up')
     const real = Deno.connect
@@ -186,7 +185,7 @@ test('client - a connect rejection self-heals on the next command', async () => 
     server.stop()
 })
 
-test('client - a mid-stream read fault discards the desynced socket, next command reconnects', async () => {
+Deno.test('client - a mid-stream read fault discards the desynced socket, next command reconnects', async () => {
     const server = await startFakeServer()
     server.store.set('k', 'recovered')
     const real = Deno.connect
@@ -233,7 +232,7 @@ test('client - a mid-stream read fault discards the desynced socket, next comman
     server.stop()
 })
 
-test('client - close() is idempotent and does not reopen a socket', async () => {
+Deno.test('client - close() is idempotent and does not reopen a socket', async () => {
     const server = await startFakeServer()
     const real = Deno.connect
     let opens = 0
@@ -257,7 +256,7 @@ test('client - close() is idempotent and does not reopen a socket', async () => 
     server.stop()
 })
 
-test('client - password with tls:false warns ONCE about cleartext AUTH', async () => {
+Deno.test('client - password with tls:false warns ONCE about cleartext AUTH', async () => {
     const messages = await captureWarnings(() => {
         new RedisClient({
             hostname: 'redis.internal',
@@ -272,7 +271,7 @@ test('client - password with tls:false warns ONCE about cleartext AUTH', async (
     )
 })
 
-test('client - password with tls:true does NOT warn about cleartext AUTH', async () => {
+Deno.test('client - password with tls:true does NOT warn about cleartext AUTH', async () => {
     const messages = await captureWarnings(() => {
         new RedisClient({
             hostname: 'redis.internal',
@@ -287,7 +286,7 @@ test('client - password with tls:true does NOT warn about cleartext AUTH', async
     )
 })
 
-test('client - no password does NOT warn about cleartext AUTH', async () => {
+Deno.test('client - no password does NOT warn about cleartext AUTH', async () => {
     const messages = await captureWarnings(() => {
         new RedisClient({ hostname: 'redis.internal', tls: false })
     })
@@ -298,7 +297,7 @@ test('client - no password does NOT warn about cleartext AUTH', async () => {
     )
 })
 
-test('client - the cleartext-AUTH warning does not repeat per connection', async () => {
+Deno.test('client - the cleartext-AUTH warning does not repeat per connection', async () => {
     const server = await startFakeServer()
     const messages = await captureWarnings(async () => {
         const client = new RedisClient({
@@ -322,7 +321,7 @@ test('client - the cleartext-AUTH warning does not repeat per connection', async
     )
 })
 
-test('client - the socket registers a shutdown disposable, drained at teardown', async () => {
+Deno.test('client - the socket registers a shutdown disposable, drained at teardown', async () => {
     const server = await startFakeServer()
     const client = new RedisClient({
         hostname: '127.0.0.1',
@@ -355,7 +354,7 @@ function wedgedWriteConn(): Deno.Conn {
     } as unknown as Deno.Conn
 }
 
-test('#297: a command against a wedged broker rejects instead of hanging', async () => {
+Deno.test('#297: a command against a wedged broker rejects instead of hanging', async () => {
     // The defect, on the path that reaches 92 call sites across session, queue,
     // core's scheduler locks and realtime. `exchange` passed its timeout to
     // `readReply` only, so `writeFrame` had none and a peer that accepts the
@@ -379,7 +378,7 @@ test('#297: a command against a wedged broker rejects instead of hanging', async
     assert(/timed out/i.test(error.message), error.message)
 })
 
-test('#297: exchange refuses a budget that is already spent, before either leg', async () => {
+Deno.test('#297: exchange refuses a budget that is already spent, before either leg', async () => {
     // A `RespFramingError`, not a `RangeError`. The discard obligation is
     // carried by the type — `client.ts` routes negatively on `RespServerError`
     // and `subscriber.ts` routes POSITIVELY on `RespFramingError` — and the
@@ -419,7 +418,7 @@ test('#297: exchange refuses a budget that is already spent, before either leg',
     )
 })
 
-test('#297: a write-leg framing error discards the socket, through RedisClient', async () => {
+Deno.test('#297: a write-leg framing error discards the socket, through RedisClient', async () => {
     // The review gate's first HIGH, and it was right: both tests above call
     // `exchange` directly, so `client.ts`'s routing of a WRITE-leg
     // `RespFramingError` to `discard` had no witness at all — and T013/T014
@@ -492,7 +491,7 @@ test('#297: a write-leg framing error discards the socket, through RedisClient',
     }
 })
 
-test('#300: an oversized command does NOT discard the socket', async () => {
+Deno.test('#300: an oversized command does NOT discard the socket', async () => {
     // The half a throw cannot deliver. `#serializedExchange`'s rule is
     // "everything that is not a RespServerError is a desync", so a new error
     // type is a desync by construction — and the refusal would close a healthy
@@ -594,7 +593,7 @@ async function rejectedBurst(client: RedisClient, count: number) {
     }
 }
 
-test('#299: a wedged broker cannot be driven into a dial per command', async () => {
+Deno.test('#299: a wedged broker cannot be driven into a dial per command', async () => {
     // Before this, a forced discard re-dialled on the very next command with no
     // backoff and no circuit breaker — so a wedged or hostile peer drove the
     // loop at the application's command rate, re-sending AUTH in cleartext on
@@ -639,7 +638,7 @@ test('#299: a wedged broker cannot be driven into a dial per command', async () 
     }
 })
 
-test('#299: at the minimum draw, each elapsed window admits exactly ONE dial', async () => {
+Deno.test('#299: at the minimum draw, each elapsed window admits exactly ONE dial', async () => {
     // The bound stated in terms of the window, which is what it really is
     // (#498). A 1ms window legitimately allows another dial 1ms later — full
     // jitter draws that low on purpose, and changing that is out of scope here.
@@ -678,7 +677,7 @@ test('#299: at the minimum draw, each elapsed window admits exactly ONE dial', a
     }
 })
 
-test('#299: a refused command REJECTS rather than waiting out the window', async () => {
+Deno.test('#299: a refused command REJECTS rather than waiting out the window', async () => {
     // The one place this must differ from the subscribe path. There, a retry is
     // scheduled and nobody is waiting; here a caller holds the promise, and
     // parking it would turn a fast failure back into a slow one.
@@ -731,7 +730,7 @@ test('#299: a refused command REJECTS rather than waiting out the window', async
     }
 })
 
-test('#299: a peer answering one command per cycle cannot pin the ceiling', async () => {
+Deno.test('#299: a peer answering one command per cycle cannot pin the ceiling', async () => {
     // THE FINDING THE PLAN AUDIT CAUGHT. "Proved healthy" as "one completed
     // exchange" is defeated by a broker that answers once and then faults: the
     // streak zeroes every cycle, the ceiling never leaves its floor, and the
@@ -841,7 +840,7 @@ test('#299: a peer answering one command per cycle cannot pin the ceiling', asyn
     }
 })
 
-test('#299: a nonsense cadence is refused at construction', () => {
+Deno.test('#299: a nonsense cadence is refused at construction', () => {
     // Unvalidated, `NaN` makes the ceiling NaN, the delay NaN, the window
     // instant NaN, and `Date.now() < NaN` is FALSE — the guard never fires and
     // the backoff silently does not exist, with every test green. The same NaN
@@ -869,7 +868,7 @@ test('#299: a nonsense cadence is refused at construction', () => {
     assert(inverted, 'retryMaxMs below retryBaseMs was accepted')
 })
 
-test('#299: the client RECOVERS — a healthy socket clears the streak', async () => {
+Deno.test('#299: the client RECOVERS — a healthy socket clears the streak', async () => {
     // The test whose absence let a dead branch ship. Nothing asserted the
     // client ever comes back, so a survival check that could never be satisfied
     // — it timed one exchange's round-trip instead of the socket's age, and a
@@ -958,7 +957,7 @@ test('#299: the client RECOVERS — a healthy socket clears the streak', async (
     }
 })
 
-test('#299: two FAST exchanges on a YOUNG socket do not clear the streak', async () => {
+Deno.test('#299: two FAST exchanges on a YOUNG socket do not clear the streak', async () => {
     // The age half of the survival rule, and the fixture that makes it
     // individually necessary — a mutation run showed the count check alone
     // satisfied every earlier fixture, so removing the age check changed

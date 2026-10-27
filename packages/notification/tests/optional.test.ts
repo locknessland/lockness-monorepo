@@ -9,11 +9,10 @@
  * @module @lockness/notification/tests/optional
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import { ChannelPackageMissingError, tryImport } from '../optional.ts'
 
-test('tryImport resolves an injected fake module', async () => {
+Deno.test('tryImport resolves an injected fake module', async () => {
     const fake = { send: () => {} }
     const mod = await tryImport<typeof fake>(
         '@lockness/mail',
@@ -23,7 +22,7 @@ test('tryImport resolves an injected fake module', async () => {
     assertEquals(mod, fake)
 })
 
-test('a missing backing package yields the fixed install template (FR-004a)', async () => {
+Deno.test('a missing backing package yields the fixed install template (FR-004a)', async () => {
     const err = await assertRejects(
         () =>
             tryImport('@lockness/mail', 'mail', () => {
@@ -43,7 +42,7 @@ test('a missing backing package yields the fixed install template (FR-004a)', as
     assert(err.channel === 'mail')
 })
 
-test('an unexpected import error is re-thrown, not masked as "not installed"', async () => {
+Deno.test('an unexpected import error is re-thrown, not masked as "not installed"', async () => {
     await assertRejects(
         () =>
             tryImport('@lockness/mail', 'mail', () => {

@@ -6,7 +6,6 @@
  * @module @lockness/queue/tests/dead_letter
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { MemoryQueueDriver } from '../drivers/memory.ts'
 import type { SerializedJob } from '../types.ts'
@@ -25,7 +24,7 @@ function job(id: string, queue: string): SerializedJob {
     }
 }
 
-test('deadLetter - an exhausted job is stored and listed without its payload', async () => {
+Deno.test('deadLetter - an exhausted job is stored and listed without its payload', async () => {
     const d = new MemoryQueueDriver()
     const q = 'dlq-test-1'
     await d.deadLetter(job('j1', q), new TypeError('provider rejected'))
@@ -46,7 +45,7 @@ test('deadLetter - an exhausted job is stored and listed without its payload', a
     )
 })
 
-test('deadLetter - retryFailed re-enqueues the job with attempts reset', async () => {
+Deno.test('deadLetter - retryFailed re-enqueues the job with attempts reset', async () => {
     const d = new MemoryQueueDriver()
     const q = 'dlq-test-2'
     await d.deadLetter(job('j2', q), new Error('boom'))
@@ -61,12 +60,12 @@ test('deadLetter - retryFailed re-enqueues the job with attempts reset', async (
     assertEquals((await d.listFailed(q)).length, 0)
 })
 
-test('deadLetter - retryFailed on an unknown id returns false', async () => {
+Deno.test('deadLetter - retryFailed on an unknown id returns false', async () => {
     const d = new MemoryQueueDriver()
     assertEquals(await d.retryFailed('nope-404'), false)
 })
 
-test('fail - a retry re-pushes the job (no silent drop)', async () => {
+Deno.test('fail - a retry re-pushes the job (no silent drop)', async () => {
     const d = new MemoryQueueDriver()
     const q = 'dlq-test-3'
     const j = { ...job('j3', q), attempts: 1, availableAt: 0 }

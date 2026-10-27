@@ -11,7 +11,6 @@
  * @module @lockness/redis/tests/resp
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertRejects, assertThrows } from '@std/assert'
 import {
     encodeCommand,
@@ -48,7 +47,7 @@ function mockConn(...chunks: Uint8Array[]): Deno.Conn {
 
 const wire = (s: string): Uint8Array => new TextEncoder().encode(s)
 
-test('encodeCommand - bulk length is the UTF-8 byteLength, not the code-unit count', () => {
+Deno.test('encodeCommand - bulk length is the UTF-8 byteLength, not the code-unit count', () => {
     // 'Renée' is 5 UTF-16 units and 6 UTF-8 bytes (é is 2 bytes). The #141 bug
     // wrote $5 while emitting 6 bytes; the literal below pins $6.
     const frame = encodeCommand(['SET', 'k', 'Renée'])
@@ -58,7 +57,7 @@ test('encodeCommand - bulk length is the UTF-8 byteLength, not the code-unit cou
     )
 })
 
-test('encodeCommand - an embedded CRLF in an argument is data, not a boundary', () => {
+Deno.test('encodeCommand - an embedded CRLF in an argument is data, not a boundary', () => {
     const frame = encodeCommand(['SET', 'k', 'a\r\nb'])
     assertEquals(
         new TextDecoder().decode(frame),
@@ -66,28 +65,28 @@ test('encodeCommand - an embedded CRLF in an argument is data, not a boundary', 
     )
 })
 
-test('readReply - a simple string reply', async () => {
+Deno.test('readReply - a simple string reply', async () => {
     assertEquals(await readReply(mockConn(wire('+OK\r\n'))), {
         type: 'simple',
         value: 'OK',
     })
 })
 
-test('readReply - an integer reply', async () => {
+Deno.test('readReply - an integer reply', async () => {
     assertEquals(await readReply(mockConn(wire(':42\r\n'))), {
         type: 'integer',
         value: 42,
     })
 })
 
-test('readReply - a bulk string reply', async () => {
+Deno.test('readReply - a bulk string reply', async () => {
     assertEquals(await readReply(mockConn(wire('$3\r\nabc\r\n'))), {
         type: 'bulk',
         value: 'abc',
     })
 })
 
-test('readReply - a multi-bulk array reply', async () => {
+Deno.test('readReply - a multi-bulk array reply', async () => {
     assertEquals(
         await readReply(mockConn(wire('*2\r\n$3\r\nfoo\r\n$3\r\nbar\r\n'))),
         {
@@ -100,7 +99,7 @@ test('readReply - a multi-bulk array reply', async () => {
     )
 })
 
-test('readReply - an empty array ($*0) is distinct from a nil array (*-1)', async () => {
+Deno.test('readReply - an empty array ($*0) is distinct from a nil array (*-1)', async () => {
     assertEquals(await readReply(mockConn(wire('*0\r\n'))), {
         type: 'array',
         value: [],
@@ -108,7 +107,7 @@ test('readReply - an empty array ($*0) is distinct from a nil array (*-1)', asyn
     assertEquals(await readReply(mockConn(wire('*-1\r\n'))), { type: 'nil' })
 })
 
-test('readReply - a nested array reassembles recursively', async () => {
+Deno.test('readReply - a nested array reassembles recursively', async () => {
     assertEquals(
         await readReply(mockConn(wire('*1\r\n*2\r\n:7\r\n$1\r\nx\r\n'))),
         {
@@ -126,21 +125,21 @@ test('readReply - a nested array reassembles recursively', async () => {
     )
 })
 
-test('readReply - an over-cardinality array (*huge) is a RespFramingError before the parse loop', async () => {
+Deno.test('readReply - an over-cardinality array (*huge) is a RespFramingError before the parse loop', async () => {
     await assertRejects(
         () => readReply(mockConn(wire('*99999999999\r\n'))),
         RespFramingError,
     )
 })
 
-test('readReply - a malformed array length is a RespFramingError', async () => {
+Deno.test('readReply - a malformed array length is a RespFramingError', async () => {
     await assertRejects(
         () => readReply(mockConn(wire('*notanumber\r\n'))),
         RespFramingError,
     )
 })
 
-test('readReply - a nil bulk ($-1) is distinct from an empty bulk ($0)', async () => {
+Deno.test('readReply - a nil bulk ($-1) is distinct from an empty bulk ($0)', async () => {
     assertEquals(await readReply(mockConn(wire('$-1\r\n'))), { type: 'nil' })
     assertEquals(await readReply(mockConn(wire('$0\r\n\r\n'))), {
         type: 'bulk',
@@ -148,7 +147,7 @@ test('readReply - a nil bulk ($-1) is distinct from an empty bulk ($0)', async (
     })
 })
 
-test('readReply - a bulk body split across two reads reassembles', async () => {
+Deno.test('readReply - a bulk body split across two reads reassembles', async () => {
     const body = 'y'.repeat(5000)
     const full = wire(`$${body.length}\r\n${body}\r\n`)
     const at = 2010 // mid-body, past the length prefix
@@ -158,7 +157,7 @@ test('readReply - a bulk body split across two reads reassembles', async () => {
     )
 })
 
-test('readReply - a framed -ERR is a RespServerError (socket stays in sync)', async () => {
+Deno.test('readReply - a framed -ERR is a RespServerError (socket stays in sync)', async () => {
     const error = await readReply(mockConn(wire('-ERR boom\r\n'))).then(
         () => null,
         (e) => e,
@@ -168,7 +167,7 @@ test('readReply - a framed -ERR is a RespServerError (socket stays in sync)', as
     assert(!(error instanceof RespFramingError))
 })
 
-test('readReply - an oversized bulk length is a RespFramingError, not allocated', async () => {
+Deno.test('readReply - an oversized bulk length is a RespFramingError, not allocated', async () => {
     const huge = 11 * 1024 * 1024
     const error = await readReply(mockConn(wire(`$${huge}\r\n`))).then(
         () => null,
@@ -178,7 +177,7 @@ test('readReply - an oversized bulk length is a RespFramingError, not allocated'
     assert(error instanceof RespError)
 })
 
-test('readReply - a line that never terminates is refused on SIZE, not on time', async () => {
+Deno.test('readReply - a line that never terminates is refused on SIZE, not on time', async () => {
     // #245. `MAX_BULK_BYTES` guards a bulk BODY, and only once a well-formed
     // length line has been read. The line itself had no ceiling: `readLine`
     // looped on `#fill` until a CRLF appeared, so the memory a peer could force
@@ -210,7 +209,7 @@ test('readReply - a line that never terminates is refused on SIZE, not on time',
     )
 })
 
-test('writeFrame + readReply - a command round-trips over a loopback socket', async () => {
+Deno.test('writeFrame + readReply - a command round-trips over a loopback socket', async () => {
     // A genuine wire round-trip: encode a command, write it to a loopback
     // listener that replies with a canned bulk, and drain the reply. Not "live
     // Redis" — a byte echo over 127.0.0.1.
@@ -235,7 +234,7 @@ test('writeFrame + readReply - a command round-trips over a loopback socket', as
     }
 })
 
-test('writeFrame - a write that makes no progress raises instead of spinning', async () => {
+Deno.test('writeFrame - a write that makes no progress raises instead of spinning', async () => {
     const stalled = {
         write: () => Promise.resolve(0),
     } as unknown as Deno.Conn
@@ -245,7 +244,7 @@ test('writeFrame - a write that makes no progress raises instead of spinning', a
     )
 })
 
-test('#287: a length prefix is decimal digits or -1, and nothing else', async () => {
+Deno.test('#287: a length prefix is decimal digits or -1, and nothing else', async () => {
     // Every row measured against `Number()` before this landed, and every one
     // of them was ACCEPTED as a length — reading the wrong number of bytes off
     // the socket and desyncing it without raising.
@@ -268,7 +267,7 @@ test('#287: a length prefix is decimal digits or -1, and nothing else', async ()
     })
 })
 
-test('#287: a bulk body must be followed by CRLF, not merely two bytes', async () => {
+Deno.test('#287: a bulk body must be followed by CRLF, not merely two bytes', async () => {
     // The other half of the same trust. The length check stops the client
     // believing a bad length; this stops it believing the frame ended where the
     // length said. Two bytes consumed unchecked slide the cursor silently.
@@ -280,7 +279,7 @@ test('#287: a bulk body must be followed by CRLF, not merely two bytes', async (
     )
 })
 
-test('#286: a write that never settles rejects on its deadline', async () => {
+Deno.test('#286: a write that never settles rejects on its deadline', async () => {
     // The leg #245's liveness window does not cover. `written <= 0` catches a
     // socket that reports no progress; this is the other shape — a socket that
     // reports NOTHING, because `conn.write` never settles. A peer that accepts
@@ -302,7 +301,7 @@ test('#286: a write that never settles rejects on its deadline', async () => {
     )
 })
 
-test('#286: the deadline is per FRAME, not per write', async () => {
+Deno.test('#286: the deadline is per FRAME, not per write', async () => {
     // The distinction that decides whether the bound works at all. A socket
     // dribbling one byte per tick keeps a PER-WRITE timer alive forever — each
     // write completes, each timer is cleared, and the frame never finishes.
@@ -336,7 +335,7 @@ test('#286: the deadline is per FRAME, not per write', async () => {
     assert(/timed out/i.test(error.message), error.message)
 })
 
-test('#286: the stall message does not claim an exact byte offset', async () => {
+Deno.test('#286: the stall message does not claim an exact byte offset', async () => {
     // An abandoned `conn.write` cannot be cancelled and may still be advancing
     // the offset after the deadline fires, so any number in this message is a
     // lower bound and must say so. The `written <= 0` error keeps its exact
@@ -356,7 +355,7 @@ test('#286: the stall message does not claim an exact byte offset', async () => 
     )
 })
 
-test('#286: an absent deadline leaves the loop unbounded, exactly as before', async () => {
+Deno.test('#286: an absent deadline leaves the loop unbounded, exactly as before', async () => {
     // Q1. The parameter is OPTIONAL and `undefined` means unbounded, which is
     // what keeps the command path out of this change: `exchange` passes its
     // timeout to `readReply` only, so a DEFAULTED write deadline would have
@@ -386,7 +385,7 @@ test('#286: an absent deadline leaves the loop unbounded, exactly as before', as
     )
 })
 
-test('#286: writeFrame refuses a nonsense deadline', async () => {
+Deno.test('#286: writeFrame refuses a nonsense deadline', async () => {
     // FR-010. An exported parameter with no defined behaviour for 0 / NaN /
     // negative is a public API that accepts a value and does something
     // arbitrary with it.
@@ -401,7 +400,7 @@ test('#286: writeFrame refuses a nonsense deadline', async () => {
     }
 })
 
-test('readReply - the TOTAL of a multi-bulk reply is bounded, not just each part', async () => {
+Deno.test('readReply - the TOTAL of a multi-bulk reply is bounded, not just each part', async () => {
     // #245, review gate. MAX_BULK_BYTES bounds one bulk BODY and MAX_LINE_BYTES
     // one line; neither bounds their sum. A multi-bulk of individually-legal
     // elements aggregated without limit, and the parsed form is far larger than
@@ -430,7 +429,7 @@ test('readReply - the TOTAL of a multi-bulk reply is bounded, not just each part
     )
 })
 
-test('#300: an oversized command is refused WITHOUT being encoded', () => {
+Deno.test('#300: an oversized command is refused WITHOUT being encoded', () => {
     // "Before writeFrame" is not "before the allocation". `encodeCommand`
     // allocates `encoder.encode(arg)` per argument and then the assembled
     // frame, so a check downstream of it costs ~2x the payload in transient
@@ -464,7 +463,7 @@ test('#300: an oversized command is refused WITHOUT being encoded', () => {
     )
 })
 
-test('#300: a multi-byte payload under the UTF-16 bound is still refused', () => {
+Deno.test('#300: a multi-byte payload under the UTF-16 bound is still refused', () => {
     // The case the cheap pre-check cannot see, and therefore the one that says
     // the exact check is load-bearing. `String.length` is UTF-16 code units,
     // which is a LOWER bound on UTF-8 bytes — sound for refusing, blind to a
@@ -485,7 +484,7 @@ test('#300: a multi-byte payload under the UTF-16 bound is still refused', () =>
     )
 })
 
-test('#300: the refusal names the verb and a BUCKETED size, never the exact one', () => {
+Deno.test('#300: the refusal names the verb and a BUCKETED size, never the exact one', () => {
     // An exact frame size is a length derived from arguments: for a fixed verb
     // and arity it inverts to their summed byte length. An attacker padding a
     // field they influence inside a blob that also holds a secret reads the
@@ -521,14 +520,14 @@ test('#300: the refusal names the verb and a BUCKETED size, never the exact one'
     )
 })
 
-test('#300: a frame just under the limit still encodes', () => {
+Deno.test('#300: a frame just under the limit still encodes', () => {
     // A bound that cannot be approached is a bound set wrong.
     const fits = 'x'.repeat(MAX_COMMAND_FRAME_BYTES - 64)
     const frame = encodeCommand(['SET', 'k', fits])
     assert(frame.byteLength <= MAX_COMMAND_FRAME_BYTES)
 })
 
-test('#300: the write bound never exceeds the read bound', () => {
+Deno.test('#300: the write bound never exceeds the read bound', () => {
     // The round-trip invariant, and the reason the bound is DERIVED rather than
     // chosen. A value this client can write must be a value it can read back:
     // above MAX_BULK_BYTES the reply raises RespFramingError on every GET, the

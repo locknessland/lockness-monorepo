@@ -5,7 +5,6 @@
  * @module @lockness/drizzle/tests/factory
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import { container } from '@lockness/container'
 import { Database, Factory } from '../mod.ts'
@@ -91,7 +90,7 @@ async function withFakeInserts(
     }
 }
 
-test('make() builds one record and applies overrides — pure, no connection', () => {
+Deno.test('make() builds one record and applies overrides — pure, no connection', () => {
     const f = new CounterFactory()
     const a = f.make()
     assertEquals(a, { email: 'u1@x.test', name: 'N1' })
@@ -99,7 +98,7 @@ test('make() builds one record and applies overrides — pure, no connection', (
     assertEquals(b, { email: 'u2@x.test', name: 'Override' })
 })
 
-test('makeMany(n) builds n distinct records (definition called fresh each)', () => {
+Deno.test('makeMany(n) builds n distinct records (definition called fresh each)', () => {
     const rows = new CounterFactory().makeMany(3)
     assertEquals(rows.map((r) => r.email), [
         'u1@x.test',
@@ -108,7 +107,7 @@ test('makeMany(n) builds n distinct records (definition called fresh each)', () 
     ])
 })
 
-test('createMany inserts through the Database service and returns the rows', async () => {
+Deno.test('createMany inserts through the Database service and returns the rows', async () => {
     await withFakeInserts(async (recorded) => {
         const rows = await new CounterFactory().createMany(2, { name: 'Same' })
         assertEquals(rows.length, 2)
@@ -120,7 +119,7 @@ test('createMany inserts through the Database service and returns the rows', asy
     })
 })
 
-test('create() inserts one and returns it', async () => {
+Deno.test('create() inserts one and returns it', async () => {
     await withFakeInserts(async (recorded) => {
         const row = await new CounterFactory().create({ email: 'once@x.test' })
         assertEquals(row.email, 'once@x.test')
@@ -129,7 +128,7 @@ test('create() inserts one and returns it', async () => {
     })
 })
 
-test('create() refuses to insert under APP_ENV=production without override', async () => {
+Deno.test('create() refuses to insert under APP_ENV=production without override', async () => {
     await withFakeInserts(async (recorded) => {
         await withAppEnv('production', async () => {
             await assertRejects(
@@ -143,7 +142,7 @@ test('create() refuses to insert under APP_ENV=production without override', asy
     })
 })
 
-test('createMany() refuses to insert under APP_ENV=production without override', async () => {
+Deno.test('createMany() refuses to insert under APP_ENV=production without override', async () => {
     await withFakeInserts(async (recorded) => {
         await withAppEnv('production', async () => {
             await assertRejects(
@@ -156,7 +155,7 @@ test('createMany() refuses to insert under APP_ENV=production without override',
     })
 })
 
-test('create() inserts under production when { allowProduction: true } is passed', async () => {
+Deno.test('create() inserts under production when { allowProduction: true } is passed', async () => {
     await withFakeInserts(async (recorded) => {
         await withAppEnv('production', async () => {
             const row = await new CounterFactory().create(
@@ -169,7 +168,7 @@ test('create() inserts under production when { allowProduction: true } is passed
     })
 })
 
-test('createMany() inserts under production when { allowProduction: true } is passed', async () => {
+Deno.test('createMany() inserts under production when { allowProduction: true } is passed', async () => {
     await withFakeInserts(async (recorded) => {
         await withAppEnv('production', async () => {
             const rows = await new CounterFactory().createMany(

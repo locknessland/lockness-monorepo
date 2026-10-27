@@ -36,7 +36,7 @@ and the document is corrected in the same change.
 
 | Read | Why | When |
 | :--- | :--- | :--- |
-| [`AGENTS.md`](../../AGENTS.md) | The **hard rules**. They are blockers, not preferences, and several are architectural: no direct `hono` import, published runtime code depending only on siblings, `node:` built-ins and npm packages, declared per package in `package.json` (`@std/*` only in tests and tooling), no `any` in exported APIs, MVC layering, JSDoc on public APIs. | Always, before any structural verdict. |
+| [`AGENTS.md`](../../AGENTS.md) | The **hard rules**. They are blockers, not preferences, and several are architectural: no direct `hono` import, JSR-only specifiers declared per package, no `any` in exported APIs, MVC layering, JSDoc on public APIs. | Always, before any structural verdict. |
 | [`.specnaut/memory/constitution.md`](../../.specnaut/memory/constitution.md) | Binding. Engineering methodology, the layer definitions, the Domain Model gate, and "no silent catches". | Always. |
 | [`docs/architecture.md`](../../docs/architecture.md) | The package system and the layered design — what the layers ARE here, before you judge a boundary between two of them. | Any layering, boundary or cohesion finding. |
 | [`docs/dependencies.md`](../../docs/dependencies.md) + [`deps.policy.jsonc`](../../deps.policy.jsonc) | The dependency graph is a **strict DAG**, declared and machine-verified by `deno task deps:analyze`. `contract` and `hono` are the foundation and import nothing; `core` is the orchestrator. | Any dependency-direction, cycle or coupling finding. |

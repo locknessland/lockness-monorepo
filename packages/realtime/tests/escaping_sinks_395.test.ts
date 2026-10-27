@@ -35,7 +35,6 @@
  * @module @lockness/realtime/tests/escaping_sinks_395
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
 import { ChannelManager, PUBLISH_FAILED } from '../manager.ts'
@@ -325,7 +324,7 @@ const SINKS: SinkRow[] = [
 ]
 
 for (const [index, row] of SINKS.entries()) {
-    test(`#395 E${index + 1} ${row.name}: every channel throwing, nothing escapes`, async () => {
+    Deno.test(`#395 E${index + 1} ${row.name}: every channel throwing, nothing escapes`, async () => {
         await watchingEscapes(async (escaped) => {
             const armed = await row.arm()
             let thrown: unknown = undefined
@@ -387,7 +386,7 @@ for (const [index, row] of SINKS.entries()) {
  * suspected from — still fires once the run's own WARN AND its marked
  * fallback both failed.
  */
-test('#395 LapseRun.#invoke: onFailure still runs after its own WARN is contained', async () => {
+Deno.test('#395 LapseRun.#invoke: onFailure still runs after its own WARN is contained', async () => {
     await watchingEscapes(async (escaped) => {
         let onFailureRan = false
         const lapse = new LapseRun(() => {
@@ -424,7 +423,7 @@ test('#395 LapseRun.#invoke: onFailure still runs after its own WARN is containe
  * writes when the liveness `SET` fails — E6 above only proves that WARN's
  * own escape is contained, never that the decision behind it survived.
  */
-test('#395 the redis heartbeat: the lapse decision still runs after its WARN is contained', async () => {
+Deno.test('#395 the redis heartbeat: the lapse decision still runs after its WARN is contained', async () => {
     await watchingEscapes(async (escaped) => {
         const time = new FakeTime(START)
         const redis = new FakeRedis()
@@ -480,7 +479,7 @@ test('#395 the redis heartbeat: the lapse decision still runs after its WARN is 
  * E5 above only ever observes it through the SINK-FAILURE second half, when
  * `console.warn` itself has already been made to throw.
  */
-test('#395 the redis control subscription: the WARN line is pinned', async () => {
+Deno.test('#395 the redis control subscription: the WARN line is pinned', async () => {
     const redis = new FakeRedis()
     const inner = redis.subscriberFor()
     const driver = redisDriver(redis, redis.command, {

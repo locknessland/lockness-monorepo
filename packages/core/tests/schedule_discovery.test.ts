@@ -7,7 +7,6 @@
  * instantiation in a bare `catch { continue }`.
  */
 
-import { test } from 'node:test'
 import {
     assertEquals,
     assertRejects,
@@ -41,7 +40,7 @@ async function withSchedulesDir(
     }
 }
 
-test('registerSchedules - registers every decorated method on a class', () => {
+Deno.test('registerSchedules - registers every decorated method on a class', () => {
     class ReportService {
         @Schedule('0 3 * * *')
         nightly() {}
@@ -60,7 +59,7 @@ test('registerSchedules - registers every decorated method on a class', () => {
     )
 })
 
-test('registerSchedules - a duplicate name propagates rather than being swallowed', () => {
+Deno.test('registerSchedules - a duplicate name propagates rather than being swallowed', () => {
     class A {
         @Schedule('0 3 * * *', { name: 'clash' })
         run() {}
@@ -80,7 +79,7 @@ test('registerSchedules - a duplicate name propagates rather than being swallowe
     )
 })
 
-test('discoverSchedules - finds decorated classes in a directory', async () => {
+Deno.test('discoverSchedules - finds decorated classes in a directory', async () => {
     await withSchedulesDir({
         'digest.ts': `
 import { Schedule } from '@lockness/scheduler'
@@ -96,7 +95,7 @@ export class DigestService {
     })
 })
 
-test('discoverSchedules - scans subdirectories', async () => {
+Deno.test('discoverSchedules - scans subdirectories', async () => {
     const rel = `tmp/schedule-nested-${crypto.randomUUID().slice(0, 8)}`
     const abs = `${Deno.cwd()}/${rel}`
     await Deno.mkdir(`${abs}/inner`, { recursive: true })
@@ -119,7 +118,7 @@ export class DeepService {
     }
 })
 
-test('discoverSchedules - a missing directory throws NotFound for the caller to decide on', async () => {
+Deno.test('discoverSchedules - a missing directory throws NotFound for the caller to decide on', async () => {
     const s = new Scheduler(quiet)
     await assertRejects(
         () => discoverSchedules('./tmp/definitely-not-here', s),
@@ -127,7 +126,7 @@ test('discoverSchedules - a missing directory throws NotFound for the caller to 
     )
 })
 
-test('discoverSchedules - a path escaping the working directory is refused', async () => {
+Deno.test('discoverSchedules - a path escaping the working directory is refused', async () => {
     const s = new Scheduler(quiet)
     for (const escape of ['../..', './app/../../..', '/etc']) {
         await assertRejects(
@@ -139,7 +138,7 @@ test('discoverSchedules - a path escaping the working directory is refused', asy
     }
 })
 
-test('discoverSchedules - an undecorated export is ignored, not an error', async () => {
+Deno.test('discoverSchedules - an undecorated export is ignored, not an error', async () => {
     await withSchedulesDir({
         'mixed.ts': `
 import { Schedule } from '@lockness/scheduler'
@@ -158,7 +157,7 @@ export class Scheduled {
     })
 })
 
-test('discoverSchedules - a bad expression fails the discovery instead of booting clean', async () => {
+Deno.test('discoverSchedules - a bad expression fails the discovery instead of booting clean', async () => {
     await withSchedulesDir({
         'broken.ts': `
 import { Schedule } from '@lockness/scheduler'
@@ -182,7 +181,7 @@ export class Broken {
 // revert to the original behaviour ships green.
 // ============================================================================
 
-test("discoverSchedules - imports a file whose name contains '#' or '?'", async () => {
+Deno.test("discoverSchedules - imports a file whose name contains '#' or '?'", async () => {
     // The reason toFileUrl() replaced `file://${path}`: string interpolation
     // makes '#' a fragment and '?' a query, so the path is silently truncated
     // and the file never imported — a task its author believes is scheduled.
@@ -211,7 +210,7 @@ export class QueryService {
     })
 })
 
-test('discoverSchedules - a failing constructor is reported by name and does not abort the scan', async () => {
+Deno.test('discoverSchedules - a failing constructor is reported by name and does not abort the scan', async () => {
     // discoverListeners has a bare per-export `catch { continue }`. Downgrading to
     // that would make this class vanish with no signal — the S3 failure.
     const errors: string[] = []
@@ -255,7 +254,7 @@ export class HealthyService {
     )
 })
 
-test('discoverSchedules - does not follow symlinks', async () => {
+Deno.test('discoverSchedules - does not follow symlinks', async () => {
     // A scanned directory's contents are imported and executed; a symlink can
     // point anywhere, so it is skipped rather than traversed.
     const id = crypto.randomUUID().slice(0, 8)
@@ -288,7 +287,7 @@ export class SneakyService {
     }
 })
 
-test('discoverSchedules - a duplicate name across two files fails the boot', async () => {
+Deno.test('discoverSchedules - a duplicate name across two files fails the boot', async () => {
     // Tested through discoverSchedules, not only registerSchedules: the throw
     // has to survive the discovery loop, which is where a catch-all would eat it.
     await withSchedulesDir({
@@ -316,7 +315,7 @@ export class BService {
     })
 })
 
-test('discoverSchedules - the duplicate-name error names BOTH files and the way out', async () => {
+Deno.test('discoverSchedules - the duplicate-name error names BOTH files and the way out', async () => {
     // The plausible accident: two same-named classes in unrelated files. The
     // default name is `ClassName.methodName`, so they collide — and the error
     // has to say which two files, or the reader is left grepping a flat scan.
@@ -359,7 +358,7 @@ export class Cleanup {
 // Containment — #131
 // ============================================================================
 
-test('isInsideRoot - holds on both separators, so the check is not POSIX-only', () => {
+Deno.test('isInsideRoot - holds on both separators, so the check is not POSIX-only', () => {
     // SEPARATOR is fixed at import time, so an inline check can only ever be
     // exercised on the host platform — which is how a hardcoded '/' survived
     // review here. Passing the separator in makes both branches reachable.
@@ -383,14 +382,14 @@ test('isInsideRoot - holds on both separators, so the check is not POSIX-only', 
     assertEquals(isInsideRoot('C:\\app', 'C:\\Windows', '\\'), false)
 })
 
-test('isInsideRoot - a Windows path is refused when checked with the POSIX separator', () => {
+Deno.test('isInsideRoot - a Windows path is refused when checked with the POSIX separator', () => {
     // The regression this pins: with '/' hardcoded, a genuine Windows
     // descendant read as an escape — a containment guard failing OPEN in the
     // other direction is the one that matters, but both are wrong.
     assertEquals(isInsideRoot('C:\\app', 'C:\\app\\schedule', '/'), false)
 })
 
-test('discoverSchedules - a symlinked schedules directory is refused', async () => {
+Deno.test('discoverSchedules - a symlinked schedules directory is refused', async () => {
     // resolve() is lexical and never follows a link, but Deno.readDir does —
     // it lists the target's entries as ordinary files, so the per-entry symlink
     // guard is inert against a symlinked ROOT. realPath closes that.
@@ -426,7 +425,7 @@ export class OutsideService {
     }
 })
 
-test('discoverSchedules - the working directory itself is refused', async () => {
+Deno.test('discoverSchedules - the working directory itself is refused', async () => {
     // schedulesDir '.' would otherwise import and construct every export of
     // every .ts file in the whole project, at boot.
     const s = new Scheduler(quiet)
@@ -440,7 +439,7 @@ test('discoverSchedules - the working directory itself is refused', async () => 
     }
 })
 
-test('discoverSchedules - a plain exported function is never constructed', async () => {
+Deno.test('discoverSchedules - a plain exported function is never constructed', async () => {
     // container.get calls `new token()` on anything callable, and an
     // `export function` IS constructible — so without a class check its body
     // would execute at boot carrying no @Schedule at all.

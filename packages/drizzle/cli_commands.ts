@@ -20,7 +20,6 @@ import { dirname, fromFileUrl, join } from '@std/path'
 // re-exported from `mod.ts`, which core loads at boot whenever a database is
 // configured, and the barrel would pull every built-in command in with it.
 import { CommandFailedError } from '@lockness/cli/command-failure'
-import type { CommandRegistry } from '@lockness/contract/command'
 import { container } from '@lockness/container'
 import { Database } from './mod.ts'
 import { handleMakeFactory } from './generators/factory_generator.ts'
@@ -64,13 +63,20 @@ import { defaultLoadSeeder, type SeederLoader } from './seeder_loader.ts'
 export type { CommandResult, CommandRunner, CommandSpec, SeederLoader }
 
 /**
- * The one method of the contract's `CommandRegistry` these commands need, so
- * a test can register them on a recording fake.
+ * CLI command handler type.
+ */
+type CommandHandler = (args: string[]) => void | Promise<void>
+
+/**
+ * The one method of `@lockness/cli`'s `Cli` these commands need, kept
+ * structural so a test can register them on a recording fake.
  *
  * A handler reports failure by throwing a {@link CommandFailedError}; the CLI
  * prints it once and exits non-zero (#428).
  */
-type Cli = Pick<CommandRegistry, 'register'>
+interface Cli {
+    register(name: string, handler: CommandHandler, description?: string): void
+}
 
 // =============================================================================
 // Injectable I/O seams (testability)
@@ -164,8 +170,8 @@ type SeederConstructor = new () => { run(): Promise<void> }
 
 /**
  * Drizzle Kit CLI command base, as a person types it: the fallback a kit-only
- * `db:migrate` refusal names. drizzle-kit comes from npm (it has no JSR
- * build), pinned exactly — see {@link DRIZZLE_KIT_SPECIFIER} (#437).
+ * `db:migrate` refusal names. The `npm:` specifier is a hard-rule-2 exception,
+ * pinned exactly — see {@link DRIZZLE_KIT_SPECIFIER} (#437).
  */
 const DRIZZLE_KIT_ARGS = ['run', '-A', DRIZZLE_KIT_SPECIFIER] as const
 

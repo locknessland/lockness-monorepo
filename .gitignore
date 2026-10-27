@@ -52,8 +52,3 @@ CLAUDE.md
 
 # The mutation runner's lock (scripts/mutate.ts) — a live run holds it.
 tests/mutations/.runner-lock
-
-# npm build output (#595): tsc emit per package and the staged npm packages.
-# Never committed, uploaded to JSR, formatted or linted.
-packages/*/dist/
-/_npm/

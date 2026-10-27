@@ -1,10 +1,9 @@
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
-import { Hono } from '@lockness/hono'
+import { Hono } from 'hono'
 import { inertiaMiddleware } from '../middleware.ts'
 import type { InertiaContextVariables } from '../types.ts'
 
-test('inertiaMiddleware - injects Inertia instance into context', async () => {
+Deno.test('inertiaMiddleware - injects Inertia instance into context', async () => {
     const app = new Hono<{ Variables: InertiaContextVariables }>()
     let hasInertia = false
 
@@ -18,7 +17,7 @@ test('inertiaMiddleware - injects Inertia instance into context', async () => {
     assertEquals(hasInertia, true)
 })
 
-test('inertiaMiddleware - returns 409 on version mismatch', async () => {
+Deno.test('inertiaMiddleware - returns 409 on version mismatch', async () => {
     const app = new Hono()
 
     app.use(inertiaMiddleware({ version: '2.0' }))
@@ -37,7 +36,7 @@ test('inertiaMiddleware - returns 409 on version mismatch', async () => {
     assertEquals(res.headers.get('X-Inertia-Location'), 'http://localhost/test')
 })
 
-test('inertiaMiddleware - passes through when versions match', async () => {
+Deno.test('inertiaMiddleware - passes through when versions match', async () => {
     const app = new Hono()
 
     app.use(inertiaMiddleware({ version: '1.0' }))
@@ -55,7 +54,7 @@ test('inertiaMiddleware - passes through when versions match', async () => {
     assertEquals(res.status, 200)
 })
 
-test('inertiaMiddleware - converts 302 to 303 for PUT', async () => {
+Deno.test('inertiaMiddleware - converts 302 to 303 for PUT', async () => {
     const app = new Hono()
 
     app.use(inertiaMiddleware({ version: '1.0' }))
@@ -71,7 +70,7 @@ test('inertiaMiddleware - converts 302 to 303 for PUT', async () => {
     assertEquals(res.status, 303)
 })
 
-test('inertiaMiddleware - resolves version from function', async () => {
+Deno.test('inertiaMiddleware - resolves version from function', async () => {
     const app = new Hono()
     let versionCalled = false
 

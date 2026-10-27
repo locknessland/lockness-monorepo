@@ -7,7 +7,7 @@
  * @module @lockness/auth/guards/basic-auth
  */
 
-import type { Context } from '@lockness/hono'
+import type { Context } from 'hono'
 import type { EventEmitter } from '@lockness/events'
 import type {
     AuthClientResponse,

@@ -12,12 +12,7 @@
  *   behind a banner when `LOCKNESS_CLI_RAW_ERRORS` is on. Each case is exactly
  *   one `console.error` call.
  * - **Where the process status is written.** `applyExitStatus` is the only
- *   `process.exitCode` write in the package (plan 274 §5 "Process exit"; the
- *   `exit_contract` lint names this file as its one owner).
- *
- * Runtime-neutral: the status goes through `node:process`, which Deno, Bun and
- * Node all provide, and the one environment read goes through
- * `@lockness/contract`, so nothing on this path names `Deno`.
+ *   `Deno.exitCode` write in the package.
  *
  * `Cli.dispatch`, `Cli.run` and `runEntry` call it, so a command and a
  * standalone tool cannot drift apart on either.
@@ -29,9 +24,7 @@
  * @module
  */
 
-import process from 'node:process'
 import { renderError } from '@lockness/contract'
-import type { CommandFailure } from '@lockness/contract/command'
 import { renderMessage } from '@lockness/contract/logging/internal'
 import {
     isCommandFailure,
@@ -96,21 +89,21 @@ function printFallback(label: string): void {
 }
 
 /**
- * Write a non-zero status to `process.exitCode`; leave it as it was for `0`.
+ * Write a non-zero status to `Deno.exitCode`; leave it as it was for `0`.
  *
- * The status is set, never forced with `process.exit()`: the process ends
+ * The status is set, never forced with `Deno.exit()`: the process ends
  * normally, so `finally` blocks still run and buffered output is not cut off.
  *
  * @param status - An exit status, `0` for success.
  *
  * @example
  * ```ts
- * applyExitStatus(await cli.dispatch(process.argv.slice(2)))
+ * applyExitStatus(await cli.dispatch(Deno.args))
  * ```
  */
 export function applyExitStatus(status: number): void {
     if (status !== 0) {
-        process.exitCode = status
+        Deno.exitCode = status
     }
 }
 
@@ -122,7 +115,7 @@ export function applyExitStatus(status: number): void {
  * fallback in {@link reportThrown} before anything is printed — never after,
  * which would print twice.
  */
-function reportFailure(error: CommandFailure): number {
+function reportFailure(error: Error & { readonly exitCode: number }): number {
     const status = toFailureStatus(error.exitCode)
     console.error(`❌ ${readMessage(error)}${readCause(error)}`)
     return status

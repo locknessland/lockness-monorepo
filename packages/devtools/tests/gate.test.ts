@@ -10,7 +10,6 @@
  * @module @lockness/devtools/tests/gate
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { Hono } from '@lockness/hono'
 import { authorizeDevtools } from '../gate.ts'
@@ -57,11 +56,11 @@ async function decide(
 
 // --- Default posture (FR-002) ---------------------------------------------
 
-test('gate - loopback peer, nothing configured -> allow', async () => {
+Deno.test('gate - loopback peer, nothing configured -> allow', async () => {
     assert(await decide({}, { env: LOOPBACK }), 'loopback allowed by default')
 })
 
-test('gate - non-loopback peer, nothing configured -> deny', async () => {
+Deno.test('gate - non-loopback peer, nothing configured -> deny', async () => {
     assertEquals(
         await decide({}, { env: REMOTE }),
         false,
@@ -69,7 +68,7 @@ test('gate - non-loopback peer, nothing configured -> deny', async () => {
     )
 })
 
-test('gate - undetectable peer -> deny AND logs at WARN (fail closed, FR-005/010)', async () => {
+Deno.test('gate - undetectable peer -> deny AND logs at WARN (fail closed, FR-005/010)', async () => {
     collector.clear()
     assertEquals(
         await decide({}, {}),
@@ -84,7 +83,7 @@ test('gate - undetectable peer -> deny AND logs at WARN (fail closed, FR-005/010
 
 // --- FR-011 loopback hardening --------------------------------------------
 
-test('gate - a forwarding header revokes loopback trust (FR-011a)', async () => {
+Deno.test('gate - a forwarding header revokes loopback trust (FR-011a)', async () => {
     for (
         const h of [
             'x-forwarded-for',
@@ -106,7 +105,7 @@ test('gate - a forwarding header revokes loopback trust (FR-011a)', async () => 
     }
 })
 
-test('gate - Host outside the localhost allowlist -> deny (FR-011b)', async () => {
+Deno.test('gate - Host outside the localhost allowlist -> deny (FR-011b)', async () => {
     assertEquals(
         await decide({}, {
             env: LOOPBACK,
@@ -126,7 +125,7 @@ test('gate - Host outside the localhost allowlist -> deny (FR-011b)', async () =
 
 // --- Token mechanism (FR-003/FR-006) --------------------------------------
 
-test('gate - token configured: correct Bearer allows from any host', async () => {
+Deno.test('gate - token configured: correct Bearer allows from any host', async () => {
     const cfg: DevtoolsConfig = { token: 'sekret-token-value' }
     assert(
         await decide(cfg, {
@@ -137,7 +136,7 @@ test('gate - token configured: correct Bearer allows from any host', async () =>
     )
 })
 
-test('gate - token configured: wrong / absent Bearer denies', async () => {
+Deno.test('gate - token configured: wrong / absent Bearer denies', async () => {
     const cfg: DevtoolsConfig = { token: 'sekret-token-value' }
     assertEquals(
         await decide(cfg, {
@@ -154,7 +153,7 @@ test('gate - token configured: wrong / absent Bearer denies', async () => {
     )
 })
 
-test('gate - token compare denies wrong tokens of shorter and longer length', async () => {
+Deno.test('gate - token compare denies wrong tokens of shorter and longer length', async () => {
     const cfg: DevtoolsConfig = { token: 'sekret-token-value' }
     // A shorter and a longer wrong token both deny (constant-time compare must
     // not throw or short-circuit on differing lengths).
@@ -178,7 +177,7 @@ test('gate - token compare denies wrong tokens of shorter and longer length', as
 
 // --- authorize precedence + await (FR-004/FR-009/FR-010) -------------------
 
-test('gate - authorize supersedes token and default (FR-009)', async () => {
+Deno.test('gate - authorize supersedes token and default (FR-009)', async () => {
     // authorize true wins even with a remote peer and no token.
     assert(
         await decide({ authorize: () => true }, { env: REMOTE }),
@@ -195,7 +194,7 @@ test('gate - authorize supersedes token and default (FR-009)', async () => {
     )
 })
 
-test('gate - token supersedes the loopback default (FR-009)', async () => {
+Deno.test('gate - token supersedes the loopback default (FR-009)', async () => {
     // With a token configured, a loopback peer WITHOUT the token is denied.
     assertEquals(
         await decide({ token: 'req' }, { env: LOOPBACK }),
@@ -204,7 +203,7 @@ test('gate - token supersedes the loopback default (FR-009)', async () => {
     )
 })
 
-test('gate - authorize is awaited: rejected Promise -> deny AND logs at WARN', async () => {
+Deno.test('gate - authorize is awaited: rejected Promise -> deny AND logs at WARN', async () => {
     collector.clear()
     assertEquals(
         await decide({ authorize: () => Promise.reject(new Error('boom')) }, {
@@ -219,7 +218,7 @@ test('gate - authorize is awaited: rejected Promise -> deny AND logs at WARN', a
     )
 })
 
-test('gate - authorize that throws -> deny AND logs at WARN (FR-010)', async () => {
+Deno.test('gate - authorize that throws -> deny AND logs at WARN (FR-010)', async () => {
     collector.clear()
     const verdict = await decide(
         {

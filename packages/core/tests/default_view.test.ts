@@ -11,9 +11,8 @@
  * @module @lockness/core/tests/default_view
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
-import { Hono } from '@lockness/hono'
+import { Hono } from 'hono'
 import { defaultErrorHandler } from '../exceptions/default_view.ts'
 import { ErrorHandlerRegistry } from '../exceptions/handler.ts'
 
@@ -64,7 +63,7 @@ async function render(
     }
 }
 
-test('defaultErrorHandler - dev 500 escapes a <script> in the error message', async () => {
+Deno.test('defaultErrorHandler - dev 500 escapes a <script> in the error message', async () => {
     const res = await render(undefined, 'development', PAYLOAD)
     assertEquals(res.status, 500)
     assert(
@@ -77,7 +76,7 @@ test('defaultErrorHandler - dev 500 escapes a <script> in the error message', as
     )
 })
 
-test('defaultErrorHandler - dev 500 escapes markup in the stack trace', async () => {
+Deno.test('defaultErrorHandler - dev 500 escapes markup in the stack trace', async () => {
     const res = await render(
         undefined,
         'development',
@@ -90,7 +89,7 @@ test('defaultErrorHandler - dev 500 escapes markup in the stack trace', async ()
     assertStringIncludes(res.body, 'at handler (app.ts:1:1)')
 })
 
-test('defaultErrorHandler - dev 500 renders the message without a stack', async () => {
+Deno.test('defaultErrorHandler - dev 500 renders the message without a stack', async () => {
     const res = await render(undefined, 'development', 'no-stack-here', null)
     assertStringIncludes(res.body, '<pre>no-stack-here</pre>')
     assert(!res.body.includes('undefined'), 'a missing stack renders nothing')
@@ -103,7 +102,7 @@ const STATUS_PAGES: ReadonlyArray<[number, string, string]> = [
 ]
 
 for (const [status, title, heading] of STATUS_PAGES) {
-    test(`defaultErrorHandler - ${status} page renders with status ${status}`, async () => {
+    Deno.test(`defaultErrorHandler - ${status} page renders with status ${status}`, async () => {
         const res = await render(status, 'production')
         assertEquals(res.status, status)
         assertStringIncludes(res.type ?? '', 'text/html')
@@ -117,13 +116,13 @@ for (const [status, title, heading] of STATUS_PAGES) {
     })
 }
 
-test('defaultErrorHandler - an unknown status falls back to a 500 page', async () => {
+Deno.test('defaultErrorHandler - an unknown status falls back to a 500 page', async () => {
     const res = await render(418, 'production')
     assertEquals(res.status, 500)
     assertStringIncludes(res.body, '<title>500 - Server Error</title>')
 })
 
-test('ErrorHandlerRegistry - falls back to the default handler', async () => {
+Deno.test('ErrorHandlerRegistry - falls back to the default handler', async () => {
     const registry = new ErrorHandlerRegistry()
     registry.setCustomHandlerPath('does/not/exist/error_handler.tsx')
     assertEquals(await registry.discover(), defaultErrorHandler)

@@ -10,11 +10,10 @@
  * @module @lockness/session/tests/resp
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import * as sessionPublic from '../mod.ts'
 
-test('resp - the wire codec stays internal, off the package surface (FR-006)', () => {
+Deno.test('resp - the wire codec stays internal, off the package surface (FR-006)', () => {
     const surface = sessionPublic as Record<string, unknown>
     assertEquals(
         surface.encodeCommand,

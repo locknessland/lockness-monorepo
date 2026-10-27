@@ -1,4 +1,3 @@
-import { test } from 'node:test'
 import { assertStringIncludes } from '@std/assert'
 import {
     Tabs,
@@ -12,8 +11,8 @@ function renderToString(component: unknown): string {
     return (component as { toString: () => string }).toString()
 }
 
-test('Tabs', async (t) => {
-    await t.test(
+Deno.test('Tabs', async (t) => {
+    await t.step(
         'Tabs wires the up-switch state selector to the group name',
         () => {
             const html = renderToString(<Tabs name='grp'>x</Tabs>)
@@ -22,12 +21,12 @@ test('Tabs', async (t) => {
         },
     )
 
-    await t.test('TabsList is a tablist', () => {
+    await t.step('TabsList is a tablist', () => {
         const html = renderToString(<TabsList>x</TabsList>)
         assertStringIncludes(html, 'role="tablist"')
     })
 
-    await t.test('TabsTrigger is a hidden radio carrying the value', () => {
+    await t.step('TabsTrigger is a hidden radio carrying the value', () => {
         const html = renderToString(
             <TabsTrigger value='overview' name='grp'>Overview</TabsTrigger>,
         )
@@ -37,7 +36,7 @@ test('Tabs', async (t) => {
         assertStringIncludes(html, 'Overview')
     })
 
-    await t.test('TabsContent is a panel shown for its value', () => {
+    await t.step('TabsContent is a panel shown for its value', () => {
         const html = renderToString(
             <TabsContent value='overview' name='grp'>Panel</TabsContent>,
         )

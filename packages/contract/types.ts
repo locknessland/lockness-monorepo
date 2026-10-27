@@ -5,7 +5,7 @@ import type {
     MiddlewareHandler,
     Next,
     ValidationTargets,
-} from '@lockness/hono'
+} from 'hono'
 import type { ThrottleConfig } from './routing/throttle.ts'
 
 export type { MiddlewareHandler, Next, ValidationTargets }

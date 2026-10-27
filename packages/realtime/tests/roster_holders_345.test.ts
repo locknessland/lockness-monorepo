@@ -28,7 +28,6 @@
  * @module @lockness/realtime/tests/roster_holders_345
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
 import { RedisBroadcastDriver } from '../drivers/redis.ts'
@@ -140,7 +139,7 @@ function slotInvariant(
     }
 }
 
-test('#345 W1 A and B hold 7, A releases — 7 is still read, total 1', async () => {
+Deno.test('#345 W1 A and B hold 7, A releases — 7 is still read, total 1', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-15T10:00:00Z'))
     const a = driver(redis)
@@ -170,7 +169,7 @@ test('#345 W1 A and B hold 7, A releases — 7 is still read, total 1', async ()
     }
 })
 
-test('#345 W2 B wrote last, A lapses, B sweeps A — 7 is still there', async () => {
+Deno.test('#345 W2 B wrote last, A lapses, B sweeps A — 7 is still there', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-15T10:00:00Z'))
     const a = driver(redis)
@@ -196,7 +195,7 @@ test('#345 W2 B wrote last, A lapses, B sweeps A — 7 is still there', async ()
     }
 })
 
-test("#345 W2' A wrote last, A lapses, B sweeps A — 7 is there with B's info", async () => {
+Deno.test("#345 W2' A wrote last, A lapses, B sweeps A — 7 is there with B's info", async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-15T10:00:00Z'))
     const a = driver(redis)
@@ -227,7 +226,7 @@ test("#345 W2' A wrote last, A lapses, B sweeps A — 7 is there with B's info",
     }
 })
 
-test('#345 W3 both release — the slot is gone and its holders hash no longer exists', async () => {
+Deno.test('#345 W3 both release — the slot is gone and its holders hash no longer exists', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-15T10:00:00Z'))
     const a = driver(redis)
@@ -257,7 +256,7 @@ test('#345 W3 both release — the slot is gone and its holders hash no longer e
     }
 })
 
-test('#345 W4 two interleaved sweeps of A change nothing further — 7 is still there', async () => {
+Deno.test('#345 W4 two interleaved sweeps of A change nothing further — 7 is still there', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-15T10:00:00Z'))
     const a = driver(redis)
@@ -300,7 +299,7 @@ test('#345 W4 two interleaved sweeps of A change nothing further — 7 is still 
     }
 })
 
-test('#345 W5 with two holders, releasing the shown one shows the other exactly', async () => {
+Deno.test('#345 W5 with two holders, releasing the shown one shows the other exactly', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-15T10:00:00Z'))
     const a = driver(redis)
@@ -323,7 +322,7 @@ test('#345 W5 with two holders, releasing the shown one shows the other exactly'
     }
 })
 
-test('#345 W5 with three holders, releasing a holder that is NOT shown leaves the info unchanged', async () => {
+Deno.test('#345 W5 with three holders, releasing a holder that is NOT shown leaves the info unchanged', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-15T10:00:00Z'))
     const a = driver(redis)
@@ -349,7 +348,7 @@ test('#345 W5 with three holders, releasing a holder that is NOT shown leaves th
     }
 })
 
-test("#345 W6 A is swept while B holds, then A's own release leaves B's slot untouched", async () => {
+Deno.test("#345 W6 A is swept while B holds, then A's own release leaves B's slot untouched", async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-15T10:00:00Z'))
     const a = driver(redis)
@@ -377,7 +376,7 @@ test("#345 W6 A is swept while B holds, then A's own release leaves B's slot unt
     }
 })
 
-test('#345 W7 a 0.3.0 field with no holders hash is still reclaimed by a sweep', async () => {
+Deno.test('#345 W7 a 0.3.0 field with no holders hash is still reclaimed by a sweep', async () => {
     // Green before #345 and after: the upgrade must not strand a 0.3.0 ghost.
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-15T10:00:00Z'))
@@ -412,7 +411,7 @@ test('#345 W7 a 0.3.0 field with no holders hash is still reclaimed by a sweep',
     }
 })
 
-test('#345 W8 one instance holding 7 and 8 releases 8 — 7 is still there', async () => {
+Deno.test('#345 W8 one instance holding 7 and 8 releases 8 — 7 is still there', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-15T10:00:00Z'))
     const a = driver(redis)
@@ -434,7 +433,7 @@ test('#345 W8 one instance holding 7 and 8 releases 8 — 7 is still there', asy
     }
 })
 
-test('#345 FR-004a a hold reply other than the integer 0 or 1 throws', async () => {
+Deno.test('#345 FR-004a a hold reply other than the integer 0 or 1 throws', async () => {
     // The manager announces `joined` from this bit, so a reply the script
     // never produces must fail loudly rather than read as a transition (an
     // integer 2) or as none (an array). The third row is well-FORMED (#414's
@@ -503,7 +502,7 @@ const ODD_REPLIES: readonly unknown[] = [
     },
 ]
 
-test('#355 WD a release reply is one of four outcomes, a deregistration reply one of three, and anything else throws a message that never carries the reply', async () => {
+Deno.test('#355 WD a release reply is one of four outcomes, a deregistration reply one of three, and anything else throws a message that never carries the reply', async () => {
     // Since #355 the release script answers emptied (the released entry),
     // kept, absent (0) or refused, and the deregistration script
     // deregistered (0), renewed or kept. The codes are private to the driver
@@ -620,7 +619,7 @@ test('#355 WD a release reply is one of four outcomes, a deregistration reply on
     }
 })
 
-test('#355 WD a deregistration reply other than its three fails that sweep alone: one "failed" line without the reply, and no deregistration', async () => {
+Deno.test('#355 WD a deregistration reply other than its three fails that sweep alone: one "failed" line without the reply, and no deregistration', async () => {
     const time = new FakeTime(new Date('2026-09-15T10:00:00Z'))
     try {
         for (const reply of ODD_REPLIES) {
@@ -665,7 +664,7 @@ test('#355 WD a deregistration reply other than its three fails that sweep alone
     }
 })
 
-test('#345 S1b a hold by an instance whose registration never landed registers it', async () => {
+Deno.test('#345 S1b a hold by an instance whose registration never landed registers it', async () => {
     // A holders entry no sweep can reach is a permanent ghost. The heartbeat's
     // registration is a separate round-trip that can fail and is only logged,
     // so the hold itself must put its instance where the sweep looks.
@@ -707,7 +706,7 @@ test('#345 S1b a hold by an instance whose registration never landed registers i
     }
 })
 
-test("#345 S1c a hold landing between a sweep's owned-set read and its end stays in the owned set", async () => {
+Deno.test("#345 S1c a hold landing between a sweep's owned-set read and its end stays in the owned set", async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-15T10:00:00Z'))
     const a = driver(redis)
@@ -771,7 +770,7 @@ function conn(id: string, user: User): Connection<User> {
     } as Connection<User>
 }
 
-test('#345 manager: id 7 on two instances — A leaving and then dying never removes 7 from B', async () => {
+Deno.test('#345 manager: id 7 on two instances — A leaving and then dying never removes 7 from B', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-15T10:00:00Z'))
     const authorize = (user: User | null): PresenceMember | false =>

@@ -7,7 +7,7 @@
  * @module @lockness/core/middleware_resolver
  */
 
-import type { MiddlewareHandler } from '@lockness/hono'
+import type { MiddlewareHandler } from 'hono'
 import type {
     MiddlewareClass,
     MiddlewareContract,

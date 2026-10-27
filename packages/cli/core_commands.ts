@@ -2,8 +2,7 @@
  * @fileoverview Core CLI commands registration.
  *
  * Registers built-in commands for package management and delegates
- * to specialized command modules for make, auth, router, etc. The `queue:*`
- * commands live in `@lockness/queue` (#592).
+ * to specialized command modules for make, auth, router, queue, etc.
  *
  * @module @lockness/cli/core-commands
  */
@@ -11,24 +10,13 @@
 import type { Cli } from './mod.ts'
 import { addPackage, removePackage } from './package_loader.ts'
 import { CommandFailedError } from './command_failure.ts'
-import { type EntryImporter, installPackage } from './package_install.ts'
 import { registerMakeCommands } from './commands/make_commands.ts'
 import { registerAuthCommands } from './commands/auth_commands.ts'
 import { registerNessyCommands } from './commands/nessy_commands.ts'
 import { registerRouterCommands } from './commands/router_commands.ts'
+import { registerQueueCommands } from './commands/queue_commands.ts'
 import { registerTinkerCommand } from './commands/tinker_command.ts'
 import { registerDebugCommands } from './commands/debug_commands.ts'
-
-/**
- * The one computed `import()` of `package:install`: a package entry the app's
- * import map resolves. `deno task publish:check` inventories it
- * (`deps.policy.jsonc` `runtimeImports`); what is done with the module is
- * `package_install.ts`'s.
- *
- * @param specifier - e.g. `@lockness/openapi/setup`.
- * @returns The module namespace.
- */
-const importInstallEntry: EntryImporter = (specifier) => import(specifier)
 
 /**
  * Register all core CLI commands.
@@ -37,6 +25,7 @@ const importInstallEntry: EntryImporter = (specifier) => import(specifier)
  * - make:* commands (controllers, services, etc.)
  * - auth commands (make:auth)
  * - router commands (router:list)
+ * - queue commands (queue:work, queue:clear)
  * - nessy:install command
  * - tinker REPL command
  *
@@ -78,7 +67,49 @@ export function registerCoreCommands(cli: Cli): void {
                     'Usage: cli package:install <package-name> (e.g., cli package:install openapi)',
                 )
             }
-            await installPackage(packageName, importInstallEntry)
+
+            // Normalize package name
+            const fullPackageName = packageName.startsWith('@lockness/')
+                ? packageName
+                : `@lockness/${packageName}`
+
+            let module: { default?: unknown }
+            try {
+                // A package specifier the app's import map resolves, not an
+                // app file, so importAppFile does not apply; publish:check
+                // inventories it.
+                // deno-lint-ignore lockness/app-file-specifier
+                module = await import(`${fullPackageName}/install`)
+            } catch (error) {
+                // Only a package without an install script is expected;
+                // anything else reaches the dispatcher's catch-all.
+                if (
+                    !(error instanceof Error &&
+                        error.message.includes('does not provide an export'))
+                ) {
+                    throw error
+                }
+                await addPackage(packageName)
+                console.log('\n✅ Package added to configuration')
+                console.log(
+                    'ℹ️  This package does not have an automated installer',
+                )
+                return
+            }
+
+            if (typeof module.default === 'function') {
+                await module.default()
+            } else {
+                // Fallback: just add to config
+                await addPackage(packageName)
+                console.log('\n✅ Package added to configuration')
+                console.log(
+                    '⚠️  This package does not have an automated installer',
+                )
+                console.log(
+                    '   Please refer to the package documentation for setup instructions',
+                )
+            }
         },
         'Install and configure a Lockness package (runs setup automatically)',
     )
@@ -102,6 +133,7 @@ export function registerCoreCommands(cli: Cli): void {
     registerAuthCommands(cli)
     registerNessyCommands(cli)
     registerRouterCommands(cli)
+    registerQueueCommands(cli)
     registerDebugCommands(cli)
     registerTinkerCommand(cli)
 }

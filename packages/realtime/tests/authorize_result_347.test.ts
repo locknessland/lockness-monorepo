@@ -36,7 +36,6 @@
  * @module @lockness/realtime/tests/authorize_result_347
  */
 
-import { test } from 'node:test'
 import {
     assert,
     assertEquals,
@@ -220,7 +219,7 @@ for (const [backendName, makeBackend] of BACKENDS) {
                 `#347 ${backendName} ${channel}: an authorizer returning ${valueName} throws AuthorizeResultError — ${
                     refusalClaims(backendName, channel)
                 }`
-            test(name, async () => {
+            Deno.test(name, async () => {
                 const backend = makeBackend()
                 try {
                     const m = new ChannelManager<User>({
@@ -322,7 +321,7 @@ for (const [backendName, makeBackend] of BACKENDS) {
     }
 }
 
-test('#347 fake Redis: an admitted private subscribe publishes no control frame, so a private refusal row does not read that counter', async () => {
+Deno.test('#347 fake Redis: an admitted private subscribe publishes no control frame, so a private refusal row does not read that counter', async () => {
     // The reason the refusal matrix asserts the control-publish zero on
     // presence rows only (#351). If a private admission ever starts
     // publishing, this fails — and the private rows should assert the counter
@@ -362,7 +361,7 @@ test('#347 fake Redis: an admitted private subscribe publishes no control frame,
 
 // --- What admits, and what denies ------------------------------------------
 
-test('#347 private `true` and a PresenceMember both admit', async () => {
+Deno.test('#347 private `true` and a PresenceMember both admit', async () => {
     for (const value of [true, { id: 'u1' }]) {
         const m = new ChannelManager<User>({
             driver: new MemoryBroadcastDriver(),
@@ -377,7 +376,7 @@ test('#347 private `true` and a PresenceMember both admit', async () => {
     }
 })
 
-test('#347 presence `true` joins as the connection id', async () => {
+Deno.test('#347 presence `true` joins as the connection id', async () => {
     const driver = new MemoryBroadcastDriver()
     const m = new ChannelManager<User>({ driver, authorize: () => true })
     const c1 = conn('c1', SUSPECT)
@@ -387,7 +386,7 @@ test('#347 presence `true` joins as the connection id', async () => {
     assertEquals(await rosterIds(driver, PRESENCE), ['c1'])
 })
 
-test('#347 presence `{ id, info }` joins as returned', async () => {
+Deno.test('#347 presence `{ id, info }` joins as returned', async () => {
     const driver = new MemoryBroadcastDriver()
     const member: PresenceMember = { id: 7, info: { name: 'Ada' } }
     const m = new ChannelManager<User>({ driver, authorize: () => member })
@@ -400,7 +399,7 @@ test('#347 presence `{ id, info }` joins as returned', async () => {
     )
 })
 
-test('#347 presence: a class-instance member admits — the rule is "an object", not "a plain object"', async () => {
+Deno.test('#347 presence: a class-instance member admits — the rule is "an object", not "a plain object"', async () => {
     class Member implements PresenceMember {
         constructor(readonly id: number) {}
     }
@@ -415,7 +414,7 @@ test('#347 presence: a class-instance member admits — the rule is "an object",
     assertEquals(await rosterIds(driver, PRESENCE), [9])
 })
 
-test('#347 `false` still denies with { ok: false }, on both kinds', async () => {
+Deno.test('#347 `false` still denies with { ok: false }, on both kinds', async () => {
     for (const channel of [PRIVATE, PRESENCE]) {
         const driver = new MemoryBroadcastDriver()
         const m = new ChannelManager<User>({ driver, authorize: () => false })
@@ -430,7 +429,7 @@ test('#347 `false` still denies with { ok: false }, on both kinds', async () => 
     }
 })
 
-test('#347 no authorizer still denies with { ok: false }', async () => {
+Deno.test('#347 no authorizer still denies with { ok: false }', async () => {
     const m = new ChannelManager<User>({ driver: new MemoryBroadcastDriver() })
     const c1 = conn('c1', SUSPECT)
     m.register(c1)
@@ -442,7 +441,7 @@ test('#347 no authorizer still denies with { ok: false }', async () => {
     }
 })
 
-test('#347 a public channel never calls the authorizer, whatever it would return', async () => {
+Deno.test('#347 a public channel never calls the authorizer, whatever it would return', async () => {
     let calls = 0
     const m = new ChannelManager<User>({
         driver: new MemoryBroadcastDriver(),
@@ -459,7 +458,7 @@ test('#347 a public channel never calls the authorizer, whatever it would return
 
 // --- Ordering, #331, and the message ----------------------------------------
 
-test('#347 the result is classified BEFORE the caps: a full connection gets AuthorizeResultError, not ChannelLimitError', async () => {
+Deno.test('#347 the result is classified BEFORE the caps: a full connection gets AuthorizeResultError, not ChannelLimitError', async () => {
     const m = new ChannelManager<User>({
         driver: new MemoryBroadcastDriver(),
         maxChannelsPerConnection: 1,
@@ -482,7 +481,7 @@ test('#347 the result is classified BEFORE the caps: a full connection gets Auth
     )
 })
 
-test('#347 a held presence subscription whose authorizer flips to undefined throws AuthorizeResultError and keeps its entry and delivery (#331)', async () => {
+Deno.test('#347 a held presence subscription whose authorizer flips to undefined throws AuthorizeResultError and keeps its entry and delivery (#331)', async () => {
     const driver = new MemoryBroadcastDriver()
     const state = { broken: false }
     const m = new ChannelManager<User>({
@@ -511,7 +510,7 @@ test('#347 a held presence subscription whose authorizer flips to undefined thro
     assertEquals(c.received.length, before + 1, 'and delivery continues')
 })
 
-test('#347 the message names the type and the channel, and never echoes the value', async () => {
+Deno.test('#347 the message names the type and the channel, and never echoes the value', async () => {
     const m = new ChannelManager<User>({
         driver: new MemoryBroadcastDriver(),
         authorize: suspectAuthorizer(() => 'sentinel-XYZ'),
@@ -537,7 +536,7 @@ test('#347 the message names the type and the channel, and never echoes the valu
 
 // --- The classifier, directly ----------------------------------------------
 
-test('#347 classifyAuthorizeResult: the three verdicts', () => {
+Deno.test('#347 classifyAuthorizeResult: the three verdicts', () => {
     const member = { id: 3 }
     assertEquals(classifyAuthorizeResult(false), { verdict: 'deny' })
     assertEquals(classifyAuthorizeResult(true), {

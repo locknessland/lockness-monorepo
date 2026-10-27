@@ -2,7 +2,6 @@
  * Tests for @lockness/validator - Complex Scenarios
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import {
     alphanumeric,
@@ -17,8 +16,8 @@ import {
     validator,
 } from '../mod.ts'
 
-test('Validator - Complex scenarios', async (t) => {
-    await t.test('user registration', async () => {
+Deno.test('Validator - Complex scenarios', async (t) => {
+    await t.step('user registration', async () => {
         const v = validator()
             .field('username', [minLength(3), maxLength(20), alphanumeric()])
             .field('email', [email()])
@@ -45,7 +44,7 @@ test('Validator - Complex scenarios', async (t) => {
         assertEquals(sanitized.email, 'john@example.com')
     })
 
-    await t.test('conditional validation', async () => {
+    await t.step('conditional validation', async () => {
         const v = validator()
             .field('shipping_address', [minLength(10)], {
                 optional: true,

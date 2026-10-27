@@ -5,7 +5,6 @@
  * compose() + @UseMiddleware into a single elegant decorator.
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import {
     ComposeMiddleware,
@@ -53,7 +52,7 @@ class _NamedTestMiddleware {
 // Test: Basic decorator syntax
 // =============================================================================
 
-test('ComposeMiddleware - should register composed middlewares on method', () => {
+Deno.test('ComposeMiddleware - should register composed middlewares on method', () => {
     @Controller('/test')
     class TestController {
         @Get('/users')
@@ -75,7 +74,7 @@ test('ComposeMiddleware - should register composed middlewares on method', () =>
     )
 })
 
-test('ComposeMiddleware - should accept named middlewares', () => {
+Deno.test('ComposeMiddleware - should accept named middlewares', () => {
     // Ensure named middleware is registered
     assertEquals(
         declaredMiddlewares.has('test-named'),
@@ -102,7 +101,7 @@ test('ComposeMiddleware - should accept named middlewares', () => {
     )
 })
 
-test('ComposeMiddleware - should support rest parameter syntax', () => {
+Deno.test('ComposeMiddleware - should support rest parameter syntax', () => {
     @Controller('/test3')
     class TestController3 {
         @Get('/complex')
@@ -130,7 +129,7 @@ test('ComposeMiddleware - should support rest parameter syntax', () => {
 // Test: Empty composition
 // =============================================================================
 
-test('ComposeMiddleware - should handle empty middleware list', () => {
+Deno.test('ComposeMiddleware - should handle empty middleware list', () => {
     @Controller('/test4')
     class TestController4 {
         @Get('/empty')

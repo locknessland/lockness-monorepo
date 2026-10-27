@@ -13,7 +13,6 @@
  * @module @lockness/openapi/tests/discovery
  */
 
-import { test } from 'node:test'
 import {
     assertEquals,
     assertRejects,
@@ -50,7 +49,7 @@ async function withAwkwardDir(
     }
 }
 
-test("loadDocumentedControllers - imports a controller under a path with '#' and a space", async () => {
+Deno.test("loadDocumentedControllers - imports a controller under a path with '#' and a space", async () => {
     await withAwkwardDir({
         'awkward_controller.ts':
             "export class AwkwardController { static _basePath = '/awkward' }\n",
@@ -61,7 +60,7 @@ test("loadDocumentedControllers - imports a controller under a path with '#' and
     })
 })
 
-test('loadDocumentedControllers - names a controller file that fails to load', async () => {
+Deno.test('loadDocumentedControllers - names a controller file that fails to load', async () => {
     await withAwkwardDir({
         'broken_controller.ts':
             'throw new Error("broken at load")\nexport {}\n',
@@ -71,7 +70,7 @@ test('loadDocumentedControllers - names a controller file that fails to load', a
     })
 })
 
-test('loadDocumentedControllers - is exported from the package root, for the scaffolded docs controller', () => {
+Deno.test('loadDocumentedControllers - is exported from the package root, for the scaffolded docs controller', () => {
     assertStrictEquals(
         (openapi as Record<string, unknown>).loadDocumentedControllers,
         loadDocumentedControllers,

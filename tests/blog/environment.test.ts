@@ -6,16 +6,15 @@
  * unit test, and the real port sources its value from `config/app.ts`.
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { Environment } from '../../app/service/environment.ts'
 
-test('Environment - real port exposes a boolean isProduction', () => {
+Deno.test('Environment - real port exposes a boolean isProduction', () => {
     const env = new Environment()
     assertEquals(typeof env.isProduction, 'boolean')
 })
 
-test('Environment - real port is not production under the test env', () => {
+Deno.test('Environment - real port is not production under the test env', () => {
     // APP_ENV is unset in the test runner -> config defaults to development.
     const env = new Environment()
     assertEquals(env.isProduction, false)

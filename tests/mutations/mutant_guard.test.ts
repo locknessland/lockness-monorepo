@@ -18,7 +18,6 @@
  * @module tests/mutations/mutant_guard
  */
 
-import { test } from 'node:test'
 import { assertEquals, assertThrows } from '@std/assert'
 import { toFileUrl } from '@std/path'
 import { spy, stub } from '@std/testing/mock'
@@ -43,7 +42,7 @@ async function withSubject(
     }
 }
 
-test('#356 MutantGuard disposal restores a mutant still in flight', async () => {
+Deno.test('#356 MutantGuard disposal restores a mutant still in flight', async () => {
     await withSubject(async (subject, path) => {
         {
             using guard = new MutantGuard()
@@ -63,7 +62,7 @@ test('#356 MutantGuard disposal restores a mutant still in flight', async () => 
     })
 })
 
-test('#356 MutantGuard.restore on a file it never mutated is a no-op', async () => {
+Deno.test('#356 MutantGuard.restore on a file it never mutated is a no-op', async () => {
     await withSubject(async (subject, path) => {
         const edited = 'export const x = 1 // edited by hand\n'
         await Deno.writeTextFile(path, edited)
@@ -77,7 +76,7 @@ test('#356 MutantGuard.restore on a file it never mutated is a no-op', async () 
     })
 })
 
-test('#356 a failed MutantGuard.restore stays in flight, so disposal retries it', async () => {
+Deno.test('#356 a failed MutantGuard.restore stays in flight, so disposal retries it', async () => {
     await withSubject(async (subject, path) => {
         {
             using guard = new MutantGuard()
@@ -102,7 +101,7 @@ test('#356 a failed MutantGuard.restore stays in flight, so disposal retries it'
     })
 })
 
-test('#356 a MutantGuard whose constructor fails removes the listeners it installed', () => {
+Deno.test('#356 a MutantGuard whose constructor fails removes the listeners it installed', () => {
     const install = Deno.addSignalListener
     let calls = 0
     using add = stub(

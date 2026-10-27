@@ -5,7 +5,6 @@
  * @module @lockness/mail/tests/queued
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { configureMail, MemoryMailDriver } from '../mod.ts'
 import { Mailable, type MailableContent } from '../mailable.ts'
@@ -36,7 +35,7 @@ class Invoice extends Mailable {
     }
 }
 
-test('SC-005: queueMailable enqueues one identifiers-only job (no rendered body)', () => {
+Deno.test('SC-005: queueMailable enqueues one identifiers-only job (no rendered body)', () => {
     const jobs: QueuedMailJob[] = []
     resetMailQueue()
     configureMailQueue((job) => void jobs.push(job))
@@ -56,7 +55,7 @@ test('SC-005: queueMailable enqueues one identifiers-only job (no rendered body)
     resetMailQueue()
 })
 
-test('SC-005: the job rehydrates via the registry + sends in handle()', async () => {
+Deno.test('SC-005: the job rehydrates via the registry + sends in handle()', async () => {
     configureMail({ driver: 'memory' })
     MemoryMailDriver.clear()
     resetMailableRegistry()
@@ -80,7 +79,7 @@ test('SC-005: the job rehydrates via the registry + sends in handle()', async ()
     MemoryMailDriver.clear()
 })
 
-test('SC-005a: an unregistered mailable job is rejected without instantiation', async () => {
+Deno.test('SC-005a: an unregistered mailable job is rejected without instantiation', async () => {
     resetMailableRegistry()
     let threw = false
     try {

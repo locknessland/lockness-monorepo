@@ -2,11 +2,10 @@
  * Tests for UiDocLoader service
  */
 
-import { test } from 'node:test'
 import { assertEquals, assertRejects, assertStrictEquals } from '@std/assert'
 import { UiDocLoader } from '../doc_loader.ts'
 
-test('UiDocLoader - load() returns parsed documentation', async () => {
+Deno.test('UiDocLoader - load() returns parsed documentation', async () => {
     const loader = new UiDocLoader()
 
     const doc = await loader.load('buttons')
@@ -18,7 +17,7 @@ test('UiDocLoader - load() returns parsed documentation', async () => {
     assertEquals(doc.content.includes('# '), true) // Has markdown heading
 })
 
-test('UiDocLoader - load() throws on unknown slug', async () => {
+Deno.test('UiDocLoader - load() throws on unknown slug', async () => {
     const loader = new UiDocLoader()
 
     await assertRejects(
@@ -28,7 +27,7 @@ test('UiDocLoader - load() throws on unknown slug', async () => {
     )
 })
 
-test('UiDocLoader - load() caches results', async () => {
+Deno.test('UiDocLoader - load() caches results', async () => {
     const loader = new UiDocLoader()
 
     const doc1 = await loader.load('buttons')
@@ -39,7 +38,7 @@ test('UiDocLoader - load() caches results', async () => {
     assertStrictEquals(doc1, doc2)
 })
 
-test('UiDocLoader - clearCache() removes cached docs', async () => {
+Deno.test('UiDocLoader - clearCache() removes cached docs', async () => {
     const loader = new UiDocLoader()
 
     await loader.load('buttons')
@@ -50,7 +49,7 @@ test('UiDocLoader - clearCache() removes cached docs', async () => {
     assertEquals(doc.slug, 'buttons')
 })
 
-test('UiDocLoader - getAvailableSlugs() returns slug list', () => {
+Deno.test('UiDocLoader - getAvailableSlugs() returns slug list', () => {
     const loader = new UiDocLoader()
 
     const slugs = loader.getAvailableSlugs()
@@ -61,7 +60,7 @@ test('UiDocLoader - getAvailableSlugs() returns slug list', () => {
     assertEquals(slugs.includes('alerts'), true)
 })
 
-test('UiDocLoader - hasSlug() validates slugs', () => {
+Deno.test('UiDocLoader - hasSlug() validates slugs', () => {
     const loader = new UiDocLoader()
 
     assertEquals(loader.hasSlug('buttons'), true)
@@ -69,7 +68,7 @@ test('UiDocLoader - hasSlug() validates slugs', () => {
     assertEquals(loader.hasSlug('unknown'), false)
 })
 
-test('UiDocLoader - getSlugMapping() returns mapping', () => {
+Deno.test('UiDocLoader - getSlugMapping() returns mapping', () => {
     const loader = new UiDocLoader()
 
     const mapping = loader.getSlugMapping()
@@ -79,7 +78,7 @@ test('UiDocLoader - getSlugMapping() returns mapping', () => {
     assertEquals(mapping['cards'], 'Card')
 })
 
-test('UiDocLoader - parseDoc extracts title from H1', async () => {
+Deno.test('UiDocLoader - parseDoc extracts title from H1', async () => {
     const loader = new UiDocLoader()
 
     const doc = await loader.load('buttons')
@@ -88,7 +87,7 @@ test('UiDocLoader - parseDoc extracts title from H1', async () => {
     assertEquals(doc.title, 'Button')
 })
 
-test('UiDocLoader - multiple components can be loaded', async () => {
+Deno.test('UiDocLoader - multiple components can be loaded', async () => {
     const loader = new UiDocLoader()
 
     const button = await loader.load('buttons')

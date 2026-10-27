@@ -13,9 +13,8 @@
  * driver joins the union without a fixation runner (Architecture A-L3).
  */
 
-import { test } from 'node:test'
 import { assertEquals, assertNotEquals } from '@std/assert'
-import type { Context } from '@lockness/hono'
+import type { Context } from 'hono'
 import type { SessionConfig, SessionData, SessionDriver } from '../types.ts'
 import { SessionStore } from '../store.ts'
 import { generateAppKey } from '../secret.ts'
@@ -141,7 +140,7 @@ const runners: Record<SessionConfig['driver'], () => Promise<void>> = {
 }
 
 for (const name of Object.keys(runners) as Array<SessionConfig['driver']>) {
-    test(
+    Deno.test(
         `fixation - ${name} rotates the id on login (FR-008)`,
         runners[name],
     )

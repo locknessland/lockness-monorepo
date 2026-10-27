@@ -6,7 +6,6 @@
  * the returned outcome and on how many times the body actually ran.
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { stub } from '@std/testing/mock'
 import { runTask, TaskTimeoutError } from '../task_runner.ts'
@@ -27,7 +26,7 @@ function recorder(): SchedulerReporter & { errors: string[]; warns: string[] } {
 /** No real waiting between attempts. */
 const noSleep = () => Promise.resolve()
 
-test('runTask - a successful run reports one attempt and calls onSuccess', async () => {
+Deno.test('runTask - a successful run reports one attempt and calls onSuccess', async () => {
     let ran = 0
     let succeeded = ''
     const outcome = await runTask(
@@ -49,7 +48,7 @@ test('runTask - a successful run reports one attempt and calls onSuccess', async
     assertEquals(succeeded, 'ok')
 })
 
-test('runTask - retries means n ADDITIONAL attempts', async () => {
+Deno.test('runTask - retries means n ADDITIONAL attempts', async () => {
     let ran = 0
     const outcome = await runTask(
         'flaky',
@@ -68,7 +67,7 @@ test('runTask - retries means n ADDITIONAL attempts', async () => {
     assertEquals(outcome.error, { name: 'Error', message: 'nope' })
 })
 
-test('runTask - a retry that succeeds stops the chain', async () => {
+Deno.test('runTask - a retry that succeeds stops the chain', async () => {
     let ran = 0
     const outcome = await runTask(
         'recovers',
@@ -86,7 +85,7 @@ test('runTask - a retry that succeeds stops the chain', async () => {
     assertEquals(outcome.attempts, 2)
 })
 
-test('runTask - onError fires once per failed attempt, with the attempt number', async () => {
+Deno.test('runTask - onError fires once per failed attempt, with the attempt number', async () => {
     const seen: TaskFailure[] = []
     await runTask(
         'failing',
@@ -113,7 +112,7 @@ test('runTask - onError fires once per failed attempt, with the attempt number',
     )
 })
 
-test('runTask - an onError that itself throws is contained', async () => {
+Deno.test('runTask - an onError that itself throws is contained', async () => {
     const rep = recorder()
     let ran = 0
     const outcome = await runTask(
@@ -143,7 +142,7 @@ test('runTask - an onError that itself throws is contained', async () => {
     )
 })
 
-test('runTask - an onSuccess that throws is contained and the run still succeeds', async () => {
+Deno.test('runTask - an onSuccess that throws is contained and the run still succeeds', async () => {
     const rep = recorder()
     const outcome = await runTask(
         'ok',
@@ -164,7 +163,7 @@ test('runTask - an onSuccess that throws is contained and the run still succeeds
     )
 })
 
-test('runTask - timeout aborts the signal and fails the attempt', async () => {
+Deno.test('runTask - timeout aborts the signal and fails the attempt', async () => {
     let aborted = false
     const outcome = await runTask(
         'hangs',
@@ -184,7 +183,7 @@ test('runTask - timeout aborts the signal and fails the attempt', async () => {
     assertEquals(aborted, true, 'the body received the abort, so it can stop')
 })
 
-test('runTask - a task that honours its signal ends promptly', async () => {
+Deno.test('runTask - a task that honours its signal ends promptly', async () => {
     const outcome = await runTask(
         'wellbehaved',
         (signal) =>
@@ -200,7 +199,7 @@ test('runTask - a task that honours its signal ends promptly', async () => {
     assertEquals(outcome.error?.name, 'TaskTimeoutError')
 })
 
-test('runTask - the reported line carries no raw error object', async () => {
+Deno.test('runTask - the reported line carries no raw error object', async () => {
     const rep = recorder()
     await runTask(
         'leaky',
@@ -226,7 +225,7 @@ test('runTask - the reported line carries no raw error object', async () => {
 // Reporter guard — #394
 // ============================================================================
 
-test('runTask - a reporter that throws on the failure report does not escape runTask', async () => {
+Deno.test('runTask - a reporter that throws on the failure report does not escape runTask', async () => {
     // task_runner.ts's `report()`: previously `if (reporter) reporter.error(…)`
     // was unguarded, so a throwing reporter escaped the one catch this package
     // permits — runTask() is documented as never throwing.
@@ -257,7 +256,7 @@ test('runTask - a reporter that throws on the failure report does not escape run
     }
 })
 
-test('runTask - a reporter that throws while containing a throwing onError does not escape runTask', async () => {
+Deno.test('runTask - a reporter that throws while containing a throwing onError does not escape runTask', async () => {
     // task_runner.ts's `guard()`: same unguarded `if (reporter) reporter.error(…)`,
     // reached from the containment path rather than the failure report.
     const consoleError = stub(console, 'error')
@@ -294,7 +293,7 @@ test('runTask - a reporter that throws while containing a throwing onError does 
     }
 })
 
-test('TaskTimeoutError - names the task and the elapsed budget', () => {
+Deno.test('TaskTimeoutError - names the task and the elapsed budget', () => {
     const e = new TaskTimeoutError('digest', 30_000)
     assertEquals(e.name, 'TaskTimeoutError')
     assertEquals(e.message.includes('digest'), true)

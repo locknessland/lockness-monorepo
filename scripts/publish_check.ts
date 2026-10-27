@@ -99,10 +99,10 @@
 import { dirname, join, toFileUrl } from '@std/path'
 import { parse as parseJsonc } from '@std/jsonc'
 import { parse, parseRange, satisfies } from '@std/semver'
-import { readWorkspaceMembers } from './manifests.ts'
 
 const ROOT = Deno.cwd()
 const PACKAGES_DIR = join(ROOT, 'packages')
+const ROOT_MANIFEST = join(ROOT, 'deno.jsonc')
 
 /**
  * The shape a workspace member needs before `deno publish` will accept it.
@@ -145,26 +145,26 @@ export function publishabilityFault(
         `failed with nothing published (#325).\n` +
         `      Add the missing field. Neither of the two obvious escapes ` +
         `works: \`"private": true\` does not exclude a member, and removing ` +
-        `it from the root package.json workspaces breaks every bare import ` +
-        `of it.`
+        `it from the workspace array breaks every bare import of it.`
 }
 
 /**
  * Every workspace member that declares a name but cannot be published.
  *
- * Reads the root `package.json` `workspaces` list rather than scanning
- * `packages/` — that list is what `deno publish` acts on, and the two are not
- * the same set: the workspace carries 38 entries against 37 directories,
- * because one member is nested.
+ * Reads the `workspace` array rather than scanning `packages/` — that array is
+ * what `deno publish` acts on, and the two are not the same set: the workspace
+ * carries 38 entries against 37 directories, because one member is nested.
  *
  * @returns One fault description per offending member, empty when clean.
- * @throws {Error} If the root `package.json` cannot be read or has no
- *   `workspaces` list.
+ * @throws {Error} If the root manifest cannot be read or parsed.
  */
 async function unpublishableMembers(): Promise<string[]> {
+    const root = parseJsonc(
+        await Deno.readTextFile(ROOT_MANIFEST),
+    ) as { workspace?: string[] }
     const faults: string[] = []
-    for (const member of await readWorkspaceMembers(ROOT)) {
-        const rel = `${member}/deno.json`
+    for (const member of root.workspace ?? []) {
+        const rel = `${member.replace(/^\.\//, '')}/deno.json`
         let manifest: Record<string, unknown>
         try {
             manifest = JSON.parse(

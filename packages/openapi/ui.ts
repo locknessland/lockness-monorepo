@@ -3,7 +3,7 @@
  * Serves Swagger UI with the generated OpenAPI spec
  */
 
-import type { Context } from '@lockness/hono'
+import type { Context } from 'hono'
 import type { OpenAPISpec } from './types.ts'
 
 export function serveSwaggerUI(spec: OpenAPISpec): {

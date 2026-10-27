@@ -4,7 +4,6 @@
 
 // deno-lint-ignore-file no-unused-vars require-await
 
-import { test } from 'node:test'
 import { assertEquals, assertExists } from '@std/assert'
 import { discoverMiddlewares, MiddlewareResolver } from '../http/resolver.ts'
 import {
@@ -13,7 +12,7 @@ import {
 } from '../routing/decorators.ts'
 import type { Context, MiddlewareContract, Next } from '../types.ts'
 
-test('MiddlewareResolver - mergeDeclaredMiddlewares adds declared middlewares to registry', () => {
+Deno.test('MiddlewareResolver - mergeDeclaredMiddlewares adds declared middlewares to registry', () => {
     declaredMiddlewares.clear()
 
     @DeclareMiddleware('declared-auth')
@@ -31,7 +30,7 @@ test('MiddlewareResolver - mergeDeclaredMiddlewares adds declared middlewares to
     assertExists(handler)
 })
 
-test('MiddlewareResolver - declared middlewares take precedence over manual registration', () => {
+Deno.test('MiddlewareResolver - declared middlewares take precedence over manual registration', () => {
     declaredMiddlewares.clear()
 
     class ManualAuthMiddleware implements MiddlewareContract {
@@ -58,7 +57,7 @@ test('MiddlewareResolver - declared middlewares take precedence over manual regi
     assertExists(handler)
 })
 
-test('MiddlewareResolver - resolves multiple declared middlewares', () => {
+Deno.test('MiddlewareResolver - resolves multiple declared middlewares', () => {
     declaredMiddlewares.clear()
 
     @DeclareMiddleware('one')
@@ -89,7 +88,7 @@ test('MiddlewareResolver - resolves multiple declared middlewares', () => {
     assertEquals(handlers.length, 3)
 })
 
-test('MiddlewareResolver - handles non-existent middleware gracefully', () => {
+Deno.test('MiddlewareResolver - handles non-existent middleware gracefully', () => {
     declaredMiddlewares.clear()
 
     const resolver = new MiddlewareResolver()
@@ -99,7 +98,7 @@ test('MiddlewareResolver - handles non-existent middleware gracefully', () => {
     assertEquals(handler, null)
 })
 
-test('discoverMiddlewares - discovers middlewares from directory', async () => {
+Deno.test('discoverMiddlewares - discovers middlewares from directory', async () => {
     declaredMiddlewares.clear()
 
     // Create a temp directory with a middleware file
@@ -131,12 +130,12 @@ export class TempTestMiddleware {
     await Deno.remove(tempDir, { recursive: true })
 })
 
-test('discoverMiddlewares - handles non-existent directory gracefully', async () => {
+Deno.test('discoverMiddlewares - handles non-existent directory gracefully', async () => {
     const count = await discoverMiddlewares('/non/existent/path')
     assertEquals(count, 0)
 })
 
-test('discoverMiddlewares - resolves relative paths correctly', async () => {
+Deno.test('discoverMiddlewares - resolves relative paths correctly', async () => {
     declaredMiddlewares.clear()
 
     // Create a temp directory in cwd with a middleware file

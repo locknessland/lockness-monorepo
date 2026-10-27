@@ -14,7 +14,6 @@
  * @module @lockness/realtime/tests/deliver_local_reauth
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { ChannelManager } from '../manager.ts'
 import type { BroadcastDriver, BroadcastMessage } from '../driver.ts'
@@ -57,7 +56,7 @@ function fakeConn(id: string, identity: User | null): Connection<User> {
 const sentOf = (c: Connection<User>) =>
     (c as unknown as { _sent: string[] })._sent
 
-test('FR-011/S6: a received message fans only to the local subscription set — never to an unauthorized connection', async () => {
+Deno.test('FR-011/S6: a received message fans only to the local subscription set — never to an unauthorized connection', async () => {
     const driver = new ControllableDriver()
     // Deny user 2; approve everyone else.
     const manager = new ChannelManager<User>({
@@ -81,7 +80,7 @@ test('FR-011/S6: a received message fans only to the local subscription set — 
     assertEquals(sentOf(denied).length, 0)
 })
 
-test('FR-011/S6: a received message on a channel with no local subscribers reaches no one', () => {
+Deno.test('FR-011/S6: a received message on a channel with no local subscribers reaches no one', () => {
     const driver = new ControllableDriver()
     const manager = new ChannelManager<User>({ driver, authorize: () => true })
 

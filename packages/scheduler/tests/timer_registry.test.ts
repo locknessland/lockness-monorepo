@@ -4,18 +4,16 @@
  * Two of these tests exist because of measurements, not theory:
  *  - deno 2.9.6 turns a delay above 2^31-1 ms into 1 ms and warns, so an
  *    un-capped `yearly` task would fire in a tight loop;
- *  - a leaked setTimeout does NOT fail the test runner (Deno.test or
- *    node:test), in sync or async form, with or without --trace-leaks, so
- *    `size` is what we assert on.
+ *  - a leaked setTimeout does NOT fail Deno.test, in sync or async form, with
+ *    or without --trace-leaks, so `size` is what we assert on.
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { stub } from '@std/testing/mock'
 import { FakeTime } from '@std/testing/time'
 import { MAX_DELAY_MS, MIN_DELAY_MS, TimerRegistry } from '../timer_registry.ts'
 
-test('TimerRegistry - arms a timer and fires it at the delay', () => {
+Deno.test('TimerRegistry - arms a timer and fires it at the delay', () => {
     const time = new FakeTime()
     try {
         const r = new TimerRegistry()
@@ -33,7 +31,7 @@ test('TimerRegistry - arms a timer and fires it at the delay', () => {
     }
 })
 
-test('TimerRegistry - cancel removes a pending timer without firing it', () => {
+Deno.test('TimerRegistry - cancel removes a pending timer without firing it', () => {
     const time = new FakeTime()
     try {
         const r = new TimerRegistry()
@@ -49,7 +47,7 @@ test('TimerRegistry - cancel removes a pending timer without firing it', () => {
     }
 })
 
-test('TimerRegistry - arming the same key twice replaces the first timer', () => {
+Deno.test('TimerRegistry - arming the same key twice replaces the first timer', () => {
     const time = new FakeTime()
     try {
         const r = new TimerRegistry()
@@ -65,7 +63,7 @@ test('TimerRegistry - arming the same key twice replaces the first timer', () =>
     }
 })
 
-test('TimerRegistry - clear() leaves nothing pending', () => {
+Deno.test('TimerRegistry - clear() leaves nothing pending', () => {
     const time = new FakeTime()
     try {
         const r = new TimerRegistry()
@@ -82,7 +80,7 @@ test('TimerRegistry - clear() leaves nothing pending', () => {
     }
 })
 
-test('TimerRegistry - a delay above the cap re-arms instead of firing', () => {
+Deno.test('TimerRegistry - a delay above the cap re-arms instead of firing', () => {
     const time = new FakeTime()
     try {
         const r = new TimerRegistry()
@@ -109,7 +107,7 @@ test('TimerRegistry - a delay above the cap re-arms instead of firing', () => {
     }
 })
 
-test('TimerRegistry - a delay below the floor is clamped and reported', () => {
+Deno.test('TimerRegistry - a delay below the floor is clamped and reported', () => {
     const time = new FakeTime()
     const warnings: string[] = []
     try {
@@ -134,7 +132,7 @@ test('TimerRegistry - a delay below the floor is clamped and reported', () => {
     }
 })
 
-test('TimerRegistry - the bounds are the documented constants', () => {
+Deno.test('TimerRegistry - the bounds are the documented constants', () => {
     assertEquals(MIN_DELAY_MS, 1_000)
     assertEquals(MAX_DELAY_MS, 24 * 24 * 60 * 60 * 1000)
     assertEquals(
@@ -144,7 +142,7 @@ test('TimerRegistry - the bounds are the documented constants', () => {
     )
 })
 
-test('TimerRegistry - sleep() is owned by the registry and counted', () => {
+Deno.test('TimerRegistry - sleep() is owned by the registry and counted', () => {
     const time = new FakeTime()
     try {
         const r = new TimerRegistry()
@@ -163,7 +161,7 @@ test('TimerRegistry - sleep() is owned by the registry and counted', () => {
     }
 })
 
-test('TimerRegistry - clear() releases a pending sleep rather than stranding it', async () => {
+Deno.test('TimerRegistry - clear() releases a pending sleep rather than stranding it', async () => {
     const time = new FakeTime()
     try {
         const r = new TimerRegistry()
@@ -187,7 +185,7 @@ test('TimerRegistry - clear() releases a pending sleep rather than stranding it'
     }
 })
 
-test('TimerRegistry - has() distinguishes a pending timer from an absent one', () => {
+Deno.test('TimerRegistry - has() distinguishes a pending timer from an absent one', () => {
     const time = new FakeTime()
     try {
         const r = new TimerRegistry()
@@ -205,7 +203,7 @@ test('TimerRegistry - has() distinguishes a pending timer from an absent one', (
 // Reporter guard — #394
 // ============================================================================
 
-test('TimerRegistry - a reporter that throws on the clamp warning does not escape arm()', () => {
+Deno.test('TimerRegistry - a reporter that throws on the clamp warning does not escape arm()', () => {
     // `arm()` calls `#warn()` SYNCHRONOUSLY, from `register()`'s call chain,
     // outside any promise — a throw here used to be an uncaught exception the
     // caller had no way to catch, not a rejection something could handle.
@@ -231,7 +229,7 @@ test('TimerRegistry - a reporter that throws on the clamp warning does not escap
     }
 })
 
-test('TimerRegistry - setReporter installs a reporter after construction', () => {
+Deno.test('TimerRegistry - setReporter installs a reporter after construction', () => {
     // The Scheduler is built before core has resolved the application's logger,
     // so the reporter has to be installable in place rather than only via the
     // constructor. A clamped delay is the observable that proves it took.

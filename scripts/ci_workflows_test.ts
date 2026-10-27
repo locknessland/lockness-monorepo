@@ -5,7 +5,6 @@
  * @module
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertRejects, assertThrows } from '@std/assert'
 import { join, toFileUrl } from '@std/path'
 import {
@@ -31,7 +30,7 @@ function onlyJob(body: string): WorkflowJob {
     return job
 }
 
-test('readWorkflows reads .yml and .yaml, sorted, not recursively', async () => {
+Deno.test('readWorkflows reads .yml and .yaml, sorted, not recursively', async () => {
     const dir = await Deno.makeTempDir()
     try {
         const body = oneJob('steps: []')
@@ -51,7 +50,7 @@ test('readWorkflows reads .yml and .yaml, sorted, not recursively', async () => 
     }
 })
 
-test('readWorkflows refuses a workflow name that is not a regular file', async () => {
+Deno.test('readWorkflows refuses a workflow name that is not a regular file', async () => {
     const dir = await Deno.makeTempDir()
     try {
         await Deno.writeTextFile(join(dir, 'real.txt'), oneJob('steps: []'))
@@ -66,7 +65,7 @@ test('readWorkflows refuses a workflow name that is not a regular file', async (
     }
 })
 
-test('the real workflows parse, each job in file order', async () => {
+Deno.test('the real workflows parse, each job in file order', async () => {
     const workflows = await readWorkflows()
     assertEquals(workflows.map((w) => w.file), [
         'publish.yml',
@@ -78,8 +77,6 @@ test('the real workflows parse, each job in file order', async () => {
         ['gitleaks'],
         [
             'test',
-            'bun',
-            'node',
             'live-redis',
             'live-postgres',
             'live-mysql',
@@ -90,7 +87,7 @@ test('the real workflows parse, each job in file order', async () => {
     ])
 })
 
-test('a flow mapping with a quoted key reads as a scopes block', () => {
+Deno.test('a flow mapping with a quoted key reads as a scopes block', () => {
     const job = onlyJob(
         'permissions: { "id-token": write, contents: read }\nsteps: []',
     )
@@ -100,7 +97,7 @@ test('a flow mapping with a quoted key reads as a scopes block', () => {
     })
 })
 
-test('read-all and write-all read as every-scope blocks', () => {
+Deno.test('read-all and write-all read as every-scope blocks', () => {
     const workflow = parseWorkflow(
         'ci.yml',
         'on: push\npermissions: write-all\njobs:\n  a:\n    permissions: read-all\n    steps: []\n',
@@ -117,7 +114,7 @@ test('read-all and write-all read as every-scope blocks', () => {
     })
 })
 
-test('an alias resolves to the anchored block', () => {
+Deno.test('an alias resolves to the anchored block', () => {
     const workflow = parseWorkflow(
         'ci.yml',
         [
@@ -143,14 +140,14 @@ test('an alias resolves to the anchored block', () => {
     ])
 })
 
-test('a reusable-workflow call has no steps', () => {
+Deno.test('a reusable-workflow call has no steps', () => {
     const job = onlyJob('uses: ./.github/workflows/other.yml\nneeds: x')
     assertEquals(job.uses, './.github/workflows/other.yml')
     assertEquals(job.needs, ['x'])
     assertEquals(job.steps, [])
 })
 
-test('step inputs read back as strings', () => {
+Deno.test('step inputs read back as strings', () => {
     const job = onlyJob(
         [
             'steps:',
@@ -180,7 +177,7 @@ function assertRefused(text: string, job: string): void {
     assert(error.message.includes(job), `no job "${job}" in: ${error.message}`)
 }
 
-test('a duplicate key is refused, with the YAML error as cause', () => {
+Deno.test('a duplicate key is refused, with the YAML error as cause', () => {
     const text = [
         'on: push',
         'jobs:',
@@ -195,22 +192,22 @@ test('a duplicate key is refused, with the YAML error as cause', () => {
     assert(error instanceof Error && error.cause instanceof Error)
 })
 
-test('an empty permissions block is refused', () => {
+Deno.test('an empty permissions block is refused', () => {
     assertRefused(oneJob('permissions:\nsteps: []'), '→ a')
 })
 
-test('an unknown permissions scalar is refused', () => {
+Deno.test('an unknown permissions scalar is refused', () => {
     assertRefused(oneJob('permissions: write\nsteps: []'), '→ a')
 })
 
-test('an unknown permission level is refused', () => {
+Deno.test('an unknown permission level is refused', () => {
     assertRefused(oneJob('permissions:\n  id-token: admin\nsteps: []'), '→ a')
 })
 
-test('a job with neither steps nor uses is refused', () => {
+Deno.test('a job with neither steps nor uses is refused', () => {
     assertRefused(oneJob('runs-on: ubuntu-latest'), '→ a')
 })
 
-test('jobs that is not a mapping is refused', () => {
+Deno.test('jobs that is not a mapping is refused', () => {
     assertRefused('on: push\njobs: [a]\n', 'jobs')
 })

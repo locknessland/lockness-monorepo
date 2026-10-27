@@ -13,7 +13,6 @@ import { forgetClosedDriver, isDriverClosed } from './closed_drivers.ts'
 import { DenoKvCacheDriver } from './drivers/deno_kv_driver.ts'
 import { MemoryCacheDriver } from './drivers/memory_driver.ts'
 import type { CacheContract } from '@lockness/contract'
-import { assertDenoKvRuntime } from '@lockness/contract/store/internal'
 
 /**
  * Global cache driver instance (lazy-initialized).
@@ -43,7 +42,6 @@ export function getDriver(): CacheDriver {
         const config = getCacheConfig()
         switch (config.driver) {
             case 'deno-kv':
-                assertDenoKvRuntime('cache')
                 cacheDriver = new DenoKvCacheDriver(config.kvPath)
                 break
             case 'redis':

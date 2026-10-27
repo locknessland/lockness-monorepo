@@ -14,11 +14,10 @@
  * @module @lockness/auth/tests/remember_absolute_lifetime
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertThrows } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
-import { Hono } from '@lockness/hono'
-import type { Context } from '@lockness/hono'
+import { Hono } from 'hono'
+import type { Context } from 'hono'
 import { SessionGuard } from '../guards/session_guard.ts'
 import { type Env, MockSessionProvider } from './mocks.ts'
 import type { RememberMeToken } from '../types.ts'
@@ -131,7 +130,7 @@ function guardWith(ctx: Context, provider: CapProvider, cap?: number) {
     )
 }
 
-test('remember cap - a token renewed across time still ages out at the ceiling (US1)', async () => {
+Deno.test('remember cap - a token renewed across time still ages out at the ceiling (US1)', async () => {
     using time = new FakeTime()
     const A = 100 // seconds
     const t0 = new Date()
@@ -175,7 +174,7 @@ test('remember cap - a token renewed across time still ages out at the ceiling (
     )
 })
 
-test('remember cap - a capped-out credential is deleted and its cookie cleared, no session minted (US2)', async () => {
+Deno.test('remember cap - a capped-out credential is deleted and its cookie cleared, no session minted (US2)', async () => {
     using time = new FakeTime()
     const A = 10
     const t0 = new Date()
@@ -213,7 +212,7 @@ test('remember cap - a capped-out credential is deleted and its cookie cleared, 
     )
 })
 
-test('remember cap - a legacy token (no firstIssuedAt) is frozen at createdAt and ages out (US3)', async () => {
+Deno.test('remember cap - a legacy token (no firstIssuedAt) is frozen at createdAt and ages out (US3)', async () => {
     using time = new FakeTime()
     const A = 100
     const t0 = new Date()
@@ -247,7 +246,7 @@ test('remember cap - a legacy token (no firstIssuedAt) is frozen at createdAt an
     )
 })
 
-test('remember cap - the ceiling is exclusive: age == cap passes, one tick past refuses (US1 boundary)', async () => {
+Deno.test('remember cap - the ceiling is exclusive: age == cap passes, one tick past refuses (US1 boundary)', async () => {
     using time = new FakeTime()
     const A = 100
     const t0 = new Date()
@@ -281,7 +280,7 @@ test('remember cap - the ceiling is exclusive: age == cap passes, one tick past 
     )
 })
 
-test('remember cap - unset means no cap; zero is rejected, not silently off (US4)', async () => {
+Deno.test('remember cap - unset means no cap; zero is rejected, not silently off (US4)', async () => {
     using time = new FakeTime()
     const t0 = new Date()
     const provider = new CapProvider({

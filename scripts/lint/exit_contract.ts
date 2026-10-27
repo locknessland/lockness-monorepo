@@ -6,18 +6,14 @@
  * it once and map it to the exit status, written in one place. Two shapes
  * break that contract, and each has a rule:
  *
- * - `process-exit` — an exit call (`Deno.exit(1)`, `Deno['exit'](1)`, `exit`
- *   destructured from `Deno`) or an exit-status write (an assignment, `++` or
- *   `--` on `Deno.exitCode`) in package code — and the same shapes on Node's
- *   `process` (`process.exit()`, `process.exitCode = 1`, `exit` destructured
- *   from `process` or imported from `node:process`; #596, plan 274 T019).
- *   An exit skips `finally` blocks and can cut off buffered output; a second
- *   status write is a second status mapping. The owners below are the only
- *   legitimate sites, for either spelling, so an owner keeps its right as it
- *   migrates off Deno: process-level exits (server boot, signal shutdown),
- *   and the CLI's one status write. `Deno` and `process` are matched by name:
- *   an alias (`const d = Deno`, `globalThis.process`, a namespace import of
- *   `node:process`) is not followed — that needs scope analysis.
+ * - `process-exit` — a `Deno.exit` call (`Deno.exit(1)`, `Deno['exit'](1)`,
+ *   or `exit` destructured from `Deno`) or a `Deno.exitCode` write (an
+ *   assignment, `++` or `--`) in package code. `Deno.exit()` skips `finally`
+ *   blocks and can cut off buffered output; a second `Deno.exitCode` write is
+ *   a second status mapping. The owners below are the only legitimate sites:
+ *   process-level exits (server boot, signal shutdown), and the CLI's one
+ *   status write. `Deno` is matched by name: an alias (`const d = Deno`,
+ *   `globalThis.Deno`) is not followed — that needs scope analysis.
  * - `printed-failure` — a `console.error/warn/log` whose first argument starts
  *   with `❌`, in command code. That is the shape of a failure printed instead
  *   of thrown, which exits 0. The few `❌` prints in command code that are not
@@ -25,17 +21,7 @@
  *   `// deno-lint-ignore lockness-exit/printed-failure`, with the reason on
  *   the line above.
  *
- * - `signal-subscription` — a signal listener added through Node's `process`
- *   (`process.on('SIGINT', …)`, and `once`, `addListener`,
- *   `prependListener`, `prependOnceListener`) in package code outside
- *   `packages/runtime/signals.ts`, the portable primitive (plan 274 §5,
- *   #598). The event name must be a literal starting with `SIG`; a computed
- *   name, an alias of `process` or a named import from `node:process` is not
- *   followed. `Deno.addSignalListener` is not this rule's: core's and queue's
- *   remaining calls move to `onSignal` when those packages leave Deno, and
- *   `lockness-runtime/no-deno` reports them from then on.
- *
- * Tests and stub templates are out of scope for every rule. Scope is decided
+ * Tests and stub templates are out of scope for both rules. Scope is decided
  * on the path relative to the repository root, never on the absolute path: a
  * checkout under a directory named `tests`, `stubs` or `packages` lints the
  * same as any other.
@@ -43,38 +29,16 @@
  * @module scripts/lint/exit_contract
  */
 
-import { isTestOrStubPath, REPO_ROOT, repoPath } from './repo_path.ts'
+import { isTestPath, REPO_ROOT, repoPath } from './repo_path.ts'
 
-/**
- * The files allowed to call `Deno.exit()` / `process.exit()`: process-level
- * exits, not commands.
- */
+/** The files allowed to call `Deno.exit()`: process-level exits, not commands. */
 const EXIT_OWNERS = [
     'packages/core/http/server.ts',
     'packages/core/kernel/signals.ts',
 ]
 
-/**
- * The file allowed to write `Deno.exitCode` / `process.exitCode`: the CLI's
- * one status mapping.
- */
+/** The file allowed to write `Deno.exitCode`: the CLI's one status mapping. */
 const EXIT_CODE_OWNERS = ['packages/cli/report.ts']
-
-/**
- * The file allowed to subscribe to a signal through `process`: the portable
- * shutdown-signal primitive (plan 274 §5). Everything else asks its
- * `onSignal`.
- */
-const SIGNAL_OWNERS = ['packages/runtime/signals.ts']
-
-/** The `process` methods that add a listener. */
-const SUBSCRIBERS = new Set([
-    'on',
-    'once',
-    'addListener',
-    'prependListener',
-    'prependOnceListener',
-])
 
 /** The `mod.ts` files that hold a standalone tool's command code. */
 const COMMAND_MODS = ['ui', 'upgrade', 'init']
@@ -87,15 +51,8 @@ const FAILURE_GLYPH = '❌'
 
 const EXIT_MESSAGE =
     'Process exit in package code: a command throws (CommandFailedError), and the CLI maps it to the status (#436)'
-const EXIT_HINT = 'Deno.exit() / process.exit() is owned by ' +
-    'core/http/server.ts and core/kernel/signals.ts; Deno.exitCode / ' +
-    'process.exitCode is written by cli/report.ts only. ' +
-    'The owner list lives in scripts/lint/exit_contract.ts.'
-
-const SIGNAL_MESSAGE =
-    'Signal subscribed through process in package code: ask onSignal from @lockness/runtime/signals (plan 274 §5)'
-const SIGNAL_HINT = "process.on/once/addListener('SIG…') is owned by " +
-    'runtime/signals.ts; which signals mean shutdown stays with the caller. ' +
+const EXIT_HINT = 'Deno.exit() is owned by core/http/server.ts and ' +
+    'core/kernel/signals.ts; Deno.exitCode is written by cli/report.ts only. ' +
     'The owner list lives in scripts/lint/exit_contract.ts.'
 
 const PRINT_MESSAGE =
@@ -104,6 +61,11 @@ const PRINT_HINT =
     'If this ❌ is not a command failure (the command carries on), add ' +
     '`// deno-lint-ignore lockness-exit/printed-failure` with the reason on ' +
     'the line above.'
+
+/** Whether the repository-relative `path` is a test or a stub template. */
+function isTestOrStub(path: string): boolean {
+    return isTestPath(path) || /(^|\/)stubs\//.test(path)
+}
 
 /**
  * The repository-relative path of a package file `process-exit` applies to.
@@ -114,7 +76,7 @@ const PRINT_HINT =
 function packagePath(filename: string, root: string): string | undefined {
     const path = repoPath(filename, root)
     if (path === undefined || !path.startsWith('packages/')) return undefined
-    return isTestOrStubPath(path) ? undefined : path
+    return isTestOrStub(path) ? undefined : path
 }
 
 /**
@@ -137,9 +99,7 @@ export function inPackageScope(
  * repository's `packages/`, outside tests and stubs.
  *
  * Command code is any `commands/` or `generators/` directory of a package,
- * any `cli_commands.ts`, `commands.ts` (queue's, #592), `setup.ts` (a
- * package setup step, #592) or `install.ts`,
- * `cli/core_commands.ts`, `core/cli/`,
+ * any `cli_commands.ts` or `install.ts`, `cli/core_commands.ts`, `core/cli/`,
  * and the `mod.ts` of ui, upgrade and init (standalone tools).
  *
  * @param filename - The file being linted, as Deno hands it over.
@@ -157,13 +117,7 @@ export function inCommandScope(
     const [, pkg, rest] = match
     const base = rest.slice(rest.lastIndexOf('/') + 1)
     if (/(^|\/)(commands|generators)\//.test(rest)) return true
-    if (
-        ['cli_commands.ts', 'commands.ts', 'setup.ts', 'install.ts'].includes(
-            base,
-        )
-    ) {
-        return true
-    }
+    if (base === 'cli_commands.ts' || base === 'install.ts') return true
     if (pkg === 'cli' && rest === 'core_commands.ts') return true
     if (pkg === 'core' && rest.startsWith('cli/')) return true
     return COMMAND_MODS.includes(pkg) && rest === 'mod.ts'
@@ -192,34 +146,15 @@ function staticKey(
     return undefined
 }
 
-/** The objects whose `exit` / `exitCode` end the process: Deno's and Node's. */
-const PROCESS_OBJECTS = new Set(['Deno', 'process'])
-
-/** The specifiers Node's `process` module is imported by. */
-const PROCESS_MODULES = new Set(['node:process', 'process'])
-
-/** Whether `node` is the identifier `Deno` or `process`. */
-function isProcessObject(node: Deno.lint.Node | null | undefined): boolean {
-    return node?.type === 'Identifier' && PROCESS_OBJECTS.has(node.name)
+/** Whether `node` is the identifier `Deno`. */
+function isDeno(node: Deno.lint.Node | null | undefined): boolean {
+    return node?.type === 'Identifier' && node.name === 'Deno'
 }
 
-/**
- * Whether `node` is `Deno.<name>` or `process.<name>`, dotted or computed
- * with a static key.
- */
-function isProcessMember(node: Deno.lint.Node, name: string): boolean {
-    return node.type === 'MemberExpression' && isProcessObject(node.object) &&
+/** Whether `node` is `Deno.<name>`, dotted or computed with a static key. */
+function isDenoMember(node: Deno.lint.Node, name: string): boolean {
+    return node.type === 'MemberExpression' && isDeno(node.object) &&
         staticKey(node.property, node.computed) === name
-}
-
-/** Whether `node` imports `exit` from `node:process`, renamed or not. */
-function importsExit(node: Deno.lint.ImportDeclaration): boolean {
-    return typeof node.source.value === 'string' &&
-        PROCESS_MODULES.has(node.source.value) &&
-        node.specifiers.some((specifier) =>
-            specifier.type === 'ImportSpecifier' &&
-            staticKey(specifier.imported, false) === 'exit'
-        )
 }
 
 /** Whether the pattern `node` takes out `exit` (`{ exit }`, `{ exit: x }`). */
@@ -267,22 +202,16 @@ const plugin: Deno.lint.Plugin = {
                         hint: EXIT_HINT,
                     })
                 const writesExitCode = (target: Deno.lint.Node) =>
-                    !exitCodeOwned && isProcessMember(target, 'exitCode')
+                    !exitCodeOwned && isDenoMember(target, 'exitCode')
                 const takesExit = (
                     pattern: Deno.lint.Node,
                     source: Deno.lint.Node | null,
-                ) => !exitOwned && isProcessObject(source) &&
-                    destructuresExit(pattern)
+                ) => !exitOwned && isDeno(source) && destructuresExit(pattern)
                 return {
                     CallExpression(node) {
-                        if (
-                            !exitOwned && isProcessMember(node.callee, 'exit')
-                        ) {
+                        if (!exitOwned && isDenoMember(node.callee, 'exit')) {
                             report(node)
                         }
-                    },
-                    ImportDeclaration(node) {
-                        if (!exitOwned && importsExit(node)) report(node)
                     },
                     VariableDeclarator(node) {
                         if (takesExit(node.id, node.init)) report(node)
@@ -293,43 +222,6 @@ const plugin: Deno.lint.Plugin = {
                     },
                     UpdateExpression(node) {
                         if (writesExitCode(node.argument)) report(node)
-                    },
-                }
-            },
-        },
-        'signal-subscription': {
-            create(context) {
-                const path = packagePath(context.filename, REPO_ROOT)
-                if (path === undefined || SIGNAL_OWNERS.includes(path)) {
-                    return {}
-                }
-                return {
-                    CallExpression(node) {
-                        const callee = node.callee
-                        if (
-                            callee.type !== 'MemberExpression' ||
-                            callee.object.type !== 'Identifier' ||
-                            callee.object.name !== 'process'
-                        ) {
-                            return
-                        }
-                        const method = staticKey(
-                            callee.property,
-                            callee.computed,
-                        )
-                        if (method === undefined || !SUBSCRIBERS.has(method)) {
-                            return
-                        }
-                        if (
-                            !leadingText(node.arguments[0])?.startsWith('SIG')
-                        ) {
-                            return
-                        }
-                        context.report({
-                            node,
-                            message: SIGNAL_MESSAGE,
-                            hint: SIGNAL_HINT,
-                        })
                     },
                 }
             },

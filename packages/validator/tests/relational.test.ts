@@ -2,7 +2,6 @@
  * Tests for @lockness/validator - Relational Validators
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import {
     confirmed,
@@ -13,8 +12,8 @@ import {
     validator,
 } from '../mod.ts'
 
-test('Validator - Relational validators', async (t) => {
-    await t.test('confirmed', async () => {
+Deno.test('Validator - Relational validators', async (t) => {
+    await t.step('confirmed', async () => {
         const result = await validate(
             { password: 'secret123', password_confirmation: 'secret123' },
             { password_confirmation: [confirmed('password')] },
@@ -28,7 +27,7 @@ test('Validator - Relational validators', async (t) => {
         assertEquals(mismatch.valid, false)
     })
 
-    await t.test('different', async () => {
+    await t.step('different', async () => {
         const result = await validate(
             { new_password: 'newpass123', old_password: 'oldpass123' },
             { new_password: [different('old_password')] },
@@ -42,7 +41,7 @@ test('Validator - Relational validators', async (t) => {
         assertEquals(same.valid, false)
     })
 
-    await t.test('requiredIf', async () => {
+    await t.step('requiredIf', async () => {
         const v = validator()
         v.field('card_number', [requiredIf('payment_method', 'card')], {
             optional: true,
@@ -64,7 +63,7 @@ test('Validator - Relational validators', async (t) => {
         assertEquals(notRequired.valid, true)
     })
 
-    await t.test('requiredUnless', async () => {
+    await t.step('requiredUnless', async () => {
         const v = validator()
         v.field('reason', [requiredUnless('status', 'approved')], {
             optional: true,

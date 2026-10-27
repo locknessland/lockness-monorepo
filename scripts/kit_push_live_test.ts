@@ -29,7 +29,6 @@
  * @module
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { join } from '@std/path'
 import postgres from 'postgres'
@@ -51,10 +50,11 @@ const SCHEMA = 'app/model/user.ts'
  */
 const PUSH = ['run', '-q', '-A', '--env', 'cli.ts', 'db:push']
 
-test(
-    '#445 live: db:push passes clean, and fails a refused rename and a swallowed SQL error',
-    { skip: !LIVE_POSTGRES },
-    async function () {
+Deno.test({
+    name:
+        '#445 live: db:push passes clean, and fails a refused rename and a swallowed SQL error',
+    ignore: !LIVE_POSTGRES,
+    async fn() {
         const adminUrl = await liveUrl()
         const database = `lockness_kit_push_${
             crypto.randomUUID().replaceAll('-', '').slice(0, 12)
@@ -134,4 +134,4 @@ test(
             })
         }
     },
-)
+})

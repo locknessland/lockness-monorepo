@@ -11,7 +11,6 @@
  * @module @lockness/realtime/tests/eviction_reconnect
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
 import { ChannelManager } from '../manager.ts'
@@ -81,7 +80,7 @@ async function flushMicrotasks(times = 50): Promise<void> {
     for (let i = 0; i < times; i++) await Promise.resolve()
 }
 
-test('SC-001: an evict missed while the socket was deaf is recovered at reconnect, before any periodic tick', async () => {
+Deno.test('SC-001: an evict missed while the socket was deaf is recovered at reconnect, before any periodic tick', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-05T10:00:00Z'))
     const b = instance(redis)
@@ -125,7 +124,7 @@ test('SC-001: an evict missed while the socket was deaf is recovered at reconnec
     }
 })
 
-test('SC-001: a presence-free instance also recovers at reconnect', async () => {
+Deno.test('SC-001: a presence-free instance also recovers at reconnect', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-05T10:00:00Z'))
     const b = instance(redis)
@@ -150,7 +149,7 @@ test('SC-001: a presence-free instance also recovers at reconnect', async () => 
     }
 })
 
-test('FR-007: a reconnect that fires after close() runs nothing, on the injected-port path', async () => {
+Deno.test('FR-007: a reconnect that fires after close() runs nothing, on the injected-port path', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-05T10:00:00Z'))
     // Count every command the driver issues, so "quiesced" is proved by silence
@@ -193,7 +192,7 @@ test('FR-007: a reconnect that fires after close() runs nothing, on the injected
     }
 })
 
-test('FR-003: a re-check that throws at reconnect does not disarm the periodic timer', async () => {
+Deno.test('FR-003: a re-check that throws at reconnect does not disarm the periodic timer', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-05T10:00:00Z'))
     // The fault is injected at the COMMAND BOUNDARY, not by monkey-patching the
@@ -259,7 +258,7 @@ test('FR-003: a re-check that throws at reconnect does not disarm the periodic t
     }
 })
 
-test('FR-004: a seam-less subscriber still completes a full revocation cycle on the periodic trigger', async () => {
+Deno.test('FR-004: a seam-less subscriber still completes a full revocation cycle on the periodic trigger', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-05T10:00:00Z'))
     // An app-supplied subscriber predating the seam: the optional member is

@@ -2,7 +2,6 @@
  * Tests for @Kernel decorator and createApp() function
  */
 
-import { test } from 'node:test'
 import {
     assertEquals,
     assertExists,
@@ -37,7 +36,7 @@ async function resetDatabase(): Promise<void> {
     container.delete(Database)
 }
 
-test('@Kernel - stores configuration metadata on class', () => {
+Deno.test('@Kernel - stores configuration metadata on class', () => {
     const config: KernelConfig = {
         staticDir: 'public',
         controllersDir: './app/controller',
@@ -51,7 +50,7 @@ test('@Kernel - stores configuration metadata on class', () => {
     assertEquals(storedConfig, config)
 })
 
-test('@Kernel - works with empty configuration', () => {
+Deno.test('@Kernel - works with empty configuration', () => {
     @Kernel()
     class TestKernel {}
 
@@ -60,7 +59,7 @@ test('@Kernel - works with empty configuration', () => {
     assertEquals(storedConfig, {})
 })
 
-test('@Kernel - throws error if applied to non-class', () => {
+Deno.test('@Kernel - throws error if applied to non-class', () => {
     assertThrows(
         () => {
             const decoratorFn = Kernel()
@@ -75,7 +74,7 @@ test('@Kernel - throws error if applied to non-class', () => {
     )
 })
 
-test('@DeclareGlobalMiddleware - stores field name metadata', () => {
+Deno.test('@DeclareGlobalMiddleware - stores field name metadata', () => {
     @Kernel()
     class TestKernel {
         @DeclareGlobalMiddleware()
@@ -89,7 +88,7 @@ test('@DeclareGlobalMiddleware - stores field name metadata', () => {
     assertEquals(fieldName, 'globalMiddlewares')
 })
 
-test('@DeclareGlobalMiddleware - supports custom field names', () => {
+Deno.test('@DeclareGlobalMiddleware - supports custom field names', () => {
     @Kernel()
     class TestKernel {
         @DeclareGlobalMiddleware()
@@ -103,7 +102,7 @@ test('@DeclareGlobalMiddleware - supports custom field names', () => {
     assertEquals(fieldName, 'customMiddlewares')
 })
 
-test('createApp - creates App instance with minimal config', async () => {
+Deno.test('createApp - creates App instance with minimal config', async () => {
     @Kernel()
     class TestKernel {}
 
@@ -114,7 +113,7 @@ test('createApp - creates App instance with minimal config', async () => {
     assertEquals(typeof app.getHono, 'function')
 })
 
-test('createApp - applies global middlewares', async () => {
+Deno.test('createApp - applies global middlewares', async () => {
     let middlewareCalled = false
 
     const testMiddleware = async (_c: any, next: any) => {
@@ -139,7 +138,7 @@ test('createApp - applies global middlewares', async () => {
     assertEquals(middlewareCalled, true)
 })
 
-test('createApp - executes boot hooks in priority order', async () => {
+Deno.test('createApp - executes boot hooks in priority order', async () => {
     const executionOrder: string[] = []
 
     @Kernel({
@@ -167,7 +166,7 @@ test('createApp - executes boot hooks in priority order', async () => {
     assertEquals(executionOrder, ['first', 'second', 'third'])
 })
 
-test('createApp - passes App instance to boot hooks', async () => {
+Deno.test('createApp - passes App instance to boot hooks', async () => {
     let receivedApp: App | null = null
 
     @Kernel({
@@ -186,7 +185,7 @@ test('createApp - passes App instance to boot hooks', async () => {
     assertEquals(receivedApp, app)
 })
 
-test('createApp - handles async boot hooks', async () => {
+Deno.test('createApp - handles async boot hooks', async () => {
     let asyncCompleted = false
 
     @Kernel({
@@ -205,7 +204,7 @@ test('createApp - handles async boot hooks', async () => {
     assertEquals(asyncCompleted, true)
 })
 
-test('createApp - supports static directory configuration', async () => {
+Deno.test('createApp - supports static directory configuration', async () => {
     @Kernel({
         staticDir: 'public',
         controllers: [],
@@ -217,7 +216,7 @@ test('createApp - supports static directory configuration', async () => {
     assertExists(app)
 })
 
-test('createApp - supports controller directory configuration', async () => {
+Deno.test('createApp - supports controller directory configuration', async () => {
     @Kernel({
         controllersDir: './test-controllers',
         controllers: [],
@@ -229,7 +228,7 @@ test('createApp - supports controller directory configuration', async () => {
     assertExists(app)
 })
 
-test('createApp - supports explicit controllers list', async () => {
+Deno.test('createApp - supports explicit controllers list', async () => {
     @Kernel({
         controllers: [],
     })
@@ -240,7 +239,7 @@ test('createApp - supports explicit controllers list', async () => {
     assertExists(app)
 })
 
-test('createApp - integrates with existing @OnBoot decorator', async () => {
+Deno.test('createApp - integrates with existing @OnBoot decorator', async () => {
     const bootHooks: string[] = []
 
     @Kernel({
@@ -263,7 +262,7 @@ test('createApp - integrates with existing @OnBoot decorator', async () => {
     assertEquals(bootHooks, ['database', 'cache'])
 })
 
-test('createApp - boot hooks have access to kernel instance state', async () => {
+Deno.test('createApp - boot hooks have access to kernel instance state', async () => {
     @Kernel({
         controllers: [],
     })
@@ -282,7 +281,7 @@ test('createApp - boot hooks have access to kernel instance state', async () => 
     await createApp(TestKernel)
 })
 
-test('createApp - supports database configuration as boolean', async () => {
+Deno.test('createApp - supports database configuration as boolean', async () => {
     @Kernel({
         database: true, // Enable with defaults
         controllers: [],
@@ -299,22 +298,25 @@ test('createApp - supports database configuration as boolean', async () => {
     }
 })
 
-test('createApp - supports database configuration as object', async () => {
-    @Kernel({
-        database: {
-            url: 'postgres://localhost:5432/test',
-        },
-        controllers: [],
-    })
-    class TestKernel {}
+Deno.test({
+    name: 'createApp - supports database configuration as object',
+    fn: async () => {
+        @Kernel({
+            database: {
+                url: 'postgres://localhost:5432/test',
+            },
+            controllers: [],
+        })
+        class TestKernel {}
 
-    // Should not throw even if @lockness/drizzle is not installed
-    try {
-        const app = await createApp(TestKernel)
-        assertExists(app)
-    } finally {
-        await resetDatabase()
-    }
+        // Should not throw even if @lockness/drizzle is not installed
+        try {
+            const app = await createApp(TestKernel)
+            assertExists(app)
+        } finally {
+            await resetDatabase()
+        }
+    },
 })
 
 /** Boot `database`, recording every deprecation notice the boot raises. */
@@ -334,78 +336,96 @@ async function bootRecordingDeprecations(
     }
 }
 
-test('createApp - a set database.autoConnect raises one deprecation notice naming v0.6.0 (#421)', async () => {
-    // `false` on purpose: the value is irrelevant — the field has never
-    // been read, so setting it at all is what the notice reports.
-    const entries = await bootRecordingDeprecations({
-        url: 'postgres://localhost:5432/test',
-        autoConnect: false,
-    })
+Deno.test({
+    name:
+        'createApp - a set database.autoConnect raises one deprecation notice naming v0.6.0 (#421)',
+    fn: async () => {
+        // `false` on purpose: the value is irrelevant — the field has never
+        // been read, so setting it at all is what the notice reports.
+        const entries = await bootRecordingDeprecations({
+            url: 'postgres://localhost:5432/test',
+            autoConnect: false,
+        })
 
-    assertEquals(entries.length, 1, 'one notice per boot')
-    const [entry] = entries
-    assertEquals(entry.pkg, '@lockness/core')
-    assertEquals(entry.version, '0.5.0')
-    assertStringIncludes(entry.message, 'database.autoConnect')
-    assertStringIncludes(entry.message, 'v0.6.0')
+        assertEquals(entries.length, 1, 'one notice per boot')
+        const [entry] = entries
+        assertEquals(entry.pkg, '@lockness/core')
+        assertEquals(entry.version, '0.5.0')
+        assertStringIncludes(entry.message, 'database.autoConnect')
+        assertStringIncludes(entry.message, 'v0.6.0')
+    },
 })
 
-test('createApp - database.autoConnect: false still configures the database (#421)', async () => {
-    registerCollector({ addDeprecation: () => {} })
-    try {
+Deno.test({
+    name:
+        'createApp - database.autoConnect: false still configures the database (#421)',
+    fn: async () => {
+        registerCollector({ addDeprecation: () => {} })
+        try {
+            @Kernel({
+                database: {
+                    url: 'postgres://localhost:5432/test',
+                    autoConnect: false,
+                },
+                controllers: [],
+            })
+            class TestKernel {}
+            await createApp(TestKernel)
+            // A deprecation is a signal, not a behaviour change.
+            assertEquals(container.get(Database).isConnected(), true)
+        } finally {
+            unregisterCollector()
+            await resetDatabase()
+        }
+    },
+})
+
+Deno.test({
+    name:
+        'createApp - a database config without autoConnect raises no deprecation notice (#421)',
+    fn: async () => {
+        const entries = await bootRecordingDeprecations({
+            url: 'postgres://localhost:5432/test',
+        })
+        assertEquals(entries, [])
+    },
+})
+
+Deno.test({
+    name: 'createApp - supports session configuration as boolean',
+    fn: async () => {
         @Kernel({
-            database: {
-                url: 'postgres://localhost:5432/test',
-                autoConnect: false,
+            session: true,
+            controllers: [],
+        })
+        class TestKernel {}
+
+        // Should not throw even if @lockness/session is not installed
+        const app = await createApp(TestKernel)
+        assertExists(app)
+    },
+})
+
+Deno.test({
+    name: 'createApp - supports session configuration as object',
+    fn: async () => {
+        @Kernel({
+            session: {
+                driver: 'memory',
+                lifetime: 3600,
+                secure: false,
             },
             controllers: [],
         })
         class TestKernel {}
-        await createApp(TestKernel)
-        // A deprecation is a signal, not a behaviour change.
-        assertEquals(container.get(Database).isConnected(), true)
-    } finally {
-        unregisterCollector()
-        await resetDatabase()
-    }
+
+        // Should not throw even if @lockness/session is not installed
+        const app = await createApp(TestKernel)
+        assertExists(app)
+    },
 })
 
-test('createApp - a database config without autoConnect raises no deprecation notice (#421)', async () => {
-    const entries = await bootRecordingDeprecations({
-        url: 'postgres://localhost:5432/test',
-    })
-    assertEquals(entries, [])
-})
-
-test('createApp - supports session configuration as boolean', async () => {
-    @Kernel({
-        session: true,
-        controllers: [],
-    })
-    class TestKernel {}
-
-    // Should not throw even if @lockness/session is not installed
-    const app = await createApp(TestKernel)
-    assertExists(app)
-})
-
-test('createApp - supports session configuration as object', async () => {
-    @Kernel({
-        session: {
-            driver: 'memory',
-            lifetime: 3600,
-            secure: false,
-        },
-        controllers: [],
-    })
-    class TestKernel {}
-
-    // Should not throw even if @lockness/session is not installed
-    const app = await createApp(TestKernel)
-    assertExists(app)
-})
-
-test('createApp - handles missing optional dependencies gracefully', async () => {
+Deno.test('createApp - handles missing optional dependencies gracefully', async () => {
     @Kernel({
         database: true,
         session: true,
@@ -423,29 +443,32 @@ test('createApp - handles missing optional dependencies gracefully', async () =>
     }
 })
 
-test('createApp - supports both declarative and imperative patterns', async () => {
-    // Declarative pattern
-    @Kernel({
-        controllers: [],
-    })
-    class DeclarativeKernel {
-        @DeclareGlobalMiddleware()
-        globalMiddlewares = []
-    }
+Deno.test({
+    name: 'createApp - supports both declarative and imperative patterns',
+    fn: async () => {
+        // Declarative pattern
+        @Kernel({
+            controllers: [],
+        })
+        class DeclarativeKernel {
+            @DeclareGlobalMiddleware()
+            globalMiddlewares = []
+        }
 
-    const declarativeApp = await createApp(DeclarativeKernel)
-    assertExists(declarativeApp)
+        const declarativeApp = await createApp(DeclarativeKernel)
+        assertExists(declarativeApp)
 
-    // Imperative pattern (traditional bootstrap)
-    const { App } = await import('../app.ts')
-    const imperativeApp = new App()
-    await imperativeApp.init({
-        controllers: [],
-    })
-    assertExists(imperativeApp)
+        // Imperative pattern (traditional bootstrap)
+        const { App } = await import('../app.ts')
+        const imperativeApp = new App()
+        await imperativeApp.init({
+            controllers: [],
+        })
+        assertExists(imperativeApp)
+    },
 })
 
-test('createApp - combines @Kernel with @OnBoot decorators', async () => {
+Deno.test('createApp - combines @Kernel with @OnBoot decorators', async () => {
     const steps: string[] = []
 
     @Kernel({

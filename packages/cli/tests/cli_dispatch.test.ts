@@ -3,14 +3,12 @@
  *
  * A handler reports failure by throwing; {@link Cli.dispatch} prints it once
  * and maps it to an exit status, and {@link Cli.run} hands a non-zero status to
- * `process.exitCode`. These tests pin every row of that contract, on every
- * runtime; the one row that needs a real subprocess (T6) is in
- * `cli_dispatch.deno.test.ts`:
+ * `Deno.exitCode`. These tests pin every row of that contract:
  *
  * | Case                              | Exit                       | Printed                    |
  * | :-------------------------------- | :------------------------- | :------------------------- |
  * | no command                        | 0                          | the command list           |
- * | unknown command                   | 1                          | `❌ Unknown command` (+ moved hint) + list |
+ * | unknown command                   | 1                          | `❌ Unknown command` + list |
  * | handler resolves                  | 0                          | —                          |
  * | failure-shaped throw              | its `exitCode` (1–255) / 1 | `❌ <message>`, no stack    |
  * | any other throw                   | 1                          | `❌ <name> failed: ` + `renderError(error, { frames: 10 })` + hint |
@@ -25,9 +23,6 @@
  * @module @lockness/cli/tests/cli_dispatch
  */
 
-import process from 'node:process'
-import { test } from 'node:test'
-import { inspect } from 'node:util'
 import {
     assert,
     assertEquals,
@@ -83,11 +78,8 @@ function cliWith(handler: () => Promise<void>): Cli {
 
 /** An error from a package that cannot import `@lockness/cli`. */
 class LocalFailure extends Error {
-    readonly exitCode: number
-
-    constructor(message: string, exitCode: number) {
+    constructor(message: string, readonly exitCode: number) {
         super(message)
-        this.exitCode = exitCode
         this.name = 'LocalFailure'
     }
 }
@@ -96,7 +88,7 @@ class LocalFailure extends Error {
 // CommandFailedError
 // -----------------------------------------------------------------------------
 
-test('CommandFailedError - defaults exitCode to 1 and keeps the cause', () => {
+Deno.test('CommandFailedError - defaults exitCode to 1 and keeps the cause', () => {
     const cause = new Error('root')
     const error = new CommandFailedError('migration failed', { cause })
     assertEquals(error.exitCode, 1)
@@ -106,7 +98,7 @@ test('CommandFailedError - defaults exitCode to 1 and keeps the cause', () => {
     assert(error instanceof Error)
 })
 
-test('CommandFailedError - keeps an explicit exit code in range', () => {
+Deno.test('CommandFailedError - keeps an explicit exit code in range', () => {
     assertEquals(new CommandFailedError('x', { exitCode: 3 }).exitCode, 3)
 })
 
@@ -114,7 +106,7 @@ test('CommandFailedError - keeps an explicit exit code in range', () => {
 // code: a programmatic caller that inspects `exitCode` must never see `0` or a
 // status the operating system would truncate (#440(d)).
 for (const code of [0, 256, NaN, -1]) {
-    test(`CommandFailedError - clamps exitCode ${code} to 1 in the constructor`, () => {
+    Deno.test(`CommandFailedError - clamps exitCode ${code} to 1 in the constructor`, () => {
         assertEquals(
             new CommandFailedError('x', { exitCode: code }).exitCode,
             1,
@@ -122,7 +114,7 @@ for (const code of [0, 256, NaN, -1]) {
     })
 }
 
-test('isCommandFailure - recognises the shape, not the class', () => {
+Deno.test('isCommandFailure - recognises the shape, not the class', () => {
     assert(isCommandFailure(new CommandFailedError('x')))
     assert(isCommandFailure(new LocalFailure('x', 2)))
     assert(!isCommandFailure(new Error('x')))
@@ -135,14 +127,14 @@ test('isCommandFailure - recognises the shape, not the class', () => {
 // Cli.dispatch — the exit table
 // -----------------------------------------------------------------------------
 
-test('dispatch - a handler that resolves exits 0 and prints no error', async () => {
+Deno.test('dispatch - a handler that resolves exits 0 and prints no error', async () => {
     const cli = cliWith(() => Promise.resolve())
     const { result, error } = await capture(() => cli.dispatch(['task']))
     assertEquals(result, 0)
     assertEquals(error, [])
 })
 
-test('dispatch - a CommandFailedError exits 1 with one stderr line and no stack', async () => {
+Deno.test('dispatch - a CommandFailedError exits 1 with one stderr line and no stack', async () => {
     const cli = cliWith(() =>
         Promise.reject(new CommandFailedError('Failed to apply migrations'))
     )
@@ -151,7 +143,7 @@ test('dispatch - a CommandFailedError exits 1 with one stderr line and no stack'
     assertEquals(error, [['❌ Failed to apply migrations']])
 })
 
-test('dispatch - an in-range exit code is kept', async () => {
+Deno.test('dispatch - an in-range exit code is kept', async () => {
     const cli = cliWith(() =>
         Promise.reject(new CommandFailedError('x', { exitCode: 3 }))
     )
@@ -160,7 +152,7 @@ test('dispatch - an in-range exit code is kept', async () => {
 })
 
 for (const code of [0, 256, NaN, -1]) {
-    test(`dispatch - CommandFailedError with exitCode ${code} exits 1`, async () => {
+    Deno.test(`dispatch - CommandFailedError with exitCode ${code} exits 1`, async () => {
         const cli = cliWith(() =>
             Promise.reject(new CommandFailedError('x', { exitCode: code }))
         )
@@ -170,7 +162,7 @@ for (const code of [0, 256, NaN, -1]) {
     })
 }
 
-test('dispatch - a local failure-shaped subclass keeps its exit code', async () => {
+Deno.test('dispatch - a local failure-shaped subclass keeps its exit code', async () => {
     const cli = cliWith(() => Promise.reject(new LocalFailure('mail down', 4)))
     const { result, error } = await capture(() => cli.dispatch(['task']))
     assertEquals(result, 4)
@@ -178,7 +170,7 @@ test('dispatch - a local failure-shaped subclass keeps its exit code', async () 
 })
 
 for (const code of [0, 256, -3]) {
-    test(`dispatch - a failure-shaped error with exitCode ${code} is clamped to 1`, async () => {
+    Deno.test(`dispatch - a failure-shaped error with exitCode ${code} is clamped to 1`, async () => {
         const cli = cliWith(() => Promise.reject(new LocalFailure('x', code)))
         const { result, error } = await capture(() => cli.dispatch(['task']))
         assertEquals(result, 1)
@@ -186,7 +178,7 @@ for (const code of [0, 256, -3]) {
     })
 }
 
-test('dispatch - an unexpected Error exits 1, rendered once with its frames', async () => {
+Deno.test('dispatch - an unexpected Error exits 1, rendered once with its frames', async () => {
     const boom = new TypeError('cannot read foo of undefined')
     const cli = cliWith(() => Promise.reject(boom))
     const { result, error } = await withRawErrors(
@@ -206,7 +198,7 @@ test('dispatch - an unexpected Error exits 1, rendered once with its frames', as
     assert(line.endsWith(`\n${OFF_HINT}`), line)
 })
 
-test('dispatch - a non-Error throw exits 1 as one rendered string (#440(f))', async () => {
+Deno.test('dispatch - a non-Error throw exits 1 as one rendered string (#440(f))', async () => {
     const cli = cliWith(() => Promise.reject('plain string'))
     const { result, error } = await withRawErrors(
         undefined,
@@ -227,7 +219,7 @@ function fakeSecret(tag: string): string {
 
 /** What the console prints for one call: strings as-is, the rest inspected. */
 function printed(args: unknown[]): string {
-    return args.map((x) => typeof x === 'string' ? x : inspect(x))
+    return args.map((x) => typeof x === 'string' ? x : Deno.inspect(x))
         .join(' ')
 }
 
@@ -252,14 +244,14 @@ async function withRawErrors<T>(
     value: string | undefined,
     fn: () => Promise<T>,
 ): Promise<T> {
-    const original = process.env[RAW]
-    if (value === undefined) delete process.env[RAW]
-    else process.env[RAW] = value
+    const original = Deno.env.get(RAW)
+    if (value === undefined) Deno.env.delete(RAW)
+    else Deno.env.set(RAW, value)
     try {
         return await fn()
     } finally {
-        if (original === undefined) delete process.env[RAW]
-        else process.env[RAW] = original
+        if (original === undefined) Deno.env.delete(RAW)
+        else Deno.env.set(RAW, original)
     }
 }
 
@@ -290,7 +282,7 @@ function credentialBearingError(): { boom: Error; secrets: string[] } {
     return { boom, secrets: [message, dsn, userinfo, query, code] }
 }
 
-test('dispatch - T1 by default no credential reaches stderr from message, cause, code or frame', async () => {
+Deno.test('dispatch - T1 by default no credential reaches stderr from message, cause, code or frame', async () => {
     const { boom, secrets } = credentialBearingError()
     const cli = cliWith(() => Promise.reject(boom))
     const { result, error } = await withRawErrors(
@@ -313,7 +305,7 @@ function explodeForT2(): never {
     throw new RangeError('t2 frame marker')
 }
 
-test('dispatch - T2 the top-level frames are kept, and the message is printed once (#440)', async () => {
+Deno.test('dispatch - T2 the top-level frames are kept, and the message is printed once (#440)', async () => {
     const cli = cliWith(async () => {
         await Promise.resolve()
         explodeForT2()
@@ -328,7 +320,7 @@ test('dispatch - T2 the top-level frames are kept, and the message is printed on
     assertEquals(out.split('t2 frame marker').length - 1, 1, out)
 })
 
-test('dispatch - T3 with the switch unset, no Error object reaches the console', async () => {
+Deno.test('dispatch - T3 with the switch unset, no Error object reaches the console', async () => {
     const boom = new Error('unset switch')
     const cli = cliWith(() => Promise.reject(boom))
     const { result, error } = await withRawErrors(
@@ -341,7 +333,7 @@ test('dispatch - T3 with the switch unset, no Error object reaches the console',
     assertStringIncludes(printed(error[0]), OFF_HINT)
 })
 
-test('dispatch - T4 with the switch on, a banner precedes the same error object', async () => {
+Deno.test('dispatch - T4 with the switch on, a banner precedes the same error object', async () => {
     const boom = new Error('raw on purpose')
     const cli = cliWith(() => Promise.reject(boom))
     const { result, error } = await withRawErrors(
@@ -357,7 +349,7 @@ test('dispatch - T4 with the switch on, a banner precedes the same error object'
     assertStrictEquals(error[0][1], boom)
 })
 
-test('dispatch - T5 an unrecognised switch value prints redacted output and a notice', async () => {
+Deno.test('dispatch - T5 an unrecognised switch value prints redacted output and a notice', async () => {
     const { boom, secrets } = credentialBearingError()
     const cli = cliWith(() => Promise.reject(boom))
     const { result, error } = await withRawErrors(
@@ -373,7 +365,48 @@ test('dispatch - T5 an unrecognised switch value prints redacted output and a no
     assert(!out.includes(OFF_HINT), out)
 })
 
-test('dispatch - T8 a pg-shaped error shows its SQLSTATE and neither detail nor hint', async () => {
+Deno.test({
+    name:
+        'dispatch - T6 a switch value that is not valid Unicode still prints the real error once, exit 1',
+    // A POSIX shell builds the bytes; `Deno.Command` takes only strings.
+    ignore: Deno.build.os === 'windows',
+    async fn() {
+        const message = ['fx', 'real', crypto.randomUUID().slice(0, 8)].join(
+            '',
+        )
+        const fixture = new URL(
+            './fixtures/raw-errors/dispatch.ts',
+            import.meta.url,
+        )
+        const { code, stdout, stderr } = await new Deno.Command('sh', {
+            args: [
+                '-c',
+                `${RAW}="$(printf '\\377\\376')" exec "$0" run --allow-env "$1" "$2"`,
+                Deno.execPath(),
+                fixture.pathname,
+                message,
+            ],
+            cwd: new URL('..', import.meta.url).pathname,
+            stdout: 'piped',
+            stderr: 'piped',
+        }).output()
+        const out = new TextDecoder().decode(stdout) +
+            new TextDecoder().decode(stderr)
+        assertEquals(code, 1, out)
+        assertEquals(
+            out.split(`❌ task failed: Error: ${message}`).length - 1,
+            1,
+            out,
+        )
+        assertStringIncludes(
+            out,
+            `${RAW}=<not valid Unicode> could not be read`,
+        )
+        assert(!out.includes('InvalidData'), out)
+    },
+})
+
+Deno.test('dispatch - T8 a pg-shaped error shows its SQLSTATE and neither detail nor hint', async () => {
     const detail = fakeSecret('detail')
     const hint = fakeSecret('hint')
     const pg = Object.assign(
@@ -403,7 +436,7 @@ test('dispatch - T8 a pg-shaped error shows its SQLSTATE and neither detail nor 
     assertAbsent(out, hint)
 })
 
-test('dispatch - an unknown command exits 1 and lists the commands', async () => {
+Deno.test('dispatch - an unknown command exits 1 and lists the commands', async () => {
     const cli = cliWith(() => Promise.resolve())
     const { result, error, log } = await capture(() => cli.dispatch(['nope']))
     assertEquals(result, 1)
@@ -411,18 +444,7 @@ test('dispatch - an unknown command exits 1 and lists the commands', async () =>
     assertStringIncludes(log.flat().join('\n'), 'Available commands:')
 })
 
-test('dispatch - an unknown queue:* command says the commands moved to @lockness/queue (#592)', async () => {
-    const cli = cliWith(() => Promise.resolve())
-    const { result, error } = await capture(() => cli.dispatch(['queue:work']))
-    assertEquals(result, 1)
-    assertEquals(error.length, 1)
-    const [first, second] = String(error[0][0]).split('\n')
-    assertEquals(first, '❌ Unknown command: queue:work')
-    assertStringIncludes(second, '@lockness/queue')
-    assertStringIncludes(second, '"imports"')
-})
-
-test('dispatch - no command exits 0 and lists the commands', async () => {
+Deno.test('dispatch - no command exits 0 and lists the commands', async () => {
     const cli = cliWith(() => Promise.resolve())
     const { result, error, log } = await capture(() => cli.dispatch([]))
     assertEquals(result, 0)
@@ -430,7 +452,7 @@ test('dispatch - no command exits 0 and lists the commands', async () => {
     assertStringIncludes(log.flat().join('\n'), 'task')
 })
 
-test('dispatch - passes the remaining arguments to the handler', async () => {
+Deno.test('dispatch - passes the remaining arguments to the handler', async () => {
     const cli = new Cli()
     let received: string[] = []
     cli.register('task', (args) => {
@@ -441,7 +463,7 @@ test('dispatch - passes the remaining arguments to the handler', async () => {
     assertEquals(received, ['a', '--b'])
 })
 
-test('dispatch - a class-based handle() that throws exits 1', async () => {
+Deno.test('dispatch - a class-based handle() that throws exits 1', async () => {
     @Command('explode', 'Throws from handle()')
     class ExplodeCommand implements CommandContract {
         handle(_ctx: CommandContext): Promise<void> {
@@ -456,29 +478,29 @@ test('dispatch - a class-based handle() that throws exits 1', async () => {
 })
 
 // -----------------------------------------------------------------------------
-// Cli.run — writes a non-zero status to process.exitCode, and only that
+// Cli.run — writes a non-zero status to Deno.exitCode, and only that
 // -----------------------------------------------------------------------------
 
 /**
- * Run `fn` with `process.exitCode` preset to `preset`, returning the value it
+ * Run `fn` with `Deno.exitCode` preset to `preset`, returning the value it
  * held afterwards and always restoring the original — a leaked non-zero value
  * would fail the whole test process.
  */
 async function withExitCode(
     preset: number,
     fn: () => Promise<unknown>,
-): Promise<typeof process.exitCode> {
-    const original = process.exitCode
-    process.exitCode = preset
+): Promise<number> {
+    const original = Deno.exitCode
+    Deno.exitCode = preset
     try {
         await fn()
-        return process.exitCode
+        return Deno.exitCode
     } finally {
-        process.exitCode = original
+        Deno.exitCode = original
     }
 }
 
-test('run - a failure sets process.exitCode and returns the status', async () => {
+Deno.test('run - a failure sets Deno.exitCode and returns the status', async () => {
     const cli = cliWith(() =>
         Promise.reject(new CommandFailedError('x', { exitCode: 2 }))
     )
@@ -491,15 +513,15 @@ test('run - a failure sets process.exitCode and returns the status', async () =>
     assertEquals(returned, 2)
 })
 
-test('run - an unknown command sets process.exitCode to 1', async () => {
+Deno.test('run - an unknown command sets Deno.exitCode to 1', async () => {
     const cli = cliWith(() => Promise.resolve())
     const after = await withExitCode(0, () => capture(() => cli.run(['nope'])))
     assertEquals(after, 1)
 })
 
-test('run - a success leaves process.exitCode untouched', async () => {
+Deno.test('run - a success leaves Deno.exitCode untouched', async () => {
     const cli = cliWith(() => Promise.resolve())
-    // Preset to a non-zero value so an unconditional `process.exitCode = 0`
+    // Preset to a non-zero value so an unconditional `Deno.exitCode = 0`
     // (overwriting another part of the process's status) is visible.
     const after = await withExitCode(7, () => capture(() => cli.run(['task'])))
     assertEquals(after, 7)

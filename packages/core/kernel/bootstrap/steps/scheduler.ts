@@ -12,7 +12,6 @@ import {
     loadConfiguredPackage,
 } from '../optional_packages.ts'
 import { registerDisposable, renderError } from '@lockness/contract'
-import { assertDenoKvRuntime } from '@lockness/contract/store/internal'
 import { SHUTDOWN_PRIORITY } from '../../shutdown_registry.ts'
 
 /**
@@ -201,7 +200,6 @@ export const schedulerStep: BootstrapStep = {
                     priority: SHUTDOWN_PRIORITY.STORES,
                 })
             } else if (lockConfig.driver === 'deno-kv') {
-                assertDenoKvRuntime('scheduler lock')
                 const kv = await Deno.openKv(lockConfig.kvPath)
                 scheduler().setLock(
                     new DenoKvSchedulerLock(kv, lockConfig.ttlMs),

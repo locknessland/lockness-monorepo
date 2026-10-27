@@ -6,7 +6,6 @@
  * @module
  */
 
-import { test } from 'node:test'
 import {
     assertEquals,
     assertNotEquals,
@@ -21,17 +20,11 @@ import {
     runGate,
 } from './gate.ts'
 
-test('the gate runs the suite last, after every static check', () => {
+Deno.test('the gate runs the suite last, after every static check', () => {
     // Asserts each step's args, not only its label (#397): a step that kept
     // its label while running the wrong command used to pass this test.
     assertEquals(gateSteps(), [
         { label: 'fmt --check', args: ['fmt', '--check'] },
-        // Generated deno.json files are checked before anything reads them
-        // (#591): a stale one changes what lint, check and the suite resolve.
-        {
-            label: 'manifests --check',
-            args: ['task', 'manifests', '--check'],
-        },
         { label: 'lint', args: ['lint'] },
         { label: 'check', args: ['check'] },
         { label: 'deps:analyze', args: ['task', 'deps:analyze'] },
@@ -41,14 +34,11 @@ test('the gate runs the suite last, after every static check', () => {
         },
         { label: 'docs:coverage', args: ['task', 'docs:coverage'] },
         { label: 'publish:check', args: ['task', 'publish:check'] },
-        { label: 'install --frozen', args: ['install', '--frozen'] },
-        { label: 'npm:build', args: ['task', 'npm:build'] },
-        { label: 'npm:check', args: ['task', 'npm:check'] },
         { label: 'test', args: ['task', 'test'] },
     ])
 })
 
-test('--leaks swaps only the suite for test:leaks', () => {
+Deno.test('--leaks swaps only the suite for test:leaks', () => {
     const plain = gateSteps()
     const leaks = gateSteps({ leaks: true })
     assertEquals(leaks.slice(0, -1), plain.slice(0, -1))
@@ -58,7 +48,7 @@ test('--leaks swaps only the suite for test:leaks', () => {
     })
 })
 
-test('--registry reaches publish:check and no other step', () => {
+Deno.test('--registry reaches publish:check and no other step', () => {
     const plain = gateSteps()
     const registry = gateSteps({ registry: true })
     const publishIndex = plain.findIndex((s) => s.label === 'publish:check')
@@ -74,7 +64,7 @@ test('--registry reaches publish:check and no other step', () => {
     })
 })
 
-test('--leaks and --registry combine without interfering', () => {
+Deno.test('--leaks and --registry combine without interfering', () => {
     const both = gateSteps({ leaks: true, registry: true })
     assertEquals(both.at(-1), {
         label: 'test:leaks',
@@ -89,7 +79,7 @@ test('--leaks and --registry combine without interfering', () => {
     )
 })
 
-test('an unknown argument is refused, not ignored', () => {
+Deno.test('an unknown argument is refused, not ignored', () => {
     assertEquals(parseGateArgs([]), {})
     assertEquals(parseGateArgs(['--leaks']), { leaks: true })
     assertEquals(parseGateArgs(['--registry']), { registry: true })
@@ -100,7 +90,7 @@ test('an unknown argument is refused, not ignored', () => {
     assertThrows(() => parseGateArgs(['--leak']), Error, '--leak')
 })
 
-test('the gate stops at the first failing step with its code', async () => {
+Deno.test('the gate stops at the first failing step with its code', async () => {
     const ran: string[] = []
     const outcome = await runGate(gateSteps(), (step: GateStep) => {
         ran.push(step.label)
@@ -112,12 +102,12 @@ test('the gate stops at the first failing step with its code', async () => {
     assertEquals(ran.includes('test'), false)
 })
 
-test('the gate passes only when every step exits 0', async () => {
+Deno.test('the gate passes only when every step exits 0', async () => {
     const outcome = await runGate(gateSteps(), () => Promise.resolve(0))
     assertEquals(outcome, { code: 0 })
 })
 
-test("main returns the failing step's code, never 0", async () => {
+Deno.test("main returns the failing step's code, never 0", async () => {
     const code = await main(
         [],
         (step) => Promise.resolve(step.label === 'lint' ? 5 : 0),
@@ -125,7 +115,7 @@ test("main returns the failing step's code, never 0", async () => {
     assertEquals(code, 5)
 })
 
-test('main returns 2 on an unknown argument without running a step', async () => {
+Deno.test('main returns 2 on an unknown argument without running a step', async () => {
     let ran = 0
     const code = await main(['--leak'], () => {
         ran++
@@ -135,11 +125,11 @@ test('main returns 2 on an unknown argument without running a step', async () =>
     assertEquals(ran, 0)
 })
 
-test('main returns 0 only when every step passes', async () => {
+Deno.test('main returns 0 only when every step passes', async () => {
     assertEquals(await main(['--leaks'], () => Promise.resolve(0)), 0)
 })
 
-test('main with --registry runs publish:check with --registry and no other step gets it', async () => {
+Deno.test('main with --registry runs publish:check with --registry and no other step gets it', async () => {
     const seen: Record<string, string[]> = {}
     const code = await main(['--registry'], (step) => {
         seen[step.label] = step.args
@@ -192,7 +182,7 @@ async function runGateProcess(
     }
 }
 
-test('the gate PROCESS exits non-zero when a step fails', async () => {
+Deno.test('the gate PROCESS exits non-zero when a step fails', async () => {
     // A directory whose only file is badly formatted: the first step,
     // `deno fmt --check`, fails for real, and nothing later runs.
     const dir = await Deno.makeTempDir({ prefix: 'gate-red-' })
@@ -208,7 +198,7 @@ test('the gate PROCESS exits non-zero when a step fails', async () => {
     }
 })
 
-test('the gate PROCESS exits 2 on an unknown flag', async () => {
+Deno.test('the gate PROCESS exits 2 on an unknown flag', async () => {
     const dir = await Deno.makeTempDir({ prefix: 'gate-flag-' })
     try {
         const { code, out } = await runGateProcess(dir, ['--leak'])

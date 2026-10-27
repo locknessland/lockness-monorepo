@@ -10,7 +10,6 @@
  * @module @lockness/core/ssg/tests/build_integration
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { join, resolve } from '@std/path'
 import { App, type Context, Controller, Get, Static } from '../../mod.ts'
@@ -32,7 +31,7 @@ class HomeController {
     }
 }
 
-test('SSG end-to-end - only the @Static route is rendered and written', async () => {
+Deno.test('SSG end-to-end - only the @Static route is rendered and written', async () => {
     const dist = await Deno.makeTempDir()
     try {
         const app = new App()

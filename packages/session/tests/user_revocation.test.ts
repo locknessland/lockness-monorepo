@@ -11,11 +11,10 @@
  * @module @lockness/session/tests/user_revocation
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
-import { Hono } from '@lockness/hono'
-import type { Context } from '@lockness/hono'
+import { Hono } from 'hono'
+import type { Context } from 'hono'
 import { generateAppKey } from '../mod.ts'
 import { CookieSessionDriver } from '../drivers/cookie.ts'
 import { seal } from '../drivers/cookie_seal.ts'
@@ -68,7 +67,7 @@ async function contextWith(cookieHeader?: string): Promise<Context> {
     return captured
 }
 
-test('user revocation - a session issued before the subject epoch is refused (SC-001)', async () => {
+Deno.test('user revocation - a session issued before the subject epoch is refused (SC-001)', async () => {
     using time = new FakeTime(1_000_000_000_000)
     const store = memoryStore()
 
@@ -92,7 +91,7 @@ test('user revocation - a session issued before the subject epoch is refused (SC
     )
 })
 
-test('user revocation - iat == epoch survives (strict <, SC-003 boundary)', async () => {
+Deno.test('user revocation - iat == epoch survives (strict <, SC-003 boundary)', async () => {
     using _time = new FakeTime(1_000_000_000_000)
     const store = memoryStore()
 
@@ -114,7 +113,7 @@ test('user revocation - iat == epoch survives (strict <, SC-003 boundary)', asyn
     )
 })
 
-test('user revocation - a subject-less cookie is unaffected (SC-005)', async () => {
+Deno.test('user revocation - a subject-less cookie is unaffected (SC-005)', async () => {
     using time = new FakeTime(1_000_000_000_000)
     const store = memoryStore()
 
@@ -139,7 +138,7 @@ test('user revocation - a subject-less cookie is unaffected (SC-005)', async () 
     )
 })
 
-test('user revocation - a store read error fails CLOSED (SC-004)', async () => {
+Deno.test('user revocation - a store read error fails CLOSED (SC-004)', async () => {
     const throwingStore: RevocationStore = {
         isRevoked: () => Promise.resolve(false),
         revoke: () => Promise.resolve(),

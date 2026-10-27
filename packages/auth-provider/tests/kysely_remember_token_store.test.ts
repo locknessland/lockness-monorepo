@@ -11,7 +11,6 @@
  * @module @lockness/auth-provider/tests/kysely_remember_token_store
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertThrows } from '@std/assert'
 import type { Authenticatable } from '@lockness/auth'
 import { KyselySessionProvider } from '../kysely/kysely_session_provider.ts'
@@ -133,7 +132,7 @@ function build(db: RecordingKysely) {
     })
 }
 
-test('kysely store - insert has no .returning() and re-selects by token_hash', async () => {
+Deno.test('kysely store - insert has no .returning() and re-selects by token_hash', async () => {
     const db = new RecordingKysely()
     const token = await build(db).createRememberToken({ id: 1 }, 3600)
 
@@ -145,7 +144,7 @@ test('kysely store - insert has no .returning() and re-selects by token_hash', a
     assertEquals(db.rows[0].token_hash, token.hash)
 })
 
-test('kysely store - first_issued_at is written, and read back through verify', async () => {
+Deno.test('kysely store - first_issued_at is written, and read back through verify', async () => {
     const db = new RecordingKysely()
     const provider = build(db)
     const token = await provider.createRememberToken({ id: 1 }, 3600)
@@ -163,13 +162,13 @@ test('kysely store - first_issued_at is written, and read back through verify', 
     )
 })
 
-test('kysely store - findByHash carries no expires_at predicate', async () => {
+Deno.test('kysely store - findByHash carries no expires_at predicate', async () => {
     const db = new RecordingKysely()
     await build(db).verifyRememberToken('presented-value')
     assertEquals(db.wheresOf('selectFrom'), [['token_hash']])
 })
 
-test('kysely store - delete is scoped by id and user_id; deleteAllForUser by user_id', async () => {
+Deno.test('kysely store - delete is scoped by id and user_id; deleteAllForUser by user_id', async () => {
     const db = new RecordingKysely()
     const provider = build(db)
     const token = await provider.createRememberToken({ id: 1 }, 3600)
@@ -190,7 +189,7 @@ test('kysely store - delete is scoped by id and user_id; deleteAllForUser by use
     assertEquals(db.rows.length, 0)
 })
 
-test('kysely store - string timestamps come back as Date, so the token verifies', async () => {
+Deno.test('kysely store - string timestamps come back as Date, so the token verifies', async () => {
     const db = new RecordingKysely()
     db.stringDates = true
     const provider = build(db)
@@ -204,7 +203,7 @@ test('kysely store - string timestamps come back as Date, so the token verifies'
     assertEquals(verified.token.expiresAt.getTime(), token.expiresAt.getTime())
 })
 
-test('kysely provider - a table name that is empty or not a string is refused', () => {
+Deno.test('kysely provider - a table name that is empty or not a string is refused', () => {
     for (const bad of ['', 42, null, {}]) {
         assertThrows(
             () =>
@@ -220,7 +219,7 @@ test('kysely provider - a table name that is empty or not a string is refused', 
     }
 })
 
-test('kysely provider - the removed enableRememberTokens option is refused', () => {
+Deno.test('kysely provider - the removed enableRememberTokens option is refused', () => {
     assertThrows(
         () =>
             new KyselySessionProvider<Authenticatable>({

@@ -9,7 +9,6 @@
  * @module @lockness/drizzle/tests/production_guard
  */
 
-import { test } from 'node:test'
 import { assertEquals, assertStringIncludes, assertThrows } from '@std/assert'
 import { assertNotProduction } from '../production_guard.ts'
 
@@ -38,7 +37,7 @@ function withEnv(
     }
 }
 
-test('assertNotProduction - throws under APP_ENV=production without override', () => {
+Deno.test('assertNotProduction - throws under APP_ENV=production without override', () => {
     withEnv({ APP_ENV: 'production' }, () => {
         const error = assertThrows(
             () => assertNotProduction('db:seed'),
@@ -51,7 +50,7 @@ test('assertNotProduction - throws under APP_ENV=production without override', (
     })
 })
 
-test('assertNotProduction - a DENO_ENV conflicting with APP_ENV refuses, naming APP_ENV (#504)', () => {
+Deno.test('assertNotProduction - a DENO_ENV conflicting with APP_ENV refuses, naming APP_ENV (#504)', () => {
     // DENO_ENV is no longer read, so DENO_ENV=production alone is not
     // production — but it was until v0.5.0, and a seed run against what the
     // operator still believes is production must not slip through on the
@@ -77,7 +76,7 @@ test('assertNotProduction - a DENO_ENV conflicting with APP_ENV refuses, naming 
     }
 })
 
-test('assertNotProduction - a DENO_ENV equal to APP_ENV changes nothing (#504)', () => {
+Deno.test('assertNotProduction - a DENO_ENV equal to APP_ENV changes nothing (#504)', () => {
     withEnv({ DENO_ENV: 'production', APP_ENV: 'production' }, () => {
         const error = assertThrows(() => assertNotProduction('db:seed'), Error)
         assertStringIncludes(error.message, 'APP_ENV is "production"')
@@ -89,20 +88,20 @@ test('assertNotProduction - a DENO_ENV equal to APP_ENV changes nothing (#504)',
     })
 })
 
-test('assertNotProduction - passes under production when override is set', () => {
+Deno.test('assertNotProduction - passes under production when override is set', () => {
     withEnv({ APP_ENV: 'production' }, () => {
         // No throw expected — the explicit override authorises the write.
         assertNotProduction('db:seed', true)
     })
 })
 
-test('assertNotProduction - passes outside production without override', () => {
+Deno.test('assertNotProduction - passes outside production without override', () => {
     withEnv({ APP_ENV: 'development' }, () => {
         assertNotProduction('db:seed')
     })
 })
 
-test('assertNotProduction - passes when environment is unset (absence is not production)', () => {
+Deno.test('assertNotProduction - passes when environment is unset (absence is not production)', () => {
     withEnv({}, () => {
         assertNotProduction('db:seed')
     })

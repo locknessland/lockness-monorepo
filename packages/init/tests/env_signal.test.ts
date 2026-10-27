@@ -11,7 +11,6 @@
  * @module @lockness/init/tests/env_signal
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { walk } from '@std/fs'
 import { dirname, fromFileUrl, join } from '@std/path'
@@ -49,7 +48,7 @@ async function allStubs(): Promise<string[]> {
     return files
 }
 
-test('no stub reads APP_ENV or DENO_ENV from Deno.env', async () => {
+Deno.test('no stub reads APP_ENV or DENO_ENV from Deno.env', async () => {
     const raw = /Deno\.env\.get\(\s*['"`](APP_ENV|DENO_ENV)['"`]/
     for (const file of await allStubs()) {
         const text = await Deno.readTextFile(file)
@@ -57,19 +56,19 @@ test('no stub reads APP_ENV or DENO_ENV from Deno.env', async () => {
     }
 })
 
-test('no stub sets or names DENO_ENV', async () => {
+Deno.test('no stub sets or names DENO_ENV', async () => {
     for (const file of await allStubs()) {
         const text = await Deno.readTextFile(file)
         assert(!text.includes('DENO_ENV'), `${file} still names DENO_ENV`)
     }
 })
 
-test('the session config leaves secure to the framework default', async () => {
+Deno.test('the session config leaves secure to the framework default', async () => {
     const text = await Deno.readTextFile(join(CONFIG, 'session.ts.stub'))
     assert(!/^\s*secure\s*:/m.test(text), 'session.ts.stub sets secure')
 })
 
-test('the error handlers show details only under explicit development', async () => {
+Deno.test('the error handlers show details only under explicit development', async () => {
     for (const file of ERROR_HANDLERS) {
         const text = await Deno.readTextFile(file)
         assert(
@@ -79,7 +78,7 @@ test('the error handlers show details only under explicit development', async ()
     }
 })
 
-test('the generated image sets APP_ENV=production', async () => {
+Deno.test('the generated image sets APP_ENV=production', async () => {
     const text = await Deno.readTextFile(
         join(INIT_STUBS, 'init', 'Dockerfile.stub'),
     )
@@ -135,7 +134,7 @@ const VALUES = [undefined, 'production', 'development']
 /** APP_ENV rows, including the spellings the framework normalises. */
 const APP_ENV_ROWS = [...VALUES, ' Production', 'staging']
 
-test('the scaffolded config agrees with the framework for every APP_ENV x DENO_ENV', async () => {
+Deno.test('the scaffolded config agrees with the framework for every APP_ENV x DENO_ENV', async () => {
     const dir = await renderConfig()
     try {
         for (const appEnv of APP_ENV_ROWS) {
@@ -158,7 +157,7 @@ test('the scaffolded config agrees with the framework for every APP_ENV x DENO_E
     }
 })
 
-test('a scaffolded session config yields a Secure cookie unless APP_ENV=development', async () => {
+Deno.test('a scaffolded session config yields a Secure cookie unless APP_ENV=development', async () => {
     const dir = await renderConfig()
     try {
         for (const appEnv of [undefined, 'production', 'staging']) {

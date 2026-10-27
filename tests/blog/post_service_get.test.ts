@@ -5,7 +5,6 @@
  * development reads through the unfiltered query (a draft slug resolves).
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { PostService } from '../../app/service/post_service.ts'
 import type { PostRepository } from '../../app/repository/post_repository.ts'
@@ -53,7 +52,7 @@ function makeService(isProduction: boolean) {
     return { service, calls }
 }
 
-test('get - production hides a draft (null) via the fail-closed query', async () => {
+Deno.test('get - production hides a draft (null) via the fail-closed query', async () => {
     const { service, calls } = makeService(true)
     const post = await service.get('secret')
 
@@ -61,7 +60,7 @@ test('get - production hides a draft (null) via the fail-closed query', async ()
     assertEquals(calls, ['findPublishedBySlug:secret'])
 })
 
-test('get - development resolves a draft via the unfiltered query', async () => {
+Deno.test('get - development resolves a draft via the unfiltered query', async () => {
     const { service, calls } = makeService(false)
     const post = await service.get('secret')
 

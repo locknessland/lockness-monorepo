@@ -1,4 +1,3 @@
-import { test } from 'node:test'
 import { assertStringIncludes } from '@std/assert'
 import {
     Card,
@@ -17,8 +16,8 @@ function renderToString(component: unknown): string {
     return result.toString()
 }
 
-test('Card components', async (t) => {
-    await t.test('Card renders with base styles', () => {
+Deno.test('Card components', async (t) => {
+    await t.step('Card renders with base styles', () => {
         const html = renderToString(
             <Card>
                 <div>Content</div>
@@ -31,14 +30,14 @@ test('Card components', async (t) => {
         assertStringIncludes(html, 'Content')
     })
 
-    await t.test('Card forwards custom class', () => {
+    await t.step('Card forwards custom class', () => {
         const html = renderToString(
             <Card class='custom-card'>Content</Card>,
         )
         assertStringIncludes(html, 'custom-card')
     })
 
-    await t.test('CardHeader renders with spacing', () => {
+    await t.step('CardHeader renders with spacing', () => {
         const html = renderToString(
             <CardHeader>
                 <div>Header</div>
@@ -49,7 +48,7 @@ test('Card components', async (t) => {
         assertStringIncludes(html, 'Header')
     })
 
-    await t.test('CardTitle renders as h3 with font styles', () => {
+    await t.step('CardTitle renders as h3 with font styles', () => {
         const html = renderToString(<CardTitle>My Title</CardTitle>)
         assertStringIncludes(html, '<h3')
         assertStringIncludes(html, 'text-(length:--card-title-font-size)')
@@ -57,7 +56,7 @@ test('Card components', async (t) => {
         assertStringIncludes(html, 'My Title')
     })
 
-    await t.test('CardDescription renders with muted text', () => {
+    await t.step('CardDescription renders with muted text', () => {
         const html = renderToString(
             <CardDescription>Description text</CardDescription>,
         )
@@ -67,7 +66,7 @@ test('Card components', async (t) => {
         assertStringIncludes(html, 'Description text')
     })
 
-    await t.test('CardContent renders with padding', () => {
+    await t.step('CardContent renders with padding', () => {
         const html = renderToString(
             <CardContent>
                 <p>Main content</p>
@@ -78,7 +77,7 @@ test('Card components', async (t) => {
         assertStringIncludes(html, 'Main content')
     })
 
-    await t.test('CardFooter renders with flex layout', () => {
+    await t.step('CardFooter renders with flex layout', () => {
         const html = renderToString(
             <CardFooter>
                 <button type='button'>Action</button>
@@ -89,7 +88,7 @@ test('Card components', async (t) => {
         assertStringIncludes(html, 'Action')
     })
 
-    await t.test('renders full card composition', () => {
+    await t.step('renders full card composition', () => {
         const html = renderToString(
             <Card>
                 <CardHeader>
@@ -111,7 +110,7 @@ test('Card components', async (t) => {
         assertStringIncludes(html, 'Save')
     })
 
-    await t.test('all components forward HTML attributes', () => {
+    await t.step('all components forward HTML attributes', () => {
         const cardHtml = renderToString(<Card id='my-card'>Test</Card>)
         assertStringIncludes(cardHtml, 'id="my-card"')
 

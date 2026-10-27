@@ -5,7 +5,6 @@
  * dynamic doc loading from colocated package files.
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertExists, assertRejects } from '@std/assert'
 import { DocsLoader } from '../app/service/docs_loader.ts'
 import { CacheServiceToken, container } from '@lockness/core'
@@ -20,7 +19,7 @@ if (!container.has(CacheServiceToken)) {
 // Test: Load package-specific documentation
 // =============================================================================
 
-test('DocsLoader - should load package doc', async () => {
+Deno.test('DocsLoader - should load package doc', async () => {
     const loader = new DocsLoader()
     const doc = await loader.load('authentication')
 
@@ -33,7 +32,7 @@ test('DocsLoader - should load package doc', async () => {
     assertEquals(doc.slug, 'authentication')
 })
 
-test('DocsLoader - should load core package doc', async () => {
+Deno.test('DocsLoader - should load core package doc', async () => {
     const loader = new DocsLoader()
     const doc = await loader.load('routing')
 
@@ -50,7 +49,7 @@ test('DocsLoader - should load core package doc', async () => {
 // Test: Load general documentation
 // =============================================================================
 
-test('DocsLoader - should load general doc', async () => {
+Deno.test('DocsLoader - should load general doc', async () => {
     const loader = new DocsLoader()
     const doc = await loader.load('installation')
 
@@ -63,7 +62,7 @@ test('DocsLoader - should load general doc', async () => {
     assertEquals(doc.slug, 'installation')
 })
 
-test('DocsLoader - should load getting-started doc', async () => {
+Deno.test('DocsLoader - should load getting-started doc', async () => {
     const loader = new DocsLoader()
     const doc = await loader.load('getting-started')
 
@@ -76,7 +75,7 @@ test('DocsLoader - should load getting-started doc', async () => {
 // Test: Error handling
 // =============================================================================
 
-test('DocsLoader - should throw for unknown slug', async () => {
+Deno.test('DocsLoader - should throw for unknown slug', async () => {
     const loader = new DocsLoader()
 
     await assertRejects(
@@ -90,7 +89,7 @@ test('DocsLoader - should throw for unknown slug', async () => {
 // Test: Caching behavior
 // =============================================================================
 
-test('DocsLoader - should cache loaded content', async () => {
+Deno.test('DocsLoader - should cache loaded content', async () => {
     const loader = new DocsLoader()
 
     // First load
@@ -106,7 +105,7 @@ test('DocsLoader - should cache loaded content', async () => {
     assertEquals(doc1.content, doc2.content)
 })
 
-test('DocsLoader - clearCache should clear cache', async () => {
+Deno.test('DocsLoader - clearCache should clear cache', async () => {
     const loader = new DocsLoader()
 
     // Load and cache
@@ -124,7 +123,7 @@ test('DocsLoader - clearCache should clear cache', async () => {
 // Test: Metadata extraction
 // =============================================================================
 
-test('DocsLoader - should extract title from H1', async () => {
+Deno.test('DocsLoader - should extract title from H1', async () => {
     const loader = new DocsLoader()
     const doc = await loader.load('authentication')
 
@@ -132,7 +131,7 @@ test('DocsLoader - should extract title from H1', async () => {
     assert(doc.title.length > 0, 'Should have a title')
 })
 
-test('DocsLoader - should extract description from first paragraph', async () => {
+Deno.test('DocsLoader - should extract description from first paragraph', async () => {
     const loader = new DocsLoader()
     const doc = await loader.load('authentication')
 
@@ -140,7 +139,7 @@ test('DocsLoader - should extract description from first paragraph', async () =>
     assertExists(doc.description !== undefined)
 })
 
-test('DocsLoader - should identify package name from path', async () => {
+Deno.test('DocsLoader - should identify package name from path', async () => {
     const loader = new DocsLoader()
 
     // Test package docs
@@ -159,7 +158,7 @@ test('DocsLoader - should identify package name from path', async () => {
 // Test: Available slugs
 // =============================================================================
 
-test('DocsLoader - getAvailableSlugs should return all slugs', () => {
+Deno.test('DocsLoader - getAvailableSlugs should return all slugs', () => {
     const loader = new DocsLoader()
     const slugs = loader.getAvailableSlugs()
 
@@ -170,7 +169,7 @@ test('DocsLoader - getAvailableSlugs should return all slugs', () => {
     assert(slugs.includes('routing'), 'Should include routing')
 })
 
-test('DocsLoader - getAvailableSlugs should return expected count', () => {
+Deno.test('DocsLoader - getAvailableSlugs should return expected count', () => {
     const loader = new DocsLoader()
     const slugs = loader.getAvailableSlugs()
 
@@ -182,7 +181,7 @@ test('DocsLoader - getAvailableSlugs should return expected count', () => {
 // Test: Content validation
 // =============================================================================
 
-test('DocsLoader - loaded docs should have required fields', async () => {
+Deno.test('DocsLoader - loaded docs should have required fields', async () => {
     const loader = new DocsLoader()
     const doc = await loader.load('middleware')
 
@@ -201,7 +200,7 @@ test('DocsLoader - loaded docs should have required fields', async () => {
     )
 })
 
-test('DocsLoader - content should not be empty', async () => {
+Deno.test('DocsLoader - content should not be empty', async () => {
     const loader = new DocsLoader()
     const doc = await loader.load('validation')
 
@@ -212,12 +211,12 @@ test('DocsLoader - content should not be empty', async () => {
 // Test: All configured slugs should load successfully
 // =============================================================================
 
-test('DocsLoader - all configured slugs should load', async (t) => {
+Deno.test('DocsLoader - all configured slugs should load', async (t) => {
     const loader = new DocsLoader()
     const slugs = loader.getAvailableSlugs()
 
     for (const slug of slugs) {
-        await t.test(`loading ${slug}`, async () => {
+        await t.step(`loading ${slug}`, async () => {
             const doc = await loader.load(slug)
             assertExists(doc)
             assertEquals(doc.slug, slug)

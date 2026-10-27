@@ -10,7 +10,6 @@
  * handle is released through the disposables drain.
  */
 
-import { test } from 'node:test'
 import {
     assertEquals,
     assertNotStrictEquals,
@@ -18,8 +17,8 @@ import {
 } from '@std/assert'
 import { crypto } from '@std/crypto'
 import { credentialFingerprint } from '@lockness/redis'
-import { Hono } from '@lockness/hono'
-import type { Context } from '@lockness/hono'
+import { Hono } from 'hono'
+import type { Context } from 'hono'
 import { drainDisposables } from '@lockness/contract/lifecycle/internal'
 import {
     configureSession,
@@ -58,7 +57,7 @@ function reset(): void {
 
 const fakeCtx = {} as Context
 
-test('driver memo - a memory login persists across requests (FR-008, the real #142)', async () => {
+Deno.test('driver memo - a memory login persists across requests (FR-008, the real #142)', async () => {
     reset()
     configureSession({
         driver: 'memory',
@@ -91,7 +90,7 @@ test('driver memo - a memory login persists across requests (FR-008, the real #1
     reset()
 })
 
-test('driver memo - memory, deno-kv and redis are identical across requests; cookie is not (FR-007)', () => {
+Deno.test('driver memo - memory, deno-kv and redis are identical across requests; cookie is not (FR-007)', () => {
     reset()
 
     // memory: same instance across two lookups.
@@ -135,7 +134,7 @@ test('driver memo - memory, deno-kv and redis are identical across requests; coo
     reset()
 })
 
-test('driver memo - driverKey keys memoized drivers and refuses only cookie', () => {
+Deno.test('driver memo - driverKey keys memoized drivers and refuses only cookie', () => {
     reset()
     assertEquals(driverKey(config({ driver: 'memory' })), 'memory')
     assertEquals(
@@ -214,7 +213,7 @@ test('driver memo - driverKey keys memoized drivers and refuses only cookie', ()
     reset()
 })
 
-test('driver memo - deno-kv acquisition is single-flighted under a concurrent burst (FR-012)', async () => {
+Deno.test('driver memo - deno-kv acquisition is single-flighted under a concurrent burst (FR-012)', async () => {
     reset()
     // Deno.openKv is a getter-only property; defineProperty is the supported
     // way to stub a Deno API for a test. Count how many handles get opened.
@@ -248,7 +247,7 @@ test('driver memo - deno-kv acquisition is single-flighted under a concurrent bu
     reset()
 })
 
-test('driver memo - a memoized deno-kv handle is released through the disposables drain (FR-006/US4)', async () => {
+Deno.test('driver memo - a memoized deno-kv handle is released through the disposables drain (FR-006/US4)', async () => {
     reset()
     const driver = new DenoKvSessionDriver(':memory:')
     // Acquire the handle (registers the disposable) via a read.
@@ -271,7 +270,7 @@ test('driver memo - a memoized deno-kv handle is released through the disposable
     reset()
 })
 
-test('driver memo - a deno-kv session persists across requests through the middleware (SC-002)', async () => {
+Deno.test('driver memo - a deno-kv session persists across requests through the middleware (SC-002)', async () => {
     reset()
     configureSession({
         driver: 'deno-kv',
@@ -300,7 +299,7 @@ test('driver memo - a deno-kv session persists across requests through the middl
     reset() // closes the memoized kv handle
 })
 
-test('driver memo - the registry disposable clears the memo at shutdown (FR-010)', async () => {
+Deno.test('driver memo - the registry disposable clears the memo at shutdown (FR-010)', async () => {
     reset()
     const cfg = config({ driver: 'memory' })
     const a = getOrCreateDriver(fakeCtx, cfg)
@@ -321,7 +320,7 @@ test('driver memo - the registry disposable clears the memo at shutdown (FR-010)
     reset()
 })
 
-test('driver memo - resetDriverRegistry empties a memoized memory store (clear branch)', async () => {
+Deno.test('driver memo - resetDriverRegistry empties a memoized memory store (clear branch)', async () => {
     reset()
     const cfg = config({ driver: 'memory' })
     const mem = getOrCreateDriver(fakeCtx, cfg)
@@ -337,7 +336,7 @@ test('driver memo - resetDriverRegistry empties a memoized memory store (clear b
     reset()
 })
 
-test('driver memo - a transient Deno.openKv failure self-heals on the next read (FR-012 resilience)', async () => {
+Deno.test('driver memo - a transient Deno.openKv failure self-heals on the next read (FR-012 resilience)', async () => {
     reset()
     const realOpenKv = Deno.openKv
     let calls = 0

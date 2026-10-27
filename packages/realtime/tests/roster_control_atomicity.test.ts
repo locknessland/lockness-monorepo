@@ -14,7 +14,6 @@
  * @module @lockness/realtime/tests/roster_control_atomicity
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { ChannelManager } from '../manager.ts'
 import { PresenceMemberIdError } from '../presence_member.ts'
@@ -101,7 +100,7 @@ function recordingDriver(options: { refuseControl?: boolean } = {}) {
     return { driver, log, roster }
 }
 
-test('#312 the member-id assertion runs BEFORE the roster write', async () => {
+Deno.test('#312 the member-id assertion runs BEFORE the roster write', async () => {
     // The row #306 could only record as an equivalent mutant. Its guard still
     // throws when moved after `holdMember`, so every refusal assertion in that
     // suite still passes — what changes is that the oversized field is already
@@ -134,7 +133,7 @@ test('#312 the member-id assertion runs BEFORE the roster write', async () => {
     )
 })
 
-test('#312 a clean join writes the roster, THEN publishes the join frame', async () => {
+Deno.test('#312 a clean join writes the roster, THEN publishes the join frame', async () => {
     // The order itself, pinned. It is not arbitrary: the frame announces a
     // member that peers may immediately read back from the roster, so the
     // roster has to be authoritative by the time the frame lands.
@@ -155,7 +154,7 @@ test('#312 a clean join writes the roster, THEN publishes the join frame', async
     ])
 })
 
-test('#312 a REFUSED control frame loses the ANNOUNCEMENT, not the roster', async () => {
+Deno.test('#312 a REFUSED control frame loses the ANNOUNCEMENT, not the roster', async () => {
     // The state today, pinned rather than assumed — and it is narrower than
     // "present on one instance, absent from everywhere else".
     //
@@ -197,7 +196,7 @@ test('#312 a REFUSED control frame loses the ANNOUNCEMENT, not the roster', asyn
     )
 })
 
-test('#312 cleanup after a refused join is total — the leave still removes it', async () => {
+Deno.test('#312 cleanup after a refused join is total — the leave still removes it', async () => {
     // The bound on the damage. A member whose join frame was refused is not
     // stranded: `unsubscribe` removes it from the authoritative roster on the
     // ordinary path, so the divergence lasts the connection's lifetime and no
@@ -220,7 +219,7 @@ test('#312 cleanup after a refused join is total — the leave still removes it'
     )
 })
 
-test('#323 the ONE log shows write, then frame, then announcement', async () => {
+Deno.test('#323 the ONE log shows write, then frame, then announcement', async () => {
     // This is the assertion the file could not make before its connection
     // double learned to log. It is the whole of FR-001: the frame that tells a
     // subscriber somebody joined comes AFTER the write that makes it true.

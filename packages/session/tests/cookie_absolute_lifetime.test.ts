@@ -12,10 +12,9 @@
  * @module @lockness/session/tests/cookie_absolute_lifetime
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
-import { Hono } from '@lockness/hono'
+import { Hono } from 'hono'
 import { drainDisposables } from '@lockness/contract/lifecycle/internal'
 import {
     configureSession,
@@ -45,7 +44,7 @@ function bumpApp(): Hono {
     return app
 }
 
-test('cookie cap - a session re-sealed every request ages out at the cap, not at the last write (SC-001)', async () => {
+Deno.test('cookie cap - a session re-sealed every request ages out at the cap, not at the last write (SC-001)', async () => {
     reset()
     const time = new FakeTime(1_000_000)
     try {
@@ -91,7 +90,7 @@ test('cookie cap - a session re-sealed every request ages out at the cap, not at
     }
 })
 
-test('cookie cap - within the cap a session is accepted (SC-002)', async () => {
+Deno.test('cookie cap - within the cap a session is accepted (SC-002)', async () => {
     reset()
     const time = new FakeTime(2_000_000)
     try {
@@ -114,7 +113,7 @@ test('cookie cap - within the cap a session is accepted (SC-002)', async () => {
     }
 })
 
-test('cookie cap - absoluteLifetime 0 is enforced, not treated as off (off-sentinel)', async () => {
+Deno.test('cookie cap - absoluteLifetime 0 is enforced, not treated as off (off-sentinel)', async () => {
     // The gate is `typeof === 'number'`, not truthiness: 0 means "expire the
     // instant the issuance second passes", it does NOT disable the cap.
     const time = new FakeTime(3_000_000)
@@ -142,7 +141,7 @@ test('cookie cap - absoluteLifetime 0 is enforced, not treated as off (off-senti
     }
 })
 
-test('cookie cap - a payload with no/non-numeric iat is refused when the cap is on (SC-003/FR-002)', async () => {
+Deno.test('cookie cap - a payload with no/non-numeric iat is refused when the cap is on (SC-003/FR-002)', async () => {
     const future = Math.floor(Date.now() / 1000) + 7200
     // GCM-valid cookies that a real seal() never produces: iat absent, and iat
     // as a string. Both must be refused under a positive cap — a future seal()

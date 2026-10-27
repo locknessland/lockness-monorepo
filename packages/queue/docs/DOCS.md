@@ -464,20 +464,3 @@ Deno.test('job processing', async () => {
     assertEquals(executed, true)
 })
 ```
-
-## Upgrading to v0.5.0
-
-One item. **Migration step:** apps that use `queue:*` must declare
-`@lockness/queue` in their imports.
-
-### 1. The `queue:*` commands come from `@lockness/queue`, not `@lockness/cli`
-
-`queue:work`, `queue:clear` and `queue:retry` used to be built into
-`@lockness/cli`, which carried `@lockness/queue` as its own dependency, so
-`./nessy` offered them in every app (#592). They now live in this package
-(`registerQueueCommands`), and `./nessy` loads them when the app's `deno.json`
-maps `@lockness/queue` in its `imports` — or lists `queue` in
-`lockness.packages`. An app that runs a worker without that mapping gets
-`❌ Unknown command: queue:work`, followed by a line naming `@lockness/queue`;
-add it with `deno add jsr:@lockness/queue`. The commands themselves, their flags
-and their environment variables are unchanged.

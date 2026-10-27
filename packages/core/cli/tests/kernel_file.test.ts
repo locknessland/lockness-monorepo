@@ -8,7 +8,6 @@
  * @module @lockness/core/cli/tests/kernel_file
  */
 
-import { test } from 'node:test'
 import { assertEquals, assertStringIncludes } from '@std/assert'
 import { join } from '@std/path'
 import {
@@ -34,11 +33,11 @@ async function withRoot(
     }
 }
 
-test("KERNEL_CANDIDATES - the scaffold's app/kernel.ts first, then app/kernel.tsx", () => {
+Deno.test("KERNEL_CANDIDATES - the scaffold's app/kernel.ts first, then app/kernel.tsx", () => {
     assertEquals([...KERNEL_CANDIDATES], ['app/kernel.ts', 'app/kernel.tsx'])
 })
 
-test('resolveKernelFile - finds app/kernel.ts', async () => {
+Deno.test('resolveKernelFile - finds app/kernel.ts', async () => {
     await withRoot(['app/kernel.ts'], async (root) => {
         assertEquals(await resolveKernelFile(root), {
             candidate: 'app/kernel.ts',
@@ -47,7 +46,7 @@ test('resolveKernelFile - finds app/kernel.ts', async () => {
     })
 })
 
-test('resolveKernelFile - finds app/kernel.tsx', async () => {
+Deno.test('resolveKernelFile - finds app/kernel.tsx', async () => {
     await withRoot(['app/kernel.tsx'], async (root) => {
         assertEquals(await resolveKernelFile(root), {
             candidate: 'app/kernel.tsx',
@@ -56,7 +55,7 @@ test('resolveKernelFile - finds app/kernel.tsx', async () => {
     })
 })
 
-test('resolveKernelFile - app/kernel.ts wins when both exist', async () => {
+Deno.test('resolveKernelFile - app/kernel.ts wins when both exist', async () => {
     await withRoot(['app/kernel.tsx', 'app/kernel.ts'], async (root) => {
         assertEquals(
             (await resolveKernelFile(root))?.candidate,
@@ -65,19 +64,19 @@ test('resolveKernelFile - app/kernel.ts wins when both exist', async () => {
     })
 })
 
-test('resolveKernelFile - undefined when neither exists', async () => {
+Deno.test('resolveKernelFile - undefined when neither exists', async () => {
     await withRoot(['app/other.ts'], async (root) => {
         assertEquals(await resolveKernelFile(root), undefined)
     })
 })
 
-test('resolveKernelFile - a directory named like a candidate is not a kernel file', async () => {
+Deno.test('resolveKernelFile - a directory named like a candidate is not a kernel file', async () => {
     await withRoot(['app/kernel.ts/placeholder'], async (root) => {
         assertEquals(await resolveKernelFile(root), undefined)
     })
 })
 
-test('kernelFileNotFoundMessage - names every path that was tried', () => {
+Deno.test('kernelFileNotFoundMessage - names every path that was tried', () => {
     const message = kernelFileNotFoundMessage()
     for (const candidate of KERNEL_CANDIDATES) {
         assertStringIncludes(message, candidate)

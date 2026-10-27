@@ -1,4 +1,3 @@
-import { test } from 'node:test'
 import { assertEquals, assertInstanceOf, assertRejects } from '@std/assert'
 import type { VersionProvider } from '../types.ts'
 import {
@@ -21,7 +20,7 @@ class MockVersionProvider implements VersionProvider {
     }
 }
 
-test('version_fetcher - MockVersionProvider returns correct version', async () => {
+Deno.test('version_fetcher - MockVersionProvider returns correct version', async () => {
     const provider = new MockVersionProvider({
         '@lockness/core': '0.2.0',
         '@lockness/cli': '0.2.0',
@@ -31,7 +30,7 @@ test('version_fetcher - MockVersionProvider returns correct version', async () =
     assertEquals(version, '0.2.0')
 })
 
-test('version_fetcher - MockVersionProvider returns different versions', async () => {
+Deno.test('version_fetcher - MockVersionProvider returns different versions', async () => {
     const provider = new MockVersionProvider({
         '@lockness/core': '0.2.0',
         '@lockness/cli': '0.1.5',
@@ -44,7 +43,7 @@ test('version_fetcher - MockVersionProvider returns different versions', async (
     assertEquals(cliVersion, '0.1.5')
 })
 
-test('version_fetcher - MockVersionProvider throws on unknown package', async () => {
+Deno.test('version_fetcher - MockVersionProvider throws on unknown package', async () => {
     const provider = new MockVersionProvider({
         'known-package': '1.0.1',
     })
@@ -56,7 +55,7 @@ test('version_fetcher - MockVersionProvider throws on unknown package', async ()
     )
 })
 
-test('version_fetcher - MockVersionProvider handles multiple packages', async () => {
+Deno.test('version_fetcher - MockVersionProvider handles multiple packages', async () => {
     const provider = new MockVersionProvider({
         '@lockness/core': '0.2.0',
         '@lockness/cli': '0.2.0',
@@ -95,7 +94,7 @@ async function withFetch(
     }
 }
 
-test('JsrVersionProvider - reads latest from the package meta.json', async () => {
+Deno.test('JsrVersionProvider - reads latest from the package meta.json', async () => {
     await withFetch(
         () => Promise.resolve(Response.json({ latest: '0.5.0' })),
         async (seen) => {
@@ -107,7 +106,7 @@ test('JsrVersionProvider - reads latest from the package meta.json', async () =>
     )
 })
 
-test('JsrVersionProvider - an error status names the package', async () => {
+Deno.test('JsrVersionProvider - an error status names the package', async () => {
     await withFetch(
         () =>
             Promise.resolve(
@@ -123,7 +122,7 @@ test('JsrVersionProvider - an error status names the package', async () => {
     )
 })
 
-test('JsrVersionProvider - an aborted request reports a timeout', async () => {
+Deno.test('JsrVersionProvider - an aborted request reports a timeout', async () => {
     await withFetch(
         () => Promise.reject(new DOMException('aborted', 'AbortError')),
         async () => {
@@ -136,7 +135,7 @@ test('JsrVersionProvider - an aborted request reports a timeout', async () => {
     )
 })
 
-test('JsrVersionProvider - a network error names the package', async () => {
+Deno.test('JsrVersionProvider - a network error names the package', async () => {
     await withFetch(
         () => Promise.reject(new TypeError('connection refused')),
         async () => {
@@ -149,7 +148,7 @@ test('JsrVersionProvider - a network error names the package', async () => {
     )
 })
 
-test('JsrVersionProvider - a non-Error rejection passes through', async () => {
+Deno.test('JsrVersionProvider - a non-Error rejection passes through', async () => {
     await withFetch(
         () => Promise.reject('offline'),
         async () => {
@@ -161,6 +160,6 @@ test('JsrVersionProvider - a non-Error rejection passes through', async () => {
     )
 })
 
-test('createVersionProvider - returns the JSR provider', () => {
+Deno.test('createVersionProvider - returns the JSR provider', () => {
     assertInstanceOf(createVersionProvider(), JsrVersionProvider)
 })

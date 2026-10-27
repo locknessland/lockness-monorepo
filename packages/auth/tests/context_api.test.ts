@@ -1,14 +1,13 @@
 // deno-lint-ignore-file no-explicit-any
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
-import { Hono } from '@lockness/hono'
+import { Hono } from 'hono'
 import { withAuth } from '../middleware/auth_middleware.ts'
 import { initializeAuthMiddleware } from '../middleware/initialize_auth_middleware.ts'
 import { createMockContext, type Env, MockSessionProvider } from './mocks.ts'
-import type { Context } from '@lockness/hono'
+import type { Context } from 'hono'
 import { SessionGuard } from '../guards/session_guard.ts'
 
-test('AuthContext - c.auth.user is available', async () => {
+Deno.test('AuthContext - c.auth.user is available', async () => {
     const app = new Hono<Env>()
     const provider = new MockSessionProvider()
 
@@ -65,7 +64,7 @@ test('AuthContext - c.auth.user is available', async () => {
     assertEquals(data.guard, true)
 })
 
-test('AuthContext - c.auth.login() works', async () => {
+Deno.test('AuthContext - c.auth.login() works', async () => {
     const app = new Hono<Env>()
     const provider = new MockSessionProvider()
 
@@ -107,7 +106,7 @@ test('AuthContext - c.auth.login() works', async () => {
     assertEquals(data.name, 'Alice')
 })
 
-test('AuthContext - c.auth.logout() works', async () => {
+Deno.test('AuthContext - c.auth.logout() works', async () => {
     const app = new Hono<Env>()
     const provider = new MockSessionProvider()
 
@@ -172,7 +171,7 @@ test('AuthContext - c.auth.logout() works', async () => {
     assertEquals(dataMap.has('auth_web'), false)
 })
 
-test('AuthContext - c.auth.check() returns false when not authenticated', async () => {
+Deno.test('AuthContext - c.auth.check() returns false when not authenticated', async () => {
     const ctx = await createMockContext()
     const provider = new MockSessionProvider()
 
@@ -194,7 +193,7 @@ test('AuthContext - c.auth.check() returns false when not authenticated', async 
     assertEquals(isAuthenticated, false)
 })
 
-test('AuthContext - c.auth.check() returns true when authenticated', async () => {
+Deno.test('AuthContext - c.auth.check() returns true when authenticated', async () => {
     const app = new Hono<Env>()
     const provider = new MockSessionProvider()
 

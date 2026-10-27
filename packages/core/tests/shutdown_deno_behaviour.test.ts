@@ -10,10 +10,9 @@
  * so an unbounded implementation turns a working Ctrl-C into a permanent hang.
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 
-test('deno - addSignalListener needs no permission', async () => {
+Deno.test('deno - addSignalListener needs no permission', async () => {
     // Unlike Deno.env.get, which raises NotCapable and cost the events feature
     // a boot failure at bootstrap order 10. Run in a child with ZERO flags,
     // because this process has them all.
@@ -52,7 +51,7 @@ test('deno - addSignalListener needs no permission', async () => {
     }
 })
 
-test('deno - SIGKILL cannot be bound, and says so with a TypeError', () => {
+Deno.test('deno - SIGKILL cannot be bound, and says so with a TypeError', () => {
     // The reachable throw that justifies a try/catch per signal rather than a
     // Deno.build.os check. A platform check encodes a belief about which OS
     // supports what; the catch is right either way.
@@ -90,7 +89,7 @@ function firstToFire(delay: number): Promise<'out-of-range' | 'reference'> {
     })
 }
 
-test('deno - setTimeout clamps out-of-range delays instead of honouring them', async () => {
+Deno.test('deno - setTimeout clamps out-of-range delays instead of honouring them', async () => {
     // Why resolveDeadlineMs rejects instead of passing values through.
     // `deadlineMs: Infinity` written to mean "never time out" would otherwise
     // become the SHORTEST possible deadline, silently.

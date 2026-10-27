@@ -2,12 +2,11 @@
  * Tests for CLI make:job command
  */
 
-import { test } from 'node:test'
 import { assertStringIncludes } from '@std/assert'
 import { Stub } from '../stubs.ts'
 
-test('make:job', async (t) => {
-    await t.test('generates valid job from stub', async () => {
+Deno.test('make:job', async (t) => {
+    await t.step('generates valid job from stub', async () => {
         const content = await Stub.render('make', 'job', {
             className: 'SendEmailJob',
             jobName: 'send-email',
@@ -17,7 +16,7 @@ test('make:job', async (t) => {
         assertStringIncludes(content, 'implements Job')
     })
 
-    await t.test('includes required job properties', async () => {
+    await t.step('includes required job properties', async () => {
         const content = await Stub.render('make', 'job', {
             className: 'ProcessPayment',
             jobName: 'process-payment',
@@ -28,7 +27,7 @@ test('make:job', async (t) => {
         assertStringIncludes(content, 'payload')
     })
 
-    await t.test('includes handle and failed methods', async () => {
+    await t.step('includes handle and failed methods', async () => {
         const content = await Stub.render('make', 'job', {
             className: 'TestJob',
             jobName: 'test-job',
@@ -38,7 +37,7 @@ test('make:job', async (t) => {
         assertStringIncludes(content, 'async failed(')
     })
 
-    await t.test('includes constructor with payload', async () => {
+    await t.step('includes constructor with payload', async () => {
         const content = await Stub.render('make', 'job', {
             className: 'MyJob',
             jobName: 'my-job',
@@ -48,7 +47,7 @@ test('make:job', async (t) => {
         assertStringIncludes(content, 'this.payload = payload')
     })
 
-    await t.test('imports Job and JobPayload types', async () => {
+    await t.step('imports Job and JobPayload types', async () => {
         const content = await Stub.render('make', 'job', {
             className: 'ImportJob',
             jobName: 'import-job',

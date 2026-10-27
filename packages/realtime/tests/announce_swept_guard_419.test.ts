@@ -44,7 +44,6 @@
  * @module @lockness/realtime/tests/announce_swept_guard_419
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
 import {
@@ -107,7 +106,7 @@ async function plantHold(
     await redis.command('SADD', INSTANCES_KEY, owner)
 }
 
-test("#419 T8 #announceSwept's dropped(): every channel throwing, the sweep still reaches the next slot", async () => {
+Deno.test("#419 T8 #announceSwept's dropped(): every channel throwing, the sweep still reaches the next slot", async () => {
     await watchingEscapes(async (escaped) => {
         const time = new FakeTime(START)
         const redis = new FakeRedis()
@@ -178,7 +177,7 @@ test("#419 T8 #announceSwept's dropped(): every channel throwing, the sweep stil
     })
 })
 
-test("#419 T9 #parseRosterValue's skipped(), reached through #announceSwept: every channel throwing, the sweep still reaches the next slot", async () => {
+Deno.test("#419 T9 #parseRosterValue's skipped(), reached through #announceSwept: every channel throwing, the sweep still reaches the next slot", async () => {
     await watchingEscapes(async (escaped) => {
         const time = new FakeTime(START)
         const redis = new FakeRedis()

@@ -17,7 +17,6 @@
  *    the tests that would notice.
  */
 
-import { test } from 'node:test'
 import { assertEquals, assertNotStrictEquals } from '@std/assert'
 import {
     deregisterDisposable,
@@ -30,7 +29,7 @@ function reset(): void {
     drainDisposables()
 }
 
-test('disposables - a registered disposable is drained', async () => {
+Deno.test('disposables - a registered disposable is drained', async () => {
     reset()
     let disposed = false
     registerDisposable({ name: 'a', dispose: () => void (disposed = true) })
@@ -40,7 +39,7 @@ test('disposables - a registered disposable is drained', async () => {
     assertEquals(disposed, true)
 })
 
-test('disposables - two disposables sharing a NAME both survive', async () => {
+Deno.test('disposables - two disposables sharing a NAME both survive', async () => {
     // The SSE case. `manager.getOrCreate('room-123')` names a channel from a
     // request path segment, and a per-room pattern means many channels. Dedup
     // on the name would tear down one and leave the rest armed.
@@ -60,7 +59,7 @@ test('disposables - two disposables sharing a NAME both survive', async () => {
     assertEquals(disposed.sort(), ['one', 'two'])
 })
 
-test('disposables - registering the SAME object twice disposes it once', async () => {
+Deno.test('disposables - registering the SAME object twice disposes it once', async () => {
     reset()
     let count = 0
     const entry = { name: 'once', dispose: () => void count++ }
@@ -72,7 +71,7 @@ test('disposables - registering the SAME object twice disposes it once', async (
     assertEquals(count, 1)
 })
 
-test('disposables - deregistration takes the HANDLE, not the name', async () => {
+Deno.test('disposables - deregistration takes the HANDLE, not the name', async () => {
     // If deregistering keyed on the name, any module could cancel any other
     // module's teardown by registering and deregistering a colliding name.
     // That is a cross-package integrity hole with no attacker required.
@@ -93,7 +92,7 @@ test('disposables - deregistration takes the HANDLE, not the name', async () => 
     assertEquals(disposed, ['theirs'], 'only the handle I hold was cancelled')
 })
 
-test('disposables - deregistering twice is harmless', () => {
+Deno.test('disposables - deregistering twice is harmless', () => {
     reset()
     const handle = registerDisposable({ name: 'x', dispose: () => {} })
 
@@ -103,7 +102,7 @@ test('disposables - deregistering twice is harmless', () => {
     assertEquals(drainDisposables().length, 0)
 })
 
-test('disposables - draining CLEARS, so a later registration still works', async () => {
+Deno.test('disposables - draining CLEARS, so a later registration still works', async () => {
     // The invariant that separates this registry from core's. A freeze here
     // would make every registration after the first drain a silent no-op.
     reset()
@@ -124,7 +123,7 @@ test('disposables - draining CLEARS, so a later registration still works', async
     assertEquals(second, true)
 })
 
-test('disposables - a drained disposable is not drained again', async () => {
+Deno.test('disposables - a drained disposable is not drained again', async () => {
     reset()
     let count = 0
     registerDisposable({ name: 'a', dispose: () => void count++ })
@@ -135,7 +134,7 @@ test('disposables - a drained disposable is not drained again', async () => {
     assertEquals(count, 1)
 })
 
-test('disposables - the drain carries priority through WITHOUT sorting', async () => {
+Deno.test('disposables - the drain carries priority through WITHOUT sorting', async () => {
     // Ordering has one home — @lockness/core's ShutdownRegistry comparator —
     // and core re-sorts after adopting these. A comparator here would be a
     // second spelling of that rule, and two comparators agree only until one of
@@ -154,7 +153,7 @@ test('disposables - the drain carries priority through WITHOUT sorting', async (
     await Promise.resolve()
 })
 
-test('disposables - an omitted priority stays undefined, it is not defaulted here', async () => {
+Deno.test('disposables - an omitted priority stays undefined, it is not defaulted here', async () => {
     // Deliberately NOT filled in. The default belongs to whoever orders — core
     // adopts an absent priority as STORES. Substituting a number here would put
     // the default in two places, and they diverged once already: this module
@@ -169,7 +168,7 @@ test('disposables - an omitted priority stays undefined, it is not defaulted her
     await Promise.resolve()
 })
 
-test('disposables - registering never touches Deno, so a standalone library stays silent', () => {
+Deno.test('disposables - registering never touches Deno, so a standalone library stays silent', () => {
     // FR-003. A package used outside a Lockness application must not throw, and
     // must not warn about a framework that is not there. Asserted by capturing
     // both console channels rather than by reading the source.
@@ -194,7 +193,7 @@ test('disposables - registering never touches Deno, so a standalone library stay
     assertEquals(noise, [])
 })
 
-test('disposables - each drain returns a fresh array', () => {
+Deno.test('disposables - each drain returns a fresh array', () => {
     reset()
     registerDisposable({ name: 'a', dispose: () => {} })
     const first = drainDisposables()

@@ -8,7 +8,6 @@
  * @module @lockness/vite/tests/deno_resolver
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertRejects, assertThrows } from '@std/assert'
 import {
     classifySpecifier,
@@ -19,7 +18,7 @@ import {
 
 // --- classifySpecifier / isValidSpecifier (pure units) --------------------
 
-test('classifySpecifier - recognises the three schemes, null otherwise', () => {
+Deno.test('classifySpecifier - recognises the three schemes, null otherwise', () => {
     assertEquals(classifySpecifier('jsr:@std/path'), 'jsr')
     assertEquals(classifySpecifier('npm:vite@^8'), 'npm')
     assertEquals(classifySpecifier('https://esm.sh/x'), 'https')
@@ -28,7 +27,7 @@ test('classifySpecifier - recognises the three schemes, null otherwise', () => {
     assertEquals(classifySpecifier('node:fs'), null)
 })
 
-test('isValidSpecifier - accepts well-formed, rejects metacharacters/whitespace', () => {
+Deno.test('isValidSpecifier - accepts well-formed, rejects metacharacters/whitespace', () => {
     assert(isValidSpecifier('jsr:@std/assert@1', 'jsr'))
     assert(isValidSpecifier('npm:vite@^8', 'npm'))
     assert(isValidSpecifier('npm:@scope/pkg@1.0.0/sub', 'npm'))
@@ -39,19 +38,19 @@ test('isValidSpecifier - accepts well-formed, rejects metacharacters/whitespace'
 
 // --- resolveWithDeno (integration with Deno resolution) -------------------
 
-test('resolveWithDeno - npm: resolves to a filesystem path', async () => {
+Deno.test('resolveWithDeno - npm: resolves to a filesystem path', async () => {
     const id = await resolveWithDeno('npm:vite@^8', 'npm')
     assert(id.includes('vite'), `expected a vite path, got ${id}`)
     assert(!id.startsWith('npm:'), 'npm: should be resolved away')
     assert(!id.startsWith('file:'), 'should be a plain path, not a file: URL')
 })
 
-test('resolveWithDeno - https: is returned verbatim (loaded by the load hook)', async () => {
+Deno.test('resolveWithDeno - https: is returned verbatim (loaded by the load hook)', async () => {
     const url = 'https://esm.sh/canvas-confetti@1.9.3'
     assertEquals(await resolveWithDeno(url, 'https'), url)
 })
 
-test('resolveWithDeno - jsr: resolves to its concrete module URL via deno info', async () => {
+Deno.test('resolveWithDeno - jsr: resolves to its concrete module URL via deno info', async () => {
     const id = await resolveWithDeno('jsr:@std/assert@1', 'jsr')
     assert(
         id.startsWith('https://jsr.io/@std/assert/') || id.includes('assert'),
@@ -70,19 +69,19 @@ function resolveId(source: string): Promise<string> | string | null {
     return hook(source)
 }
 
-test('resolveId - a local relative import passes through (null)', () => {
+Deno.test('resolveId - a local relative import passes through (null)', () => {
     assertEquals(resolveId('./local.ts'), null)
     assertEquals(resolveId('../x/y.ts'), null)
     assertEquals(resolveId('node:fs'), null)
 })
 
-test('resolveId - each scheme resolves to a non-null id', async () => {
+Deno.test('resolveId - each scheme resolves to a non-null id', async () => {
     assert(await resolveId('npm:vite@^8'))
     assert(await resolveId('https://esm.sh/canvas-confetti@1.9.3'))
     assert(await resolveId('jsr:@std/assert@1'))
 })
 
-test('resolveId - a malformed specifier is rejected loudly', () => {
+Deno.test('resolveId - a malformed specifier is rejected loudly', () => {
     assertThrows(
         () => resolveId('jsr:@std/assert; rm -rf /'),
         Error,
@@ -90,7 +89,7 @@ test('resolveId - a malformed specifier is rejected loudly', () => {
     )
 })
 
-test('resolveWithDeno - an unresolvable jsr: package throws a clear error', async () => {
+Deno.test('resolveWithDeno - an unresolvable jsr: package throws a clear error', async () => {
     await assertRejects(
         () => resolveWithDeno('jsr:@lockness/definitely-not-real@99', 'jsr'),
         Error,
@@ -104,7 +103,7 @@ import {
     loadRemoteModule,
 } from '../src/plugins/deno.ts'
 
-test("loadRemoteModule - reads a jsr-resolved module from Deno's cache (no network fetch)", async () => {
+Deno.test("loadRemoteModule - reads a jsr-resolved module from Deno's cache (no network fetch)", async () => {
     const url = await resolveWithDeno('jsr:@std/assert@1', 'jsr')
     assert(
         url.startsWith('https://jsr.io/'),
@@ -115,7 +114,7 @@ test("loadRemoteModule - reads a jsr-resolved module from Deno's cache (no netwo
     assert(source.includes('export'), 'looks like a real module')
 })
 
-test('load hook - returns null for non-https ids (Vite loads files itself)', () => {
+Deno.test('load hook - returns null for non-https ids (Vite loads files itself)', () => {
     const load = _denoResolver().load as (id: string) => Promise<string> | null
     assertEquals(load('/some/local/file.ts'), null)
 })

@@ -7,7 +7,7 @@
  * @module @lockness/markdown/renderer
  */
 
-import type { FC } from '@lockness/hono/jsx'
+import type { FC } from 'hono/jsx'
 import type {
     CodeBlockNode,
     ComponentOverrides,

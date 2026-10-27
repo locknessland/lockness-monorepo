@@ -8,7 +8,6 @@
  * @module @lockness/realtime/tests/events_bridge
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import {
     type AnyEventPayload,
@@ -40,7 +39,7 @@ class InvoicePaid {
     }
 }
 
-test('SC-007a: only broadcastWith() leaves; a private field never does (S2)', () => {
+Deno.test('SC-007a: only broadcastWith() leaves; a private field never does (S2)', () => {
     const m = fakeManager()
     forwardEvent(
         m,
@@ -56,13 +55,13 @@ test('SC-007a: only broadcastWith() leaves; a private field never does (S2)', ()
     assert(!JSON.stringify(m.calls[0]).includes('4242'))
 })
 
-test('a non-Broadcastable event is not forwarded', () => {
+Deno.test('a non-Broadcastable event is not forwarded', () => {
     const m = fakeManager()
     forwardEvent(m, { event: 'Plain', data: { x: 1 } }, () => {})
     assertEquals(m.calls.length, 0)
 })
 
-test('absent broadcastWith() sends a minimal projection, never the event', () => {
+Deno.test('absent broadcastWith() sends a minimal projection, never the event', () => {
     const m = fakeManager()
     class Ping {
         readonly secret = 's'
@@ -78,7 +77,7 @@ test('absent broadcastWith() sends a minimal projection, never the event', () =>
     assert(warns.some((w) => w.includes('public channel')))
 })
 
-test('startBroadcasting registers onAny with an abort signal', async () => {
+Deno.test('startBroadcasting registers onAny with an abort signal', async () => {
     let registered: { signal?: AbortSignal } | undefined
     let listener: ((p: AnyEventPayload) => void) | undefined
     const dispatcher: DispatcherLike = {
@@ -102,7 +101,7 @@ test('startBroadcasting registers onAny with an abort signal', async () => {
     assertEquals(m.calls[0].data, { invoiceId: 9 })
 })
 
-test('startBroadcasting soft-loads @lockness/events and forwards through the real dispatcher', async () => {
+Deno.test('startBroadcasting soft-loads @lockness/events and forwards through the real dispatcher', async () => {
     // @lockness/events is resolvable in the monorepo, so this exercises the real
     // soft-load path (loadDispatcher success), not the injected one.
     const events = await import('@lockness/events')

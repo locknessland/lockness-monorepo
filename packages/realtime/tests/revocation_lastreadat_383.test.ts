@@ -21,7 +21,6 @@
  * @module @lockness/realtime/tests/revocation_lastreadat_383
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
 import { RedisBroadcastDriver } from '../drivers/redis.ts'
@@ -136,7 +135,7 @@ async function advance(time: FakeTime, ms: number, step = 250): Promise<void> {
     }
 }
 
-test(
+Deno.test(
     '#383 (i) a handler that enumerates every other pass does not raise SKEWED across a real gap >= TTL',
     async () => {
         await withClock(async (time, logs) => {
@@ -160,7 +159,7 @@ test(
     },
 )
 
-test(
+Deno.test(
     '#383 (ii) two genuinely consecutive enumerating passes with a gap >= TTL still raise SKEWED',
     async () => {
         await withClock(async (time, logs) => {
@@ -178,7 +177,7 @@ test(
     },
 )
 
-test(
+Deno.test(
     "#383 (iii) #announceFloor's retry-stop is unchanged by an intervening skip pass",
     async () => {
         await withClock(async (time) => {

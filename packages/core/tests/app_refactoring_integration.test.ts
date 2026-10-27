@@ -3,7 +3,6 @@
  * Ensures backward compatibility and that all components work together correctly
  */
 
-import { test } from 'node:test'
 import { assertEquals, assertExists } from '@std/assert'
 import { App, Controller, Get } from '../mod.ts'
 import type { Context } from '../types.ts'
@@ -22,7 +21,7 @@ class TestController {
     }
 }
 
-test('App refactoring - basic controller registration works', async () => {
+Deno.test('App refactoring - basic controller registration works', async () => {
     const app = new App()
 
     await app.init({
@@ -36,7 +35,7 @@ test('App refactoring - basic controller registration works', async () => {
     assertEquals(routes[1].path, '/test/echo/:id')
 })
 
-test('App refactoring - fluent API still works', async () => {
+Deno.test('App refactoring - fluent API still works', async () => {
     const app = new App()
 
     const mockHandler = (_error: Error, _c: Context) => {
@@ -56,7 +55,7 @@ test('App refactoring - fluent API still works', async () => {
     assertExists(app.getHono(), 'Should have Hono instance')
 })
 
-test('App refactoring - route registration maintains order', async () => {
+Deno.test('App refactoring - route registration maintains order', async () => {
     @Controller('/order')
     class OrderTestController {
         @Get('/specific')
@@ -89,7 +88,7 @@ test('App refactoring - route registration maintains order', async () => {
     )
 })
 
-test('App refactoring - getRoutes() returns route info', async () => {
+Deno.test('App refactoring - getRoutes() returns route info', async () => {
     const app = new App()
 
     await app.init({
@@ -110,7 +109,7 @@ test('App refactoring - getRoutes() returns route info', async () => {
     assertExists(route.middlewares, 'Route should have middlewares array')
 })
 
-test('App refactoring - environment checks still work', () => {
+Deno.test('App refactoring - environment checks still work', () => {
     const originalEnv = Deno.env.get('APP_ENV')
 
     try {

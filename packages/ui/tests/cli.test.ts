@@ -9,7 +9,6 @@
  * - File overwrite protection
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { exists } from '@std/fs/exists'
 import { dirname, fromFileUrl, join } from '@std/path'
@@ -86,7 +85,7 @@ function assertFailedOnce(
 // Tests
 // =============================================================================
 
-test('CLI: list command shows all components', async () => {
+Deno.test('CLI: list command shows all components', async () => {
     const { stdout, exitCode } = await runCli(['list'])
 
     assertEquals(exitCode, 0)
@@ -98,7 +97,7 @@ test('CLI: list command shows all components', async () => {
     assertStringIncludes(stdout, 'Class name utility')
 })
 
-test('CLI: add button installs button and utils', async () => {
+Deno.test('CLI: add button installs button and utils', async () => {
     const tempDir = await createTempDir()
 
     try {
@@ -127,7 +126,7 @@ test('CLI: add button installs button and utils', async () => {
     }
 })
 
-test('CLI: import paths are rewritten correctly', async () => {
+Deno.test('CLI: import paths are rewritten correctly', async () => {
     const tempDir = await createTempDir()
 
     try {
@@ -148,7 +147,7 @@ test('CLI: import paths are rewritten correctly', async () => {
     }
 })
 
-test('CLI: add multiple components at once', async () => {
+Deno.test('CLI: add multiple components at once', async () => {
     const tempDir = await createTempDir()
 
     try {
@@ -180,7 +179,7 @@ test('CLI: add multiple components at once', async () => {
     }
 })
 
-test('CLI: --force flag overwrites existing files', async () => {
+Deno.test('CLI: --force flag overwrites existing files', async () => {
     const tempDir = await createTempDir()
 
     try {
@@ -222,7 +221,7 @@ test('CLI: --force flag overwrites existing files', async () => {
     }
 })
 
-test('CLI: shows npm dependencies instructions', async () => {
+Deno.test('CLI: shows npm dependencies instructions', async () => {
     const tempDir = await createTempDir()
 
     try {
@@ -237,7 +236,7 @@ test('CLI: shows npm dependencies instructions', async () => {
     }
 })
 
-test('CLI: root-layout has no internal dependencies', async () => {
+Deno.test('CLI: root-layout has no internal dependencies', async () => {
     const tempDir = await createTempDir()
 
     try {
@@ -264,7 +263,7 @@ test('CLI: root-layout has no internal dependencies', async () => {
     }
 })
 
-test('CLI: unknown component shows error', async () => {
+Deno.test('CLI: unknown component shows error', async () => {
     const tempDir = await createTempDir()
 
     try {
@@ -287,7 +286,7 @@ test('CLI: unknown component shows error', async () => {
     }
 })
 
-test('CLI: add without components shows error', async () => {
+Deno.test('CLI: add without components shows error', async () => {
     const tempDir = await createTempDir()
 
     try {
@@ -300,7 +299,7 @@ test('CLI: add without components shows error', async () => {
     }
 })
 
-test('CLI: help flag shows usage information', async () => {
+Deno.test('CLI: help flag shows usage information', async () => {
     const { stdout, exitCode } = await runCli(['--help'])
 
     assertEquals(exitCode, 0)
@@ -311,7 +310,7 @@ test('CLI: help flag shows usage information', async () => {
     assertStringIncludes(stdout, 'list')
 })
 
-test('CLI: unknown command shows error', async () => {
+Deno.test('CLI: unknown command shows error', async () => {
     const result = await runCli(['unknown'])
 
     assertFailedOnce(result)
@@ -321,7 +320,7 @@ test('CLI: unknown command shows error', async () => {
     )
 })
 
-test('CLI: an unexpected error is reported once under the tool label', async () => {
+Deno.test('CLI: an unexpected error is reported once under the tool label', async () => {
     const tempDir = await createTempDir()
 
     try {
@@ -336,7 +335,7 @@ test('CLI: an unexpected error is reported once under the tool label', async () 
     }
 })
 
-test('CLI: add still succeeds when only the deno.json update fails', async () => {
+Deno.test('CLI: add still succeeds when only the deno.json update fails', async () => {
     const tempDir = await createTempDir()
 
     try {

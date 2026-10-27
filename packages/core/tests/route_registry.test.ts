@@ -2,9 +2,8 @@
  * Tests for RouteRegistry - specifically testing path building logic
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
-import { Hono } from '@lockness/hono'
+import { Hono } from 'hono'
 import { Controller, Get, Post } from '../routing/decorators.ts'
 import { RouteRegistry } from '../routing/registry.ts'
 import { namedRoutes } from '../routing/router.ts'
@@ -30,7 +29,7 @@ function getRegisteredPaths(
 // Tests for controller index routes (routePath = "/")
 // ============================================================================
 
-test('RouteRegistry - controller index route should not have trailing slash', () => {
+Deno.test('RouteRegistry - controller index route should not have trailing slash', () => {
     @Controller('/docs')
     class DocsController {
         @Get('/')
@@ -45,7 +44,7 @@ test('RouteRegistry - controller index route should not have trailing slash', ()
     assertEquals(paths, ['/docs'])
 })
 
-test('RouteRegistry - root controller index should be just /', () => {
+Deno.test('RouteRegistry - root controller index should be just /', () => {
     @Controller('/')
     class HomeController {
         @Get('/')
@@ -60,7 +59,7 @@ test('RouteRegistry - root controller index should be just /', () => {
     assertEquals(paths, ['/'])
 })
 
-test('RouteRegistry - nested controller index should not have trailing slash', () => {
+Deno.test('RouteRegistry - nested controller index should not have trailing slash', () => {
     @Controller('/api/v1/users')
     class UsersController {
         @Get('/')
@@ -79,7 +78,7 @@ test('RouteRegistry - nested controller index should not have trailing slash', (
 // Tests for regular routes (routePath != "/")
 // ============================================================================
 
-test('RouteRegistry - regular route paths should not have trailing slash', () => {
+Deno.test('RouteRegistry - regular route paths should not have trailing slash', () => {
     @Controller('/docs')
     class DocsController {
         @Get('/installation')
@@ -99,7 +98,7 @@ test('RouteRegistry - regular route paths should not have trailing slash', () =>
     assertEquals(paths.sort(), ['/docs/getting-started', '/docs/installation'])
 })
 
-test('RouteRegistry - route with explicit trailing slash should keep it', () => {
+Deno.test('RouteRegistry - route with explicit trailing slash should keep it', () => {
     @Controller('/api')
     class ApiController {
         @Get('/users/')
@@ -118,7 +117,7 @@ test('RouteRegistry - route with explicit trailing slash should keep it', () => 
 // Tests for mixed routes in same controller
 // ============================================================================
 
-test('RouteRegistry - mixed index and regular routes', () => {
+Deno.test('RouteRegistry - mixed index and regular routes', () => {
     @Controller('/docs')
     class DocsController {
         @Get('/')
@@ -147,7 +146,7 @@ test('RouteRegistry - mixed index and regular routes', () => {
 // Tests for named routes registration
 // ============================================================================
 
-test('RouteRegistry - named routes should be registered with correct path', () => {
+Deno.test('RouteRegistry - named routes should be registered with correct path', () => {
     namedRoutes.clear()
 
     @Controller('/docs')
@@ -175,7 +174,7 @@ test('RouteRegistry - named routes should be registered with correct path', () =
 // Tests for edge cases
 // ============================================================================
 
-test('RouteRegistry - controller without leading slash', () => {
+Deno.test('RouteRegistry - controller without leading slash', () => {
     @Controller('api')
     class ApiController {
         @Get('/')
@@ -195,7 +194,7 @@ test('RouteRegistry - controller without leading slash', () => {
     assertEquals(paths.sort(), ['/api', '/api/users'])
 })
 
-test('RouteRegistry - route without leading slash', () => {
+Deno.test('RouteRegistry - route without leading slash', () => {
     @Controller('/api')
     class ApiController {
         @Get('users')
@@ -210,7 +209,7 @@ test('RouteRegistry - route without leading slash', () => {
     assertEquals(paths, ['/api/users'])
 })
 
-test('RouteRegistry - double slashes should be normalized', () => {
+Deno.test('RouteRegistry - double slashes should be normalized', () => {
     @Controller('/api/')
     class ApiController {
         @Get('/users')
@@ -225,7 +224,7 @@ test('RouteRegistry - double slashes should be normalized', () => {
     assertEquals(paths, ['/api/users'])
 })
 
-test('RouteRegistry - parameterized routes', () => {
+Deno.test('RouteRegistry - parameterized routes', () => {
     @Controller('/users')
     class UsersController {
         @Get('/')

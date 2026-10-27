@@ -1,7 +1,7 @@
 # `@lockness/queue` — agent brief
 
 Background job processing with multiple drivers, plus the `queue:*` commands
-(`commands.ts`), contributed through the contract's `CommandRegistry` (#592).
+registered into `@lockness/cli`. One source file.
 
 User-facing documentation: [README.md](README.md) ·
 [docs/DOCS.md](docs/DOCS.md). This brief does not repeat it.
@@ -20,16 +20,16 @@ names does not belong here._
 
 <!-- generated:deps -->
 
-| Direction                                 | Packages                                                                                    |
-| :---------------------------------------- | :------------------------------------------------------------------------------------------ |
-| Imports (static)                          | `contract`, `redis`                                                                         |
-| Imports (soft, loaded at runtime by name) | —                                                                                           |
-| Imported by                               | `mail`, `notification`                                                                      |
-| **Must never import**                     | `mail`, `notification` — each already reaches this package, so importing one closes a cycle |
+| Direction                                 | Packages                                                                                                                                                                                       |
+| :---------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Imports (static)                          | `contract`, `redis`                                                                                                                                                                            |
+| Imports (soft, loaded at runtime by name) | —                                                                                                                                                                                              |
+| Imported by                               | `cli`, `mail`, `notification`                                                                                                                                                                  |
+| **Must never import**                     | `cli`, `core`, `deprecation-contracts`, `drizzle`, `init`, `mail`, `notification`, `openapi`, `realtime`, `ui`, `upgrade` — each already reaches this package, so importing one closes a cycle |
 
 Enforced by `deno task deps:analyze` against `deps.policy.jsonc`. A soft edge is
-an optional peer in this package's `package.json`, never a dependency: the
-consuming application installs it, or the feature stays off.
+deliberately **not** declared in this package's `deno.json`: the consuming
+application installs it, or the feature stays off.
 
 <!-- /generated:deps -->
 
@@ -37,12 +37,12 @@ consuming application installs it, or the feature stays off.
 
 <!-- generated:surface -->
 
-| Kind      | Exports                                                                                                                                                                                                                                       |
-| :-------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| class     | `DenoKvQueueDriver`, `MemoryQueueDriver`, `QueueWorker`, `RedisQueueDriver`                                                                                                                                                                   |
-| function  | `Queueable`, `clearQueue`, `computeNextAvailable`, `configureQueue`, `dispatch`, `dispatchByName`, `getJobClass`, `getQueueConfig`, `listFailedJobs`, `queueSize`, `registerJob`, `registerQueueCommands`, `retryFailedJob`, `setQueueDriver` |
-| interface | `DeadLetterEntry`, `DeadLetterRetentionOptions`, `DispatchOptions`, `Job`, `JobPayload`, `QueueConfig`, `QueueDriver`, `SerializedJob`, `WorkerOptions`                                                                                       |
-| typeAlias | `JobClass`                                                                                                                                                                                                                                    |
+| Kind      | Exports                                                                                                                                                                                                              |
+| :-------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| class     | `DenoKvQueueDriver`, `MemoryQueueDriver`, `QueueWorker`, `RedisQueueDriver`                                                                                                                                          |
+| function  | `Queueable`, `clearQueue`, `computeNextAvailable`, `configureQueue`, `dispatch`, `dispatchByName`, `getJobClass`, `getQueueConfig`, `listFailedJobs`, `queueSize`, `registerJob`, `retryFailedJob`, `setQueueDriver` |
+| interface | `DeadLetterEntry`, `DeadLetterRetentionOptions`, `DispatchOptions`, `Job`, `JobPayload`, `QueueConfig`, `QueueDriver`, `SerializedJob`, `WorkerOptions`                                                              |
+| typeAlias | `JobClass`                                                                                                                                                                                                           |
 
 Anything not listed is internal and free to change.
 
@@ -50,10 +50,10 @@ Anything not listed is internal and free to change.
 
 ## Where to work
 
-| Concern         | Path                                    |
-| --------------- | --------------------------------------- |
-| Everything      | `mod.ts`                                |
-| Command surface | `commands.ts` (`registerQueueCommands`) |
+| Concern         | Path                               |
+| --------------- | ---------------------------------- |
+| Everything      | `mod.ts`                           |
+| Command surface | registered through `@lockness/cli` |
 
 ## Pitfalls
 
@@ -65,12 +65,10 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-9 test files for 13 source files:
+7 test files for 12 source files:
 
 - `packages/queue/tests/backoff.test.ts`
-- `packages/queue/tests/commands.test.ts`
 - `packages/queue/tests/dead_letter.test.ts`
-- `packages/queue/tests/discover_jobs.test.ts`
 - `packages/queue/tests/dlq_retention.test.ts`
 - `packages/queue/tests/queue.test.ts`
 - `packages/queue/tests/redis_driver.test.ts`
@@ -90,7 +88,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 9 test files directly —
+Then, specific to this package: run its 7 test files directly —
 
 ```bash
 deno test -A packages/queue/

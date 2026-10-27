@@ -6,12 +6,11 @@
  * teardown, where it closes a resource twice.
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { OnBoot } from '../kernel/decorators.ts'
 import { getBootHooks } from '../kernel/boot_runner.ts'
 
-test('OnBoot - a subclass does not write into its parent hook array', () => {
+Deno.test('OnBoot - a subclass does not write into its parent hook array', () => {
     class Base {
         @OnBoot({ priority: 1 })
         common(_app: object) {}
@@ -35,7 +34,7 @@ test('OnBoot - a subclass does not write into its parent hook array', () => {
     )
 })
 
-test('OnBoot - the child still inherits, the right way round', () => {
+Deno.test('OnBoot - the child still inherits, the right way round', () => {
     class Base {
         @OnBoot({ priority: 1 })
         common(_app: object) {}
@@ -56,7 +55,7 @@ test('OnBoot - the child still inherits, the right way round', () => {
     )
 })
 
-test('OnBoot - parent and child hold distinct arrays', () => {
+Deno.test('OnBoot - parent and child hold distinct arrays', () => {
     class Base {
         @OnBoot({ priority: 1 })
         common(_app: object) {}

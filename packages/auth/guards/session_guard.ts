@@ -7,7 +7,7 @@
  * @module @lockness/auth/guards/session
  */
 
-import type { Context } from '@lockness/hono'
+import type { Context } from 'hono'
 import { deleteCookie, getCookie, setCookie } from '@lockness/hono'
 import { getSession, type Session } from '@lockness/session'
 import type { EventEmitter } from '@lockness/events'

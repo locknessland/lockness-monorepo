@@ -34,12 +34,6 @@
  */
 
 import type { CompileConfig, MountPoint, SsgConfig } from '../types.ts'
-import type {
-    CacheDriverName,
-    DenoKvDriverName,
-    RedisDriverName,
-    SessionDriverName,
-} from '@lockness/contract/store'
 
 /**
  * Database configuration options
@@ -77,12 +71,10 @@ export interface DatabaseConfig {
  */
 export interface SessionConfig {
     /**
-     * Session storage driver. Every session driver except `redis`, which
-     * needs a connection block this config does not carry — configure it
-     * through `@lockness/session` directly.
+     * Session storage driver
      * @default 'cookie'
      */
-    driver?: Exclude<SessionDriverName, RedisDriverName>
+    driver?: 'cookie' | 'deno-kv' | 'memory'
 
     /**
      * Secret key for session encryption/signing
@@ -127,7 +119,7 @@ export interface CacheConfig {
      * Cache storage driver
      * @default 'memory'
      */
-    driver?: CacheDriverName
+    driver?: 'memory' | 'deno-kv' | 'redis'
 
     /**
      * Default time-to-live in seconds
@@ -481,7 +473,7 @@ export interface KernelConfig {
     schedulerLock?:
         | {
             /** The Redis backing store. */
-            driver: RedisDriverName
+            driver: 'redis'
             /** Claim lifetime in milliseconds. @default 300000 */
             ttlMs?: number
             /** Redis connection — required for this driver. */
@@ -497,7 +489,7 @@ export interface KernelConfig {
         }
         | {
             /** The Deno KV backing store. */
-            driver: DenoKvDriverName
+            driver: 'deno-kv'
             /** Claim lifetime in milliseconds. @default 300000 */
             ttlMs?: number
             /** Deno KV path. Omitted, Deno's default database is opened. */

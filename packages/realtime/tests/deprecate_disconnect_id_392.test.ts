@@ -15,7 +15,6 @@
  * @module @lockness/realtime/tests/deprecate_disconnect_id_392
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import {
     type DeprecationEntry,
@@ -55,7 +54,7 @@ function recordingCollector(): { entries: DeprecationEntry[] } {
     return { entries }
 }
 
-test(
+Deno.test(
     '#392 W1 disconnect(id) raises exactly one deprecation notice per manager, even across two calls',
     async () => {
         const { entries } = recordingCollector()
@@ -86,7 +85,7 @@ test(
     },
 )
 
-test(
+Deno.test(
     '#392 W2 disconnect(connectionObject) raises no deprecation notice',
     async () => {
         const { entries } = recordingCollector()
@@ -107,7 +106,7 @@ test(
     },
 )
 
-test(
+Deno.test(
     '#392 W3 evict (and its internal revokeLocal id-form call) raises no deprecation notice',
     async () => {
         const { entries } = recordingCollector()
@@ -129,7 +128,7 @@ test(
     },
 )
 
-test(
+Deno.test(
     '#392 W4 under STRICT_DEPRECATIONS, disconnect(id) rejects with the deprecation error AND the connection is retired and its channels released (review HIGH)',
     async () => {
         const manager = managerOver()
@@ -167,7 +166,7 @@ test(
     },
 )
 
-test(
+Deno.test(
     '#392 W5 a throwing collector cannot prevent the teardown that already started (review HIGH)',
     async () => {
         registerCollector({
@@ -198,7 +197,7 @@ test(
     },
 )
 
-test(
+Deno.test(
     '#392 W6 under STRICT_DEPRECATIONS a failing teardown is WARNed, never dropped, while the deprecation error wins',
     async () => {
         // A per-channel driver: `unwatchChannel` is only called when
@@ -244,7 +243,7 @@ test(
     },
 )
 
-test(
+Deno.test(
     '#392 pin — the id form still tears the connection down exactly as before',
     async () => {
         assertEquals(getCollector(), null, 'no collector leaked from above')

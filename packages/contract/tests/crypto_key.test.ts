@@ -5,7 +5,6 @@
  * @module @lockness/contract/tests/crypto_key
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertThrows } from '@std/assert'
 import {
     generateAppKey,
@@ -15,19 +14,19 @@ import {
     resolveKeyMaterial,
 } from '../crypto_key.ts'
 
-test('a generated key resolves to 32 bytes', () => {
+Deno.test('a generated key resolves to 32 bytes', () => {
     const bytes = resolveKeyMaterial(generateAppKey())
     assertEquals(bytes.byteLength, 32)
 })
 
-test('missing key is rejected', () => {
+Deno.test('missing key is rejected', () => {
     assertThrows(
         () => resolveKeyMaterial(undefined),
         KeyMaterialError,
     )
 })
 
-test('every shipped placeholder is rejected (security S3)', () => {
+Deno.test('every shipped placeholder is rejected (security S3)', () => {
     for (const placeholder of REJECTED_KEYS) {
         const err = assertThrows(
             () => resolveKeyMaterial(placeholder),
@@ -37,7 +36,7 @@ test('every shipped placeholder is rejected (security S3)', () => {
     }
 })
 
-test('a degenerate (single byte repeated) key is rejected', () => {
+Deno.test('a degenerate (single byte repeated) key is rejected', () => {
     const degenerate = KEY_PREFIX + btoa('\x00'.repeat(32))
     const err = assertThrows(
         () => resolveKeyMaterial(degenerate),
@@ -46,7 +45,7 @@ test('a degenerate (single byte repeated) key is rejected', () => {
     assertEquals(err.reason, 'degenerate')
 })
 
-test('wrong prefix / length / base64 are each rejected with their reason', () => {
+Deno.test('wrong prefix / length / base64 are each rejected with their reason', () => {
     const noPrefix = assertThrows(
         () => resolveKeyMaterial('AAAA'),
         KeyMaterialError,

@@ -7,7 +7,6 @@
  * @module @lockness/init/tests/init_failure
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertMatch } from '@std/assert'
 import { existsSync } from '@std/fs'
 import { fromFileUrl, join } from '@std/path'
@@ -78,7 +77,7 @@ function failureLines(text: string): string[] {
     return text.split('\n').filter((line) => line.includes('❌'))
 }
 
-test('init - an unknown --kit fails with one line, writing nothing', async () => {
+Deno.test('init - an unknown --kit fails with one line, writing nothing', async () => {
     const { status, errors, dir } = await dispatchInit(['app', '--kit', 'nope'])
     try {
         assertEquals(status, 1)
@@ -91,7 +90,7 @@ test('init - an unknown --kit fails with one line, writing nothing', async () =>
     }
 })
 
-test('init - a rejected --use fails with one line, writing nothing', async () => {
+Deno.test('init - a rejected --use fails with one line, writing nothing', async () => {
     const { status, errors, dir } = await dispatchInit(['app', '--use', 'x.y'])
     try {
         assertEquals(status, 1)
@@ -105,7 +104,7 @@ test('init - a rejected --use fails with one line, writing nothing', async () =>
     }
 })
 
-test('init - a failed step does not stop the others, then fails naming it', async () => {
+Deno.test('init - a failed step does not stop the others, then fails naming it', async () => {
     // A directory where the file should go makes exactly that write fail.
     const { status, errors, logs, dir } = await dispatchInit(
         ['app', '--kit', 'slim'],
@@ -130,7 +129,7 @@ test('init - a failed step does not stop the others, then fails naming it', asyn
     }
 })
 
-test('init - --help and --version return without scaffolding', async () => {
+Deno.test('init - --help and --version return without scaffolding', async () => {
     for (const flag of ['--help', '--version']) {
         const { status, errors, logs, dir } = await dispatchInit([flag])
         try {
@@ -144,7 +143,7 @@ test('init - --help and --version return without scaffolding', async () => {
     }
 })
 
-test('init entry (subprocess) - an unknown --kit exits non-zero with one ❌ line and no uncaught error', async () => {
+Deno.test('init entry (subprocess) - an unknown --kit exits non-zero with one ❌ line and no uncaught error', async () => {
     const dir = await Deno.makeTempDir({ prefix: 'lockness-init-entry-' })
     try {
         const { code, stdout, stderr } = await runEntry(
@@ -162,7 +161,7 @@ test('init entry (subprocess) - an unknown --kit exits non-zero with one ❌ lin
     }
 })
 
-test('init entry (subprocess) - --help and --version exit 0 without scaffolding', async () => {
+Deno.test('init entry (subprocess) - --help and --version exit 0 without scaffolding', async () => {
     for (const flag of ['--help', '--version']) {
         const dir = await Deno.makeTempDir({ prefix: 'lockness-init-entry-' })
         try {

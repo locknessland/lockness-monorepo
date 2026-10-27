@@ -22,7 +22,6 @@ import {
     type DisposableHandle,
     registerDisposable,
 } from '@lockness/contract/lifecycle/internal'
-import { assertDenoKvRuntime } from '@lockness/contract/store/internal'
 
 /**
  * A set of revoked session nonces, with a bounded retention per entry.
@@ -121,14 +120,6 @@ export class KvRevocationStore implements RevocationStore {
     private getKv(): Promise<Deno.Kv> {
         if (this.kv) return Promise.resolve(this.kv)
         if (!this.kvPromise) {
-            // Off Deno, refuse with the one deno-kv message rather than a
-            // ReferenceError on `Deno` (#592). A rejection, like every other
-            // failure of this method; nothing is cached, so nothing to heal.
-            try {
-                assertDenoKvRuntime('session revocation')
-            } catch (error) {
-                return Promise.reject(error)
-            }
             const p = Deno.openKv(this.kvPath).then((kv) => {
                 this.kv = kv
                 this.#handle ??= registerDisposable({

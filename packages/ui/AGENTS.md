@@ -32,8 +32,8 @@ User-facing documentation: [README.md](README.md) ·
 | **Must never import**                     | nothing — no package depends on this one |
 
 Enforced by `deno task deps:analyze` against `deps.policy.jsonc`. A soft edge is
-an optional peer in this package's `package.json`, never a dependency: the
-consuming application installs it, or the feature stays off.
+deliberately **not** declared in this package's `deno.json`: the consuming
+application installs it, or the feature stays off.
 
 <!-- /generated:deps -->
 
@@ -71,7 +71,7 @@ consuming application installs it, or the feature stays off.
 
 <!-- generated:tests -->
 
-21 test files for 94 source files:
+21 test files for 93 source files:
 
 - `packages/ui/tests/accordion.test.tsx`
 - `packages/ui/tests/alert.test.tsx`

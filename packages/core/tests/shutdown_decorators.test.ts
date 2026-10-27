@@ -9,7 +9,6 @@
  * see the subclass test below, which fails against the shape `@OnBoot` used.
  */
 
-import { test } from 'node:test'
 import {
     assertEquals,
     assertNotStrictEquals,
@@ -22,7 +21,7 @@ import {
     OnShutdown,
 } from '../kernel/shutdown_decorators.ts'
 
-test('OnShutdown - records the method and its priority', () => {
+Deno.test('OnShutdown - records the method and its priority', () => {
     class Kernel {
         @OnShutdown({ priority: 50 })
         closeCache() {}
@@ -35,7 +34,7 @@ test('OnShutdown - records the method and its priority', () => {
     assertEquals(hooks[0].priority, 50)
 })
 
-test('OnShutdown - priority defaults to 0', () => {
+Deno.test('OnShutdown - priority defaults to 0', () => {
     class Kernel {
         @OnShutdown()
         flush() {}
@@ -45,7 +44,7 @@ test('OnShutdown - priority defaults to 0', () => {
     assertEquals(getShutdownHooks(Kernel)[0].priority, 0)
 })
 
-test('OnShutdown - reads from an instance as well as a class', () => {
+Deno.test('OnShutdown - reads from an instance as well as a class', () => {
     class Kernel {
         @OnShutdown({ priority: 7 })
         stop() {}
@@ -55,12 +54,12 @@ test('OnShutdown - reads from an instance as well as a class', () => {
     assertEquals(getShutdownHooks(instance)[0].method, 'stop')
 })
 
-test('OnShutdown - a class with no hooks returns an empty list, not undefined', () => {
+Deno.test('OnShutdown - a class with no hooks returns an empty list, not undefined', () => {
     class Bare {}
     assertEquals(getShutdownHooks(Bare), [])
 })
 
-test('OnShutdown - registering twice does not duplicate the hook', () => {
+Deno.test('OnShutdown - registering twice does not duplicate the hook', () => {
     class Kernel {
         @OnShutdown({ priority: 1 })
         once() {}
@@ -71,7 +70,7 @@ test('OnShutdown - registering twice does not duplicate the hook', () => {
     assertEquals(getShutdownHooks(Kernel).length, 1)
 })
 
-test('OnShutdown - refuses anything that is not a method', () => {
+Deno.test('OnShutdown - refuses anything that is not a method', () => {
     // The message shape matches @OnBoot's, because a developer who has seen one
     // should recognise the other.
     //
@@ -101,7 +100,7 @@ test('OnShutdown - refuses anything that is not a method', () => {
     }
 })
 
-test('OnShutdown - a subclass never writes into its parent array', async (t) => {
+Deno.test('OnShutdown - a subclass never writes into its parent array', async (t) => {
     // THE test in this file. `@OnBoot` stores hooks with
     //     if (!constructor[KERNEL_BOOT_HOOKS]) constructor[...] = []
     // a truthiness check that reads THROUGH the prototype chain. When the
@@ -113,7 +112,7 @@ test('OnShutdown - a subclass never writes into its parent array', async (t) => 
     // a kernel that does not own it. `Object.hasOwn` is what prevents it, and
     // this test fails against any implementation that uses the truthiness form.
 
-    await t.test('the parent keeps only its own hook', () => {
+    await t.step('the parent keeps only its own hook', () => {
         class Base {
             @OnShutdown({ priority: 1 })
             common() {}
@@ -135,7 +134,7 @@ test('OnShutdown - a subclass never writes into its parent array', async (t) => 
         )
     })
 
-    await t.test(
+    await t.step(
         'the child sees both, because both initialisers ran on it',
         () => {
             class Base2 {
@@ -161,7 +160,7 @@ test('OnShutdown - a subclass never writes into its parent array', async (t) => 
         },
     )
 
-    await t.test('the two arrays are not the same object', () => {
+    await t.step('the two arrays are not the same object', () => {
         class Base3 {
             @OnShutdown({ priority: 1 })
             common() {}
@@ -199,7 +198,7 @@ test('OnShutdown - a subclass never writes into its parent array', async (t) => 
     })
 })
 
-test('OnShutdown - the returned list is a copy', () => {
+Deno.test('OnShutdown - the returned list is a copy', () => {
     class Kernel {
         @OnShutdown({ priority: 3 })
         stop() {}

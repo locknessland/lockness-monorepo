@@ -8,7 +8,6 @@
  * @module @lockness/realtime/tests/handler
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { createWebSocketHandler } from '../websocket.ts'
 import type { Context } from '@lockness/hono'
@@ -32,7 +31,7 @@ interface User {
     id: number
 }
 
-test('SC-002 (handler): a forbidden origin returns 403 and does not upgrade', async () => {
+Deno.test('SC-002 (handler): a forbidden origin returns 403 and does not upgrade', async () => {
     let upgraded = false
     const handler = createWebSocketHandler<User>({
         appUrl: 'https://app.example.com',
@@ -54,7 +53,7 @@ test('SC-002 (handler): a forbidden origin returns 403 and does not upgrade', as
     assert(!upgraded) // never reached the upgrade
 })
 
-test('SC-002 (handler): an allowed origin upgrades and threads the resolved identity', async () => {
+Deno.test('SC-002 (handler): an allowed origin upgrades and threads the resolved identity', async () => {
     let events: WSEvents | undefined
     let seenIdentity: User | null = null
 

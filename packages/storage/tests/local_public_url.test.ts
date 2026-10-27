@@ -7,12 +7,11 @@
  * the URL named a different, truncated file.
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { fromFileUrl, join } from '@std/path'
 import { LocalStorageDriver } from '../mod.ts'
 
-test("LocalStorageDriver - publicUrl escapes '#', '?' and a space in a file: URL", async () => {
+Deno.test("LocalStorageDriver - publicUrl escapes '#', '?' and a space in a file: URL", async () => {
     const base = await Deno.makeTempDir()
     try {
         const root = join(base, 'app#dir with space')
@@ -27,7 +26,7 @@ test("LocalStorageDriver - publicUrl escapes '#', '?' and a space in a file: URL
     }
 })
 
-test('LocalStorageDriver - publicUrl uses the configured public URL when there is one', () => {
+Deno.test('LocalStorageDriver - publicUrl uses the configured public URL when there is one', () => {
     const driver = new LocalStorageDriver({
         driver: 'local',
         root: '/srv/storage',

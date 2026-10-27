@@ -72,7 +72,6 @@
  * @module @lockness/realtime/tests/redis_warn_trace_418
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
 import {
@@ -234,7 +233,7 @@ const ROWS: TraceRow[] = [
 ]
 
 for (const row of ROWS) {
-    test(`#418 ${row.name}: every channel throwing, nothing escapes`, async () => {
+    Deno.test(`#418 ${row.name}: every channel throwing, nothing escapes`, async () => {
         await watchingEscapes(async (escaped) => {
             const armed = await row.arm()
             let thrown: unknown = undefined
@@ -298,7 +297,7 @@ for (const row of ROWS) {
  * the end of the story" check, aimed at #395's own reference shape (a WARN
  * escaping a loop and skipping the rest of it).
  */
-test('#418 T3 the ghost-sweep departure-handler catch in #announceSwept: every channel throwing, the sweep still reaches the next slot', async () => {
+Deno.test('#418 T3 the ghost-sweep departure-handler catch in #announceSwept: every channel throwing, the sweep still reaches the next slot', async () => {
     await watchingEscapes(async (escaped) => {
         const time = new FakeTime(START)
         const redis = new FakeRedis()
@@ -386,7 +385,7 @@ test('#418 T3 the ghost-sweep departure-handler catch in #announceSwept: every c
  * A3 ("one instance's failure ends only that instance's sweep") survives
  * even when the failing instance's OWN report cannot be logged.
  */
-test("#418 T4 #sweepInstance's own sweep-failed WARN: every channel throwing, a second dead instance is still swept in the same pass", async () => {
+Deno.test("#418 T4 #sweepInstance's own sweep-failed WARN: every channel throwing, a second dead instance is still swept in the same pass", async () => {
     await watchingEscapes(async (escaped) => {
         const time = new FakeTime(START)
         const redis = new FakeRedis()
@@ -461,7 +460,7 @@ test("#418 T4 #sweepInstance's own sweep-failed WARN: every channel throwing, a 
  * sink failure erases itself behind the generic top-of-chain fallback
  * (`SWEEP_LOG_FAILED`) instead of this site's own, more specific marker.
  */
-test("#418 T5 #reconcile's own outer catch: every channel throwing, its OWN marker fires, not the generic top-of-chain fallback", async () => {
+Deno.test("#418 T5 #reconcile's own outer catch: every channel throwing, its OWN marker fires, not the generic top-of-chain fallback", async () => {
     await watchingEscapes(async (escaped) => {
         const time = new FakeTime(START)
         const redis = new FakeRedis()
@@ -525,7 +524,7 @@ test("#418 T5 #reconcile's own outer catch: every channel throwing, its OWN mark
  * `renewed` at 0 released. A SECOND, ordinary dead instance is planted
  * alongside it, and its departure must still be reported in the same pass.
  */
-test("#418 T6 #sweepInstance's renewed WARN: every channel throwing, a second dead instance is still swept in the same pass", async () => {
+Deno.test("#418 T6 #sweepInstance's renewed WARN: every channel throwing, a second dead instance is still swept in the same pass", async () => {
     await watchingEscapes(async (escaped) => {
         const time = new FakeTime(START)
         const redis = new FakeRedis()
@@ -607,7 +606,7 @@ test("#418 T6 #sweepInstance's renewed WARN: every channel throwing, a second de
  * departure must still be reported in the same pass when this one's sink
  * throws.
  */
-test("#418 T7 #sweepInstance's released WARN: every channel throwing, a second dead instance is still swept in the same pass", async () => {
+Deno.test("#418 T7 #sweepInstance's released WARN: every channel throwing, a second dead instance is still swept in the same pass", async () => {
     await watchingEscapes(async (escaped) => {
         const time = new FakeTime(START)
         const redis = new FakeRedis()

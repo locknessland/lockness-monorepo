@@ -8,7 +8,6 @@
  * @module @lockness/realtime/tests/manager
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { ChannelManager } from '../manager.ts'
 import type { BroadcastDriver } from '../driver.ts'
@@ -18,7 +17,7 @@ function fakeConn(id: string): Connection {
     return { id, identity: null, metadata: {}, send: () => {}, close: () => {} }
 }
 
-test('handlerHooks registers on open and disconnects on close (A-M4)', async () => {
+Deno.test('handlerHooks registers on open and disconnects on close (A-M4)', async () => {
     const m = new ChannelManager()
     let userOpen = false
     let userClose = false
@@ -37,7 +36,7 @@ test('handlerHooks registers on open and disconnects on close (A-M4)', async () 
     assertEquals(userClose, true) // user hook still ran
 })
 
-test('a failed cross-process publish is routed to onPublishError, not lost', async () => {
+Deno.test('a failed cross-process publish is routed to onPublishError, not lost', async () => {
     const errors: unknown[] = []
     const failing: BroadcastDriver = {
         publish: () => Promise.reject(new Error('redis down')),

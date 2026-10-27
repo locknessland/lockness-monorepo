@@ -1,6 +1,6 @@
 /**
- * Tests for the `lockness-exit` lint plugin (#436, D5): `process-exit`,
- * `printed-failure` and `signal-subscription` (#598) — the shapes each flags, the shapes that stay clean, the
+ * Tests for the `lockness-exit` lint plugin (#436, D5): `process-exit` and
+ * `printed-failure` — the shapes each flags, the shapes that stay clean, the
  * owner list and the file scoping.
  *
  * Scope is decided on the path relative to the repository root, so every file
@@ -9,7 +9,6 @@
  * which is how the checkout-location cases are tested.
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { fromFileUrl } from '@std/path'
 import plugin, { inCommandScope, inPackageScope } from './exit_contract.ts'
@@ -20,7 +19,7 @@ const ROOT = fromFileUrl(new URL('../../', import.meta.url))
 
 /** Lint `source` as `file` and return the hit count of `rule`. */
 function hits(
-    rule: 'process-exit' | 'printed-failure' | 'signal-subscription',
+    rule: 'process-exit' | 'printed-failure',
     source: string,
     file: string,
 ): number {
@@ -50,37 +49,17 @@ const EXIT_POSITIVES: ReadonlyArray<readonly [string, string]> = [
     ['exit destructured and renamed', 'const { exit: quit } = Deno'],
     ['exit destructured by a string key', "const { 'exit': quit } = Deno"],
     ['exit destructured in an assignment', 'let exit; ({ exit } = Deno)'],
-    // T019 (#596): the same shapes on Node's process object.
-    ['process.exit(1)', 'process.exit(1)'],
-    ['process.exit() with no status', 'process.exit()'],
-    ['a computed process.exit call', "process['exit'](1)"],
-    ['an assignment to process.exitCode', 'process.exitCode = 1'],
-    ['a compound assignment to process.exitCode', 'process.exitCode ??= 1'],
-    ['an increment of process.exitCode', 'process.exitCode++'],
-    ['exit destructured from process', 'const { exit } = process'],
-    ['exit imported from node:process', "import { exit } from 'node:process'"],
-    ['exit imported and renamed', "import { exit as quit } from 'process'"],
 ]
 
 for (const [label, source] of EXIT_POSITIVES) {
-    test(`process-exit - flags ${label}`, () => {
+    Deno.test(`process-exit - flags ${label}`, () => {
         assertEquals(hits('process-exit', source, PACKAGE_FILE), 1)
     })
 }
 
 const EXIT_NEGATIVES: ReadonlyArray<readonly [string, string]> = [
     ['a read of Deno.exitCode', 'const status = Deno.exitCode'],
-    ['a look-alike object', 'proc.exit(1); proc.exitCode = 1'],
-    ['a read of process.exitCode', 'const status = process.exitCode'],
-    [
-        'other members destructured from process',
-        'const { env, argv } = process',
-    ],
-    [
-        'other imports from node:process',
-        "import { env, argv } from 'node:process'",
-    ],
-    ['exit imported from another module', "import { exit } from './exit.ts'"],
+    ['a look-alike object', 'process.exit(1); proc.exitCode = 1'],
     ['an unrelated Deno call', 'Deno.exitSignal?.()'],
     ['a returned status', 'return 1'],
     ['an increment of a look-alike', 'proc.exitCode++'],
@@ -89,11 +68,11 @@ const EXIT_NEGATIVES: ReadonlyArray<readonly [string, string]> = [
     ['other members destructured from Deno', 'const { env, args } = Deno'],
     // A copy of the status, not a write to it.
     ['exitCode destructured from Deno', 'const { exitCode } = Deno'],
-    ['exit destructured from another object', 'const { exit } = proc'],
+    ['exit destructured from another object', 'const { exit } = process'],
 ]
 
 for (const [label, source] of EXIT_NEGATIVES) {
-    test(`process-exit - leaves ${label} alone`, () => {
+    Deno.test(`process-exit - leaves ${label} alone`, () => {
         assertEquals(hits('process-exit', source, PACKAGE_FILE), 0)
     })
 }
@@ -101,7 +80,7 @@ for (const [label, source] of EXIT_NEGATIVES) {
 // The rule matches `Deno` by name. A second name for the namespace, or
 // reaching it through `globalThis`, is a shape it does not follow: tracking
 // aliases needs scope analysis, and none of these appears in the repository.
-test('process-exit - known gap: an alias of Deno is not followed', () => {
+Deno.test('process-exit - known gap: an alias of Deno is not followed', () => {
     for (
         const source of [
             'const d = Deno; d.exit(1)',
@@ -113,7 +92,7 @@ test('process-exit - known gap: an alias of Deno is not followed', () => {
     }
 })
 
-test('process-exit - Deno.exit is allowed only in its two owners', () => {
+Deno.test('process-exit - Deno.exit is allowed only in its two owners', () => {
     const source = 'Deno.exit(1)'
     assertEquals(
         hits('process-exit', source, `${ROOT}packages/core/http/server.ts`),
@@ -129,21 +108,7 @@ test('process-exit - Deno.exit is allowed only in its two owners', () => {
     )
 })
 
-test('process-exit - the owners own the process.* forms too (#596)', () => {
-    // An owner migrating off Deno keeps its right to exit, and no more.
-    const server = `${ROOT}packages/core/http/server.ts`
-    const report = `${ROOT}packages/cli/report.ts`
-    assertEquals(hits('process-exit', 'process.exit(1)', server), 0)
-    assertEquals(
-        hits('process-exit', "import { exit } from 'node:process'", server),
-        0,
-    )
-    assertEquals(hits('process-exit', 'process.exitCode = 1', server), 1)
-    assertEquals(hits('process-exit', 'process.exitCode = 1', report), 0)
-    assertEquals(hits('process-exit', 'process.exit(1)', report), 1)
-})
-
-test('process-exit - an owner is a repository path, not a suffix', () => {
+Deno.test('process-exit - an owner is a repository path, not a suffix', () => {
     assertEquals(
         hits(
             'process-exit',
@@ -154,7 +119,7 @@ test('process-exit - an owner is a repository path, not a suffix', () => {
     )
 })
 
-test('process-exit - Deno.exitCode is allowed only in cli/report.ts', () => {
+Deno.test('process-exit - Deno.exitCode is allowed only in cli/report.ts', () => {
     const source = 'Deno.exitCode = status'
     assertEquals(
         hits('process-exit', source, `${ROOT}packages/cli/report.ts`),
@@ -178,7 +143,7 @@ test('process-exit - Deno.exitCode is allowed only in cli/report.ts', () => {
     )
 })
 
-test('process-exit - reports nothing in tests, stubs or outside packages', () => {
+Deno.test('process-exit - reports nothing in tests, stubs or outside packages', () => {
     const source = 'Deno.exit(1)'
     for (
         const file of [
@@ -216,7 +181,7 @@ const PRINT_POSITIVES: ReadonlyArray<readonly [string, string]> = [
 ]
 
 for (const [label, source] of PRINT_POSITIVES) {
-    test(`printed-failure - flags ${label}`, () => {
+    Deno.test(`printed-failure - flags ${label}`, () => {
         assertEquals(hits('printed-failure', source, COMMAND_FILE), 1)
     })
 }
@@ -233,17 +198,17 @@ const PRINT_NEGATIVES: ReadonlyArray<readonly [string, string]> = [
 ]
 
 for (const [label, source] of PRINT_NEGATIVES) {
-    test(`printed-failure - leaves ${label} alone`, () => {
+    Deno.test(`printed-failure - leaves ${label} alone`, () => {
         assertEquals(hits('printed-failure', source, COMMAND_FILE), 0)
     })
 }
 
-test('printed-failure - reports in every command-code path', () => {
+Deno.test('printed-failure - reports in every command-code path', () => {
     const source = "console.error('❌ Failed')"
     for (
         const file of [
             'packages/cli/commands/make/action.ts',
-            'packages/queue/commands.ts',
+            'packages/cli/commands/queue_commands.ts',
             'packages/mail/cli_commands.ts',
             'packages/openapi/install.ts',
             'packages/drizzle/generators/model_generator.ts',
@@ -258,7 +223,7 @@ test('printed-failure - reports in every command-code path', () => {
     }
 })
 
-test('printed-failure - reports nothing outside command code', () => {
+Deno.test('printed-failure - reports nothing outside command code', () => {
     const source = "console.error('❌ Failed')"
     for (
         const file of [
@@ -282,12 +247,12 @@ test('printed-failure - reports nothing outside command code', () => {
 // scoping helpers
 // ---------------------------------------------------------------------------
 
-test('exit-contract - the scopes default to this repository', () => {
+Deno.test('exit-contract - the scopes default to this repository', () => {
     assertEquals(inPackageScope(`${ROOT}packages/x/mod.ts`), true)
     assertEquals(inCommandScope(`${ROOT}packages/x/cli_commands.ts`), true)
 })
 
-test('exit-contract - the scopes read Windows separators', () => {
+Deno.test('exit-contract - the scopes read Windows separators', () => {
     const root = 'C:\\repo\\'
     assertEquals(inPackageScope('C:\\repo\\packages\\x\\mod.ts', root), true)
     assertEquals(
@@ -301,7 +266,7 @@ test('exit-contract - the scopes read Windows separators', () => {
     assertEquals(inCommandScope('C:\\repo\\packages\\x\\mod.ts', root), false)
 })
 
-test('exit-contract - a checkout under a tests or stubs directory keeps the rules on', () => {
+Deno.test('exit-contract - a checkout under a tests or stubs directory keeps the rules on', () => {
     for (const root of ['/home/me/tests/lockness/', '/srv/stubs/lockness/']) {
         assertEquals(inPackageScope(`${root}packages/x/mod.ts`, root), true)
         assertEquals(
@@ -315,32 +280,7 @@ test('exit-contract - a checkout under a tests or stubs directory keeps the rule
     }
 })
 
-test("exit-contract - a package's commands.ts is command code (#592)", () => {
-    const root = '/repo/'
-    assertEquals(
-        inCommandScope(`${root}packages/queue/commands.ts`, root),
-        true,
-    )
-    assertEquals(
-        inCommandScope(`${root}packages/queue/tests/commands.ts`, root),
-        false,
-    )
-    assertEquals(inCommandScope(`${root}packages/queue/worker.ts`, root), false)
-})
-
-test("exit-contract - a package's setup.ts is command code (#592)", () => {
-    const root = '/repo/'
-    assertEquals(
-        inCommandScope(`${root}packages/deprecation-contracts/setup.ts`, root),
-        true,
-    )
-    assertEquals(
-        inCommandScope(`${root}packages/x/tests/setup.ts`, root),
-        false,
-    )
-})
-
-test('exit-contract - a checkout under a packages directory reads the right package', () => {
+Deno.test('exit-contract - a checkout under a packages directory reads the right package', () => {
     const root = '/home/me/packages/lockness/'
     assertEquals(
         inCommandScope(`${root}packages/core/cli/compile_command.ts`, root),
@@ -351,7 +291,7 @@ test('exit-contract - a checkout under a packages directory reads the right pack
     assertEquals(inPackageScope(`${root}scripts/gate.ts`, root), false)
 })
 
-test('exit-contract - a file outside the repository is out of scope', () => {
+Deno.test('exit-contract - a file outside the repository is out of scope', () => {
     const root = '/home/me/lockness/'
     assertEquals(inPackageScope('/elsewhere/packages/x/mod.ts', root), false)
     assertEquals(
@@ -362,90 +302,4 @@ test('exit-contract - a file outside the repository is out of scope', () => {
         hits('process-exit', 'Deno.exit(1)', '/elsewhere/packages/x/mod.ts'),
         0,
     )
-})
-
-// ---------------------------------------------------------------------------
-// signal-subscription (plan 274 §5, #598)
-// ---------------------------------------------------------------------------
-
-const SIGNAL_POSITIVES: ReadonlyArray<readonly [string, string]> = [
-    ["process.on('SIGINT')", "process.on('SIGINT', stop)"],
-    ["process.once('SIGTERM')", "process.once('SIGTERM', stop)"],
-    ['process.addListener', "process.addListener('SIGHUP', stop)"],
-    ['process.prependListener', "process.prependListener('SIGINT', stop)"],
-    [
-        'process.prependOnceListener',
-        "process.prependOnceListener('SIGINT', stop)",
-    ],
-    ['a computed method', "process['on']('SIGINT', stop)"],
-    ['a template signal name', 'process.on(`SIGTERM`, stop)'],
-    ['a signal Lockness does not name', "process.on('SIGUSR2', stop)"],
-    ['inside a function', "function f() { process.on('SIGINT', () => {}) }"],
-]
-
-for (const [label, source] of SIGNAL_POSITIVES) {
-    test(`signal-subscription - flags ${label}`, () => {
-        assertEquals(hits('signal-subscription', source, PACKAGE_FILE), 1)
-    })
-}
-
-const SIGNAL_NEGATIVES: ReadonlyArray<readonly [string, string]> = [
-    ['a non-signal process event', "process.on('exit', done)"],
-    ['an unhandled-rejection hook', "process.on('unhandledRejection', log)"],
-    ['a dynamic event name', 'process.on(name, handler)'],
-    ['an emitter that is not process', "server.on('SIGINT', stop)"],
-    ['removing a listener', "process.off('SIGINT', stop)"],
-    ['Deno is not this rule', "Deno.addSignalListener('SIGINT', stop)"],
-    ['a lower-case look-alike', "process.on('sigint', stop)"],
-]
-
-for (const [label, source] of SIGNAL_NEGATIVES) {
-    test(`signal-subscription - leaves ${label} alone`, () => {
-        assertEquals(hits('signal-subscription', source, PACKAGE_FILE), 0)
-    })
-}
-
-test('signal-subscription - runtime/signals.ts is the one owner', () => {
-    const source = "process.on('SIGINT', stop)"
-    assertEquals(
-        hits(
-            'signal-subscription',
-            source,
-            `${ROOT}packages/runtime/signals.ts`,
-        ),
-        0,
-    )
-    for (
-        const file of [
-            'packages/core/kernel/signals.ts',
-            'packages/queue/commands.ts',
-            'packages/runtime/process.ts',
-            'packages/x/vendor/packages/runtime/signals.ts',
-        ]
-    ) {
-        assertEquals(
-            hits('signal-subscription', source, `${ROOT}${file}`),
-            1,
-            file,
-        )
-    }
-})
-
-test('signal-subscription - reports nothing in tests, stubs or outside packages', () => {
-    const source = "process.on('SIGINT', stop)"
-    for (
-        const file of [
-            'packages/runtime/tests/signals.test.ts',
-            'packages/x/a_test.ts',
-            'packages/x/stubs/make/a.ts',
-            'scripts/test_runtime.ts',
-            'app/kernel.ts',
-        ]
-    ) {
-        assertEquals(
-            hits('signal-subscription', source, `${ROOT}${file}`),
-            0,
-            file,
-        )
-    }
 })

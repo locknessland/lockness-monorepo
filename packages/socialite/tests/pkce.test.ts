@@ -9,7 +9,7 @@
  * @module @lockness/socialite/tests/pkce
  */
 
-import { describe, it } from 'node:test'
+import { describe, it } from '@std/testing/bdd'
 import { expect } from '@std/expect'
 import { encodeBase64Url } from '@std/encoding/base64url'
 import {
@@ -19,7 +19,7 @@ import {
     type ProviderConfig,
     type SocialUser,
 } from '../mod.ts'
-import type { Context } from '@lockness/hono'
+import type { Context } from 'hono'
 
 /** Run `fn` with env vars temporarily set (undefined = deleted), then restore. */
 function withEnv(vars: Record<string, string | undefined>, fn: () => void) {

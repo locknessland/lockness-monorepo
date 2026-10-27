@@ -13,14 +13,13 @@
  * @module @lockness/session/tests/redis_mutex
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { RedisSessionDriver } from '../drivers/redis.ts'
 import { startFakeRedis } from './fake_redis.ts'
 
 const id = (n: number): string => String(n).padStart(64, '0')
 
-test('redis mutex - overlapping GETs each receive their OWN reply (SC-004, Security-S5)', async () => {
+Deno.test('redis mutex - overlapping GETs each receive their OWN reply (SC-004, Security-S5)', async () => {
     const redis = await startFakeRedis()
     // Distinct keys, sizable distinct values — an interleave or a mis-drained
     // reply hands one caller another caller's bytes, which this asserts against.
@@ -55,7 +54,7 @@ test('redis mutex - overlapping GETs each receive their OWN reply (SC-004, Secur
     }
 })
 
-test('redis mutex - a write and a read in flight together do not corrupt each other', async () => {
+Deno.test('redis mutex - a write and a read in flight together do not corrupt each other', async () => {
     const redis = await startFakeRedis()
     const driver = new RedisSessionDriver({
         hostname: '127.0.0.1',
@@ -85,7 +84,7 @@ test('redis mutex - a write and a read in flight together do not corrupt each ot
     }
 })
 
-test('redis mutex - connect() AUTH/SELECT do not deadlock against the command queue (R2)', async () => {
+Deno.test('redis mutex - connect() AUTH/SELECT do not deadlock against the command queue (R2)', async () => {
     // A password + non-zero db means connect() issues AUTH then SELECT. Those go
     // through #exchange DIRECTLY, never sendCommand — if they instead re-entered
     // the command queue that awaits connect(), this read would hang forever.

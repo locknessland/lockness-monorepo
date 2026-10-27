@@ -120,11 +120,8 @@ a development database.
 ### Production write-guard
 
 To make an accidental production run fail loudly instead of silently mutating
-data, both write paths are guarded when `APP_ENV` is `production`, when the
-process cannot read `APP_ENV` (a `deno compile` binary whose `compile.flags`
-narrow `--allow-env`, or a narrowed `--allow-env` without `APP_ENV`, see #624;
-grant `--allow-env=APP_ENV` so the guard can tell), and when a `DENO_ENV`
-disagrees with `APP_ENV` (see #504):
+data, both write paths are guarded when `APP_ENV` is `production` (and when a
+`DENO_ENV` disagrees with `APP_ENV`, see #504):
 
 - **`db:seed`** refuses to run and exits with an error. Override it explicitly
   with the `--allow-production` flag:

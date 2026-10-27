@@ -1,4 +1,3 @@
-import { test } from 'node:test'
 import { assertStringIncludes } from '@std/assert'
 import {
     Breadcrumb,
@@ -17,8 +16,8 @@ function renderToString(component: unknown): string {
     return result.toString()
 }
 
-test('Breadcrumb components', async (t) => {
-    await t.test('renders complete breadcrumb', () => {
+Deno.test('Breadcrumb components', async (t) => {
+    await t.step('renders complete breadcrumb', () => {
         const html = renderToString(
             <Breadcrumb>
                 <BreadcrumbList>
@@ -38,7 +37,7 @@ test('Breadcrumb components', async (t) => {
         assertStringIncludes(html, '/')
     })
 
-    await t.test('BreadcrumbLink renders href', () => {
+    await t.step('BreadcrumbLink renders href', () => {
         const html = renderToString(
             <BreadcrumbLink href='/products'>Products</BreadcrumbLink>,
         )
@@ -46,18 +45,18 @@ test('Breadcrumb components', async (t) => {
         assertStringIncludes(html, 'Products')
     })
 
-    await t.test('BreadcrumbPage renders current page', () => {
+    await t.step('BreadcrumbPage renders current page', () => {
         const html = renderToString(<BreadcrumbPage>Current</BreadcrumbPage>)
         assertStringIncludes(html, 'aria-current="page"')
         assertStringIncludes(html, 'Current')
     })
 
-    await t.test('BreadcrumbSeparator uses default separator', () => {
+    await t.step('BreadcrumbSeparator uses default separator', () => {
         const html = renderToString(<BreadcrumbSeparator />)
         assertStringIncludes(html, '/')
     })
 
-    await t.test('BreadcrumbSeparator accepts custom content', () => {
+    await t.step('BreadcrumbSeparator accepts custom content', () => {
         const html = renderToString(
             <BreadcrumbSeparator>›</BreadcrumbSeparator>,
         )

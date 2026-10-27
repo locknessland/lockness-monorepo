@@ -14,7 +14,6 @@
  * @module @lockness/cli/tests/make_failures
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { Cli } from '../mod.ts'
 import { MAKE_COMMANDS } from '../commands/make/index.ts'
@@ -56,9 +55,9 @@ const NEEDS_A_NAME = MAKE_COMMANDS.filter((command) =>
     command.name !== 'make:error-pages'
 )
 
-test('make:* with no name', async (t) => {
+Deno.test('make:* with no name', async (t) => {
     for (const command of NEEDS_A_NAME) {
-        await t.test(`${command.name} exits 1 with one ❌ line`, async () => {
+        await t.step(`${command.name} exits 1 with one ❌ line`, async () => {
             const { result, error } = await dispatchIn([command.name])
 
             assertEquals(result, 1)
@@ -69,8 +68,8 @@ test('make:* with no name', async (t) => {
     }
 })
 
-test('make:action usage', async (t) => {
-    await t.test('the usage hint is on the failure line', async () => {
+Deno.test('make:action usage', async (t) => {
+    await t.step('the usage hint is on the failure line', async () => {
         const { result, error } = await dispatchIn(['make:action', 'User'])
 
         assertEquals(result, 1)
@@ -80,7 +79,7 @@ test('make:action usage', async (t) => {
         assertStringIncludes(line, '--view')
     })
 
-    await t.test('an unknown --method exits 1', async () => {
+    await t.step('an unknown --method exits 1', async () => {
         const { result, error } = await dispatchIn([
             'make:action',
             'User',
@@ -92,7 +91,7 @@ test('make:action usage', async (t) => {
         assertStringIncludes(onlyErrorLine(error), 'Invalid method')
     })
 
-    await t.test('a missing controller names the fix', async () => {
+    await t.step('a missing controller names the fix', async () => {
         const { result, error } = await dispatchIn([
             'make:action',
             'User',
@@ -105,7 +104,7 @@ test('make:action usage', async (t) => {
         assertStringIncludes(line, 'make:controller User')
     })
 
-    await t.test('a controller with no closing brace exits 1', async () => {
+    await t.step('a controller with no closing brace exits 1', async () => {
         const { result, error } = await dispatchIn(
             ['make:action', 'User', 'show'],
             async () => {
@@ -127,12 +126,12 @@ async function blockAppDir(): Promise<void> {
     await Deno.writeTextFile('app', 'not a directory')
 }
 
-test('make:* when a write fails', async (t) => {
+Deno.test('make:* when a write fails', async (t) => {
     for (const command of MAKE_COMMANDS) {
         const args = command.name === 'make:action'
             ? [command.name, 'User', 'show']
             : [command.name, 'Widget']
-        await t.test(`${command.name} exits 1, printed once`, async () => {
+        await t.step(`${command.name} exits 1, printed once`, async () => {
             const { result, error } = await dispatchIn(args, blockAppDir)
 
             assertEquals(result, 1)
@@ -142,8 +141,8 @@ test('make:* when a write fails', async (t) => {
     }
 })
 
-test('make:controller --view finishes, then fails', async (t) => {
-    await t.test('a failed view still writes the controller', async () => {
+Deno.test('make:controller --view finishes, then fails', async (t) => {
+    await t.step('a failed view still writes the controller', async () => {
         await inTempDir(async () => {
             // A directory where the view file goes makes the view write fail.
             await Deno.mkdir('app/view/pages/user.tsx', { recursive: true })
@@ -162,7 +161,7 @@ test('make:controller --view finishes, then fails', async (t) => {
         })
     })
 
-    await t.test('both steps passing exits 0', async () => {
+    await t.step('both steps passing exits 0', async () => {
         const { result, error } = await dispatchIn([
             'make:controller',
             'User',
@@ -186,8 +185,8 @@ async function writeUserController(): Promise<void> {
 /** Where `make:action User show --view` writes its view. */
 const USER_SHOW_VIEW = 'app/view/pages/user/show.tsx'
 
-test('make:action --view finishes, then fails', async (t) => {
-    await t.test('a failed view still adds the action', async () => {
+Deno.test('make:action --view finishes, then fails', async (t) => {
+    await t.step('a failed view still adds the action', async () => {
         await inTempDir(async () => {
             await writeUserController()
             // `app/view` as a file makes the view's mkdir fail.
@@ -211,7 +210,7 @@ test('make:action --view finishes, then fails', async (t) => {
         })
     })
 
-    await t.test('an existing view is kept, not overwritten', async () => {
+    await t.step('an existing view is kept, not overwritten', async () => {
         await inTempDir(async () => {
             await writeUserController()
             await Deno.mkdir('app/view/pages/user', { recursive: true })
@@ -234,7 +233,7 @@ test('make:action --view finishes, then fails', async (t) => {
         })
     })
 
-    await t.test('a directory at the view path fails the view', async () => {
+    await t.step('a directory at the view path fails the view', async () => {
         await inTempDir(async () => {
             await writeUserController()
             await Deno.mkdir(USER_SHOW_VIEW, { recursive: true })
@@ -251,7 +250,7 @@ test('make:action --view finishes, then fails', async (t) => {
         })
     })
 
-    await t.test('both steps passing exits 0', async () => {
+    await t.step('both steps passing exits 0', async () => {
         await inTempDir(async () => {
             await writeUserController()
 
@@ -269,8 +268,8 @@ test('make:action --view finishes, then fails', async (t) => {
     })
 })
 
-test('make:crud finishes, then fails', async (t) => {
-    await t.test('a failed step leaves the others written', async () => {
+Deno.test('make:crud finishes, then fails', async (t) => {
+    await t.step('a failed step leaves the others written', async () => {
         await inTempDir(async () => {
             // A directory where the service file goes makes that write fail.
             await Deno.mkdir('app/service/post_service.ts', {
@@ -294,14 +293,14 @@ test('make:crud finishes, then fails', async (t) => {
         })
     })
 
-    await t.test('every step passing exits 0', async () => {
+    await t.step('every step passing exits 0', async () => {
         const { result, error } = await dispatchIn(['make:crud', 'Post'])
 
         assertEquals(result, 0)
         assertEquals(error.length, 0)
     })
 
-    await t.test('the controller class is PostController', async () => {
+    await t.step('the controller class is PostController', async () => {
         await inTempDir(async () => {
             await captureConsole(() =>
                 makeCli().dispatch(['make:crud', 'Post'])
@@ -316,8 +315,8 @@ test('make:crud finishes, then fails', async (t) => {
     })
 })
 
-test('make:controller when the routes registry cannot be written', async (t) => {
-    await t.test('warns with the routes:generate hint, exits 0', async () => {
+Deno.test('make:controller when the routes registry cannot be written', async (t) => {
+    await t.step('warns with the routes:generate hint, exits 0', async () => {
         await inTempDir(async () => {
             // A directory where the registry goes makes its write fail.
             await Deno.mkdir('app/routes.ts', { recursive: true })

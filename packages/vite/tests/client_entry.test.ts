@@ -4,7 +4,6 @@
  * @module @lockness/vite/tests/client_entry
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import {
     CLIENT_ENTRY_ID,
@@ -13,7 +12,7 @@ import {
     RESOLVED_CLIENT_ENTRY_ID,
 } from '../src/plugins/client_entry.ts'
 
-test('generateClientEntry - dev injects the HMR client; prod does not', () => {
+Deno.test('generateClientEntry - dev injects the HMR client; prod does not', () => {
     const dev = generateClientEntry({
         isDev: true,
         clientEntry: 'app/client.ts',
@@ -28,7 +27,7 @@ test('generateClientEntry - dev injects the HMR client; prod does not', () => {
     assert(!prod.includes('/@vite/client'), 'no HMR client in prod')
 })
 
-test('generateClientEntry - re-exports the user entry only when present', () => {
+Deno.test('generateClientEntry - re-exports the user entry only when present', () => {
     const withUser = generateClientEntry({
         isDev: false,
         clientEntry: 'app/client.ts',
@@ -44,14 +43,14 @@ test('generateClientEntry - re-exports the user entry only when present', () => 
     assertStringIncludes(without, 'export {}')
 })
 
-test('clientEntry - resolveId maps the virtual id to its \\0 form', () => {
+Deno.test('clientEntry - resolveId maps the virtual id to its \\0 form', () => {
     const plugin = clientEntry()
     const resolveId = plugin.resolveId as (id: string) => string | null
     assertEquals(resolveId(CLIENT_ENTRY_ID), RESOLVED_CLIENT_ENTRY_ID)
     assertEquals(resolveId('some/other/module.ts'), null)
 })
 
-test('clientEntry - load returns generated source for the resolved id, null otherwise', async () => {
+Deno.test('clientEntry - load returns generated source for the resolved id, null otherwise', async () => {
     const plugin = clientEntry()
     const load = plugin.load as (id: string) => Promise<string | null>
     assertEquals(await load('not-the-virtual-id'), null)

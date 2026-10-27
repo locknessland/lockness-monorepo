@@ -38,14 +38,14 @@ a lazy per-request locale resolver + accessors, and `make:lang` /
 
 | Direction                                 | Packages                                                                    |
 | :---------------------------------------- | :-------------------------------------------------------------------------- |
-| Imports (static)                          | `contract`, `hono`                                                          |
+| Imports (static)                          | `hono`                                                                      |
 | Imports (soft, loaded at runtime by name) | —                                                                           |
 | Imported by                               | `core`                                                                      |
 | **Must never import**                     | `core` — each already reaches this package, so importing one closes a cycle |
 
 Enforced by `deno task deps:analyze` against `deps.policy.jsonc`. A soft edge is
-an optional peer in this package's `package.json`, never a dependency: the
-consuming application installs it, or the feature stays off.
+deliberately **not** declared in this package's `deno.json`: the consuming
+application installs it, or the feature stays off.
 
 <!-- /generated:deps -->
 
@@ -53,13 +53,13 @@ consuming application installs it, or the feature stays off.
 
 <!-- generated:surface -->
 
-| Kind      | Exports                                                                                                                                                                                                                                                                                                                                                                         |
-| :-------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| class     | `CatalogRegistry`, `ICUParseError`, `Translator`                                                                                                                                                                                                                                                                                                                                |
-| function  | `configureI18n`, `currentLocale`, `diffKeys`, `extractKeys`, `firstAcceptLanguage`, `flattenMessages`, `getI18nConfig`, `getLocale`, `getRegistry`, `getTranslator`, `hasDynamicKeys`, `isI18nConfigured`, `languageOf`, `localeMiddleware`, `normalizeLocale`, `parseICU`, `registerI18nCommands`, `renderICU`, `resetI18n`, `resolveLocale`, `runWithLocale`, `t`, `walkKeys` |
-| interface | `CatalogRegistryOptions`, `I18nConfig`, `KeyDiff`, `Messages`                                                                                                                                                                                                                                                                                                                   |
-| typeAlias | `ICUNode`, `TranslateParams`                                                                                                                                                                                                                                                                                                                                                    |
-| variable  | `LANG_DIR`, `MAX_ACCEPT_LANGUAGE_RANGES`, `MAX_ICU_DEPTH`, `MAX_ICU_LENGTH`, `MAX_LOCALE_LENGTH`                                                                                                                                                                                                                                                                                |
+| Kind      | Exports                                                                                                                                                                                                                                                                                                                                                                                                         |
+| :-------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| class     | `CatalogRegistry`, `ICUParseError`, `Translator`                                                                                                                                                                                                                                                                                                                                                                |
+| function  | `configureI18n`, `currentLocale`, `diffKeys`, `extractKeys`, `firstAcceptLanguage`, `flattenMessages`, `getI18nConfig`, `getLocale`, `getRegistry`, `getTranslator`, `handleExtract`, `hasDynamicKeys`, `isContained`, `isI18nConfigured`, `languageOf`, `localeMiddleware`, `normalizeLocale`, `parseICU`, `registerI18nCommands`, `renderICU`, `resetI18n`, `resolveLocale`, `runWithLocale`, `t`, `walkKeys` |
+| interface | `CatalogRegistryOptions`, `Cli`, `I18nConfig`, `KeyDiff`, `Messages`                                                                                                                                                                                                                                                                                                                                            |
+| typeAlias | `ICUNode`, `TranslateParams`                                                                                                                                                                                                                                                                                                                                                                                    |
+| variable  | `LANG_DIR`, `MAX_ACCEPT_LANGUAGE_RANGES`, `MAX_ICU_DEPTH`, `MAX_ICU_LENGTH`, `MAX_LOCALE_LENGTH`                                                                                                                                                                                                                                                                                                                |
 
 Anything not listed is internal and free to change.
 

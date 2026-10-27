@@ -6,8 +6,6 @@
  * @module @lockness/session/types
  */
 
-import type { SessionDriverName } from '@lockness/contract/store'
-
 /**
  * Session data container type.
  *
@@ -75,7 +73,7 @@ export interface SessionConfig {
      * - `redis`: Redis server storage
      * @default 'cookie'
      */
-    driver: SessionDriverName
+    driver: 'cookie' | 'deno-kv' | 'memory' | 'redis'
     /**
      * Cookie name for session ID or data.
      * @default 'lockness_session'

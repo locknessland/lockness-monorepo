@@ -25,7 +25,6 @@
  * @module @lockness/realtime/tests/revocation_seam_332
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertThrows } from '@std/assert'
 import { ChannelManager, revocationStore } from '../manager.ts'
 import { MemoryBroadcastDriver } from '../drivers/memory.ts'
@@ -43,7 +42,7 @@ const trio = () => ({
     clearRevocation: () => Promise.resolve(),
 })
 
-test('#332 the revocation trio is narrowed as a SET, never member by member', () => {
+Deno.test('#332 the revocation trio is narrowed as a SET, never member by member', () => {
     assertEquals(
         revocationStore({ ...transport(), ...trio() }) !== undefined,
         true,
@@ -83,7 +82,7 @@ test('#332 the revocation trio is narrowed as a SET, never member by member', ()
     }
 })
 
-test('#332 the probe is TOTAL — a driver with no revocation surface is fine', () => {
+Deno.test('#332 the probe is TOTAL — a driver with no revocation surface is fine', () => {
     // And this is what the throw must never fire for. `MemoryBroadcastDriver`
     // is the single-process path; it implements none of the three, and it owes
     // no durability because it has no bus on which to lose a frame.
@@ -95,7 +94,7 @@ test('#332 the probe is TOTAL — a driver with no revocation surface is fine', 
     assert(m instanceof ChannelManager, 'and it constructs')
 })
 
-test('#332 a driver on the PREVIOUS seam is refused at construction', () => {
+Deno.test('#332 a driver on the PREVIOUS seam is refused at construction', () => {
     // The failure this replaces is silent: narrowed to `undefined`, such a
     // driver would make `evict` non-durable while looking entirely healthy.
     for (
@@ -119,7 +118,7 @@ test('#332 a driver on the PREVIOUS seam is refused at construction', () => {
     }
 })
 
-test('#332 the refusal is the ASSERTION, not the probe — and stays separable', () => {
+Deno.test('#332 the refusal is the ASSERTION, not the probe — and stays separable', () => {
     // The regression this guards is a tidy-up, not a bug: someone notices the
     // probe throws where its two siblings return `undefined`, "restores
     // consistency", and the migration refusal disappears with no test failing.
@@ -143,7 +142,7 @@ test('#332 the refusal is the ASSERTION, not the probe — and stays separable',
     )
 })
 
-test('#332 a driver with the new trio constructs and is used', async () => {
+Deno.test('#332 a driver with the new trio constructs and is used', async () => {
     const marked: unknown[] = []
     const driver: BroadcastDriver = {
         ...transport(),

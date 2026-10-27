@@ -4,7 +4,6 @@
  * @module @lockness/auth/tests/gate
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import { AuthorizationError, Gate } from '../mod.ts'
 import type { Authenticatable } from '../mod.ts'
@@ -27,22 +26,22 @@ function newGate(): Gate<User> {
     return gate
 }
 
-test('can - allows when the ability callback returns true', async () => {
+Deno.test('can - allows when the ability callback returns true', async () => {
     const gate = newGate()
     assert(await gate.can(alice, 'update-post', { authorId: 1 }))
 })
 
-test('can - denies when the ability callback returns false', async () => {
+Deno.test('can - denies when the ability callback returns false', async () => {
     const gate = newGate()
     assertEquals(await gate.can(bob, 'update-post', { authorId: 1 }), false)
 })
 
-test('can - fails closed for an unknown ability', async () => {
+Deno.test('can - fails closed for an unknown ability', async () => {
     const gate = newGate()
     assertEquals(await gate.can(alice, 'nonexistent'), false)
 })
 
-test('can - fails closed for a missing user', async () => {
+Deno.test('can - fails closed for a missing user', async () => {
     const gate = newGate()
     assertEquals(await gate.can(null, 'update-post', { authorId: 1 }), false)
     assertEquals(
@@ -51,7 +50,7 @@ test('can - fails closed for a missing user', async () => {
     )
 })
 
-test('cannot - is the negation of can', async () => {
+Deno.test('cannot - is the negation of can', async () => {
     const gate = newGate()
     assertEquals(await gate.cannot(bob, 'update-post', { authorId: 1 }), true)
     assertEquals(
@@ -60,7 +59,7 @@ test('cannot - is the negation of can', async () => {
     )
 })
 
-test('authorize - throws AuthorizationError (403) when denied', async () => {
+Deno.test('authorize - throws AuthorizationError (403) when denied', async () => {
     const gate = newGate()
     const error = await assertRejects(
         () => gate.authorize(bob, 'update-post', { authorId: 1 }),
@@ -69,12 +68,12 @@ test('authorize - throws AuthorizationError (403) when denied', async () => {
     assertEquals(error.status, 403)
 })
 
-test('authorize - resolves silently when allowed', async () => {
+Deno.test('authorize - resolves silently when allowed', async () => {
     const gate = newGate()
     await gate.authorize(alice, 'update-post', { authorId: 1 })
 })
 
-test('before - short-circuits to allow (admin bypass)', async () => {
+Deno.test('before - short-circuits to allow (admin bypass)', async () => {
     const gate = newGate()
     gate.before((user) => (user.role === 'admin' ? true : undefined))
     const admin: User = { id: 9, email: 'admin@example.com', role: 'admin' }
@@ -84,21 +83,21 @@ test('before - short-circuits to allow (admin bypass)', async () => {
     assertEquals(await gate.can(bob, 'update-post', { authorId: 1 }), false)
 })
 
-test('before - short-circuits to deny', async () => {
+Deno.test('before - short-circuits to deny', async () => {
     const gate = newGate()
     gate.before(() => false)
     // Even the rightful author is denied once a before hook says no.
     assertEquals(await gate.can(alice, 'update-post', { authorId: 1 }), false)
 })
 
-test('define - supports async callbacks', async () => {
+Deno.test('define - supports async callbacks', async () => {
     const gate = new Gate<User>()
     gate.define('async-check', (user) => Promise.resolve(user.id === 1))
     assert(await gate.can(alice, 'async-check'))
     assertEquals(await gate.can(bob, 'async-check'), false)
 })
 
-test('reset - clears abilities and hooks', async () => {
+Deno.test('reset - clears abilities and hooks', async () => {
     const gate = newGate()
     gate.reset()
     assertEquals(gate.has('update-post'), false)
@@ -109,7 +108,7 @@ test('reset - clears abilities and hooks', async () => {
 // Fallback resolvers (#195) — consulted only when no ability/policy decided.
 // =============================================================================
 
-test('fallback - consulted only when no ability and no policy matched', async () => {
+Deno.test('fallback - consulted only when no ability and no policy matched', async () => {
     const gate = new Gate<User>()
     let called = false
     gate.fallback((_user, ability) => {
@@ -123,7 +122,7 @@ test('fallback - consulted only when no ability and no policy matched', async ()
     assertEquals(await gate.can(alice, 'reports.delete'), false)
 })
 
-test('fallback - an explicit ability is authoritative; the fallback never runs', async () => {
+Deno.test('fallback - an explicit ability is authoritative; the fallback never runs', async () => {
     const gate = new Gate<User>()
     gate.define('update-post', () => false) // explicit deny
     let called = false
@@ -135,7 +134,7 @@ test('fallback - an explicit ability is authoritative; the fallback never runs',
     assertEquals(called, false)
 })
 
-test('fallback - an explicit policy is authoritative; the fallback never runs', async () => {
+Deno.test('fallback - an explicit policy is authoritative; the fallback never runs', async () => {
     const gate = new Gate<User>()
     gate.policy('post', {
         update: (u, p) => u.id === (p as { authorId: number }).authorId,
@@ -150,12 +149,12 @@ test('fallback - an explicit policy is authoritative; the fallback never runs', 
     assertEquals(called, false)
 })
 
-test('fallback - a fresh gate has none; deny-by-default is unchanged', async () => {
+Deno.test('fallback - a fresh gate has none; deny-by-default is unchanged', async () => {
     const gate = new Gate<User>()
     assertEquals(await gate.can(alice, 'anything'), false)
 })
 
-test('fallback - reset() clears registered fallbacks', async () => {
+Deno.test('fallback - reset() clears registered fallbacks', async () => {
     const gate = new Gate<User>()
     gate.fallback(() => true)
     assert(await gate.can(alice, 'x'))

@@ -14,9 +14,8 @@
  * @module @lockness/auth/tests/authorization_e2e
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
-import { Hono } from '@lockness/hono'
+import { Hono } from 'hono'
 import {
     AuthorizationError,
     authorizeMiddleware,
@@ -88,7 +87,7 @@ function buildApp() {
     return app
 }
 
-test('e2e - the owner is allowed through the policy (200)', async () => {
+Deno.test('e2e - the owner is allowed through the policy (200)', async () => {
     const app = buildApp()
     const res = await app.request('/posts/42/edit', {
         method: 'POST',
@@ -98,7 +97,7 @@ test('e2e - the owner is allowed through the policy (200)', async () => {
     gate.reset()
 })
 
-test('e2e - a non-owner is denied by the policy (403)', async () => {
+Deno.test('e2e - a non-owner is denied by the policy (403)', async () => {
     const app = buildApp()
     const res = await app.request('/posts/42/edit', {
         method: 'POST',
@@ -112,14 +111,14 @@ test('e2e - a non-owner is denied by the policy (403)', async () => {
     gate.reset()
 })
 
-test('e2e - an unauthenticated request is denied fail-closed (403)', async () => {
+Deno.test('e2e - an unauthenticated request is denied fail-closed (403)', async () => {
     const app = buildApp()
     const res = await app.request('/posts/42/edit', { method: 'POST' })
     assertEquals(res.status, 403)
     gate.reset()
 })
 
-test('e2e - an RBAC role grants an ability with no explicit rule (200)', async () => {
+Deno.test('e2e - an RBAC role grants an ability with no explicit rule (200)', async () => {
     const app = buildApp()
     const res = await app.request('/reports', {
         headers: { 'x-user-id': '2' }, // holds analyst → reports.*
@@ -128,7 +127,7 @@ test('e2e - an RBAC role grants an ability with no explicit rule (200)', async (
     gate.reset()
 })
 
-test('e2e - a user without the role is denied the RBAC ability (403)', async () => {
+Deno.test('e2e - a user without the role is denied the RBAC ability (403)', async () => {
     const app = buildApp()
     const res = await app.request('/reports', {
         headers: { 'x-user-id': '1' }, // no role → no reports.view

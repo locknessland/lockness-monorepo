@@ -48,8 +48,8 @@ none of mail/queue/sse/drizzle.
 | **Must never import**                     | nothing — no package depends on this one    |
 
 Enforced by `deno task deps:analyze` against `deps.policy.jsonc`. A soft edge is
-an optional peer in this package's `package.json`, never a dependency: the
-consuming application installs it, or the feature stays off.
+deliberately **not** declared in this package's `deno.json`: the consuming
+application installs it, or the feature stays off.
 
 <!-- /generated:deps -->
 
@@ -57,13 +57,13 @@ consuming application installs it, or the feature stays off.
 
 <!-- generated:surface -->
 
-| Kind      | Exports                                                                                                                                                                                                                                                                                                                            |
-| :-------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| class     | `BroadcastChannel`, `ChannelManager`, `ChannelPackageMissingError`, `DatabaseChannel`, `LogChannel`, `MailChannel`, `Notification`, `ProviderNotConfiguredError`, `QueueNotConfiguredError`, `QueuedDeliveryError`, `SlackChannel`, `SmsChannel`, `UnknownChannelError`                                                            |
-| function  | `configureNotifications`, `getNotificationConfig`, `getNotificationFactory`, `handleNotificationJob`, `isQueueable`, `notify`, `registerBuiltInChannels`, `registerNotification`, `registerNotificationCommands`, `resetNotificationConfig`, `resetNotificationRegistry`, `tryImport`                                              |
-| interface | `BroadcastContent`, `BroadcasterLike`, `BuiltInChannelOptions`, `Channel`, `ChannelManagerOptions`, `DatabaseChannelDeps`, `DeliveryFailure`, `DeliveryReport`, `HandleJobOptions`, `InsertableDb`, `LoggerLike`, `MailBuilder`, `MailContent`, `Notifiable`, `NotificationConfig`, `QueueableNotifiable`, `QueuedNotificationJob` |
-| typeAlias | `ModuleImporter`, `NotificationFactory`, `NotificationsTable`, `QueueDispatcher`                                                                                                                                                                                                                                                   |
-| variable  | `defaultManager`                                                                                                                                                                                                                                                                                                                   |
+| Kind      | Exports                                                                                                                                                                                                                                                                                                                                   |
+| :-------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| class     | `BroadcastChannel`, `ChannelManager`, `ChannelPackageMissingError`, `DatabaseChannel`, `LogChannel`, `MailChannel`, `Notification`, `ProviderNotConfiguredError`, `QueueNotConfiguredError`, `QueuedDeliveryError`, `SlackChannel`, `SmsChannel`, `UnknownChannelError`                                                                   |
+| function  | `configureNotifications`, `createFile`, `getNotificationConfig`, `getNotificationFactory`, `handleNotificationJob`, `isQueueable`, `notificationNaming`, `notify`, `processStub`, `registerBuiltInChannels`, `registerNotification`, `registerNotificationCommands`, `resetNotificationConfig`, `resetNotificationRegistry`, `tryImport`  |
+| interface | `BroadcastContent`, `BroadcasterLike`, `BuiltInChannelOptions`, `Channel`, `ChannelManagerOptions`, `Cli`, `DatabaseChannelDeps`, `DeliveryFailure`, `DeliveryReport`, `HandleJobOptions`, `InsertableDb`, `LoggerLike`, `MailBuilder`, `MailContent`, `Notifiable`, `NotificationConfig`, `QueueableNotifiable`, `QueuedNotificationJob` |
+| typeAlias | `ModuleImporter`, `NotificationFactory`, `NotificationsTable`, `QueueDispatcher`                                                                                                                                                                                                                                                          |
+| variable  | `defaultManager`                                                                                                                                                                                                                                                                                                                          |
 
 Anything not listed is internal and free to change.
 

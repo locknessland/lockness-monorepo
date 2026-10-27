@@ -18,7 +18,7 @@
  * ```
  */
 
-import type { Context } from '@lockness/hono'
+import type { Context } from 'hono'
 import type {
     DeferredPropsInfo,
     InertiaProps,

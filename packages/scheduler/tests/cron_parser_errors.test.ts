@@ -6,11 +6,10 @@
  * fails loudly.
  */
 
-import { test } from 'node:test'
 import { assertThrows } from '@std/assert'
 import { nextRun, parse } from '../cron_parser.ts'
 
-test('parse - rejects the wrong number of fields', () => {
+Deno.test('parse - rejects the wrong number of fields', () => {
     for (const bad of ['', '*', '* *', '* * *', '* * * *', '* * * * * *']) {
         assertThrows(
             () => parse(bad),
@@ -21,7 +20,7 @@ test('parse - rejects the wrong number of fields', () => {
     }
 })
 
-test('parse - names the offending field and token', () => {
+Deno.test('parse - names the offending field and token', () => {
     const err = assertThrows(() => parse('* 99 * * *')) as Error
     if (!err.message.includes('hour')) {
         throw new Error(`message must name the field, got: ${err.message}`)
@@ -31,7 +30,7 @@ test('parse - names the offending field and token', () => {
     }
 })
 
-test('parse - rejects out-of-range values in every field', () => {
+Deno.test('parse - rejects out-of-range values in every field', () => {
     for (
         const bad of [
             '60 * * * *',
@@ -52,22 +51,22 @@ test('parse - rejects out-of-range values in every field', () => {
     }
 })
 
-test('parse - rejects a zero or negative step', () => {
+Deno.test('parse - rejects a zero or negative step', () => {
     assertThrows(() => parse('*/0 * * * *'), TypeError)
     assertThrows(() => parse('*/-1 * * * *'), TypeError)
 })
 
-test('parse - rejects an inverted range', () => {
+Deno.test('parse - rejects an inverted range', () => {
     assertThrows(() => parse('5-1 * * * *'), TypeError)
 })
 
-test('parse - rejects month and day aliases, which are out of scope', () => {
+Deno.test('parse - rejects month and day aliases, which are out of scope', () => {
     // Explicitly rejected rather than silently mis-parsed as 0.
     assertThrows(() => parse('0 0 * JAN *'), TypeError)
     assertThrows(() => parse('0 0 * * MON'), TypeError)
 })
 
-test('parse - rejects junk tokens', () => {
+Deno.test('parse - rejects junk tokens', () => {
     for (const bad of ['a * * * *', '* * * * ?', '1..5 * * * *', '- * * * *']) {
         assertThrows(
             () => parse(bad),
@@ -78,7 +77,7 @@ test('parse - rejects junk tokens', () => {
     }
 })
 
-test('nextRun - an expression that never matches throws instead of looping', () => {
+Deno.test('nextRun - an expression that never matches throws instead of looping', () => {
     // 30 February. The search must terminate against its bounded horizon.
     assertThrows(
         () => nextRun('0 0 30 2 *', new Date('2026-01-01T00:00:00Z')),

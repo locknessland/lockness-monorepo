@@ -4,9 +4,9 @@
  * A standalone entry — a tool run with `deno run jsr:@lockness/<pkg>`, not
  * through `Cli` — reports failure the way a command does: by **throwing**.
  * {@link runEntry} prints the throw once, through the same printer as
- * `Cli.dispatch`, and writes the status to `process.exitCode`, so the tool
- * exits non-zero without calling `process.exit()` and without the runtime
- * printing an unredacted `error: Uncaught` with its whole cause chain.
+ * `Cli.dispatch`, and writes the status to `Deno.exitCode`, so the tool exits
+ * non-zero without calling `Deno.exit()` and without Deno printing an
+ * unredacted `error: Uncaught` with its whole cause chain.
  *
  * It imports the package-internal printer only, never the `@lockness/cli`
  * barrel, so a tool that uses it loads none of the built-in commands.
@@ -36,7 +36,7 @@ import { applyExitStatus, reportThrown } from './report.ts'
  * **Any** throw is caught, not only a failure: an escaped throw from a
  * standalone entry would otherwise print its message, source line, stack and
  * cause chain unredacted. The status is set, never forced, so `finally` blocks
- * run and buffered output is not cut off; `0` leaves `process.exitCode` as it
+ * run and buffered output is not cut off; `0` leaves `Deno.exitCode` as it
  * was.
  *
  * `main` must return the promise of its work: a promise it starts without

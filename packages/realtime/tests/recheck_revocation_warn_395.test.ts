@@ -22,7 +22,6 @@
  * @module @lockness/realtime/tests/recheck_revocation_warn_395
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { ChannelManager, RECHECK_REVOCATION_LOG_FAILED } from '../manager.ts'
 import type { BroadcastDriver, Revocation } from '../driver.ts'
@@ -63,7 +62,7 @@ function conn(
     }
 }
 
-test('#395 (HIGH) #recheckRevocations: the second revocation is still applied when the wrapper WARN itself throws', async () => {
+Deno.test('#395 (HIGH) #recheckRevocations: the second revocation is still applied when the wrapper WARN itself throws', async () => {
     await watchingEscapes(async (escaped) => {
         const index = new Map<string, Revocation>()
         let reconciler: (() => unknown) | undefined

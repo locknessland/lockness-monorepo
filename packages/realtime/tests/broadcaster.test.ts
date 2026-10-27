@@ -9,7 +9,6 @@
  * @module @lockness/realtime/tests/broadcaster
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { ChannelManager } from '../manager.ts'
 import type { Connection } from '../types.ts'
@@ -31,14 +30,14 @@ function fakeConn(id: string): Connection {
 }
 const sentOf = (c: Connection) => (c as unknown as { _sent: string[] })._sent
 
-test("SC-005: the ChannelManager satisfies notification's BroadcasterLike", () => {
+Deno.test("SC-005: the ChannelManager satisfies notification's BroadcasterLike", () => {
     const manager = new ChannelManager()
     // Structural assignment to the real interface — fails to compile on drift.
     const broadcaster: BroadcasterLike = manager
     assertEquals(typeof broadcaster.send, 'function')
 })
 
-test('SC-005: per-client send reaches only the target client', () => {
+Deno.test('SC-005: per-client send reaches only the target client', () => {
     const manager = new ChannelManager()
     const a = fakeConn('a')
     const b = fakeConn('b')
@@ -53,7 +52,7 @@ test('SC-005: per-client send reaches only the target client', () => {
     assertEquals(manager.send('missing', 'e', {}), false) // no such client
 })
 
-test('SC-005a: an evicted (disconnected) connection receives nothing', () => {
+Deno.test('SC-005a: an evicted (disconnected) connection receives nothing', () => {
     const manager = new ChannelManager()
     const a = fakeConn('a')
     manager.register(a)

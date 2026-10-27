@@ -8,32 +8,22 @@ way the framework imports a file of the user's app (#477). It exists to break
 dependency cycles: if something is needed by two packages that must not know
 about each other, it belongs here.
 
-It is not dependency-free — it takes Hono's types from `@lockness/hono`. Every
-one of those is an `import type`, so the edge erases at compile time and the
-package still emits no runtime import. That distinction is the invariant, not
-"imports nothing".
+It is not dependency-free — it takes Hono's types through the `hono` alias in
+its own `deno.json`. Every one of those is an `import type`, so the edge erases
+at compile time and the package still emits no runtime import. That distinction
+is the invariant, not "imports nothing".
 
 User-facing documentation: [README.md](README.md). This brief does not repeat
 it.
 
 ## Invariants
 
-- **Every `@lockness/*` import here must be `import type` — with one recorded
-  exception, the runtime detector.** The package takes Hono's types from
-  `@lockness/hono` (no bare `hono` alias since #592), and takes nothing but
-  types from any other `@lockness/*`; because those are type-only they erase at
-  compile time and the package emits no runtime import. A single value import
-  would turn the framework's cycle-breaker into a cycle participant.
-  `deno task deps:analyze` marks the edge _(type-only)_ — if that annotation
-  disappears from the `hono` edge, the invariant broke.
-- **The exception: a value import of `@lockness/runtime/runtime`, and nothing
-  else from `@lockness/runtime`** (plan 274 §7 complexity tracking, audit A2,
-  #598). Contract must know the runtime — the "`deno-kv` needs Deno" refusal
-  now, the safe env read in C13 — and the one detector lives there; the
-  alternative was a second detector. It stays safe because `runtime` never
-  imports `contract` (its `deps.policy.jsonc` entry says so) and the detector
-  subpath imports only `node:process`. Do not import the `runtime` root,
-  `process` or `signals` from here, and never test the runtime here by hand.
+- **Every `@lockness/*` import here must be `import type`.** The package takes
+  Hono's types through the `hono` alias in its own `deno.json`; because those
+  are type-only they erase at compile time and the package emits no runtime
+  import. A single value import would turn the framework's cycle-breaker into a
+  cycle participant. `deno task deps:analyze` marks the edge _(type-only)_ — if
+  that annotation disappears, the invariant broke.
 - **Renaming an exported symbol is a breaking change for every importer at
   once**, because the whole workspace ships on one version.
 
@@ -41,16 +31,16 @@ it.
 
 <!-- generated:deps -->
 
-| Direction                                 | Packages                                                                                                                                                                                                                                                                                                                                                                                       |
-| :---------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Imports (static)                          | `hono` _(type-only)_, `runtime`                                                                                                                                                                                                                                                                                                                                                                |
-| Imports (soft, loaded at runtime by name) | —                                                                                                                                                                                                                                                                                                                                                                                              |
-| Imported by                               | `auth`, `cache`, `cli`, `container`, `core`, `crypto`, `deprecation-contracts`, `devtools`, `drizzle`, `events`, `features`, `i18n`, `logger`, `mail`, `notification`, `openapi`, `queue`, `realtime`, `redis`, `search`, `session`, `socialite`, `sse`, `telemetry`                                                                                                                           |
-| **Must never import**                     | `auth`, `auth-provider`, `cache`, `cli`, `container`, `core`, `crypto`, `deprecation-contracts`, `devtools`, `drizzle`, `events`, `features`, `i18n`, `init`, `logger`, `mail`, `notification`, `openapi`, `queue`, `realtime`, `redis`, `search`, `session`, `socialite`, `sse`, `telemetry`, `testing`, `ui`, `upgrade` — each already reaches this package, so importing one closes a cycle |
+| Direction                                 | Packages                                                                                                                                                                                                                                                                                                                                                         |
+| :---------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Imports (static)                          | `hono` _(type-only)_                                                                                                                                                                                                                                                                                                                                             |
+| Imports (soft, loaded at runtime by name) | —                                                                                                                                                                                                                                                                                                                                                                |
+| Imported by                               | `auth`, `cache`, `cli`, `container`, `core`, `crypto`, `devtools`, `drizzle`, `events`, `logger`, `mail`, `notification`, `openapi`, `queue`, `realtime`, `redis`, `session`, `socialite`, `sse`, `telemetry`                                                                                                                                                    |
+| **Must never import**                     | `auth`, `auth-provider`, `cache`, `cli`, `container`, `core`, `crypto`, `deprecation-contracts`, `devtools`, `drizzle`, `events`, `init`, `logger`, `mail`, `notification`, `openapi`, `queue`, `realtime`, `redis`, `session`, `socialite`, `sse`, `telemetry`, `testing`, `ui`, `upgrade` — each already reaches this package, so importing one closes a cycle |
 
 Enforced by `deno task deps:analyze` against `deps.policy.jsonc`. A soft edge is
-an optional peer in this package's `package.json`, never a dependency: the
-consuming application installs it, or the feature stays off.
+deliberately **not** declared in this package's `deno.json`: the consuming
+application installs it, or the feature stays off.
 
 <!-- /generated:deps -->
 
@@ -72,36 +62,18 @@ Anything not listed is internal and free to change.
 
 ## Where to work
 
-| Concern                            | Path                                                    |
-| ---------------------------------- | ------------------------------------------------------- |
-| Cross-package interfaces           | `types.ts`                                              |
-| HTTP-layer contracts               | `http/*.ts`                                             |
-| Routing contracts and decorators   | `routing/*.ts`                                          |
-| Command contribution port          | `command.ts` (`./command`)                              |
-| Package setup port                 | `setup.ts` (`./setup`)                                  |
-| Store-driver names                 | `store/drivers.ts` (`./store`)                          |
-| The "`deno-kv` needs Deno" refusal | `store/deno_kv.ts` (`./store/internal`)                 |
-| Scaffolder path containment        | `fs/contained.ts` (`./fs/internal`)                     |
-| The one safe env read (no prompt)  | `environment_read.ts` (`./environment/read/internal`)   |
-| Unreadable `APP_ENV` = prod risk   | `environment_guard.ts` (`./environment/guard/internal`) |
+| Concern                          | Path           |
+| -------------------------------- | -------------- |
+| Cross-package interfaces         | `types.ts`     |
+| HTTP-layer contracts             | `http/*.ts`    |
+| Routing contracts and decorators | `routing/*.ts` |
 
 ## Pitfalls
 
-- **A package contributes `./nessy` commands through `CommandRegistry`, never a
-  local `Cli` interface** (#576, #579). `@lockness/cli`'s `Cli` implements the
-  port and re-exports its types under the old names; the exit contract's shape,
-  `CommandFailure`, is defined here once. A package setup is the **named**
-  `setup` export of its `./setup` entry, typed `PackageSetup` — never a
-  `default` export (#575).
-- **A union of store-driver names belongs in `store/drivers.ts` only.** The
-  cache, session, queue and kernel configuration types reference it; the
-  "`deno-kv` needs Deno" refusal is `assertDenoKvRuntime`, asked by each driver
-  factory, and it asks `@lockness/runtime`'s detector (#598).
-
-- **Never add another runtime `@lockness/*` import here.** This package is the
-  bottom of the graph; such an import turns a clean tree into a cycle. The
-  detector subpath above is the one exception. `@std/*` value imports are fine —
-  `app_file_url.ts` and `routing/generator.ts` use `@std/path`.
+- **Never add a runtime `@lockness/*` import here.** This package is the bottom
+  of the graph; such an import turns a clean tree into a cycle. `@std/*` value
+  imports are fine — `app_file_url.ts` and `routing/generator.ts` use
+  `@std/path`.
 - **`core` re-exports this root with `export *`, so a runtime helper meant only
   for packages goes on an `/internal` entry point, never in `mod.ts`.** Anything
   in `mod.ts` reaches every app through `@lockness/core`.
@@ -250,20 +222,16 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-20 test files for 42 source files:
+15 test files for 35 source files:
 
 - `packages/contract/tests/app_file.test.ts`
-- `packages/contract/tests/command_port.test.ts`
 - `packages/contract/tests/compile_diagnostic.test.ts`
 - `packages/contract/tests/crypto_key.test.ts`
 - `packages/contract/tests/disposables.test.ts`
 - `packages/contract/tests/environment.test.ts`
-- `packages/contract/tests/environment_guard.deno.test.ts`
 - `packages/contract/tests/environment_legacy.test.ts`
-- `packages/contract/tests/environment_read.deno.test.ts`
 - `packages/contract/tests/error_code_491.test.ts`
 - `packages/contract/tests/error_frames_488.test.ts`
-- `packages/contract/tests/fs_contained.test.ts`
 - `packages/contract/tests/health.test.ts`
 - `packages/contract/tests/log_sanitize.test.ts`
 - `packages/contract/tests/pagination.test.ts`
@@ -271,9 +239,8 @@ Anything not listed is internal and free to change.
 - `packages/contract/tests/render_message.test.ts`
 - `packages/contract/tests/resource_derive.test.ts`
 - `packages/contract/tests/static_decorator.test.ts`
-- `packages/contract/tests/store_drivers.test.ts`
 
-7 mutation batteries — **`deno test` does not run these.** Each is an executable
+6 mutation batteries — **`deno test` does not run these.** Each is an executable
 that mutates a source file and re-runs the suites that should notice. Run them
 with `deno task mutate` (all of them, one at a time) or
 `deno task mutate <name>` (one); nightly CI runs the full sweep. See
@@ -282,7 +249,6 @@ with `deno task mutate` (all of them, one at a time) or
 - `packages/contract/tests/mutations/bidi_292.ts`
 - `packages/contract/tests/mutations/dsn_redaction_301_303.ts`
 - `packages/contract/tests/mutations/env_signal_504.ts`
-- `packages/contract/tests/mutations/env_unreadable_624.ts`
 - `packages/contract/tests/mutations/error_code_491.ts`
 - `packages/contract/tests/mutations/error_frames_488.ts`
 - `packages/contract/tests/mutations/query_credentials_478.ts`
@@ -300,7 +266,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 20 test files directly —
+Then, specific to this package: run its 15 test files directly —
 
 ```bash
 deno test -A packages/contract/

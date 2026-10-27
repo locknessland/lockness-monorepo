@@ -751,10 +751,9 @@ the reset ran on, and the system-database refusal are proven against a real
 MySQL 8.4 in the `live-mysql` CI job.
 
 **Guard.** Like `db:seed`, `db:fresh` refuses a production environment
-(`APP_ENV` is `production`, or the process cannot read it: grant
-`--allow-env=APP_ENV`) unless `--allow-production` is passed, and a `DENO_ENV`
-that disagrees with `APP_ENV` is refused even with the flag, before it reads the
-config or connects.
+(`APP_ENV` is `production`) unless `--allow-production` is passed, and a
+`DENO_ENV` that disagrees with `APP_ENV` is refused even with the flag, before
+it reads the config or connects.
 
 **Refusals.** Each one happens before anything is dropped, and each ends with
 "Nothing was dropped.":

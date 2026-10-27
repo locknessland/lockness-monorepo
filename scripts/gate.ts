@@ -22,10 +22,6 @@
  * siblings, but third-party dependencies against JSR/npm, so the gate needs
  * network access.
  *
- * `npm:check` packs, installs and imports the npm packages `npm:build` staged,
- * so the gate also needs Node and npm (the version in `.node-version`), and
- * Bun once a package in the npm scope names it. A missing one fails the step.
- *
  * @example
  * ```bash
  * deno task gate
@@ -62,7 +58,7 @@ export interface GateOptions {
  * ```ts
  * gateSteps().at(-1)?.label                  // 'test'
  * gateSteps({ leaks: true }).at(-1)?.label   // 'test:leaks'
- * gateSteps({ registry: true })[7].args      // ['task', 'publish:check', '--registry']
+ * gateSteps({ registry: true })[6].args      // ['task', 'publish:check', '--registry']
  * ```
  */
 export function gateSteps(options: GateOptions = {}): GateStep[] {
@@ -71,15 +67,6 @@ export function gateSteps(options: GateOptions = {}): GateStep[] {
     if (options.registry === true) publishCheckArgs.push('--registry')
     return [
         { label: 'fmt --check', args: ['fmt', '--check'] },
-        // Before anything reads a generated deno.json: a stale one changes
-        // what lint, check and the suite resolve (#591).
-        {
-            label: 'manifests --check',
-            args: ['task', 'manifests', '--check'],
-        },
-        // Also runs the repository's own rules — env-signal, exit contract,
-        // app-file specifier, runtime-neutral (#596) — registered as plugins
-        // under `lint.plugins` in the root deno.jsonc, not as gate steps.
         { label: 'lint', args: ['lint'] },
         { label: 'check', args: ['check'] },
         { label: 'deps:analyze', args: ['task', 'deps:analyze'] },
@@ -89,12 +76,6 @@ export function gateSteps(options: GateOptions = {}): GateStep[] {
         },
         { label: 'docs:coverage', args: ['task', 'docs:coverage'] },
         { label: 'publish:check', args: publishCheckArgs },
-        // The npm artifacts (#595): node_modules from deno.lock alone, then
-        // tsc under the build sandbox and staging, then pack, install and
-        // import each staged package. npm:check needs Node and npm.
-        { label: 'install --frozen', args: ['install', '--frozen'] },
-        { label: 'npm:build', args: ['task', 'npm:build'] },
-        { label: 'npm:check', args: ['task', 'npm:check'] },
         { label: suite, args: ['task', suite] },
     ]
 }

@@ -33,7 +33,7 @@ import { ensureDir } from '@std/fs/ensure-dir'
 import { exists } from '@std/fs/exists'
 import { dirname, fromFileUrl, join } from '@std/path'
 import { parse as parseJsonc } from '@std/jsonc'
-import { VERSION } from './version.generated.ts'
+import config from './deno.json' with { type: 'json' }
 import { REGISTRY } from './registry.generated.ts'
 
 // =============================================================================
@@ -41,6 +41,7 @@ import { REGISTRY } from './registry.generated.ts'
 // =============================================================================
 
 const DEFAULT_TARGET_DIR = 'app/view'
+const VERSION = config.version
 const JSR_PACKAGE_NAME = '@lockness/ui'
 const JSR_BASE_URL = 'https://jsr.io'
 

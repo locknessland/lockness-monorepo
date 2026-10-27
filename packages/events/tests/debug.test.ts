@@ -8,7 +8,6 @@
  * type checker enforces it at every future call site.
  */
 
-import { test } from 'node:test'
 import { assertEquals, assertStringIncludes } from '@std/assert'
 import { EventEmitter } from '../mod.ts'
 import { debugLog, isDebugEnabled, setEventsDebug } from '../debug.ts'
@@ -28,7 +27,7 @@ async function captured(run: () => void | Promise<void>): Promise<string[]> {
     return lines
 }
 
-test('debug - is off by default and writes nothing', async () => {
+Deno.test('debug - is off by default and writes nothing', async () => {
     // Set explicitly rather than assumed. Reading the module-global here is an
     // order dependence: the first test anywhere to leak a `true` turns this
     // into a confusing failure in an unrelated file.
@@ -44,7 +43,7 @@ test('debug - is off by default and writes nothing', async () => {
     assertEquals(lines, [])
 })
 
-test('debug - reports registration, emit and dispatch when switched on', async () => {
+Deno.test('debug - reports registration, emit and dispatch when switched on', async () => {
     const lines = await captured(async () => {
         setEventsDebug(true)
         try {
@@ -66,7 +65,7 @@ test('debug - reports registration, emit and dispatch when switched on', async (
     assertEquals(isDebugEnabled(), false, 'and it went back off')
 })
 
-test('debug - a removal is reported, not only a registration', async () => {
+Deno.test('debug - a removal is reported, not only a registration', async () => {
     // The `unregister` phase was declared in DebugRecord and emitted by nobody.
     // A developer chasing a listener that VANISHES — the case debugging exists
     // for — saw register and emit lines, never a removal, and concluded the
@@ -88,7 +87,7 @@ test('debug - a removal is reported, not only a registration', async () => {
     assertStringIncludes(joined, 'Vanishing')
 })
 
-test('debug - a payload never reaches a line', async () => {
+Deno.test('debug - a payload never reaches a line', async () => {
     // The assertion the whole design exists for. `debugLog` has no string
     // parameter and no rest parameter, so there is nowhere for this marker to
     // go — but the test pins the outcome rather than the mechanism, because the
@@ -117,7 +116,7 @@ test('debug - a payload never reaches a line', async () => {
     }
 })
 
-test('debug - an event name is encoded before it is written', async () => {
+Deno.test('debug - an event name is encoded before it is written', async () => {
     // emitString() takes an arbitrary name. A newline forges a log entry and an
     // escape byte drives the operator's terminal, so the name goes through
     // safeForLog — reachable from this package only because it lives in
@@ -140,7 +139,7 @@ test('debug - an event name is encoded before it is written', async () => {
     assertStringIncludes(lines[0], '\\x1b')
 })
 
-test('debug - the events package makes no Deno.* call', async () => {
+Deno.test('debug - the events package makes no Deno.* call', async () => {
     // A constraint, not a preference: @lockness/core imports this package on
     // the boot path, so an env read here would add --allow-env to every
     // application that loads the framework — for a feature that is off by

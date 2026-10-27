@@ -12,10 +12,9 @@
  * @module @lockness/session/tests/reporter_wiring
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
-import { Hono } from '@lockness/hono'
-import type { Context } from '@lockness/hono'
+import { Hono } from 'hono'
+import type { Context } from 'hono'
 import { generateAppKey } from '../secret.ts'
 import { CookieSessionDriver, RejectionReporter } from '../drivers/cookie.ts'
 import { seal } from '../drivers/cookie_seal.ts'
@@ -67,7 +66,7 @@ async function silencingWarn(fn: () => Promise<void>): Promise<void> {
     }
 }
 
-test('read() feeds a crypto-refused cookie to the injected reporter (#236 seam)', async () => {
+Deno.test('read() feeds a crypto-refused cookie to the injected reporter (#236 seam)', async () => {
     const reporter = new RejectionReporter()
     const ctx = await contextWith('wiring_session=not-a-lockness-cookie')
     const driver = new CookieSessionDriver(ctx, CONFIG, undefined, reporter)
@@ -85,7 +84,7 @@ test('read() feeds a crypto-refused cookie to the injected reporter (#236 seam)'
     assertEquals(reporter.lastRejection(), 'bad-prefix')
 })
 
-test('read() feeds a revoked cookie to the injected reporter (#236 seam, revoked path)', async () => {
+Deno.test('read() feeds a revoked cookie to the injected reporter (#236 seam, revoked path)', async () => {
     const revokingStore: RevocationStore = {
         isRevoked: () => Promise.resolve(true),
         revoke: () => Promise.resolve(),

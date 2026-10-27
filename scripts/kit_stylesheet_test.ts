@@ -10,7 +10,6 @@
  * @module
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { parse as parseJsonc } from '@std/jsonc'
 import { judgeStylesheet, STYLESHEET_PROBES } from './kit_smoke.ts'
@@ -43,7 +42,7 @@ async function webViewSources(): Promise<string> {
     return sources.join('\n')
 }
 
-test('#506 judgeStylesheet - a copied entry file fails', async () => {
+Deno.test('#506 judgeStylesheet - a copied entry file fails', async () => {
     // What the plugin-less PostCSS build wrote: the source, byte for byte.
     const copied = await Deno.readTextFile(
         new URL('init/app/view/assets/app.css.stub', STUBS),
@@ -53,21 +52,21 @@ test('#506 judgeStylesheet - a copied entry file fails', async () => {
     assertStringIncludes(verdict.detail, '.flex')
 })
 
-test('#506 judgeStylesheet - the pre-#506 plain stylesheet fails', () => {
+Deno.test('#506 judgeStylesheet - the pre-#506 plain stylesheet fails', () => {
     const verdict = judgeStylesheet(
         ':root { --primary-color: #3b82f6; }\nbody { line-height: 1.6; }\n',
     )
     assertEquals(verdict.ok, false)
 })
 
-test('#506 judgeStylesheet - compiled utilities pass', () => {
+Deno.test('#506 judgeStylesheet - compiled utilities pass', () => {
     const css = STYLESHEET_PROBES.map((cls) => `.${cls} {\n  color: red;\n}`)
         .join('\n')
     const verdict = judgeStylesheet(`/*! tailwindcss v4.1.18 */\n${css}\n`)
     assert(verdict.ok, verdict.detail)
 })
 
-test('#506 judgeStylesheet - a prefix of a probe is not the probe', () => {
+Deno.test('#506 judgeStylesheet - a prefix of a probe is not the probe', () => {
     // `.flex-col` must not satisfy `.flex`.
     const verdict = judgeStylesheet(
         STYLESHEET_PROBES.map((cls) => `.${cls}-col { color: red; }`).join(
@@ -77,7 +76,7 @@ test('#506 judgeStylesheet - a prefix of a probe is not the probe', () => {
     assertEquals(verdict.ok, false)
 })
 
-test('#506 judgeStylesheet - an unresolved @import fails even with rules', () => {
+Deno.test('#506 judgeStylesheet - an unresolved @import fails even with rules', () => {
     // The CLI inlines `@import 'tailwindcss'`; seeing it in the output means
     // the file was copied, whatever else it holds.
     const css = STYLESHEET_PROBES.map((cls) => `.${cls} { color: red; }`)
@@ -87,7 +86,7 @@ test('#506 judgeStylesheet - an unresolved @import fails even with rules', () =>
     assertStringIncludes(verdict.detail, '@import')
 })
 
-test('#506 every stylesheet probe is a class the web kit views use', async () => {
+Deno.test('#506 every stylesheet probe is a class the web kit views use', async () => {
     // A probe nothing uses would pass on a build that scans nothing.
     const views = await webViewSources()
     for (const cls of STYLESHEET_PROBES) {
@@ -98,7 +97,7 @@ test('#506 every stylesheet probe is a class the web kit views use', async () =>
     }
 })
 
-test('#506 the web CSS entry imports Tailwind', async () => {
+Deno.test('#506 the web CSS entry imports Tailwind', async () => {
     const css = await Deno.readTextFile(
         new URL('init/app/view/assets/app.css.stub', STUBS),
     )
@@ -108,7 +107,7 @@ test('#506 the web CSS entry imports Tailwind', async () => {
     )
 })
 
-test('#506 css:build and css:watch run the Tailwind CLI on one pipeline', async () => {
+Deno.test('#506 css:build and css:watch run the Tailwind CLI on one pipeline', async () => {
     const { tasks } = await webDenoJson()
     const build = tasks['css:build'] ?? ''
     const watch = tasks['css:watch'] ?? ''
@@ -122,7 +121,7 @@ test('#506 css:build and css:watch run the Tailwind CLI on one pipeline', async 
     assertEquals(build.includes('postcss'), false)
 })
 
-test('#506 the web kit pins Tailwind exactly as the framework root does', async () => {
+Deno.test('#506 the web kit pins Tailwind exactly as the framework root does', async () => {
     const { imports } = await webDenoJson()
     const root = parseJsonc(
         await Deno.readTextFile(new URL('deno.jsonc', ROOT)),

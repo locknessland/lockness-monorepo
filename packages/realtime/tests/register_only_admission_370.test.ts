@@ -29,7 +29,6 @@
  * @module @lockness/realtime/tests/register_only_admission_370
  */
 
-import { test } from 'node:test'
 import {
     assert,
     assertEquals,
@@ -252,7 +251,7 @@ async function hooksWithHolder(user: WebSocketHooks<User> = {}) {
 
 // --- US1: an unregistered connection is refused before it costs anything -----
 
-test('#370 W1 an unregistered subscribe racing its own disconnect is refused before the authorizer, and holds nothing', async () => {
+Deno.test('#370 W1 an unregistered subscribe racing its own disconnect is refused before the authorizer, and holds nothing', async () => {
     const driver = new RecordingDriver()
     const spy = new SpyAuthorizer()
     const manager = managerOver(driver, spy, {
@@ -286,7 +285,7 @@ test('#370 W1 an unregistered subscribe racing its own disconnect is refused bef
     assert((await manager.subscribe(c2, 'b')).ok, 'both slots are free')
 })
 
-test('#370 W2 an unregistered anonymous connection takes no watch and no anonymous share', async () => {
+Deno.test('#370 W2 an unregistered anonymous connection takes no watch and no anonymous share', async () => {
     const driver = new RecordingDriver()
     const manager = managerOver(driver, new SpyAuthorizer(), {
         maxWatchedChannels: 2,
@@ -307,7 +306,7 @@ test('#370 W2 an unregistered anonymous connection takes no watch and no anonymo
     assertEquals(manager.connectionCount, 1)
 })
 
-test('#370 W3 a fresh object per call under a registered id is refused, before the authorizer', async () => {
+Deno.test('#370 W3 a fresh object per call under a registered id is refused, before the authorizer', async () => {
     const spy = new SpyAuthorizer()
     const manager = managerOver(new RecordingDriver(), spy)
     manager.register(conn('c1', ALICE))
@@ -320,7 +319,7 @@ test('#370 W3 a fresh object per call under a registered id is refused, before t
 
 // --- US2: a second object under a live id is refused --------------------------
 
-test('#370 W4 a second object under a live id is refused everywhere, receives nothing, and the holder keeps receiving', async () => {
+Deno.test('#370 W4 a second object under a live id is refused everywhere, receives nothing, and the holder keeps receiving', async () => {
     const { manager, spy, o, a } = await liveHolder()
     const b = conn('c1', MALLORY)
     const calls = spy.calls
@@ -358,7 +357,7 @@ test('#370 W4 a second object under a live id is refused everywhere, receives no
     assertEquals(o.received.length > 0, true)
 })
 
-test('#370 W5 once the holder itself disconnects, the id is free and B is admitted on its own terms', async () => {
+Deno.test('#370 W5 once the holder itself disconnects, the id is free and B is admitted on its own terms', async () => {
     const { manager, a } = await liveHolder()
     const b = conn('c1', MALLORY)
     assertThrows(() => manager.register(b), ConnectionIdInUseError)
@@ -374,7 +373,7 @@ test('#370 W5 once the holder itself disconnects, the id is free and B is admitt
     assertEquals(eventsNamed(b, 'after').length, 1, 'B hears its own channel')
 })
 
-test('#370 W15 a refused presence join takes no roster hold and announces no joined', async () => {
+Deno.test('#370 W15 a refused presence join takes no roster hold and announces no joined', async () => {
     const { manager, driver, o } = await liveHolder()
     // A presence channel A does NOT hold (#403 review MEDIUM). B shares A's
     // id, and ROOM is a channel A already holds under that SAME id — so
@@ -420,7 +419,7 @@ test('#370 W15 a refused presence join takes no roster hold and announces no joi
     )
 })
 
-test('#370 W6 the same object registered twice is a no-op', async () => {
+Deno.test('#370 W6 the same object registered twice is a no-op', async () => {
     const manager = managerOver(new RecordingDriver(), new SpyAuthorizer())
     const a = conn('c1', ALICE)
     manager.register(a)
@@ -432,7 +431,7 @@ test('#370 W6 the same object registered twice is a no-op', async () => {
     assertEquals(eventsNamed(a, 'ping').length, 1, 'A still receives')
 })
 
-test('#370 W8 the registered identity is the authorized one — the authorizer never sees a second identity under a live id', async () => {
+Deno.test('#370 W8 the registered identity is the authorized one — the authorizer never sees a second identity under a live id', async () => {
     const spy = new SpyAuthorizer()
     const { manager } = await liveHolder(spy)
     spy.only = MALLORY.id
@@ -447,7 +446,7 @@ test('#370 W8 the registered identity is the authorized one — the authorizer n
     )
 })
 
-test('#370 W9 a retired object is ConnectionDisconnectedError, not ConnectionNotRegisteredError — admissibility is asked first', async () => {
+Deno.test('#370 W9 a retired object is ConnectionDisconnectedError, not ConnectionNotRegisteredError — admissibility is asked first', async () => {
     const manager = managerOver(new RecordingDriver(), new SpyAuthorizer())
     const a = conn('c1', ALICE)
     manager.register(a)
@@ -460,7 +459,7 @@ test('#370 W9 a retired object is ConnectionDisconnectedError, not ConnectionNot
 
 // --- US5: a custom transport that reuses ids and drives handlerHooks ----------
 
-test('#370 W7 handlerHooks refuses a second socket under a live id synchronously, with a 1011, and leaves the first untouched', async () => {
+Deno.test('#370 W7 handlerHooks refuses a second socket under a live id synchronously, with a 1011, and leaves the first untouched', async () => {
     const { manager, opened, hooks, a } = await hooksWithHolder()
     const b = conn('c1', MALLORY)
     assertThrows(() => hooks.onOpen?.(b), ConnectionIdInUseError)
@@ -474,7 +473,7 @@ test('#370 W7 handlerHooks refuses a second socket under a live id synchronously
 
 // --- US3: the refused socket's close, and a late close, harm no one else -------
 
-test("#370 W11 the refused socket's own close leaves the holder bound, subscribed and receiving", async () => {
+Deno.test("#370 W11 the refused socket's own close leaves the holder bound, subscribed and receiving", async () => {
     const { manager, hooks, a } = await hooksWithHolder()
     const b = conn('c1', MALLORY)
     assertThrows(() => hooks.onOpen?.(b), ConnectionIdInUseError)
@@ -494,7 +493,7 @@ test("#370 W11 the refused socket's own close leaves the holder bound, subscribe
     assertEquals(eventsNamed(a, 'after-close').length, 1, 'A still receives')
 })
 
-test('#370 W12 (i) a late close of an evicted socket leaves its re-registered successor alone', async () => {
+Deno.test('#370 W12 (i) a late close of an evicted socket leaves its re-registered successor alone', async () => {
     const driver = new RecordingDriver()
     const manager = managerOver(driver, new SpyAuthorizer())
     const hooks = manager.handlerHooks()
@@ -520,7 +519,7 @@ test('#370 W12 (i) a late close of an evicted socket leaves its re-registered su
     assertEquals(eventsNamed(a1, 'ping').length, 1, 'A1 still receives')
 })
 
-test('#370 W12 (ii) [re-anchored #393] a teardown whose object was replaced leaves the new binding alone', async () => {
+Deno.test('#370 W12 (ii) [re-anchored #393] a teardown whose object was replaced leaves the new binding alone', async () => {
     const driver = new RecordingDriver()
     const manager = managerOver(driver, new SpyAuthorizer())
     const hooks = manager.handlerHooks()
@@ -569,7 +568,7 @@ test('#370 W12 (ii) [re-anchored #393] a teardown whose object was replaced leav
     assertStrictEquals(state(manager).connections.get('c1'), a1)
 })
 
-test('#370 W14 [re-anchored #393] a teardown whose object was replaced stops its loop — the new owner keeps a channel the old one also held', async () => {
+Deno.test('#370 W14 [re-anchored #393] a teardown whose object was replaced stops its loop — the new owner keeps a channel the old one also held', async () => {
     // W12 (ii) pins the `finally`; this pins the loop (#370 review, MEDIUM).
     // #393 closes the public-API path that used to reach either guard: a
     // racing evict of the SAME object now joins its own teardown instead of
@@ -614,7 +613,7 @@ test('#370 W14 [re-anchored #393] a teardown whose object was replaced stops its
     assertEquals(eventsNamed(a1, 'after').length, 1, 'A1 still receives')
 })
 
-test("#370 W13 handlerHooks runs the app's onMessage only for the socket that owns its id", async () => {
+Deno.test("#370 W13 handlerHooks runs the app's onMessage only for the socket that owns its id", async () => {
     const seen: Connection<User>[] = []
     const { manager, hooks, a } = await hooksWithHolder({
         onMessage: (c) => void seen.push(c),

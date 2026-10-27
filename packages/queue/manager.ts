@@ -14,7 +14,6 @@ import { MemoryQueueDriver } from './drivers/memory.ts'
 import { DenoKvQueueDriver } from './drivers/deno_kv.ts'
 import { RedisQueueDriver } from './drivers/redis.ts'
 import { RedisClient } from '@lockness/redis'
-import { assertDenoKvRuntime } from '@lockness/contract/store/internal'
 
 let queueDriver: QueueDriver | null = null
 
@@ -28,7 +27,6 @@ export function getDriver(): QueueDriver {
         }
         switch (config.driver) {
             case 'deno-kv':
-                assertDenoKvRuntime('queue')
                 queueDriver = new DenoKvQueueDriver(config.kvPath, retention)
                 break
             case 'redis': {

@@ -12,7 +12,6 @@
  * @module @lockness/drizzle/tests/app_file
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { join } from '@std/path'
 import { defaultLoadSeeder } from '../seeder_loader.ts'
@@ -44,7 +43,7 @@ async function withAwkwardDir(
     }
 }
 
-test("defaultLoadSeeder (db:seed) - imports a seeder under a path with '#' and a space", async () => {
+Deno.test("defaultLoadSeeder (db:seed) - imports a seeder under a path with '#' and a space", async () => {
     await withAwkwardDir({
         'database/seeders/database_seeder.ts':
             'export class DatabaseSeeder { async run() {} }\n',
@@ -56,7 +55,7 @@ test("defaultLoadSeeder (db:seed) - imports a seeder under a path with '#' and a
     })
 })
 
-test("defaultLoadMigrationConfig (db:fresh) - imports drizzle.config.ts under a path with '#' and a space", async () => {
+Deno.test("defaultLoadMigrationConfig (db:fresh) - imports drizzle.config.ts under a path with '#' and a space", async () => {
     await withAwkwardDir({
         'drizzle.config.ts':
             "export default { dialect: 'postgresql', out: './drizzle' }\n",

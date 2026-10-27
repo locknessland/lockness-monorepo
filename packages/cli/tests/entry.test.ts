@@ -2,45 +2,47 @@
  * @fileoverview `runEntry` — a standalone tool's work runs under the CLI exit
  * contract (#436, plan §5 "How a standalone entry runs its work").
  *
- * In-process, on every runtime: the status, the one printed line and
- * `process.exitCode`. The subprocess rows — the real exit status, no fake
- * credential on stderr, no `error: Uncaught` — are in `entry.deno.test.ts`.
+ * In-process: the status, the one printed line and `Deno.exitCode`. As a
+ * subprocess: the real exit status, a fake credential in message and cause
+ * absent from stderr, and no `error: Uncaught`. Every fake credential is
+ * assembled at run time.
  *
  * @module @lockness/cli/tests/entry
  */
 
-import process from 'node:process'
-import { test } from 'node:test'
-import { assert, assertEquals } from '@std/assert'
+import { assert, assertEquals, assertStringIncludes } from '@std/assert'
+import { fromFileUrl } from '@std/path'
 import { CommandFailedError } from '../command_failure.ts'
 import { runEntry } from '../entry.ts'
 
-/** `process.exitCode`, which a runtime may leave `undefined` until it is set. */
-type ExitCode = typeof process.exitCode
-
 /**
- * Run `fn` with `console.error` recorded and `process.exitCode` preset to
+ * Run `fn` with `console.error` recorded and `Deno.exitCode` preset to
  * `preset`, returning what was printed and the exit code it left — always
  * restoring both, so a leaked non-zero code cannot fail the test process.
  */
 async function observe<T>(
     preset: number,
     fn: () => Promise<T>,
-): Promise<{ result: T; error: unknown[][]; exitCode: ExitCode }> {
+): Promise<{ result: T; error: unknown[][]; exitCode: number }> {
     const error: unknown[][] = []
-    const original = { error: console.error, exitCode: process.exitCode }
+    const original = { error: console.error, exitCode: Deno.exitCode }
     console.error = (...args: unknown[]) => void error.push(args)
-    process.exitCode = preset
+    Deno.exitCode = preset
     try {
         const result = await fn()
-        return { result, error, exitCode: process.exitCode }
+        return { result, error, exitCode: Deno.exitCode }
     } finally {
         console.error = original.error
-        process.exitCode = original.exitCode
+        Deno.exitCode = original.exitCode
     }
 }
 
-test('runEntry - work that resolves returns 0 and leaves process.exitCode as it was', async () => {
+/** A fake secret, distinct per call; it must never reach stderr. */
+function fakeSecret(tag: string): string {
+    return ['fx', tag, crypto.randomUUID().slice(0, 8)].join('')
+}
+
+Deno.test('runEntry - work that resolves returns 0 and leaves Deno.exitCode as it was', async () => {
     let ran = false
     const { result, error, exitCode } = await observe(
         7,
@@ -55,7 +57,7 @@ test('runEntry - work that resolves returns 0 and leaves process.exitCode as it 
     assertEquals(exitCode, 7)
 })
 
-test('runEntry - a failure returns its status, sets process.exitCode and prints one ❌ line', async () => {
+Deno.test('runEntry - a failure returns its status, sets Deno.exitCode and prints one ❌ line', async () => {
     const { result, error, exitCode } = await observe(
         0,
         () =>
@@ -69,7 +71,7 @@ test('runEntry - a failure returns its status, sets process.exitCode and prints 
     assertEquals(error, [['❌ No kit named "x"']])
 })
 
-test('runEntry - a synchronous throw is caught too', async () => {
+Deno.test('runEntry - a synchronous throw is caught too', async () => {
     const { result, error } = await observe(0, () =>
         runEntry('tool', () => {
             throw new CommandFailedError('A component name is required')
@@ -78,9 +80,9 @@ test('runEntry - a synchronous throw is caught too', async () => {
     assertEquals(error, [['❌ A component name is required']])
 })
 
-test('runEntry - a TypeError takes the catch-all branch under the label', async () => {
-    const original = process.env.LOCKNESS_CLI_RAW_ERRORS
-    delete process.env.LOCKNESS_CLI_RAW_ERRORS
+Deno.test('runEntry - a TypeError takes the catch-all branch under the label', async () => {
+    const original = Deno.env.get('LOCKNESS_CLI_RAW_ERRORS')
+    Deno.env.delete('LOCKNESS_CLI_RAW_ERRORS')
     try {
         const { result, error, exitCode } = await observe(
             0,
@@ -101,12 +103,12 @@ test('runEntry - a TypeError takes the catch-all branch under the label', async 
         )
     } finally {
         if (original !== undefined) {
-            process.env.LOCKNESS_CLI_RAW_ERRORS = original
+            Deno.env.set('LOCKNESS_CLI_RAW_ERRORS', original)
         }
     }
 })
 
-test('runEntry - a finally block in the work still runs on failure', async () => {
+Deno.test('runEntry - a finally block in the work still runs on failure', async () => {
     let closed = false
     const { result } = await observe(0, () =>
         runEntry('tool', async () => {
@@ -119,3 +121,28 @@ test('runEntry - a finally block in the work still runs on failure', async () =>
     assertEquals(result, 1)
     assert(closed)
 })
+
+for (const kind of ['failure', 'unexpected'] as const) {
+    Deno.test(`runEntry - a subprocess whose work throws (${kind}) exits non-zero, redacted, with no uncaught error`, async () => {
+        const [inMessage, inCause] = ['msg', 'cause'].map(fakeSecret)
+        const fixture = new URL('./fixtures/entry/tool.ts', import.meta.url)
+        const { code, stdout, stderr } = await new Deno.Command(
+            Deno.execPath(),
+            {
+                args: ['run', fromFileUrl(fixture), kind, inMessage, inCause],
+                env: { NO_COLOR: '1' },
+                stdout: 'piped',
+                stderr: 'piped',
+            },
+        ).output()
+        const out = new TextDecoder().decode(stdout) +
+            new TextDecoder().decode(stderr)
+        assertEquals(code, 1, out)
+        assert(!out.includes(inMessage), out)
+        assert(!out.includes(inCause), out)
+        assert(!out.includes('error: Uncaught'), out)
+        assertEquals(out.split('❌').length - 1, 1, out)
+        assertStringIncludes(out, 'postgres://***:***@db.test/app')
+        assertStringIncludes(out, 'api_key=***')
+    })
+}

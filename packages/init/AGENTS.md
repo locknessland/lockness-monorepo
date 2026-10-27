@@ -29,8 +29,8 @@ names does not belong here._
 | **Must never import**                     | nothing — no package depends on this one |
 
 Enforced by `deno task deps:analyze` against `deps.policy.jsonc`. A soft edge is
-an optional peer in this package's `package.json`, never a dependency: the
-consuming application installs it, or the feature stays off.
+deliberately **not** declared in this package's `deno.json`: the consuming
+application installs it, or the feature stays off.
 
 <!-- /generated:deps -->
 
@@ -68,7 +68,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-7 test files for 3 source files:
+7 test files for 2 source files:
 
 - `packages/init/tests/app_key.test.ts`
 - `packages/init/tests/consistency.test.ts`

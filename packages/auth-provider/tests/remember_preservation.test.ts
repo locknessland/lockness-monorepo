@@ -16,7 +16,6 @@
  * @module @lockness/auth-provider/tests/remember_preservation
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
 import { setup } from './memory_remember_token_store.ts'
@@ -24,7 +23,7 @@ import { setup } from './memory_remember_token_store.ts'
 const HOUR_S = 3600
 const T0 = new Date('2026-01-01T00:00:00Z')
 
-test('recycle persists firstIssuedAt: the renewed token verifies with the original origin (#146)', async () => {
+Deno.test('recycle persists firstIssuedAt: the renewed token verifies with the original origin (#146)', async () => {
     using time = new FakeTime(T0)
     const { provider, store, alice } = setup()
     const first = await provider.createRememberToken(alice, HOUR_S)
@@ -59,7 +58,7 @@ test('recycle persists firstIssuedAt: the renewed token verifies with the origin
     )
 })
 
-test('recycle refuses a token without a valid firstIssuedAt, before any write (#146, #457)', async () => {
+Deno.test('recycle refuses a token without a valid firstIssuedAt, before any write (#146, #457)', async () => {
     for (const firstIssuedAt of [undefined, new Date(Number.NaN)]) {
         const { provider, store, alice } = setup()
         const created = await provider.createRememberToken(alice, HOUR_S)
@@ -85,7 +84,7 @@ test('recycle refuses a token without a valid firstIssuedAt, before any write (#
     }
 })
 
-test('recycle refuses an invalid expiresIn, before any write (#457)', async () => {
+Deno.test('recycle refuses an invalid expiresIn, before any write (#457)', async () => {
     const { provider, store, alice } = setup()
     const created = await provider.createRememberToken(alice, HOUR_S)
     const verified = await provider.verifyRememberToken(created.value)

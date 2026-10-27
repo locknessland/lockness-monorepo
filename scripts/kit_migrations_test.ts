@@ -21,7 +21,6 @@
  * @module
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { join } from '@std/path'
 import { readMigrationFiles } from 'drizzle-orm/migrator'
@@ -105,7 +104,7 @@ function folder(when: number, id: string, sql: string): Map<string, string> {
 const NOW = 1_800_000_000_000
 const SQL = 'CREATE TABLE "users" ();\n'
 
-test('#444 compare: a regeneration differs only by id and when', () => {
+Deno.test('#444 compare: a regeneration differs only by id and when', () => {
     assertEquals(
         compareMigrations(
             folder(NOW - 1, 'a', SQL),
@@ -116,7 +115,7 @@ test('#444 compare: a regeneration differs only by id and when', () => {
     )
 })
 
-test('#444 compare: SQL must be byte-identical', () => {
+Deno.test('#444 compare: SQL must be byte-identical', () => {
     assertEquals(
         compareMigrations(
             folder(NOW, 'a', SQL),
@@ -127,7 +126,7 @@ test('#444 compare: SQL must be byte-identical', () => {
     )
 })
 
-test('#444 compare: a future or non-integer when is refused', () => {
+Deno.test('#444 compare: a future or non-integer when is refused', () => {
     // drizzle-orm applies a migration only when its `when` is later than the
     // last one applied: a shipped stamp in the future would make the user's
     // next migrations skip silently.
@@ -145,11 +144,11 @@ test('#444 compare: a future or non-integer when is refused', () => {
     )
 })
 
-test('#450 diffTree: an unchanged tree has no difference', () => {
+Deno.test('#450 diffTree: an unchanged tree has no difference', () => {
     assertEquals(diffTree(folder(NOW, 'a', SQL), folder(NOW, 'a', SQL)), [])
 })
 
-test('#450 diffTree: every added, removed and rewritten path is named', () => {
+Deno.test('#450 diffTree: every added, removed and rewritten path is named', () => {
     // "No schema changes" means the folder is unchanged — not merely the same
     // size: a rewritten journal or snapshot is a write too.
     const before = folder(NOW, 'a', SQL)
@@ -163,7 +162,7 @@ test('#450 diffTree: every added, removed and rewritten path is named', () => {
     ])
 })
 
-test('#444 compare: the file set must be identical', () => {
+Deno.test('#444 compare: the file set must be identical', () => {
     const shipped = folder(NOW, 'a', SQL)
     shipped.set('0001_extra.sql', SQL)
     const generated = folder(NOW, 'a', SQL)
@@ -178,7 +177,7 @@ test('#444 compare: the file set must be identical', () => {
     ])
 })
 
-test('#444 compare: a snapshot differing beyond its id is drift', () => {
+Deno.test('#444 compare: a snapshot differing beyond its id is drift', () => {
     const shipped = folder(NOW, 'a', SQL)
     shipped.set(
         'meta/0000_snapshot.json',
@@ -193,11 +192,11 @@ test('#444 compare: a snapshot differing beyond its id is drift', () => {
 // The shipped folders
 // -----------------------------------------------------------------------------
 
-test('#444 the kit list is read from KITS: web and api', () => {
+Deno.test('#444 the kit list is read from KITS: web and api', () => {
     assertEquals(migratingKits(), ['web', 'api'])
 })
 
-test('#444 api: access_tokens.user_id references users, cascading, indexed', async () => {
+Deno.test('#444 api: access_tokens.user_id references users, cascading, indexed', async () => {
     const snapshot = JSON.parse(
         (await shippedKitMigrations('api')).get('meta/0000_snapshot.json') ??
             '{}',
@@ -233,13 +232,13 @@ test('#444 api: access_tokens.user_id references users, cascading, indexed', asy
 })
 
 for (const kit of migratingKits()) {
-    test(`#444 ${kit}: a scaffolded app's migrations are readable, current and complete`, async (t) => {
+    Deno.test(`#444 ${kit}: a scaffolded app's migrations are readable, current and complete`, async (t) => {
         const parent = await Deno.makeTempDir({ prefix: 'lockness-444-' })
         try {
             const project = await scaffold(kit, parent)
             const migrations = join(project, MIGRATIONS_DIR)
 
-            await t.test('drizzle-orm reads the folder', async () => {
+            await t.step('drizzle-orm reads the folder', async () => {
                 const read = readMigrationFiles({
                     migrationsFolder: migrations,
                 })
@@ -254,7 +253,7 @@ for (const kit of migratingKits()) {
                 }
             })
 
-            await t.test(
+            await t.step(
                 'the shipped folder is what drizzle-kit generates',
                 async () => {
                     let differences: string[]
@@ -280,7 +279,7 @@ for (const kit of migratingKits()) {
                 },
             )
 
-            await t.test(
+            await t.step(
                 'the next db:generate reports no changes',
                 async () => {
                     const denoJson = JSON.parse(

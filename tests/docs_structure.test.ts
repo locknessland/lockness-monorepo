@@ -5,7 +5,6 @@
  * and follow the expected format (H1 title, etc.).
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { exists } from '@std/fs'
 import { join } from '@std/path'
@@ -44,9 +43,9 @@ const GENERAL_DOCS = [
 // Test: Documentation files should exist
 // =============================================================================
 
-test('Docs Structure - packages should have docs/', async (t) => {
+Deno.test('Docs Structure - packages should have docs/', async (t) => {
     for (const { package: pkg, file } of PACKAGE_DOCS) {
-        await t.test(`checking packages/${pkg}/docs/${file}`, async () => {
+        await t.step(`checking packages/${pkg}/docs/${file}`, async () => {
             const path = join('packages', pkg, 'docs', file)
             const hasFile = await exists(path)
             assert(hasFile, `Missing: ${path}`)
@@ -54,9 +53,9 @@ test('Docs Structure - packages should have docs/', async (t) => {
     }
 })
 
-test('Docs Structure - general docs should exist', async (t) => {
+Deno.test('Docs Structure - general docs should exist', async (t) => {
     for (const file of GENERAL_DOCS) {
-        await t.test(`checking docs/${file}`, async () => {
+        await t.step(`checking docs/${file}`, async () => {
             const path = join('docs', file)
             const hasFile = await exists(path)
             assert(hasFile, `Missing: ${path}`)
@@ -68,9 +67,9 @@ test('Docs Structure - general docs should exist', async (t) => {
 // Test: Documentation files should have H1 title
 // =============================================================================
 
-test('Docs Structure - docs should have H1 title', async (t) => {
+Deno.test('Docs Structure - docs should have H1 title', async (t) => {
     for (const { package: pkg, file } of PACKAGE_DOCS) {
-        await t.test(
+        await t.step(
             `checking title in packages/${pkg}/docs/${file}`,
             async () => {
                 const path = join('packages', pkg, 'docs', file)
@@ -84,7 +83,7 @@ test('Docs Structure - docs should have H1 title', async (t) => {
     }
 
     for (const file of GENERAL_DOCS) {
-        await t.test(`checking title in docs/${file}`, async () => {
+        await t.step(`checking title in docs/${file}`, async () => {
             const path = join('docs', file)
             const content = await Deno.readTextFile(path)
             assert(
@@ -99,11 +98,11 @@ test('Docs Structure - docs should have H1 title', async (t) => {
 // Test: Documentation files should not be empty
 // =============================================================================
 
-test('Docs Structure - docs should not be empty', async (t) => {
+Deno.test('Docs Structure - docs should not be empty', async (t) => {
     const minLength = 100 // Minimum chars for meaningful documentation
 
     for (const { package: pkg, file } of PACKAGE_DOCS) {
-        await t.test(
+        await t.step(
             `checking content in packages/${pkg}/docs/${file}`,
             async () => {
                 const path = join('packages', pkg, 'docs', file)
@@ -117,7 +116,7 @@ test('Docs Structure - docs should not be empty', async (t) => {
     }
 
     for (const file of GENERAL_DOCS) {
-        await t.test(`checking content in docs/${file}`, async () => {
+        await t.step(`checking content in docs/${file}`, async () => {
             const path = join('docs', file)
             const content = await Deno.readTextFile(path)
             assert(
@@ -132,7 +131,7 @@ test('Docs Structure - docs should not be empty', async (t) => {
 // Test: Summary report
 // =============================================================================
 
-test('Docs Structure - generate summary report', async () => {
+Deno.test('Docs Structure - generate summary report', async () => {
     console.log('\n📚 Documentation Structure Summary:')
     console.log('─'.repeat(60))
 

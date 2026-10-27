@@ -7,7 +7,6 @@
  * @module @lockness/drizzle/tests/multi_db
  */
 
-import { test } from 'node:test'
 import {
     assert,
     assertEquals,
@@ -34,7 +33,7 @@ function withFakes(db: Database, calls: Dialect[]): void {
     }
 }
 
-test('resolveDialect: explicit driver > URL scheme > postgres', () => {
+Deno.test('resolveDialect: explicit driver > URL scheme > postgres', () => {
     assertEquals(resolveDialect('mysql', 'postgres://x'), 'mysql') // explicit wins
     assertEquals(resolveDialect(undefined, 'mysql://h/db'), 'mysql')
     assertEquals(resolveDialect(undefined, 'file:local.db'), 'sqlite')
@@ -44,7 +43,7 @@ test('resolveDialect: explicit driver > URL scheme > postgres', () => {
     assertEquals(resolveDialect(undefined, 'weird://h'), 'postgres') // default
 })
 
-test('connect selects the driver by dialect (via the fake seam)', async () => {
+Deno.test('connect selects the driver by dialect (via the fake seam)', async () => {
     for (
         const [url, driver, expected] of [
             ['mysql://h/db', undefined, 'mysql'],
@@ -62,7 +61,7 @@ test('connect selects the driver by dialect (via the fake seam)', async () => {
     }
 })
 
-test('SC-005 on-demand: the postgres path invokes no other dialect factory', async () => {
+Deno.test('SC-005 on-demand: the postgres path invokes no other dialect factory', async () => {
     const db = new Database()
     const calls: Dialect[] = []
     withFakes(db, calls)
@@ -72,7 +71,7 @@ test('SC-005 on-demand: the postgres path invokes no other dialect factory', asy
     assert(!calls.includes('sqlite'))
 })
 
-test('SC-001 default: no driver + postgres URL uses the postgres path', async () => {
+Deno.test('SC-001 default: no driver + postgres URL uses the postgres path', async () => {
     const db = new Database()
     const calls: Dialect[] = []
     withFakes(db, calls)
@@ -84,7 +83,7 @@ test('SC-001 default: no driver + postgres URL uses the postgres path', async ()
     assertEquals(db.isConnected(), true)
 })
 
-test('a custom factory that throws fails with the dialect-named withheld message', async () => {
+Deno.test('a custom factory that throws fails with the dialect-named withheld message', async () => {
     // A custom factory cannot raise ClientUnavailableError, so even an
     // import-looking failure takes the withheld path: dialect and error name,
     // never the message.
@@ -100,7 +99,7 @@ test('a custom factory that throws fails with the dialect-named withheld message
     })
 })
 
-test('SC-006: a connection failure does not leak credentials from the error object', async () => {
+Deno.test('SC-006: a connection failure does not leak credentials from the error object', async () => {
     const db = new Database()
     // A driver error whose message is safe but whose properties carry a secret
     // — renderError returns name+message only, dropping the object.

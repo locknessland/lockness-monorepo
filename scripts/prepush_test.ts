@@ -16,7 +16,6 @@
  * @module
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { fromFileUrl, join } from '@std/path'
 import { sanitizedGitEnv } from './git_env.ts'
@@ -128,7 +127,7 @@ async function newContentPush(dir: string, base: string): Promise<string> {
     return `refs/heads/feature ${side} refs/heads/feature ${ZERO}\n`
 }
 
-test('prepush: a mirror-shaped push skips the gate and is still scanned', async () => {
+Deno.test('prepush: a mirror-shaped push skips the gate and is still scanned', async () => {
     await withTempDir('prepush-mirror-', async (dir) => {
         const fixture = await publishedFixture(dir)
         const rec = recorder()
@@ -139,7 +138,7 @@ test('prepush: a mirror-shaped push skips the gate and is still scanned', async 
     })
 })
 
-test('prepush: new content runs the gate before the scan', async () => {
+Deno.test('prepush: new content runs the gate before the scan', async () => {
     await withTempDir('prepush-new-', async (dir) => {
         const { m2 } = await publishedFixture(dir)
         const rec = recorder()
@@ -153,7 +152,7 @@ test('prepush: new content runs the gate before the scan', async () => {
     })
 })
 
-test('prepush: without origin/main the gate runs, even for a mirror-shaped push', async () => {
+Deno.test('prepush: without origin/main the gate runs, even for a mirror-shaped push', async () => {
     await withTempDir('prepush-no-main-', async (dir) => {
         const stdin = await mirrorPush(await publishedFixture(dir))
         await git(dir, 'update-ref', '-d', 'refs/remotes/origin/main')
@@ -164,7 +163,7 @@ test('prepush: without origin/main the gate runs, even for a mirror-shaped push'
     })
 })
 
-test('prepush: a mixed push (one admitted update, one with new content) runs the gate', async () => {
+Deno.test('prepush: a mixed push (one admitted update, one with new content) runs the gate', async () => {
     await withTempDir('prepush-mixed-', async (dir) => {
         const fixture = await publishedFixture(dir)
         const stdin = await mirrorPush(fixture) +
@@ -176,7 +175,7 @@ test('prepush: a mixed push (one admitted update, one with new content) runs the
     })
 })
 
-test('prepush: an empty push runs the gate and the scan still gets the empty input', async () => {
+Deno.test('prepush: an empty push runs the gate and the scan still gets the empty input', async () => {
     await withTempDir('prepush-empty-', async (dir) => {
         await publishedFixture(dir)
         const rec = recorder()
@@ -187,7 +186,7 @@ test('prepush: an empty push runs the gate and the scan still gets the empty inp
     })
 })
 
-test('prepush: a delete runs the gate', async () => {
+Deno.test('prepush: a delete runs the gate', async () => {
     await withTempDir('prepush-delete-', async (dir) => {
         const { m2 } = await publishedFixture(dir)
         const rec = recorder()
@@ -197,7 +196,7 @@ test('prepush: a delete runs the gate', async () => {
     })
 })
 
-test('prepush: a remote sha missing from the local object store runs the gate', async () => {
+Deno.test('prepush: a remote sha missing from the local object store runs the gate', async () => {
     await withTempDir('prepush-missing-', async (dir) => {
         const { m2 } = await publishedFixture(dir)
         const head = await subtreeCommit(dir, m2)
@@ -216,7 +215,7 @@ test('prepush: a remote sha missing from the local object store runs the gate', 
     })
 })
 
-test('prepush: a failing gate refuses the push and the scan never runs', async () => {
+Deno.test('prepush: a failing gate refuses the push and the scan never runs', async () => {
     await withTempDir('prepush-gate-fails-', async (dir) => {
         const { m2 } = await publishedFixture(dir)
         const rec = recorder(3)
@@ -230,7 +229,7 @@ test('prepush: a failing gate refuses the push and the scan never runs', async (
     })
 })
 
-test('prepush: when the decision cannot run, the gate runs and the printed reason carries the error', async () => {
+Deno.test('prepush: when the decision cannot run, the gate runs and the printed reason carries the error', async () => {
     await withTempDir('prepush-undecidable-', async (dir) => {
         const line = `refs/heads/main ${
             'a'.repeat(40)
@@ -264,7 +263,7 @@ test('prepush: when the decision cannot run, the gate runs and the printed reaso
     })
 })
 
-test('prepush: the scan receives the exact input bytes, on a skip and on a run', async () => {
+Deno.test('prepush: the scan receives the exact input bytes, on a skip and on a run', async () => {
     await withTempDir('prepush-bytes-', async (dir) => {
         const fixture = await publishedFixture(dir)
         const mirror = await mirrorPush(fixture)
@@ -370,7 +369,7 @@ await Deno.writeTextFile('gate_record.json', JSON.stringify({ stdin: input, fifo
 const MALFORMED = `refs/heads/old ${ZERO} refs/heads/old ${'a'.repeat(40)}\n` +
     'refs/heads/main only-two-fields\n'
 
-test('prepush end to end: the scan program receives the ref-update bytes', async () => {
+Deno.test('prepush end to end: the scan program receives the ref-update bytes', async () => {
     await withTempDir('prepush-e2e-scan-', async (dir) => {
         const run = await runHook(dir, MALFORMED)
         // Handed nothing, or only the first line, the scan would exit 0
@@ -387,7 +386,7 @@ test('prepush end to end: the scan program receives the ref-update bytes', async
     })
 })
 
-test('prepush end to end: the gate runs with no stdin, never the ref-update lines', async () => {
+Deno.test('prepush end to end: the gate runs with no stdin, never the ref-update lines', async () => {
     await withTempDir('prepush-e2e-gate-', async (dir) => {
         const run = await runHook(dir, MALFORMED)
         assert(run.gate !== null, `the gate did not run:\n${run.output}`)
@@ -398,7 +397,7 @@ test('prepush end to end: the gate runs with no stdin, never the ref-update line
     })
 })
 
-test('spawnScan: a scan that exits 0 without reading its stdin is a refusal, not a pass', async () => {
+Deno.test('spawnScan: a scan that exits 0 without reading its stdin is a refusal, not a pass', async () => {
     await withTempDir('prepush-unread-', async (dir) => {
         const stub = join(dir, 'scan_stub.ts')
         await Deno.writeTextFile(stub, 'Deno.exit(0)\n')

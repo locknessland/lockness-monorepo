@@ -2,12 +2,11 @@
  * Tests for @lockness/validator - Date Validators
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { after, before, dateString, validate } from '../mod.ts'
 
-test('Validator - Date validators', async (t) => {
-    await t.test('dateString', async () => {
+Deno.test('Validator - Date validators', async (t) => {
+    await t.step('dateString', async () => {
         const result = await validate(
             { birthdate: '2000-01-01' },
             { birthdate: [dateString()] },
@@ -21,7 +20,7 @@ test('Validator - Date validators', async (t) => {
         assertEquals(invalid.valid, false)
     })
 
-    await t.test('after and before', async () => {
+    await t.step('after and before', async () => {
         const tomorrow = new Date()
         tomorrow.setDate(tomorrow.getDate() + 1)
 

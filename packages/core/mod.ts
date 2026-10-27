@@ -32,10 +32,6 @@
  * ```
  */
 
-import type { CommandRegistry } from '@lockness/contract/command'
-// The port `registerCoreCommands` takes, so an app can name it.
-export type { CommandRegistry } from '@lockness/contract/command'
-
 // Export core types (Context, ErrorHandler, etc.) from contract package
 export * from '@lockness/contract'
 export * from './types.ts'
@@ -197,6 +193,7 @@ export {
     css,
     decode as jwtDecode,
     deleteCookie,
+    denoServeStatic,
     type Env,
     etag,
     type FC,
@@ -248,48 +245,12 @@ export {
 } from '@lockness/hono'
 
 /**
- * Deno's static-file middleware, kept on core's public API while the root
- * `@lockness/hono` barrel no longer carries runtime adapters (plan 274 §5).
- * T022 replaces it with the runtime-selected `serveStatic`; its removal, with
- * an upgrade-guide entry, lands then.
+ * Register core framework CLI commands.
+ * This is used by the CLI to discover commands provided by the core package.
  *
- * @example
- * ```typescript
- * import { denoServeStatic } from '@lockness/core'
- * app.use('/static/*', denoServeStatic({ root: './public' }))
- * ```
+ * @param cli - The CLI instance
  */
-export { serveStatic as denoServeStatic } from '@lockness/hono/deno'
-
-/**
- * Register core's CLI commands — `compile` and `ssg:build` — on a command
- * registry.
- *
- * `@lockness/cli`'s package loader calls it by name convention when it loads
- * `core`. The parameter is the contract port, {@link CommandRegistry}, which
- * `@lockness/cli`'s `Cli` implements: core may not import `cli`, and a value
- * without `register` / `registerCommand` is now a compile error rather than a
- * runtime one (#576).
- *
- * The commands are imported lazily, so an application that only boots never
- * loads them.
- *
- * @param cli - The registry to register on, a `Cli` from `@lockness/cli`.
- * @returns A promise that resolves once both commands are registered.
- *
- * @example
- * ```ts
- * import { Cli } from '@lockness/cli'
- * import { registerCoreCommands } from '@lockness/core'
- *
- * const cli = new Cli()
- * await registerCoreCommands(cli)
- * await cli.run(['compile'])
- * ```
- */
-export async function registerCoreCommands(
-    cli: CommandRegistry,
-): Promise<void> {
+export async function registerCoreCommands(cli: any) {
     const { CompileCommand } = await import('./cli/compile_command.ts')
     cli.registerCommand(CompileCommand)
     const { SsgCommand } = await import('./cli/ssg_command.ts')

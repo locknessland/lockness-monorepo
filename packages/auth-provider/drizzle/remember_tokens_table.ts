@@ -12,7 +12,7 @@
  * @module @lockness/auth-provider/drizzle/remember_tokens_table
  */
 
-// From npm: drizzle-orm is not published on JSR. The range
+// Hard-rule-#2 exception: drizzle-orm is not published on JSR. The range
 // matches `@lockness/drizzle` and the kits, so an app resolves one copy.
 import type { AnyColumn, Table } from 'drizzle-orm'
 import { assertDrizzleTable } from './assert_table.ts'

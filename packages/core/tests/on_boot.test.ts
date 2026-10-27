@@ -2,7 +2,6 @@
  * Tests for @OnBoot decorator and boot hook execution
  */
 
-import { test } from 'node:test'
 import { assertEquals, assertExists } from '@std/assert'
 import { getBootHooks, OnBoot, runBootHooks } from '../mod.ts'
 
@@ -12,7 +11,7 @@ interface TestApp {
     initialized: boolean
 }
 
-test('@OnBoot - decorates a method with default priority', () => {
+Deno.test('@OnBoot - decorates a method with default priority', () => {
     class TestKernel {
         @OnBoot()
         async boot(_app: TestApp) {
@@ -29,7 +28,7 @@ test('@OnBoot - decorates a method with default priority', () => {
     assertEquals(hooks[0].priority, 0)
 })
 
-test('@OnBoot - decorates a method with custom priority', () => {
+Deno.test('@OnBoot - decorates a method with custom priority', () => {
     class TestKernel {
         @OnBoot({ priority: 100 })
         async connectDatabase(_app: TestApp) {
@@ -46,7 +45,7 @@ test('@OnBoot - decorates a method with custom priority', () => {
     assertEquals(hooks[0].priority, 100)
 })
 
-test('@OnBoot - supports multiple decorated methods', () => {
+Deno.test('@OnBoot - supports multiple decorated methods', () => {
     class TestKernel {
         @OnBoot({ priority: 100 })
         async first(_app: TestApp) {}
@@ -71,7 +70,7 @@ test('@OnBoot - supports multiple decorated methods', () => {
     assertEquals(hooks[2].priority, 10)
 })
 
-test('runBootHooks - executes hooks in priority order (highest first)', async () => {
+Deno.test('runBootHooks - executes hooks in priority order (highest first)', async () => {
     const executionOrder: string[] = []
 
     class TestKernel {
@@ -99,7 +98,7 @@ test('runBootHooks - executes hooks in priority order (highest first)', async ()
     assertEquals(executionOrder, ['high', 'medium', 'low'])
 })
 
-test('runBootHooks - passes app instance to each hook', async () => {
+Deno.test('runBootHooks - passes app instance to each hook', async () => {
     const receivedApps: TestApp[] = []
 
     class TestKernel {
@@ -124,7 +123,7 @@ test('runBootHooks - passes app instance to each hook', async () => {
     assertEquals(receivedApps[1], app)
 })
 
-test('runBootHooks - awaits async hooks properly', async () => {
+Deno.test('runBootHooks - awaits async hooks properly', async () => {
     let asyncCompleted = false
 
     class TestKernel {
@@ -143,7 +142,7 @@ test('runBootHooks - awaits async hooks properly', async () => {
     assertEquals(asyncCompleted, true)
 })
 
-test('runBootHooks - executes hooks sequentially', async () => {
+Deno.test('runBootHooks - executes hooks sequentially', async () => {
     const events: string[] = []
 
     class TestKernel {
@@ -175,7 +174,7 @@ test('runBootHooks - executes hooks sequentially', async () => {
     ])
 })
 
-test('runBootHooks - handles kernel with no hooks', async () => {
+Deno.test('runBootHooks - handles kernel with no hooks', async () => {
     class EmptyKernel {
         // No @OnBoot methods
     }
@@ -187,7 +186,7 @@ test('runBootHooks - handles kernel with no hooks', async () => {
     await runBootHooks(kernel, app)
 })
 
-test('getBootHooks - works with class constructor', () => {
+Deno.test('getBootHooks - works with class constructor', () => {
     class TestKernel {
         @OnBoot({ priority: 100 })
         async boot(_app: TestApp) {}
@@ -201,7 +200,7 @@ test('getBootHooks - works with class constructor', () => {
     assertEquals(hooks[0].method, 'boot')
 })
 
-test('getBootHooks - works with instance', () => {
+Deno.test('getBootHooks - works with instance', () => {
     class TestKernel {
         @OnBoot({ priority: 100 })
         async boot(_app: TestApp) {}
@@ -214,7 +213,7 @@ test('getBootHooks - works with instance', () => {
     assertEquals(hooks[0].method, 'boot')
 })
 
-test('getBootHooks - returns empty array for kernel with no hooks', () => {
+Deno.test('getBootHooks - returns empty array for kernel with no hooks', () => {
     class EmptyKernel {}
 
     const hooks = getBootHooks(EmptyKernel)
@@ -222,7 +221,7 @@ test('getBootHooks - returns empty array for kernel with no hooks', () => {
     assertEquals(hooks.length, 0)
 })
 
-test('@OnBoot - can be used with method that modifies app state', async () => {
+Deno.test('@OnBoot - can be used with method that modifies app state', async () => {
     class TestKernel {
         @OnBoot({ priority: 100 })
         initialize(app: TestApp) {
@@ -238,7 +237,7 @@ test('@OnBoot - can be used with method that modifies app state', async () => {
     assertEquals(app.initialized, true)
 })
 
-test('@OnBoot - hooks with same priority maintain registration order', async () => {
+Deno.test('@OnBoot - hooks with same priority maintain registration order', async () => {
     const executionOrder: string[] = []
 
     class TestKernel {
@@ -267,7 +266,7 @@ test('@OnBoot - hooks with same priority maintain registration order', async () 
     assertEquals(executionOrder, ['first', 'second', 'third'])
 })
 
-test('runBootHooks - can be called with complex kernel class', async () => {
+Deno.test('runBootHooks - can be called with complex kernel class', async () => {
     const events: string[] = []
 
     class ComplexKernel {
@@ -310,7 +309,7 @@ test('runBootHooks - can be called with complex kernel class', async () => {
     assertEquals(events, ['database', 'seed', 'cache', 'tasks', 'log'])
 })
 
-test('@OnBoot - supports conditional execution based on app state', async () => {
+Deno.test('@OnBoot - supports conditional execution based on app state', async () => {
     const events: string[] = []
 
     class ConditionalKernel {
@@ -341,7 +340,7 @@ test('@OnBoot - supports conditional execution based on app state', async () => 
     assertEquals(events, ['always'])
 })
 
-test('getBootHooks - returns hooks metadata that can be inspected', () => {
+Deno.test('getBootHooks - returns hooks metadata that can be inspected', () => {
     class InspectableKernel {
         @OnBoot({ priority: 100 })
         async highPriority(_app: TestApp) {}
@@ -368,7 +367,7 @@ test('getBootHooks - returns hooks metadata that can be inspected', () => {
     })
 })
 
-test('@OnBoot - decorator throws error when applied to non-method', () => {
+Deno.test('@OnBoot - decorator throws error when applied to non-method', () => {
     let error: Error | undefined
 
     try {

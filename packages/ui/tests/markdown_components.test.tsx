@@ -6,7 +6,6 @@
  * @module @lockness/ui/tests/markdown_components
  */
 
-import { test } from 'node:test'
 import { assertEquals, assertStringIncludes } from '@std/assert'
 import {
     markdownComponents,
@@ -25,8 +24,8 @@ async function render(md: string): Promise<string> {
     return (tree as { toString(): string }).toString()
 }
 
-test('styled Markdown map (@lockness/ui/markdown)', async (t) => {
-    await t.test(
+Deno.test('styled Markdown map (@lockness/ui/markdown)', async (t) => {
+    await t.step(
         'heading renders with UI Title classes, not a bare <h1>',
         async () => {
             const html = await render('## Section')
@@ -36,20 +35,20 @@ test('styled Markdown map (@lockness/ui/markdown)', async (t) => {
         },
     )
 
-    await t.test('paragraph carries the UI typography class', async () => {
+    await t.step('paragraph carries the UI typography class', async () => {
         const html = await render('body text')
         assertStringIncludes(html, 'leading-7')
         assertStringIncludes(html, 'body text')
     })
 
-    await t.test('blockquote renders through the UI Alert', async () => {
+    await t.step('blockquote renders through the UI Alert', async () => {
         const html = await render('> note')
         // Alert variant='default' with the my-6 spacing from the styled map.
         assertStringIncludes(html, 'note')
         assertStringIncludes(html, 'my-6')
     })
 
-    await t.test(
+    await t.step(
         'table renders through the UI Table (overflow wrapper)',
         async () => {
             const html = await render('| a | b |\n| --- | --- |\n| 1 | 2 |')
@@ -57,7 +56,7 @@ test('styled Markdown map (@lockness/ui/markdown)', async (t) => {
         },
     )
 
-    await t.test(
+    await t.step(
         'fenced code renders through HighlightedCodeBlock (the sole raw-HTML sink)',
         async () => {
             const html = await render('```ts\nconst x = 1\n```')
@@ -69,7 +68,7 @@ test('styled Markdown map (@lockness/ui/markdown)', async (t) => {
         },
     )
 
-    await t.test('link renders through the UI Link', async () => {
+    await t.step('link renders through the UI Link', async () => {
         const html = await render('[text](https://example.com)')
         assertStringIncludes(html, 'href="https://example.com"')
         // The styled Link carries the design-system underline utilities.
@@ -77,7 +76,7 @@ test('styled Markdown map (@lockness/ui/markdown)', async (t) => {
         assertStringIncludes(html, '>text</a>')
     })
 
-    await t.test('the styled map exposes all overridable elements', () => {
+    await t.step('the styled map exposes all overridable elements', () => {
         // Sanity: the relocated map covers the full ComponentOverrides surface,
         // including the five table primitives added for the cycle break.
         for (
@@ -108,7 +107,7 @@ test('styled Markdown map (@lockness/ui/markdown)', async (t) => {
         }
     })
 
-    await t.test('renderMarkdownWithoutTitle drops the first H1', async () => {
+    await t.step('renderMarkdownWithoutTitle drops the first H1', async () => {
         const tree = await renderMarkdownWithoutTitle('# Gone\n\nkept')
         const html = (tree as { toString(): string }).toString()
         assertEquals(html.includes('>Gone<'), false)

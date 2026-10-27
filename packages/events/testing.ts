@@ -30,9 +30,7 @@ interface RecordedEvent<T extends BaseEvent = BaseEvent> {
  *
  * @example
  * ```typescript
- * import { test } from 'node:test'
- *
- * test('user registration emits event', async () => {
+ * Deno.test('user registration emits event', async () => {
  *     const fake = events().fake()
  *
  *     await userService.register({ email: 'test@example.com' })

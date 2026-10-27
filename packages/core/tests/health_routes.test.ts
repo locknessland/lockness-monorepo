@@ -10,7 +10,6 @@
  * @module @lockness/core/tests/health_routes
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
 import { deregisterHealthCheck, registerHealthCheck } from '@lockness/contract'
@@ -54,7 +53,7 @@ function mountHandlers(): Map<string, Handler> {
     return routes
 }
 
-test('/health is liveness-only — 200 and runs no check', async () => {
+Deno.test('/health is liveness-only — 200 and runs no check', async () => {
     resetRegistry()
     let ran = false
     registerHealthCheck({
@@ -71,7 +70,7 @@ test('/health is liveness-only — 200 and runs no check', async () => {
     resetRegistry()
 })
 
-test('/ready is 200 with up statuses when every check passes', async () => {
+Deno.test('/ready is 200 with up statuses when every check passes', async () => {
     resetRegistry()
     registerHealthCheck({
         name: 'db',
@@ -92,7 +91,7 @@ test('/ready is 200 with up statuses when every check passes', async () => {
     resetRegistry()
 })
 
-test('/ready is 503 and reports the failing check NAME but never its detail', async () => {
+Deno.test('/ready is 503 and reports the failing check NAME but never its detail', async () => {
     resetRegistry()
     const secret = 'ECONNREFUSED 10.0.3.5:6379 password=hunter2'
     registerHealthCheck({
@@ -115,7 +114,7 @@ test('/ready is 503 and reports the failing check NAME but never its detail', as
     resetRegistry()
 })
 
-test('/ready treats a throwing check as down (never throws)', async () => {
+Deno.test('/ready treats a throwing check as down (never throws)', async () => {
     resetRegistry()
     registerHealthCheck({
         name: 'boom',
@@ -127,7 +126,7 @@ test('/ready treats a throwing check as down (never throws)', async () => {
     resetRegistry()
 })
 
-test('/ready coerces a hung check to down within the per-check timeout', async () => {
+Deno.test('/ready coerces a hung check to down within the per-check timeout', async () => {
     const time = new FakeTime()
     const warn = console.warn
     console.warn = () => {}
@@ -150,7 +149,7 @@ test('/ready coerces a hung check to down within the per-check timeout', async (
     }
 })
 
-test('/ready re-evaluates after the cache TTL expires', async () => {
+Deno.test('/ready re-evaluates after the cache TTL expires', async () => {
     const time = new FakeTime()
     try {
         resetRegistry()
@@ -177,7 +176,7 @@ test('/ready re-evaluates after the cache TTL expires', async () => {
     }
 })
 
-test('/ready caches the aggregate for a short TTL (one eval per burst)', async () => {
+Deno.test('/ready caches the aggregate for a short TTL (one eval per burst)', async () => {
     resetRegistry()
     let runs = 0
     registerHealthCheck({

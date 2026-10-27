@@ -27,7 +27,6 @@
  * @module @lockness/realtime/tests/revocation_durability_warn_395
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import {
     ChannelManager,
@@ -60,7 +59,7 @@ function conn(id: string): Connection<User> & { closes: number[] } {
     }
 }
 
-test('#395 part 2 evict: revokeLocal still runs when the durability WARN itself throws', async () => {
+Deno.test('#395 part 2 evict: revokeLocal still runs when the durability WARN itself throws', async () => {
     await watchingEscapes(async (escaped) => {
         const failure = new Error('broker unreachable (#395 part 2)')
         const driver: BroadcastDriver = {
@@ -127,7 +126,7 @@ test('#395 part 2 evict: revokeLocal still runs when the durability WARN itself 
     })
 })
 
-test('#395 part 2 revokeChannel: publishControl still runs when the durability WARN itself throws', async () => {
+Deno.test('#395 part 2 revokeChannel: publishControl still runs when the durability WARN itself throws', async () => {
     await watchingEscapes(async (escaped) => {
         const failure = new Error('broker unreachable (#395 part 2)')
         const published: ControlMessage[] = []

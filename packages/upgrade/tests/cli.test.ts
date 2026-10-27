@@ -9,7 +9,6 @@
  * @module @lockness/upgrade/tests/cli
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { fromFileUrl, join } from '@std/path'
 
@@ -54,7 +53,7 @@ async function inTempDir(fn: (dir: string) => Promise<void>): Promise<void> {
     }
 }
 
-test('upgrade CLI - no Lockness package is a one-line failure', async () => {
+Deno.test('upgrade CLI - no Lockness package is a one-line failure', async () => {
     await inTempDir(async (dir) => {
         await Deno.writeTextFile(
             join(dir, 'deno.json'),
@@ -72,7 +71,7 @@ test('upgrade CLI - no Lockness package is a one-line failure', async () => {
     })
 })
 
-test('upgrade CLI - a missing deno.json reaches the catch-all once', async () => {
+Deno.test('upgrade CLI - a missing deno.json reaches the catch-all once', async () => {
     await inTempDir(async (dir) => {
         const result = await runUpgrade(dir, ['0.2.0'])
 
@@ -81,7 +80,7 @@ test('upgrade CLI - a missing deno.json reaches the catch-all once', async () =>
     })
 })
 
-test('upgrade CLI - --help exits 0 and prints the usage', async () => {
+Deno.test('upgrade CLI - --help exits 0 and prints the usage', async () => {
     await inTempDir(async (dir) => {
         const result = await runUpgrade(dir, ['--help'])
 
@@ -90,7 +89,7 @@ test('upgrade CLI - --help exits 0 and prints the usage', async () => {
     })
 })
 
-test('upgrade CLI - an explicit target upgrades and exits 0', async () => {
+Deno.test('upgrade CLI - an explicit target upgrades and exits 0', async () => {
     await inTempDir(async (dir) => {
         const config = join(dir, 'deno.json')
         await Deno.writeTextFile(

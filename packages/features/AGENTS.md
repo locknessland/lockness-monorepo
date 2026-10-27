@@ -25,14 +25,14 @@ pluggable override store (memory default). Pure logic — no workspace deps
 
 | Direction                                 | Packages                                 |
 | :---------------------------------------- | :--------------------------------------- |
-| Imports (static)                          | `contract`                               |
+| Imports (static)                          | —                                        |
 | Imports (soft, loaded at runtime by name) | —                                        |
 | Imported by                               | —                                        |
 | **Must never import**                     | nothing — no package depends on this one |
 
 Enforced by `deno task deps:analyze` against `deps.policy.jsonc`. A soft edge is
-an optional peer in this package's `package.json`, never a dependency: the
-consuming application installs it, or the feature stays off.
+deliberately **not** declared in this package's `deno.json`: the consuming
+application installs it, or the feature stays off.
 
 <!-- /generated:deps -->
 
@@ -40,13 +40,13 @@ consuming application installs it, or the feature stays off.
 
 <!-- generated:surface -->
 
-| Kind      | Exports                                                                                                             |
-| :-------- | :------------------------------------------------------------------------------------------------------------------ |
-| class     | `MemoryFlagDriver`                                                                                                  |
-| function  | `configureFeatures`, `features`, `inRollout`, `registerFeaturesCommands`, `resetFeatures`, `scopeKey`, `stableHash` |
-| interface | `Features`, `FeaturesConfig`, `FlagDriver`                                                                          |
-| typeAlias | `FlagDefinition`                                                                                                    |
-| variable  | `FLAGS_DIR`                                                                                                         |
+| Kind      | Exports                                                                                                                            |
+| :-------- | :--------------------------------------------------------------------------------------------------------------------------------- |
+| class     | `MemoryFlagDriver`                                                                                                                 |
+| function  | `configureFeatures`, `features`, `inRollout`, `isContained`, `registerFeaturesCommands`, `resetFeatures`, `scopeKey`, `stableHash` |
+| interface | `Cli`, `Features`, `FeaturesConfig`, `FlagDriver`                                                                                  |
+| typeAlias | `FlagDefinition`                                                                                                                   |
+| variable  | `FLAGS_DIR`                                                                                                                        |
 
 Anything not listed is internal and free to change.
 

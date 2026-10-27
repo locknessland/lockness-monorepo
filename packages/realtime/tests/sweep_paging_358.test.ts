@@ -33,7 +33,6 @@
  * @module @lockness/realtime/tests/sweep_paging_358
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertRejects, assertThrows } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
 import {
@@ -251,7 +250,7 @@ async function runOnePass(time: FakeTime): Promise<void> {
 
 // --- US1 + US2: one pass over any size, no reply over a page ------------------
 
-test('#358 W1 a 307-slot dead instance is swept in ONE pass through bounded SSCAN pages: every slot gone, one left each, deregistered, no SMEMBERS of its owned set', async () => {
+Deno.test('#358 W1 a 307-slot dead instance is swept in ONE pass through bounded SSCAN pages: every slot gone, one left each, deregistered, no SMEMBERS of its owned set', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(START)
     const { sent, command } = serialPort(redis)
@@ -349,10 +348,11 @@ const SEED_OWNED_SCRIPT = [
     "return redis.call('SCARD', KEYS[1])",
 ].join('\n')
 
-test(
-    '#358 W2 an owned set past the reply cap is swept and deregistered on a real broker, and the survivor’s client keeps working',
-    { skip: !LIVE_BROKER },
-    async function () {
+Deno.test({
+    name:
+        '#358 W2 an owned set past the reply cap is swept and deregistered on a real broker, and the survivor’s client keeps working',
+    ignore: !LIVE_BROKER,
+    async fn() {
         const config = brokerConfig()
         await preflight(config)
         const ns = runNamespace()
@@ -461,9 +461,9 @@ test(
             await live.close()
         }
     },
-)
+})
 
-test('#358 W9 decodeScanReply accepts only [canonical cursor, array] and refuses everything else with one constant message that carries nothing of the reply', () => {
+Deno.test('#358 W9 decodeScanReply accepts only [canonical cursor, array] and refuses everything else with one constant message that carries nothing of the reply', () => {
     const MARKER = 'ada@ex.com'
     const bulk = (value: string) => ({ type: 'bulk', value })
     const array = (...value: unknown[]) => ({ type: 'array', value })
@@ -514,7 +514,7 @@ test('#358 W9 decodeScanReply accepts only [canonical cursor, array] and refuses
     )
 })
 
-test('#358 W8 a page emptied by another survivor, with a non-zero cursor, does not end the scan', async () => {
+Deno.test('#358 W8 a page emptied by another survivor, with a non-zero cursor, does not end the scan', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(START)
     const { serial, sent, command } = serialPort(redis)
@@ -558,7 +558,7 @@ test('#358 W8 a page emptied by another survivor, with a non-zero cursor, does n
     }
 })
 
-test('#358 W5 a page read that fails after the first page: one "failed" line with that page’s N, still registered, and the next pass finishes', async () => {
+Deno.test('#358 W5 a page read that fails after the first page: one "failed" line with that page’s N, still registered, and the next pass finishes', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(START)
     const { serial } = serialPort(redis)
@@ -610,7 +610,7 @@ test('#358 W5 a page read that fails after the first page: one "failed" line wit
 
 // --- US3: shutting down mid-scan leaves the rest to the fleet -----------------
 
-test('#358 W4 close() after the first page: no release after the one in flight, the rest stays owned and registered, no command after close() resolves, the line says unfinished — and the next survivor finishes, each member announced once', async () => {
+Deno.test('#358 W4 close() after the first page: no release after the one in flight, the rest stays owned and registered, no command after close() resolves, the line says unfinished — and the next survivor finishes, each member announced once', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(START)
     const portB = serialPort(redis)
@@ -689,7 +689,7 @@ test('#358 W4 close() after the first page: no release after the one in flight, 
     }
 })
 
-test('#358 W10 close() during a run of pages that release nothing: no page read after close() begins but the one in flight', async () => {
+Deno.test('#358 W10 close() during a run of pages that release nothing: no page read after close() begins but the one in flight', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(START)
     const { serial, sent, command } = serialPort(redis)
@@ -732,7 +732,7 @@ test('#358 W10 close() during a run of pages that release nothing: no page read 
     }
 })
 
-test('#358 W6 (i) a hold of the still-lapsed instance landing AHEAD of the cursor mid-scan is released in this pass', async () => {
+Deno.test('#358 W6 (i) a hold of the still-lapsed instance landing AHEAD of the cursor mid-scan is released in this pass', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(START)
     const { serial, command } = serialPort(redis)
@@ -763,7 +763,7 @@ test('#358 W6 (i) a hold of the still-lapsed instance landing AHEAD of the curso
     }
 })
 
-test('#358 W6 (ii) a hold landing BEHIND the cursor mid-scan is missed: the deregistration keeps the instance, the line says unfinished, and the next pass releases it', async () => {
+Deno.test('#358 W6 (ii) a hold landing BEHIND the cursor mid-scan is missed: the deregistration keeps the instance, the line says unfinished, and the next pass releases it', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(START)
     const { serial, command } = serialPort(redis)
@@ -801,7 +801,7 @@ test('#358 W6 (ii) a hold landing BEHIND the cursor mid-scan is missed: the dere
     }
 })
 
-test('#358 W7 150 unparsable entries ahead of 5 parsable ones: one pass releases all 5 and says unfinished; the next pass logs nothing and the instance stays registered', async () => {
+Deno.test('#358 W7 150 unparsable entries ahead of 5 parsable ones: one pass releases all 5 and says unfinished; the next pass logs nothing and the instance stays registered', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(START)
     const { command } = serialPort(redis)
@@ -840,7 +840,7 @@ test('#358 W7 150 unparsable entries ahead of 5 parsable ones: one pass releases
 
 // --- US4: a renewal mid-scan stops the scan -----------------------------------
 
-test('#358 W11 a renewal after the first page: no release after the refused one, no further page read, no deregistration, one "renewed" line', async () => {
+Deno.test('#358 W11 a renewal after the first page: no release after the refused one, no further page read, no deregistration, one "renewed" line', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(START)
     const { serial, sent, command } = serialPort(redis)
@@ -891,7 +891,7 @@ test('#358 W11 a renewal after the first page: no release after the refused one,
 
 // --- US5: two survivors sweep the same instance -------------------------------
 
-test('#358 W3 two survivors page through the same dead instance at once: one left per member overall, and N_B + N_C = 307', async () => {
+Deno.test('#358 W3 two survivors page through the same dead instance at once: one left per member overall, and N_B + N_C = 307', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(START)
     const order: string[] = []

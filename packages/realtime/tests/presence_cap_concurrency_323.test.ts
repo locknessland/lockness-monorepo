@@ -45,7 +45,6 @@
  * @module @lockness/realtime/tests/presence_cap_concurrency_323
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { ChannelLimitError, ChannelManager } from '../manager.ts'
 import type { BroadcastDriver } from '../driver.ts'
@@ -113,7 +112,7 @@ const conn = (id: string, userId: number): Connection<User> => ({
 const authorize = (identity: User | null): PresenceMember | false =>
     identity ? { id: identity.id } : false
 
-test('#323/SC-007 K concurrent joins against ONE free slot admit exactly one', async () => {
+Deno.test('#323/SC-007 K concurrent joins against ONE free slot admit exactly one', async () => {
     const m = new ChannelManager<User>({
         driver: deferredRoster(),
         authorize,
@@ -161,7 +160,7 @@ test('#323/SC-007 K concurrent joins against ONE free slot admit exactly one', a
     }
 })
 
-test('#323/SC-007 the cap still admits up to its limit when uncontended', async () => {
+Deno.test('#323/SC-007 the cap still admits up to its limit when uncontended', async () => {
     // The negative half: a cap that refuses everything would pass the test
     // above and be useless. Three slots, three sequential joins, all admitted.
     const m = new ChannelManager<User>({

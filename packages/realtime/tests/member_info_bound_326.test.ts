@@ -29,7 +29,6 @@
  * @module @lockness/realtime/tests/member_info_bound_326
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import { ChannelManager, MAX_PRESENCE_MEMBER_BYTES } from '../manager.ts'
 import { PresenceMemberSizeError } from '../presence_member.ts'
@@ -106,7 +105,7 @@ function recordingDriver() {
 /** `info` whose serialized member is guaranteed to clear the ceiling. */
 const oversize = () => ({ bio: 'x'.repeat(MAX_PRESENCE_MEMBER_BYTES + 1) })
 
-test('#326 an oversized member is REFUSED, and leaves nothing behind', async () => {
+Deno.test('#326 an oversized member is REFUSED, and leaves nothing behind', async () => {
     const { driver, roster, control } = recordingDriver()
     // Oversize for ONE identity, which is the shape the defect actually takes:
     // a member edits their own profile past the ceiling. An authorizer that
@@ -161,7 +160,7 @@ test('#326 an oversized member is REFUSED, and leaves nothing behind', async () 
     )
 })
 
-test('#326 the refusal is a NAMED error a caller can act on', async () => {
+Deno.test('#326 the refusal is a NAMED error a caller can act on', async () => {
     const { driver } = recordingDriver()
     const m = new ChannelManager<User>({
         driver,
@@ -188,7 +187,7 @@ test('#326 the refusal is a NAMED error a caller can act on', async () => {
     )
 })
 
-test('#326 a member within the bound joins and is announced unchanged', async () => {
+Deno.test('#326 a member within the bound joins and is announced unchanged', async () => {
     // The reverse direction, and it is not a formality: a bound that refuses
     // the legitimate case is a worse defect than the one it fixes, and a test
     // that only asserts the refusal cannot tell the two apart.
@@ -229,7 +228,7 @@ test('#326 a member within the bound joins and is announced unchanged', async ()
     )
 })
 
-test('#326 the ceiling is configurable, and refused at construction', () => {
+Deno.test('#326 the ceiling is configurable, and refused at construction', () => {
     const { driver } = recordingDriver()
     // Measured in BYTES, not characters. A single emoji is four bytes where
     // `.length` counts two, so a character-counting bound would admit a member

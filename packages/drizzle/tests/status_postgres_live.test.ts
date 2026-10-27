@@ -20,7 +20,6 @@
  * @module @lockness/drizzle/tests/status_postgres_live
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { join } from '@std/path'
 import postgres from 'postgres'
@@ -186,10 +185,11 @@ async function tables(client: Client): Promise<string[]> {
 
 const FIRST: readonly Entry[] = [['0000_init', T], ['0001_users', T + 10]]
 
-test(
-    '#439 live postgres: never migrated, every migration pending, and no bookkeeping schema is created',
-    { skip: !LIVE },
-    () =>
+Deno.test({
+    name:
+        '#439 live postgres: never migrated, every migration pending, and no bookkeeping schema is created',
+    ignore: !LIVE,
+    fn: () =>
         live(async (client, url, folder) => {
             await writeJournal(folder, FIRST)
             const config = {
@@ -210,12 +210,13 @@ test(
             )
             assertEquals(await hasSchema(client, 'drizzle'), false)
         }),
-)
+})
 
-test(
-    '#439 live postgres: after db:migrate, status reads the int8 created_at and exits 0',
-    { skip: !LIVE },
-    () =>
+Deno.test({
+    name:
+        '#439 live postgres: after db:migrate, status reads the int8 created_at and exits 0',
+    ignore: !LIVE,
+    fn: () =>
         live(async (_client, url, folder) => {
             await writeJournal(folder, FIRST)
             const config = {
@@ -235,12 +236,13 @@ test(
             assertEquals(listed(status, 'applied'), ['0000_init', '0001_users'])
             assertEquals(status.lines.at(-1), '✅ All 2 migrations are applied')
         }),
-)
+})
 
-test(
-    '#439 live postgres: a custom bookkeeping schema and table with awkward names',
-    { skip: !LIVE },
-    () =>
+Deno.test({
+    name:
+        '#439 live postgres: a custom bookkeeping schema and table with awkward names',
+    ignore: !LIVE,
+    fn: () =>
         live(async (client, url, folder) => {
             // drizzle-orm quotes identifiers without doubling `"`, so the
             // awkward characters are the ones its own migrator survives.
@@ -275,12 +277,13 @@ test(
             )
             assertEquals(listed(status, 'applied'), ['0000_init', '0001_users'])
         }),
-)
+})
 
-test(
-    '#439 live postgres parity: pending, then db:migrate, then clean; an out-of-order entry is never applied',
-    { skip: !LIVE },
-    () =>
+Deno.test({
+    name:
+        '#439 live postgres parity: pending, then db:migrate, then clean; an out-of-order entry is never applied',
+    ignore: !LIVE,
+    fn: () =>
         live(async (client, url, folder) => {
             await writeJournal(folder, FIRST)
             const config = {
@@ -318,4 +321,4 @@ test(
                 '1 of 4 migrations is not applied: 1 out of order',
             )
         }),
-)
+})

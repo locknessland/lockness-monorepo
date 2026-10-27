@@ -23,7 +23,6 @@
  * @module @lockness/realtime/tests/websocket_close_guard_369
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertStrictEquals } from '@std/assert'
 import {
     type BroadcastDriver,
@@ -195,7 +194,7 @@ async function assertStillServing(
 
 // --- W1: handlerHooks, a disconnect that re-throws a teardown failure -------
 
-test('#369 W1 handlerHooks: a rejected unwatch on the last close reaches onError exactly once, nothing escapes, and the manager still serves', async () => {
+Deno.test('#369 W1 handlerHooks: a rejected unwatch on the last close reaches onError exactly once, nothing escapes, and the manager still serves', async () => {
     await watchingEscapes(async (escaped) => {
         const { driver, unwatches } = unwatchFailingDriver()
         const channels = manager(driver)
@@ -231,7 +230,7 @@ test('#369 W1 handlerHooks: a rejected unwatch on the last close reaches onError
     })
 })
 
-test('#369 W1 handlerHooks: with no onError hook, a rejected unwatch on close is one default console.error line and nothing escapes', async () => {
+Deno.test('#369 W1 handlerHooks: with no onError hook, a rejected unwatch on close is one default console.error line and nothing escapes', async () => {
     await watchingEscapes(async (escaped) => {
         await capturingErrors(async (lines) => {
             const { driver } = unwatchFailingDriver()
@@ -269,7 +268,7 @@ const APP_CLOSE_FAILURES: [string, WebSocketHooks<User>['onClose']][] = [
 ]
 
 for (const [shape, onClose] of APP_CLOSE_FAILURES) {
-    test(`#369 W2 app onClose: ${shape} reaches onError exactly once with the connection and nothing escapes`, async () => {
+    Deno.test(`#369 W2 app onClose: ${shape} reaches onError exactly once with the connection and nothing escapes`, async () => {
         await watchingEscapes(async (escaped) => {
             await capturingErrors(async (lines) => {
                 const errors: { conn: Connection<User>; error: unknown }[] = []
@@ -304,7 +303,7 @@ for (const [shape, onClose] of APP_CLOSE_FAILURES) {
         })
     })
 
-    test(`#369 W2 app onClose: ${shape} with no onError hook is one default console.error line and nothing escapes`, async () => {
+    Deno.test(`#369 W2 app onClose: ${shape} with no onError hook is one default console.error line and nothing escapes`, async () => {
         await watchingEscapes(async (escaped) => {
             await capturingErrors(async (lines) => {
                 const socket = open({ onClose })
@@ -382,7 +381,7 @@ const PATHS: [
 
 for (const [sinkShape, onError] of FAILING_SINKS) {
     for (const [path, hooks, trigger, reported] of PATHS) {
-        test(`#369 W3 an onError that ${sinkShape}, on ${path}: falls back to the default line and nothing escapes`, async () => {
+        Deno.test(`#369 W3 an onError that ${sinkShape}, on ${path}: falls back to the default line and nothing escapes`, async () => {
             await watchingEscapes(async (escaped) => {
                 await capturingErrors(async (lines) => {
                     const socket = open({ ...hooks, onError })
@@ -413,7 +412,7 @@ const HOSTILE = 'sink\r\nforged \x1b[31mred\x1b[0m ‮evil'
 const HOSTILE_RENDERED =
     'Error: sink\\x0d\\x0aforged \\x1b[31mred\\x1b[0m \\u{202e}evil'
 
-test('#369 W3 the hook failure is encoded like the original error: CR/LF, ANSI and U+202E are all escaped', async () => {
+Deno.test('#369 W3 the hook failure is encoded like the original error: CR/LF, ANSI and U+202E are all escaped', async () => {
     await watchingEscapes(async (escaped) => {
         await capturingErrors(async (lines) => {
             const socket = open({
@@ -446,7 +445,7 @@ test('#369 W3 the hook failure is encoded like the original error: CR/LF, ANSI a
 
 // --- W4: combined — the app's onClose throws AND the teardown fails --------
 
-test('#379 W4 combined: the app onClose throws AND the teardown fails — one onError call carrying the app error, one WARN', async () => {
+Deno.test('#379 W4 combined: the app onClose throws AND the teardown fails — one onError call carrying the app error, one WARN', async () => {
     await watchingEscapes(async (escaped) => {
         await capturingWarnings(async (warnLines) => {
             const APP = new Error('app close failed')

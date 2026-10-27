@@ -6,127 +6,6 @@ Lockness uses deterministic time control and in-memory mocks to keep tests fast,
 reliable, and hermetic. Follow these guidelines when writing tests for the
 framework.
 
-## Test API: `node:test`
-
-Framework tests are written against `node:test`, so a package's suite can run on
-every runtime it declares, and `deno test` runs them as it always did:
-
-```typescript
-import { describe, it, test } from 'node:test'
-import { assertEquals } from '@std/assert'
-
-test('cache - a stored value is read back', async (t) => {
-    await t.test('a nested step', () => {
-        assertEquals(1 + 1, 2)
-    })
-})
-
-test('a POSIX-only case', { skip: Deno.build.os === 'windows' }, () => {})
-
-describe('a suite', () => {
-    it('a case', () => {})
-})
-```
-
-| Was                                       | Now                                |
-| :---------------------------------------- | :--------------------------------- |
-| `Deno.test(name, fn)`                     | `test(name, fn)`                   |
-| `Deno.test({ name, ignore, fn })`         | `test(name, { skip }, fn)`         |
-| `await t.step(name, fn)`                  | `await t.test(name, fn)`           |
-| `@std/testing/bdd` `beforeAll`/`afterAll` | `node:test` `before` / `after`     |
-| `sanitizeOps` / `sanitizeResources`       | none — `node:test` never sanitizes |
-| `permissions:`                            | none — use a `*.deno.test.ts` file |
-
-`@std/assert`, `@std/expect`, `FakeTime` from `@std/testing/time` and
-`@std/testing/mock` stay as they are. Test names and step names are unchanged by
-the runner swap, so a mutation battery's `killedBy` keeps attributing.
-
-**Declaring a test dependency.** The package whose tests import a JSR package
-declares it in its own `package.json` `devDependencies`, as `jsr:` plus the
-range:
-
-```json
-{
-    "devDependencies": {
-        "@std/assert": "jsr:1",
-        "@std/testing": "jsr:^1.0.0"
-    }
-}
-```
-
-Then run `deno task manifests` and `deno install`. Deno resolves it from JSR
-through the generated `deno.json`; Bun and Node import it from the
-`node_modules` that `deno install --frozen` links from JSR's npm endpoint. Do
-not put a test-only package in `lockness.jsr`: that field reaches Deno's import
-map only, and the Bun and Node lanes fail on `ERR_MODULE_NOT_FOUND`.
-
-**A test of a Deno-only mechanism** keeps `Deno.test` and lives in a
-`*.deno.test.ts` file, beside the portable one. One known case: a row that lets
-a rejection escape on purpose to prove an `unhandledrejection` listener prevents
-it (`packages/realtime/tests/escape_watcher.deno.test.ts`). Under `node:test`
-such an escape fails the running test by name, through a hook no listener can
-intercept. Others stub `Deno.permissions` or launch a `deno run` subprocess
-(`packages/cli/tests/*.deno.test.ts`). `deno task test:runtime` hands a
-`*.deno.test.*` file to the Deno lane only; Bun and Node skip it.
-
-## Running on Bun and Node: the runtime lanes
-
-A package's `package.json` `engines` lists the runtimes it is proven on, and CI
-holds it to that list: every package that declares a runtime runs its whole
-suite on that runtime's lane. `engines` is the only list — no CI file names a
-package.
-
-```bash
-deno task test:runtime --runtime=bun                       # every package declaring engines.bun
-deno task test:runtime --runtime=node --package=transform  # one package
-deno task test:runtime --runtime=deno --package=@lockness/sse
-```
-
-`--package` (repeatable; `@lockness/x`, `x` or `packages/x`) narrows the run,
-and runs a named package even if it does not declare the runtime yet: that is
-how a package's suite is brought to green on a runtime **before** it adds the
-runtime to `engines`.
-
-Naming bun or node in `engines` also puts the package's source (tests and stubs
-excluded) under the `lockness-runtime/no-deno` lint: no `Deno` global and no
-runtime-specific Hono adapter. See
-[contribution.md](contribution.md#repository-lint-rules).
-
-What a run does, all in `scripts/test_runtime.ts`:
-
-- It collects the package's test files by Deno's own discovery rule (`test.ts`,
-  `*_test.ts`, `*.test.ts`, …), skipping `node_modules/`, `dist/`, dot-dirs and
-  nested workspace members, and hands that same list to every runtime.
-- For Bun and Node it first runs `deno install --frozen`: the `node_modules`
-  both run from comes from `deno.lock` alone, with every `@lockness/*` resolved
-  to its workspace source (the `lockness-source` export condition), never from a
-  registry, and every `jsr:` test dependency linked from JSR's npm endpoint. The
-  install is skipped when there is nothing to run.
-- It reads each runner's JUnit report and counts the tests that ran.
-
-A lane **fails** when a runner exits non-zero, or when a package that declares
-the runtime ran **zero** tests there: skipped tests and a file that registers no
-test do not count. A lane with no declared package runs nothing, prints
-`no package declares engines.<runtime>; nothing to run`, and passes.
-
-Runner differences the script evens out: Bun gets `--timeout=0`, since it alone
-has a 5 s per-test default; Node gets `--test-concurrency=1`, so files run one
-after another as they do under `deno test`. Bun runs every file of a package in
-one process.
-
-| Lane | CI job (`test.yml`)                    | Version                                                          |
-| :--- | :------------------------------------- | :--------------------------------------------------------------- |
-| Deno | `test` — `deno task gate --leaks`      | `.dvmrc` (`pinned`) and `v2.x`                                   |
-| Bun  | `bun` — `test:runtime --runtime=bun`   | `.bun-version` (`pinned`, at least 1.4.0) and `latest`           |
-| Node | `node` — `test:runtime --runtime=node` | `.node-version` (`pinned`, an LTS, at least 22.18) and `current` |
-
-The Deno lane is still the whole suite through the gate; `--runtime=deno` is the
-same per-package run as the other two, for comparing locally. Coverage and the
-mutation batteries stay on Deno. To move a Bun or Node pin, write the new exact
-`x.y.z` into its file and land it as a `build` commit;
-`scripts/ci_deno_pin_test.ts` refuses a range, a version below the floor, or a
-version written into a workflow.
-
 ## Time Control with FakeTime
 
 ### The Problem
@@ -135,8 +14,7 @@ Traditional time-based tests use real delays with `setTimeout`:
 
 ```typescript
 // ❌ Slow and non-deterministic
-import { test } from 'node:test'
-test('session expiration', async () => {
+Deno.test('session expiration', async () => {
     await driver.write('session', { id: 1 }, 1) // 1 second TTL
     await new Promise((resolve) => setTimeout(resolve, 1100)) // Wait 1.1 seconds
     assertEquals(await driver.read('session'), null)
@@ -152,10 +30,9 @@ time manipulation:
 
 ```typescript
 // ✅ Fast and deterministic
-import { test } from 'node:test'
 import { FakeTime } from '@std/testing/time'
 
-test('session expiration', async () => {
+Deno.test('session expiration', async () => {
     using time = new FakeTime()
 
     await driver.write('session', { id: 1 }, 1) // 1 second TTL
@@ -206,8 +83,7 @@ Traditional storage tests write to the filesystem:
 
 ```typescript
 // ❌ Slow and creates side effects
-import { test } from 'node:test'
-test('storage operations', async () => {
+Deno.test('storage operations', async () => {
     const driver = new LocalStorageDriver({
         driver: 'local',
         root: './tmp/test-storage',
@@ -234,10 +110,9 @@ Use in-memory mock drivers that implement the same interface:
 
 ```typescript
 // ✅ Fast and hermetic
-import { test } from 'node:test'
 import { createMockStorage } from '@lockness/storage/tests/support/mock_driver.ts'
 
-test('storage operations', async () => {
+Deno.test('storage operations', async () => {
     const driver = createMockStorage()
 
     await driver.put('file.txt', 'content')
@@ -746,11 +621,10 @@ Two habits worth copying:
 ### Session Expiration Test
 
 ```typescript
-import { test } from 'node:test'
 import { FakeTime } from '@std/testing/time'
 import { MemorySessionDriver } from '@lockness/session'
 
-test('MemorySessionDriver - session expiration', async () => {
+Deno.test('MemorySessionDriver - session expiration', async () => {
     using time = new FakeTime()
     const driver = new MemorySessionDriver()
 
@@ -765,11 +639,10 @@ test('MemorySessionDriver - session expiration', async () => {
 ### Cache TTL Test
 
 ```typescript
-import { test } from 'node:test'
 import { FakeTime } from '@std/testing/time'
 import { get, set } from '@lockness/cache'
 
-test('cache TTL causes expiration', async () => {
+Deno.test('cache TTL causes expiration', async () => {
     using time = new FakeTime()
 
     await set('expiring', 'value', 0.1) // 100ms TTL
@@ -783,10 +656,9 @@ test('cache TTL causes expiration', async () => {
 ### Storage Mock Test
 
 ```typescript
-import { test } from 'node:test'
 import { createMockStorage } from '@lockness/storage/tests/support/mock_driver.ts'
 
-test('storage copy operation', async () => {
+Deno.test('storage copy operation', async () => {
     const driver = createMockStorage()
 
     await driver.put('source.txt', 'Copy me')
@@ -832,15 +704,14 @@ Integration tests validate actual behavior:
 `delete` helpers; a `json` body is serialised and its content-type set for you.
 
 ```typescript
-import { test } from 'node:test'
 import { testClient } from '@lockness/testing'
 
-test('GET /ping', async () => {
+Deno.test('GET /ping', async () => {
     const res = await testClient(app).get('/ping')
     assertEquals(res.status, 200)
 })
 
-test('POST /echo', async () => {
+Deno.test('POST /echo', async () => {
     const res = await testClient(app).post('/echo', { json: { a: 1 } })
     assertEquals(await res.json(), { a: 1 })
 })
@@ -871,9 +742,7 @@ app.use('*', actingAs(fakeUser({ id: 1, isAdmin: true })))
 ## Test file naming
 
 - One convention: **`*.test.ts`** (or `*.test.tsx` for JSX). `deno test`
-  discovers these; `_test.ts` is legacy and no longer used under `packages/`. A
-  Deno-only test is named **`*.deno.test.ts`** (see
-  [Test API](#test-api-nodetest)); `deno test` discovers it too.
+  discovers these; `_test.ts` is legacy and no longer used under `packages/`.
 - Put tests in the package's `tests/` directory. `scripts/deps_analyzer.ts`
   excludes `tests/` from the measured dependency graph, so a `tests/`-only
   import (such as `@lockness/testing`) creates no runtime dependency edge.
@@ -886,12 +755,10 @@ app.use('*', actingAs(fakeUser({ id: 1, isAdmin: true })))
 
 ## Sanitizers and fixtures
 
-- **Close what the test opens.** `node:test` runs without Deno's resource / op /
-  exit sanitizers, so nothing fails a leak for you: close every KV handle,
-  listener and timer the test opens, and assert on it where it matters (the
-  scheduler's `getStats().pendingTimers`, say). `deno task test:leaks`
-  (`--trace-leaks`) reports nothing for a leak inside a `node:test` test; it
-  only helps for the `Deno.test` rows kept in `*.deno.test.ts` files.
+- **Keep Deno's sanitizers on.** Never disable the resource / op / exit
+  sanitizers to paper over a leak — close every KV handle, listener and timer
+  the test opens. Use `deno task test:leaks` (`--trace-leaks`) to locate a
+  leak's origin.
 - **Synthetic credentials only.** Fixtures use placeholder secrets and
   connection strings — never a real password, token or DSN. The CI secret scan
   (`.github/workflows/secret-scan.yml`, gitleaks over the full history) is a

@@ -8,7 +8,6 @@
  * literal.
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import {
     isCredentialParamName,
@@ -27,14 +26,14 @@ function assertAbsent(out: string, secret: string): void {
     assert(!out.includes(secret), `leaked ${JSON.stringify(secret)}: ${out}`)
 }
 
-test('renderMessage - plain text passes unchanged', () => {
+Deno.test('renderMessage - plain text passes unchanged', () => {
     assertEquals(
         renderMessage('Controller name is required'),
         'Controller name is required',
     )
 })
 
-test('renderMessage - the userinfo of a credential URL is redacted', () => {
+Deno.test('renderMessage - the userinfo of a credential URL is redacted', () => {
     const secret = marker('dsn')
     const out = renderMessage(
         `Cannot reach postgres://app:${secret}@db.test:5432/app`,
@@ -43,7 +42,7 @@ test('renderMessage - the userinfo of a credential URL is redacted', () => {
     assertStringIncludes(out, 'postgres://***:***@db.test:5432/app')
 })
 
-test('renderMessage - a credential pair is redacted', () => {
+Deno.test('renderMessage - a credential pair is redacted', () => {
     const secret = marker('pair')
     const out = renderMessage(
         `Request failed: https://api.test/v1?api_key=${secret}&page=2`,
@@ -53,7 +52,7 @@ test('renderMessage - a credential pair is redacted', () => {
     assertStringIncludes(out, 'page=2')
 })
 
-test('renderMessage - control and format characters are encoded', () => {
+Deno.test('renderMessage - control and format characters are encoded', () => {
     const out = renderMessage('red \x1b[31mtext\x1b[0m and /admin\u202egnp.txt')
     assert(!out.includes('\x1b'), out)
     assert(!out.includes('\u202e'), out)
@@ -61,7 +60,7 @@ test('renderMessage - control and format characters are encoded', () => {
     assertStringIncludes(out, '\\u{202e}')
 })
 
-test('renderMessage - a newline cannot forge a second line', () => {
+Deno.test('renderMessage - a newline cannot forge a second line', () => {
     const out = renderMessage('first\n❌ forged\r\u2028third')
     for (const terminator of ['\n', '\r', '\u2028']) {
         assert(!out.includes(terminator), out)
@@ -69,12 +68,12 @@ test('renderMessage - a newline cannot forge a second line', () => {
     assertEquals(out, 'first\\x0a❌ forged\\x0d\\u{2028}third')
 })
 
-test('renderMessage - the line is bounded at 512 code points of input', () => {
+Deno.test('renderMessage - the line is bounded at 512 code points of input', () => {
     const out = renderMessage('a'.repeat(600))
     assertEquals(out, `${'a'.repeat(512)}…[truncated at 512 of 600]`)
 })
 
-test('renderMessage - redaction runs before the bound, so a cut never leaks a prefix', () => {
+Deno.test('renderMessage - redaction runs before the bound, so a cut never leaks a prefix', () => {
     const secret = marker('long')
     const out = renderMessage(
         `${'x'.repeat(480)} postgres://app:${secret}${
@@ -85,7 +84,7 @@ test('renderMessage - redaction runs before the bound, so a cut never leaks a pr
     assertStringIncludes(out, 'postgres://***:***@')
 })
 
-test('logging/internal - re-exports the credential rule beside renderMessage', () => {
+Deno.test('logging/internal - re-exports the credential rule beside renderMessage', () => {
     assertEquals(isCredentialParamName('api_key'), true)
     assertEquals(
         redactQueryCredentials('a?code=abc&state=1'),
@@ -93,7 +92,7 @@ test('logging/internal - re-exports the credential rule beside renderMessage', (
     )
 })
 
-test('the contract root exposes the three public sanitize names and not renderMessage', () => {
+Deno.test('the contract root exposes the three public sanitize names and not renderMessage', () => {
     assertEquals(typeof root.safeForLog, 'function')
     assertEquals(typeof root.renderError, 'function')
     assertEquals('renderMessage' in root, false)

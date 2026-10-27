@@ -47,7 +47,6 @@
  * @module @lockness/realtime/tests/subscribe_unsubscribe_race_330
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { ChannelManager } from '../manager.ts'
 import type { BroadcastDriver } from '../driver.ts'
@@ -213,7 +212,7 @@ async function race(first: 'watchChannel' | 'unwatchChannel') {
     return r
 }
 
-test('#330 a pipelined subscribe+unsubscribe leaves no roster ghost', async () => {
+Deno.test('#330 a pipelined subscribe+unsubscribe leaves no roster ghost', async () => {
     for (const first of ['watchChannel', 'unwatchChannel'] as const) {
         const r = await race(first)
         assertEquals(
@@ -234,7 +233,7 @@ test('#330 a pipelined subscribe+unsubscribe leaves no roster ghost', async () =
     }
 })
 
-test('#330 a superseded join announces nothing', async () => {
+Deno.test('#330 a superseded join announces nothing', async () => {
     // #323's rule reached from a new direction: an announcement must never
     // claim a membership the authoritative roster did not accept. When the
     // leave overtakes the join, the join's write becomes a removal — so the
@@ -272,7 +271,7 @@ test('#330 a superseded join announces nothing', async () => {
     assertEquals(r.peak(), 1, 'one write in flight per slot throughout')
 })
 
-test('#330 a stale removal cannot land on top of a fresh re-join', async () => {
+Deno.test('#330 a stale removal cannot land on top of a fresh re-join', async () => {
     // The mirror of the ghost, and the case a three-line claim re-validation
     // would have missed: leave, then re-subscribe. #327 and #331 make that
     // ordinary traffic — a reconnecting client does exactly this.
@@ -301,7 +300,7 @@ test('#330 a stale removal cannot land on top of a fresh re-join', async () => {
     assertEquals(r.peak(), 1, 'still one write in flight per slot')
 })
 
-test('#330 two connections sharing one member id are ONE roster slot', async () => {
+Deno.test('#330 two connections sharing one member id are ONE roster slot', async () => {
     // The roster hash is keyed by `member.id`, not by connection id, so the
     // projection has to read the whole local map rather than one entry. Two
     // devices on one account is the everyday shape of this.

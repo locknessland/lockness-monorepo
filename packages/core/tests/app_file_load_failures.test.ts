@@ -13,7 +13,6 @@
  * against the working directory — the app root.
  */
 
-import { test } from 'node:test'
 import {
     assert,
     assertEquals,
@@ -88,7 +87,7 @@ const BROKEN_SOURCE = 'export const errorHandler = (\n'
 // ErrorHandlerRegistry.loadCustomHandler
 // ============================================================================
 
-test('ErrorHandlerRegistry - an absent handler file is silent and falls back', async () => {
+Deno.test('ErrorHandlerRegistry - an absent handler file is silent and falls back', async () => {
     const registry = new ErrorHandlerRegistry()
     registry.setCustomHandlerPath(
         `tmp/absent-${crypto.randomUUID()}/error_handler.tsx`,
@@ -102,7 +101,7 @@ test('ErrorHandlerRegistry - an absent handler file is silent and falls back', a
     assertEquals(captured.warn, [])
 })
 
-test('ErrorHandlerRegistry - a handler file that fails to import logs at ERROR and falls back', async () => {
+Deno.test('ErrorHandlerRegistry - a handler file that fails to import logs at ERROR and falls back', async () => {
     await withAppDir({ 'error_handler.tsx': BROKEN_SOURCE }, async (dir) => {
         const registry = new ErrorHandlerRegistry()
         registry.setCustomHandlerPath(`${dir}/error_handler.tsx`)
@@ -119,7 +118,7 @@ test('ErrorHandlerRegistry - a handler file that fails to import logs at ERROR a
     })
 })
 
-test('ErrorHandlerRegistry - a stat failure other than NotFound logs at WARN', async () => {
+Deno.test('ErrorHandlerRegistry - a stat failure other than NotFound logs at WARN', async () => {
     // A path component that is a regular file makes stat fail with
     // NotADirectory, not NotFound — deterministic, unlike a permission error,
     // which root ignores.
@@ -140,7 +139,7 @@ test('ErrorHandlerRegistry - a stat failure other than NotFound logs at WARN', a
     })
 })
 
-test('ErrorHandlerRegistry - a handler file without an errorHandler export warns', async () => {
+Deno.test('ErrorHandlerRegistry - a handler file without an errorHandler export warns', async () => {
     await withAppDir(
         { 'error_handler.tsx': 'export const somethingElse = 1\n' },
         async (dir) => {
@@ -159,7 +158,7 @@ test('ErrorHandlerRegistry - a handler file without an errorHandler export warns
     )
 })
 
-test('ErrorHandlerRegistry - a valid handler file is used, with nothing logged', async () => {
+Deno.test('ErrorHandlerRegistry - a valid handler file is used, with nothing logged', async () => {
     await withAppDir(
         {
             'error_handler.tsx':
@@ -186,7 +185,7 @@ test('ErrorHandlerRegistry - a valid handler file is used, with nothing logged',
     )
 })
 
-test('ErrorHandlerRegistry - the error log never carries a raw control character', async () => {
+Deno.test('ErrorHandlerRegistry - the error log never carries a raw control character', async () => {
     // The path reaches the log through safeForLog: a newline in it must not
     // forge a second log line.
     await withAppDir({ 'error\nhandler.tsx': BROKEN_SOURCE }, async (dir) => {
@@ -219,7 +218,7 @@ export class ${className} {
 `
 }
 
-test('discoverMiddlewares - a missing middlewaresDir is silent', async () => {
+Deno.test('discoverMiddlewares - a missing middlewaresDir is silent', async () => {
     let count = -1
     const captured = await captureConsole(async () => {
         count = await discoverMiddlewares(
@@ -231,7 +230,7 @@ test('discoverMiddlewares - a missing middlewaresDir is silent', async () => {
     assertEquals(captured.warn, [])
 })
 
-test('discoverMiddlewares - a middlewaresDir that exists but cannot be read logs at WARN', async () => {
+Deno.test('discoverMiddlewares - a middlewaresDir that exists but cannot be read logs at WARN', async () => {
     // A regular file where the directory should be: readDir fails with
     // something other than NotFound, which is a misconfiguration.
     await withAppDir({ 'not_a_dir': 'plain file' }, async (dir) => {
@@ -246,7 +245,7 @@ test('discoverMiddlewares - a middlewaresDir that exists but cannot be read logs
     })
 })
 
-test('discoverMiddlewares - a file that fails to import logs at ERROR, and the others still register', async () => {
+Deno.test('discoverMiddlewares - a file that fails to import logs at ERROR, and the others still register', async () => {
     const suffix = crypto.randomUUID().slice(0, 8)
     const good = `good-${suffix}`
     await withAppDir({
@@ -267,7 +266,7 @@ test('discoverMiddlewares - a file that fails to import logs at ERROR, and the o
 // Middleware discovery runs once per boot (#479)
 // ============================================================================
 
-test('createApp - a broken middleware file is imported and logged once per boot', async () => {
+Deno.test('createApp - a broken middleware file is imported and logged once per boot', async () => {
     // Each discovery run imports the broken file and logs it once, so the
     // number of log lines is the number of runs. A module-evaluation counter
     // could not observe this: the module cache evaluates a module once per
@@ -303,7 +302,7 @@ test('createApp - a broken middleware file is imported and logged once per boot'
     })
 })
 
-test('App.init - middlewaresDir registers a declared middleware a route can name, without a kernel', async () => {
+Deno.test('App.init - middlewaresDir registers a declared middleware a route can name, without a kernel', async () => {
     const name = `init-mw-${crypto.randomUUID().slice(0, 8)}`
     const decorators = import.meta.resolve('../routing/decorators.ts')
     await withAppDir({

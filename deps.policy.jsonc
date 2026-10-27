@@ -6,19 +6,14 @@
 //
 // `allow` — the exhaustive set of STATIC edges a package may have. Measured
 //   from `deno info`, so it covers value imports, type imports, aliased
-//   specifiers (an import-map key naming another package) and literal
-//   dynamic imports.
+//   specifiers (`"hono": "jsr:@lockness/hono"`) and literal dynamic imports.
 //
-// `soft`  — the PERMISSION for a package's OPTIONAL edges: packages loaded at
-//   runtime through `tryImportOptionalPackage('<name>', …)`. The specifier is
-//   a string ARGUMENT, so it appears in no module graph and no static tool can
-//   see it. The FACT lives in the package's own `package.json`, as an optional
-//   peer (`peerDependencies` + `peerDependenciesMeta.<name>.optional`, #591);
-//   `deno task deps:analyze` fails on any optional peer this list does not
-//   permit, exactly as it holds every observed static edge against `allow`. A
-//   soft edge is deliberately NOT in the package's `dependencies` (nor its
-//   generated `deno.json`): the consuming application installs it, or the
-//   feature stays off.
+// `soft`  — the exhaustive set of OPTIONAL packages loaded at runtime through
+//   `tryImportOptionalPackage('<name>', …)`. The specifier is a string
+//   ARGUMENT, so it appears in no module graph and no static tool can see it.
+//   Declaring it here is the only way it is checked at all. A soft edge is
+//   deliberately NOT declared in the package's own `deno.json`: the consuming
+//   application installs it, or the feature stays off.
 //
 // `runtimeImports` — the exhaustive inventory of sites `deno publish` names
 //   unanalysable: a non-literal `import(spec)` or `import.meta.resolve(spec)`.
@@ -51,25 +46,12 @@
     "packages": {
         // ---- Foundation: imported by everything, importing (almost) nothing.
         // NOTE: `contract` is not dependency-free — it takes Hono's types
-        // from `@lockness/hono`. Every such import is `import type`, so the
+        // through the `hono` alias. Every such import is `import type`, so the
         // edge erases at runtime, but it is a real edge and is declared.
         "hono": { "tier": "foundation", "allow": [] },
-        // `runtime` is the single home of what differs between Deno, Bun and
-        // Node (plan 274 §5): the one runtime detector, process invocations,
-        // signals, and — from T022 — HTTP serving over Hono's per-runtime
-        // adapters, hence `hono`. It must NEVER import `contract`: contract
-        // imports its detector (below), so that edge would close a cycle.
-        "runtime": { "tier": "foundation", "allow": ["hono"] },
-        // `contract → runtime` is a VALUE edge, the one recorded exception to
-        // contract's "every @lockness/* import is type-only" rule (plan 274
-        // §7 complexity tracking, audit A2): a safe env read on Deno must
-        // know the runtime before it queries the permission, and the one
-        // detector lives in `runtime`. Bounded to the detector subpath
-        // `@lockness/runtime/runtime`, which imports nothing but
-        // `node:process`; the alternative was a second detector.
         "contract": {
             "tier": "foundation",
-            "allow": ["hono", "runtime"],
+            "allow": ["hono"],
             "runtimeImports": {
                 "app_file.ts": {
                     "sites": 1,
@@ -80,13 +62,6 @@
         "container": { "tier": "foundation", "allow": ["contract"] },
         "redis": { "tier": "foundation", "allow": ["contract"] },
         "crypto": { "tier": "foundation", "allow": ["contract"] },
-        // `transform` is the Node `--import` hook that runs an app's
-        // TypeScript (plan 274 §5, audits A10 and S9). It loads BEFORE every
-        // other module of the process, so it imports no `@lockness/*` package
-        // at all — not even contract. Its one dependency is `typescript`
-        // from npm, pinned exactly to 6.0.3: TypeScript has no JSR build,
-        // and 7.x has no JavaScript API (#612).
-        "transform": { "tier": "foundation", "allow": [] },
 
         // ---- Implementation
         "auth": {
@@ -99,22 +74,19 @@
             "allow": ["container", "contract"]
         },
         // `cli`'s `deno.json` also declares core, drizzle, features, i18n, mail,
-        // notification, openapi, queue and search: test-only dependencies of
+        // notification, openapi and search: test-only dependencies of
         // `tests/make_conformance.test.ts`, which runs every package's make:*
-        // through the real `Cli.dispatch` (#436), and of the queue tests that
-        // run queue:* through it and check the loader's scan (#592). That file lives under
+        // through the real `Cli.dispatch` (#436). That file lives under
         // `tests/`, which this scan excludes, so none of them is an edge here:
         // cli loads no code of theirs at runtime. Do not add them to `allow` —
         // drizzle and openapi import cli, so those two would close a cycle.
-        // `queue` left with #592: the queue:* commands live in queue, against
-        // the contract's CommandRegistry, and queue has no edge to cli either.
         "cli": {
             "tier": "implementation",
-            "allow": ["contract", "events"],
+            "allow": ["contract", "queue", "events"],
             "runtimeImports": {
                 "core_commands.ts": {
                     "sites": 1,
-                    "reason": "package:install loads <package>/setup, else <package>/install, for a package name the user types"
+                    "reason": "package:install loads <package>/install for a package name the user types"
                 },
                 "package_loader.ts": {
                     "sites": 1,
@@ -122,14 +94,13 @@
                 }
             }
         },
-        // `deprecation-contracts` reaches `contract` from its setup step
-        // only: the `SetupContext` port (type-only, `setup.ts`). The `cli`
-        // edge its installer had (`runEntry`, `CommandFailedError`,
-        // `addPackage`) left with #592; `mod.ts` imports nothing, so `core`
-        // and `realtime` load none of it.
+        // `deprecation-contracts` reaches `cli` from its installer only
+        // (`install.ts`: `runEntry` and `CommandFailedError`, #436, and
+        // `addPackage` from the barrel, #580); `mod.ts` imports nothing, so
+        // `core` and `realtime` still load no `cli` code.
         "deprecation-contracts": {
             "tier": "implementation",
-            "allow": ["contract"]
+            "allow": ["cli"]
         },
         "devtools": {
             "tier": "implementation",
@@ -142,19 +113,15 @@
         },
         "events": { "tier": "implementation", "allow": ["contract", "hono"] },
         // `features` and `search` are pure-logic sinks: flag resolution /
-        // tokenised inverted index (scope + documents are app-supplied data).
-        // Nothing imports them. Their one edge is `contract`, for their
-        // `make:*` command: the `CommandRegistry` port (type-only) and the
-        // shared `isContained` check (#592, #579).
-        "features": { "tier": "implementation", "allow": ["contract"] },
-        "search": { "tier": "implementation", "allow": ["contract"] },
+        // tokenised inverted index, no workspace deps (scope + documents are
+        // app-supplied data). Nothing imports them.
+        "features": { "tier": "implementation", "allow": [] },
+        "search": { "tier": "implementation", "allow": [] },
         // `i18n` is a near-pure sink: core soft-loads it at boot, and it imports
         // only hono (Context/cookie/header helpers; the resolver logs nothing,
         // so it needs no contract safeForLog). Zero message-format dependency —
-        // ICU plurals run on Deno's built-in Intl.PluralRules. `contract` is
-        // for its commands only: the `CommandRegistry` port (type-only) and
-        // the shared `isContained` check (#592, #579).
-        "i18n": { "tier": "implementation", "allow": ["contract", "hono"] },
+        // ICU plurals run on Deno's built-in Intl.PluralRules.
+        "i18n": { "tier": "implementation", "allow": ["hono"] },
         "inertia": { "tier": "implementation", "allow": ["hono"] },
         "init": { "tier": "implementation", "allow": ["cli"] },
         "logger": { "tier": "implementation", "allow": ["contract"] },
@@ -297,16 +264,16 @@
                 "hono",
                 "scheduler"
             ],
-            // `soft` permits what core loads through `optional_packages.ts`
-            // — the OPTIONAL_FEATURES packages plus `redis` (the scheduler
-            // lock) — and nothing it imports statically: `events` left with
-            // #505, `deprecation-contracts` with #421 (the
-            // `database.autoConnect` notice — a soft load would drop the notice
-            // in any app that did not install the package), `container` with
-            // #591 (a hard dependency). `scripts/core_soft_policy_test.ts`
-            // holds core's optional peers equal to the loader's sites.
+            // `soft` lists what core loads through `optional_packages.ts` —
+            // the OPTIONAL_FEATURES packages plus `redis` (the scheduler lock)
+            // — and nothing it imports statically: `events` left with #505,
+            // `deprecation-contracts` with #421 (the `database.autoConnect`
+            // notice — a soft load would drop the notice in any app that did
+            // not install the package). `scripts/core_soft_policy_test.ts`
+            // holds the two in agreement.
             "soft": [
                 "cache",
+                "container",
                 "devtools",
                 "drizzle",
                 "i18n",

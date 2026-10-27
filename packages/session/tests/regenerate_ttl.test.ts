@@ -11,7 +11,6 @@
  * because the recorded `expireInMs` is then `undefined`.
  */
 
-import { test } from 'node:test'
 import { assertEquals, assertNotEquals } from '@std/assert'
 import { DenoKvSessionDriver } from '../drivers/deno_kv.ts'
 import { FakeKv } from './fake_kv.ts'
@@ -39,7 +38,7 @@ async function withFakeKv(
     }
 }
 
-test('deno-kv regenerate - the new key carries the passed lifetime as its TTL (SC-002)', async () => {
+Deno.test('deno-kv regenerate - the new key carries the passed lifetime as its TTL (SC-002)', async () => {
     const fake = new FakeKv()
     await withFakeKv(fake, async () => {
         const driver = new DenoKvSessionDriver()
@@ -70,7 +69,7 @@ test('deno-kv regenerate - the new key carries the passed lifetime as its TTL (S
     })
 })
 
-test('deno-kv regenerate - the old key no longer resolves, the new one carries the data', async () => {
+Deno.test('deno-kv regenerate - the old key no longer resolves, the new one carries the data', async () => {
     const fake = new FakeKv()
     await withFakeKv(fake, async () => {
         const driver = new DenoKvSessionDriver()

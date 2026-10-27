@@ -8,7 +8,6 @@
  * @module @lockness/notification/tests/channels/log
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { LogChannel, type LoggerLike } from '../../channels/log.ts'
 import { Notification } from '../../notification.ts'
@@ -36,7 +35,7 @@ class SecretInvoice extends Notification {
 
 const user: Notifiable = { routeNotificationFor: () => 42 }
 
-test('S3: the log channel logs a bounded summary, not the payload', async () => {
+Deno.test('S3: the log channel logs a bounded summary, not the payload', async () => {
     const logger = new RecordingLogger()
     await new LogChannel(logger).send(new SecretInvoice(), user, 42)
 
@@ -52,7 +51,7 @@ test('S3: the log channel logs a bounded summary, not the payload', async () => 
     assert(!dumped.includes('9000'))
 })
 
-test('S3: a newline-bearing notifiable id is passed through safeForLog', async () => {
+Deno.test('S3: a newline-bearing notifiable id is passed through safeForLog', async () => {
     const logger = new RecordingLogger()
     const forged = 'u1\n[ERROR] forged log line'
     const spoofer: Notifiable = { routeNotificationFor: () => forged }

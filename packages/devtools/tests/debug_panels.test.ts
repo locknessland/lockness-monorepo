@@ -5,7 +5,6 @@
  * @module @lockness/devtools/tests/debug_panels
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { Hono } from '@lockness/hono'
 import { dispatcher } from '@lockness/events'
@@ -36,7 +35,7 @@ async function withEnv(
 
 // --- Redaction (T014/S3) --------------------------------------------------
 
-test('redactSecrets - masks secret-looking keys, keeps the rest', () => {
+Deno.test('redactSecrets - masks secret-looking keys, keeps the rest', () => {
     const out = redactSecrets({
         userId: 7,
         apiKey: 'sk-live-x',
@@ -53,7 +52,7 @@ test('redactSecrets - masks secret-looking keys, keeps the rest', () => {
     assertEquals(out.session_key, REDACTED)
 })
 
-test('redactValue - deep + camelCase + code/state, negatives kept (#149, US2)', () => {
+Deno.test('redactValue - deep + camelCase + code/state, negatives kept (#149, US2)', () => {
     const out = redactValue({
         theme: 'dark',
         monkey: 'ook',
@@ -92,14 +91,14 @@ test('redactValue - deep + camelCase + code/state, negatives kept (#149, US2)', 
     assertEquals(item0.label, 'l')
 })
 
-test('redactValue - a top-level array is traversed (#149, US2)', () => {
+Deno.test('redactValue - a top-level array is traversed (#149, US2)', () => {
     const out = redactValue([{ password: 'p', keep: 'k' }]) as unknown[]
     const first = out[0] as Record<string, unknown>
     assertEquals(first.password, REDACTED)
     assertEquals(first.keep, 'k')
 })
 
-test('redactValue - deep and cyclic input terminate, no throw (#149, FR-012)', () => {
+Deno.test('redactValue - deep and cyclic input terminate, no throw (#149, FR-012)', () => {
     // Adversarially deep, acyclic (a JSON body can be tuned like this).
     let deep: Record<string, unknown> = { secret: 's' }
     for (let i = 0; i < 5000; i++) deep = { nested: deep }
@@ -130,7 +129,7 @@ test('redactValue - deep and cyclic input terminate, no throw (#149, FR-012)', (
 
 // --- Gate (T008/S1) -------------------------------------------------------
 
-test('devtoolsActive - fails closed unless explicitly dev or opted in', async () => {
+Deno.test('devtoolsActive - fails closed unless explicitly dev or opted in', async () => {
     await withEnv({}, () => assert(!devtoolsActive(), 'no env -> off'))
     await withEnv(
         { APP_ENV: 'production' },
@@ -153,7 +152,7 @@ test('devtoolsActive - fails closed unless explicitly dev or opted in', async ()
 
 // --- Collector events bucket (T006/A5) ------------------------------------
 
-test('collector - addEvent/getEvents, maxEvents trim, clear resets events', () => {
+Deno.test('collector - addEvent/getEvents, maxEvents trim, clear resets events', () => {
     collector.clear()
     collector.addEvent({ eventName: 'A', listenerCount: 1, timestamp: 1 })
     collector.addEvent({ eventName: 'B', listenerCount: 0, timestamp: 2 })
@@ -176,7 +175,7 @@ test('collector - addEvent/getEvents, maxEvents trim, clear resets events', () =
 
 // --- Events capture end to end (T012/A3/A4/A6) ----------------------------
 
-test('events - captured via onAny with requestId + registered count, idempotent', async () => {
+Deno.test('events - captured via onAny with requestId + registered count, idempotent', async () => {
     await withEnv({ LOCKNESS_DEVTOOLS: '1' }, async () => {
         const app = new Hono()
         // Two calls: the second must NOT double-wire the subscriber (A6).
@@ -227,7 +226,7 @@ test('events - captured via onAny with requestId + registered count, idempotent'
 
 // --- Session capture via the middleware (T016/S3) -------------------------
 
-test('sessions - middleware captures a redacted snapshot; none => nothing', async () => {
+Deno.test('sessions - middleware captures a redacted snapshot; none => nothing', async () => {
     await withEnv({ LOCKNESS_DEVTOOLS: '1' }, async () => {
         const app = new Hono()
         enableDevtools(app)
@@ -253,7 +252,7 @@ test('sessions - middleware captures a redacted snapshot; none => nothing', asyn
     })
 })
 
-test('sessions - no session on the context => nothing captured (#149, US3)', async () => {
+Deno.test('sessions - no session on the context => nothing captured (#149, US3)', async () => {
     await withEnv({ LOCKNESS_DEVTOOLS: '1' }, async () => {
         const app = new Hono()
         enableDevtools(app)
@@ -273,7 +272,7 @@ test('sessions - no session on the context => nothing captured (#149, US3)', asy
 
 // --- Request capture redaction at the collector (T005/#149 US1) -----------
 
-test('request capture - headers/query/body redacted at capture (#149, US1)', async () => {
+Deno.test('request capture - headers/query/body redacted at capture (#149, US1)', async () => {
     await withEnv({ LOCKNESS_DEVTOOLS: '1' }, async () => {
         const app = new Hono()
         enableDevtools(app)
@@ -316,7 +315,7 @@ test('request capture - headers/query/body redacted at capture (#149, US1)', asy
 
 // --- Fail-closed at the integration boundaries (HIGH: S1 mount / S2 collect) --
 
-test('production - enableDevtools mounts no route and the middleware collects nothing', async () => {
+Deno.test('production - enableDevtools mounts no route and the middleware collects nothing', async () => {
     await withEnv({ APP_ENV: 'production' }, async () => {
         // Mount refusal (S1): no dashboard/api route is registered.
         const app = new Hono()
@@ -339,7 +338,7 @@ test('production - enableDevtools mounts no route and the middleware collects no
 
 // --- requestId is confined to the request (MED: enterWith -> run, SC-001) -----
 
-test('events - requestId is confined to the request via run()', async () => {
+Deno.test('events - requestId is confined to the request via run()', async () => {
     await withEnv({ LOCKNESS_DEVTOOLS: '1' }, async () => {
         const app = new Hono()
         enableDevtools(app)
@@ -383,7 +382,7 @@ async function renderPanel(node: unknown): Promise<string> {
     return await (await app.request('/')).text()
 }
 
-test('Events panel - empty state and a populated row (SC-004)', async () => {
+Deno.test('Events panel - empty state and a populated row (SC-004)', async () => {
     const empty = await renderPanel(EventsPanel({ data: { events: [] } }))
     assertStringIncludes(empty, 'No events dispatched yet.')
 
@@ -402,7 +401,7 @@ test('Events panel - empty state and a populated row (SC-004)', async () => {
     assertStringIncludes(one, 'UserRegistered')
 })
 
-test('Sessions panel - empty state and a redacted value (SC-004/S3)', async () => {
+Deno.test('Sessions panel - empty state and a redacted value (SC-004/S3)', async () => {
     const empty = await renderPanel(SessionsPanel({ data: { sessions: [] } }))
     assertStringIncludes(empty, 'No session captured for this request.')
 

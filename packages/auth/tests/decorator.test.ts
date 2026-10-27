@@ -1,8 +1,7 @@
 // deno-lint-ignore-file no-explicit-any
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
-import { Hono } from '@lockness/hono'
-import type { Context } from '@lockness/hono'
+import { Hono } from 'hono'
+import type { Context } from 'hono'
 import { InjectGuard } from '../decorators.ts'
 import {
     getAuth,
@@ -12,7 +11,7 @@ import type { Env } from './mocks.ts'
 import { MockSessionProvider } from './mocks.ts'
 import { SessionGuard } from '../guards/session_guard.ts'
 
-test('InjectGuard - injects guard as second parameter', async () => {
+Deno.test('InjectGuard - injects guard as second parameter', async () => {
     class TestController {
         @InjectGuard('web')
         // deno-lint-ignore require-await

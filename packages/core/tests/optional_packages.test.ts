@@ -9,7 +9,6 @@
  * missing `@lockness/redis` behind `schedulerLock` install no lock at all.
  */
 
-import { test } from 'node:test'
 import {
     assertEquals,
     assertInstanceOf,
@@ -68,7 +67,7 @@ async function capturingWarn(
     }
 }
 
-test('OPTIONAL_FEATURES - names the seven kernel keys and their packages', () => {
+Deno.test('OPTIONAL_FEATURES - names the seven kernel keys and their packages', () => {
     assertEquals(OPTIONAL_FEATURES, {
         database: '@lockness/drizzle',
         session: '@lockness/session',
@@ -80,7 +79,7 @@ test('OPTIONAL_FEATURES - names the seven kernel keys and their packages', () =>
     })
 })
 
-test('loadConfiguredPackage - an unset key imports nothing and returns null', async () => {
+Deno.test('loadConfiguredPackage - an unset key imports nothing and returns null', async () => {
     const { importModule, calls } = recordingImporter(() => {
         throw new Error('must not be called')
     })
@@ -89,7 +88,7 @@ test('loadConfiguredPackage - an unset key imports nothing and returns null', as
     assertEquals(calls, [])
 })
 
-test('loadConfiguredPackage - a key set to false is unset, not a request', async () => {
+Deno.test('loadConfiguredPackage - a key set to false is unset, not a request', async () => {
     const { importModule, calls } = recordingImporter(() => {
         throw new Error('must not be called')
     })
@@ -105,7 +104,7 @@ test('loadConfiguredPackage - a key set to false is unset, not a request', async
     assertEquals(calls, [])
 })
 
-test('loadConfiguredPackage - a set key loads its package once', async () => {
+Deno.test('loadConfiguredPackage - a set key loads its package once', async () => {
     const module = { configureCache: () => {} }
     const { importModule, calls } = recordingImporter(() =>
         Promise.resolve(module)
@@ -121,7 +120,7 @@ test('loadConfiguredPackage - a set key loads its package once', async () => {
     assertEquals(calls, ['@lockness/cache'])
 })
 
-test('loadConfiguredPackage - a set key whose package does not resolve refuses the boot', async () => {
+Deno.test('loadConfiguredPackage - a set key whose package does not resolve refuses the boot', async () => {
     const cause = unresolvable('@lockness/cache')
     const { importModule } = recordingImporter(() => Promise.reject(cause))
 
@@ -143,11 +142,11 @@ test('loadConfiguredPackage - a set key whose package does not resolve refuses t
     )
 })
 
-test('MissingOptionalPackageError - is the class @lockness/core exports', () => {
+Deno.test('MissingOptionalPackageError - is the class @lockness/core exports', () => {
     assertStrictEquals(PublicError, MissingOptionalPackageError)
 })
 
-test('loadConfiguredPackage - a missing package never warns, it refuses', async () => {
+Deno.test('loadConfiguredPackage - a missing package never warns, it refuses', async () => {
     const resolverError = unresolvable('@lockness/session')
     const { importModule } = recordingImporter(() =>
         Promise.reject(resolverError)
@@ -164,7 +163,7 @@ test('loadConfiguredPackage - a missing package never warns, it refuses', async 
     assertStrictEquals(reason.cause, resolverError)
 })
 
-test('loadConfiguredPackage - any other import failure is rethrown as the same object', async () => {
+Deno.test('loadConfiguredPackage - any other import failure is rethrown as the same object', async () => {
     // A package that resolves and then throws while evaluating is a bug in
     // that package, not an absent one — renaming it "not installed" would send
     // the operator to `deno add` for a package they already have.
@@ -182,7 +181,7 @@ test('loadConfiguredPackage - any other import failure is rethrown as the same o
     assertStrictEquals(error, broken)
 })
 
-test('importRequiredPackage - names the setting it was given, not a kernel key', async () => {
+Deno.test('importRequiredPackage - names the setting it was given, not a kernel key', async () => {
     const cause = unresolvable('@lockness/redis')
     const { importModule } = recordingImporter(() => Promise.reject(cause))
 
@@ -206,7 +205,7 @@ test('importRequiredPackage - names the setting it was given, not a kernel key',
     assertStringIncludes(error.message, 'deno add jsr:@lockness/redis')
 })
 
-test('importRequiredPackage - returns the module when it resolves', async () => {
+Deno.test('importRequiredPackage - returns the module when it resolves', async () => {
     const module = { RedisClient: class {} }
     const loaded = await importRequiredPackage(
         '@lockness/redis',
@@ -217,7 +216,7 @@ test('importRequiredPackage - returns the module when it resolves', async () => 
     assertStrictEquals(loaded, module)
 })
 
-test('isUnresolvableSpecifier - recognises the resolver failures and nothing else', () => {
+Deno.test('isUnresolvableSpecifier - recognises the resolver failures and nothing else', () => {
     assertEquals(isUnresolvableSpecifier(unresolvable('@lockness/x')), true)
     assertEquals(
         isUnresolvableSpecifier(new TypeError('Cannot resolve module "x"')),
@@ -241,7 +240,7 @@ test('isUnresolvableSpecifier - recognises the resolver failures and nothing els
     assertEquals(isUnresolvableSpecifier('not a dependency'), false)
 })
 
-test('isUnresolvableSpecifier - matches what this Deno actually raises for an undeclared package', async () => {
+Deno.test('isUnresolvableSpecifier - matches what this Deno actually raises for an undeclared package', async () => {
     // The classifier matches the resolver's message text — the one part of
     // this design that a Deno upgrade can silently break. Pinned here against
     // the real resolver, so the break shows up as a red test rather than as a
@@ -252,7 +251,7 @@ test('isUnresolvableSpecifier - matches what this Deno actually raises for an un
     assertEquals(isUnresolvableSpecifier(error), true)
 })
 
-test('defaultImportModule - loads a package the workspace declares', async () => {
+Deno.test('defaultImportModule - loads a package the workspace declares', async () => {
     const module = await defaultImportModule('@std/assert') as {
         assert?: unknown
     }

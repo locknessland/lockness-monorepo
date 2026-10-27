@@ -8,16 +8,15 @@
  * The middleware therefore held `secret: ''` no matter what the operator set.
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
-import { Hono } from '@lockness/hono'
+import { Hono } from 'hono'
 import { configureSession, getSession, sessionMiddleware } from '../mod.ts'
 import { generateAppKey } from '../secret.ts'
 
 /** The exact value from #137's report. */
 const FORGERY = 'JTdCJTIyYXV0aF93ZWIlMjIlM0ExJTdE'
 
-test('config - a secret set AFTER the factory call still reaches the driver', async () => {
+Deno.test('config - a secret set AFTER the factory call still reaches the driver', async () => {
     // The kernel's ordering, reproduced. Before FR-012 this emitted the #137
     // cookie value verbatim with a perfectly good key configured.
     const middleware = sessionMiddleware()
@@ -43,7 +42,7 @@ test('config - a secret set AFTER the factory call still reaches the driver', as
     assertEquals(cookie.includes('lockness_session=c1.'), true)
 })
 
-test('config - a session id that is not 64 hex characters is discarded', async () => {
+Deno.test('config - a session id that is not 64 hex characters is discarded', async () => {
     // FR-020. The id goes straight to a storage backend as a key
     // (redis.ts:114, deno_kv.ts:41), and Hono URL-decodes the cookie before we
     // see it — so %0D%0A arrives as raw CR/LF. Sending the encoded form is the
@@ -73,7 +72,7 @@ test('config - a session id that is not 64 hex characters is discarded', async (
     }
 })
 
-test('config - a well-formed session id is honoured', async () => {
+Deno.test('config - a well-formed session id is honoured', async () => {
     configureSession({ driver: 'memory', secret: generateAppKey() })
 
     const app = new Hono()
@@ -88,7 +87,7 @@ test('config - a well-formed session id is honoured', async () => {
     assertEquals(await res.text(), good)
 })
 
-test('config - a sealed cookie survives a real HTTP round trip', async () => {
+Deno.test('config - a sealed cookie survives a real HTTP round trip', async () => {
     // The end-to-end gap: everything else asserts against seal/open directly or
     // against one request. This drives two requests through Hono, carrying the
     // Set-Cookie from the first into the second, which is the only shape that
@@ -120,7 +119,7 @@ test('config - a sealed cookie survives a real HTTP round trip', async () => {
     assertEquals(await second.json(), { seen: 42 })
 })
 
-test('config - the round-trip cookie does not survive a key change', async () => {
+Deno.test('config - the round-trip cookie does not survive a key change', async () => {
     // The other half: what a rotation actually does to a live session.
     configureSession({ driver: 'cookie', secret: generateAppKey() })
     const app = new Hono()

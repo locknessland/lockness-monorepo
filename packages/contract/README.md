@@ -31,9 +31,8 @@ import { Context, Controller, Get } from '@lockness/contract'
 
 ## Upgrading to v0.5.0
 
-Two items. **Migration step:** rename `DENO_ENV` to `APP_ENV` wherever you set
-it, and grant `--allow-env=APP_ENV` to any binary or hardened run that narrows
-`--allow-env`.
+One item. **Migration step:** rename `DENO_ENV` to `APP_ENV` wherever you set
+it.
 
 ### 1. `APP_ENV` is the only environment signal; `DENO_ENV` is no longer read
 
@@ -57,28 +56,6 @@ true.
   The `Dockerfile` generated before v0.5.0 set `ENV DENO_ENV=production`; change
   it to `ENV APP_ENV=production`.
 - The tripwire is removed in v0.7.0. After that, a `DENO_ENV` is ignored.
-
-### 2. An unreadable `APP_ENV` is a production risk, and boots with a warning
-
-A process that cannot read `APP_ENV` (a `deno compile` binary built without the
-env grant: custom `compile.flags` that narrow `--allow-env`, since the default
-build uses `-A`; or a hardened run whose `--allow-env` lists variables but not
-`APP_ENV`) used to read it as unset, so it looked like development to every
-control (#624). The read never prompts, and an unreadable `APP_ENV` is now kept
-distinct from an unset one.
-
-- **Newly refused:** with a cookie session and no `APP_KEY`, such a process
-  refuses to boot instead of starting on a per-process key. `db:seed`,
-  `db:fresh` and factory `create()` refuse unless `--allow-production` (or
-  `{ allowProduction: true }`) is passed. The mail preview stays off and its
-  route 404s.
-- **Warned:** the boot prints one warning naming `--allow-env=APP_ENV`, before
-  the `DENO_ENV` tripwire acts.
-- **Unchanged:** `isProduction()`, `isExplicitlyDevelopment()` and
-  `resolveEnvName()` still read an unreadable `APP_ENV` as absent, and an
-  `APP_ENV` that is readable and unset is still not production.
-- **The fix:** grant `--allow-env=APP_ENV` (in the `deno compile` flags or the
-  run command) so the process can tell which environment it is in.
 
 ## License
 

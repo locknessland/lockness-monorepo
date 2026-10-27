@@ -10,7 +10,6 @@
  * @module
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import {
     BOOT_LOG_FAILURES,
@@ -19,14 +18,14 @@ import {
     judgeBootLog,
 } from './kit_smoke.ts'
 
-test('judgeBootLog - a clean boot passes', () => {
+Deno.test('judgeBootLog - a clean boot passes', () => {
     const verdict = judgeBootLog(
         '✓ Scheduler started: 0 task(s) armed of 0 registered\nListening on http://localhost:8931/\n',
     )
     assertEquals(verdict.ok, true)
 })
 
-test('judgeBootLog - the old optional-package probe fails the kit', () => {
+Deno.test('judgeBootLog - the old optional-package probe fails the kit', () => {
     const verdict = judgeBootLog(
         'Listening\n⚠️  @lockness/cache not found - skipping cache setup\n',
     )
@@ -35,7 +34,7 @@ test('judgeBootLog - the old optional-package probe fails the kit', () => {
     assertStringIncludes(verdict.detail, BOOT_LOG_FAILURES[0].reason)
 })
 
-test('judgeBootLog - a MissingOptionalPackageError refusal fails the kit', () => {
+Deno.test('judgeBootLog - a MissingOptionalPackageError refusal fails the kit', () => {
     const verdict = judgeBootLog(
         'error: Uncaught (in promise) MissingOptionalPackageError: @lockness/cache is configured but not installed\n',
     )
@@ -43,7 +42,7 @@ test('judgeBootLog - a MissingOptionalPackageError refusal fails the kit', () =>
     assertStringIncludes(verdict.detail, BOOT_LOG_FAILURES[1].reason)
 })
 
-test('judgeBootLog - any other warning is the app’s business', () => {
+Deno.test('judgeBootLog - any other warning is the app’s business', () => {
     // A judge that failed on every warning would be switched off within a
     // week; it judges the loader's lines and nothing else.
     const verdict = judgeBootLog(
@@ -52,7 +51,7 @@ test('judgeBootLog - any other warning is the app’s business', () => {
     assertEquals(verdict.ok, true)
 })
 
-test('cacheRuns - memory by default, deno-kv in production on an in-memory database', () => {
+Deno.test('cacheRuns - memory by default, deno-kv in production on an in-memory database', () => {
     const [memory, kv] = cacheRuns()
     assertEquals(memory.driver, 'memory')
     assertEquals(kv.driver, 'deno-kv')
@@ -61,7 +60,7 @@ test('cacheRuns - memory by default, deno-kv in production on an in-memory datab
     assert(kv.env.APP_KEY, 'production needs a key, or a session kit refuses')
 })
 
-test('the cache probe boots the kit kernel and round-trips set/get/forget', () => {
+Deno.test('the cache probe boots the kit kernel and round-trips set/get/forget', () => {
     for (
         const needle of [
             "from './app/kernel.ts'",

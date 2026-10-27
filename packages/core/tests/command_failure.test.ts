@@ -13,7 +13,6 @@
  * @module @lockness/core/tests/command_failure
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { Cli } from '@lockness/cli'
 import { CoreCommandFailure } from '../cli/command_failure.ts'
@@ -42,7 +41,7 @@ function cliThrowing(failure: Error): Cli {
     return cli
 }
 
-test('CoreCommandFailure - has the contract shape, its own name and Error options', () => {
+Deno.test('CoreCommandFailure - has the contract shape, its own name and Error options', () => {
     const cause = new Error('root')
     const failure = new CoreCommandFailure('compile failed', { cause })
     assert(failure instanceof Error)
@@ -52,7 +51,7 @@ test('CoreCommandFailure - has the contract shape, its own name and Error option
     assertEquals(failure.cause, cause)
 })
 
-test('CoreCommandFailure - Cli.dispatch exits 1 with one ❌ line and no stack', async () => {
+Deno.test('CoreCommandFailure - Cli.dispatch exits 1 with one ❌ line and no stack', async () => {
     const cli = cliThrowing(new CoreCommandFailure('No kernel found'))
     const { result, error } = await captureErrors(() => cli.dispatch(['task']))
     assertEquals(result, 1)
@@ -60,7 +59,7 @@ test('CoreCommandFailure - Cli.dispatch exits 1 with one ❌ line and no stack',
     assertEquals(error[0], ['❌ No kernel found'])
 })
 
-test('CoreCommandFailure - Cli.dispatch prints the cause rendered, on the same line', async () => {
+Deno.test('CoreCommandFailure - Cli.dispatch prints the cause rendered, on the same line', async () => {
     const cli = cliThrowing(
         new CoreCommandFailure('Failed to generate routes', {
             cause: new Error('bad controller'),

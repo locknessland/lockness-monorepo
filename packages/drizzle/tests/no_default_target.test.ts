@@ -17,7 +17,6 @@
  * @module @lockness/drizzle/tests/no_default_target
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { join } from '@std/path'
 import { CommandFailedError } from '@lockness/cli/command-failure'
@@ -170,7 +169,7 @@ async function runBoth(): Promise<{
     }
 }
 
-test('#443 T2 db:fresh and db:seed resolve the same url from the rendered config', async () => {
+Deno.test('#443 T2 db:fresh and db:seed resolve the same url from the rendered config', async () => {
     await withEnv(
         { DATABASE_URL: PG_URL, APP_ENV: undefined, DENO_ENV: undefined },
         () =>
@@ -186,7 +185,7 @@ test('#443 T2 db:fresh and db:seed resolve the same url from the rendered config
     )
 })
 
-test('#443 T2 with DATABASE_URL unset, db:fresh and db:seed both refuse without connecting', async () => {
+Deno.test('#443 T2 with DATABASE_URL unset, db:fresh and db:seed both refuse without connecting', async () => {
     await withEnv(
         { DATABASE_URL: undefined, APP_ENV: undefined, DENO_ENV: undefined },
         () =>
@@ -215,7 +214,7 @@ const DIALECTS: ReadonlyArray<readonly [url: string, kitDialect: string]> = [
 ]
 
 for (const [url, kitDialect] of DIALECTS) {
-    test(`#555 T3 the ${kitDialect} drizzle.config.ts names no url and no fallback`, async () => {
+    Deno.test(`#555 T3 the ${kitDialect} drizzle.config.ts names no url and no fallback`, async () => {
         const cwd = Deno.cwd()
         const tmp = await Deno.makeTempDir()
         try {

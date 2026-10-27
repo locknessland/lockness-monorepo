@@ -2,12 +2,11 @@
  * Tests for CLI make:listener command
  */
 
-import { test } from 'node:test'
 import { assertEquals, assertStringIncludes } from '@std/assert'
 import { Stub } from '../stubs.ts'
 
-test('make:listener', async (t) => {
-    await t.test('generates valid listener from stub', async () => {
+Deno.test('make:listener', async (t) => {
+    await t.step('generates valid listener from stub', async () => {
         const content = await Stub.render('make', 'listener', {
             className: 'UserListener',
             description: 'user',
@@ -17,7 +16,7 @@ test('make:listener', async (t) => {
         assertStringIncludes(content, '@Service()')
     })
 
-    await t.test('includes required imports', async () => {
+    await t.step('includes required imports', async () => {
         const content = await Stub.render('make', 'listener', {
             className: 'OrderListener',
             description: 'order',
@@ -33,7 +32,7 @@ test('make:listener', async (t) => {
         )
     })
 
-    await t.test('replaces all placeholders correctly', async () => {
+    await t.step('replaces all placeholders correctly', async () => {
         const content = await Stub.render('make', 'listener', {
             className: 'PaymentListener',
             description: 'payment',
@@ -50,7 +49,7 @@ test('make:listener', async (t) => {
         assertStringIncludes(content, 'payment')
     })
 
-    await t.test('has commented @Listener example', async () => {
+    await t.step('has commented @Listener example', async () => {
         const content = await Stub.render('make', 'listener', {
             className: 'NotificationListener',
             description: 'notification',

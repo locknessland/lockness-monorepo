@@ -7,7 +7,6 @@
  * worked.
  */
 
-import { test } from 'node:test'
 import { assertEquals, assertThrows } from '@std/assert'
 import { isDebugEnabled, setEventsDebug } from '@lockness/events'
 import { eventsDebugStep } from '../kernel/bootstrap/steps/events_debug.ts'
@@ -32,7 +31,7 @@ function withEnv(value: string | undefined, run: () => void): void {
     }
 }
 
-test('eventsDebugStep - unset leaves the switch alone', () => {
+Deno.test('eventsDebugStep - unset leaves the switch alone', () => {
     // Set it TRUE first. Setting it false and asserting false would pass for a
     // step that unconditionally forces it off — i.e. for a step that does not
     // leave it alone, which is the only thing this test is named for.
@@ -43,7 +42,7 @@ test('eventsDebugStep - unset leaves the switch alone', () => {
     })
 })
 
-test('eventsDebugStep - an empty value leaves the switch alone too', () => {
+Deno.test('eventsDebugStep - an empty value leaves the switch alone too', () => {
     withEnv('', () => {
         setEventsDebug(true)
         eventsDebugStep.run(context)
@@ -51,7 +50,7 @@ test('eventsDebugStep - an empty value leaves the switch alone too', () => {
     })
 })
 
-test('eventsDebugStep - a DENIED env permission reads as off, never throws', async () => {
+Deno.test('eventsDebugStep - a DENIED env permission reads as off, never throws', async () => {
     // plan.md:104 requires it, and it was neither implemented nor tested:
     // `Deno.env.get` raises NotCapable rather than returning undefined, and
     // this step runs at bootstrap order 10 — so a `deno compile` binary with a
@@ -107,7 +106,7 @@ test('eventsDebugStep - a DENIED env permission reads as off, never throws', asy
     }
 })
 
-test('eventsDebugStep - every ON value enables it', () => {
+Deno.test('eventsDebugStep - every ON value enables it', () => {
     for (const value of ['1', 'true', 'on', 'yes', 'TRUE', '  on  ']) {
         withEnv(value, () => {
             setEventsDebug(false)
@@ -117,7 +116,7 @@ test('eventsDebugStep - every ON value enables it', () => {
     }
 })
 
-test('eventsDebugStep - every OFF value disables it', () => {
+Deno.test('eventsDebugStep - every OFF value disables it', () => {
     for (const value of ['0', 'false', 'off', 'no', 'FALSE', ' off ']) {
         withEnv(value, () => {
             setEventsDebug(true)
@@ -127,7 +126,7 @@ test('eventsDebugStep - every OFF value disables it', () => {
     }
 })
 
-test('eventsDebugStep - a trailing space or a CRLF still parses', () => {
+Deno.test('eventsDebugStep - a trailing space or a CRLF still parses', () => {
     // The shape that motivates trimming: a value copied into a .env file on
     // Windows arrives as "true\r". A denylist would read that as "not off,
     // therefore on" — right by accident here, wrong for "false\r".
@@ -138,7 +137,7 @@ test('eventsDebugStep - a trailing space or a CRLF still parses', () => {
     })
 })
 
-test('eventsDebugStep - an unrecognised value throws AT BOOT', () => {
+Deno.test('eventsDebugStep - an unrecognised value throws AT BOOT', () => {
     // Loud, and here rather than in the emitter. `isDebugEnabled()` is
     // consulted on every dispatch and lifecycle_middleware emits on every
     // request, so the same throw inside the library would turn one environment
@@ -152,14 +151,14 @@ test('eventsDebugStep - an unrecognised value throws AT BOOT', () => {
     })
 })
 
-test('eventsDebugStep - runs before anything can emit', () => {
+Deno.test('eventsDebugStep - runs before anything can emit', () => {
     // The events step, which dispatches KernelBooted, is order 400. A switch
     // read after that would miss the boot it was turned on to diagnose.
     assertEquals(eventsDebugStep.order, 10)
     assertEquals(eventsDebugStep.id, 'events_debug')
 })
 
-test('eventsDebugStep - is actually wired into the bootstrap registry', () => {
+Deno.test('eventsDebugStep - is actually wired into the bootstrap registry', () => {
     // Asserting the step's own `order` and `id` says nothing about whether any
     // application runs it. Delete one line from registry.ts and the whole debug
     // feature is dead in every running app, with the suite fully green — the

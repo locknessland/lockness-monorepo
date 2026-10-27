@@ -4,12 +4,11 @@
  * @module @lockness/i18n/tests/extract
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { join } from '@std/path'
 import { diffKeys, extractKeys, hasDynamicKeys, walkKeys } from '../extract.ts'
 
-test('extractKeys finds t()/trans() string-literal keys', () => {
+Deno.test('extractKeys finds t()/trans() string-literal keys', () => {
     const src = `
         const a = t('auth.failed')
         const b = trans("cart.items", { count })
@@ -22,19 +21,19 @@ test('extractKeys finds t()/trans() string-literal keys', () => {
     ])
 })
 
-test('hasDynamicKeys flags a non-literal key, never guesses it', () => {
+Deno.test('hasDynamicKeys flags a non-literal key, never guesses it', () => {
     assert(hasDynamicKeys('t(key)'))
     assert(hasDynamicKeys('trans(`x`)'))
     assert(!hasDynamicKeys("t('static.key')"))
 })
 
-test('diffKeys reports missing (used not in catalog) and unused (in catalog not used)', () => {
+Deno.test('diffKeys reports missing (used not in catalog) and unused (in catalog not used)', () => {
     const used = new Set(['a', 'b', 'c'])
     const catalog = new Set(['b', 'c', 'd'])
     assertEquals(diffKeys(used, catalog), { missing: ['a'], unused: ['d'] })
 })
 
-test('SC-006: walkKeys scans .ts/.tsx under a bounded root', async () => {
+Deno.test('SC-006: walkKeys scans .ts/.tsx under a bounded root', async () => {
     const dir = await Deno.makeTempDir()
     try {
         await Deno.mkdir(join(dir, 'sub'))

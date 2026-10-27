@@ -24,7 +24,6 @@
  * @module
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { parse as parseJsonc } from '@std/jsonc'
 import { fromFileUrl } from '@std/path'
@@ -120,7 +119,7 @@ function copySources(dockerfile: string): string[] {
 
 // (a) -----------------------------------------------------------------------
 
-test('(a) every tracked Dockerfile carries the init stub health-check block', async () => {
+Deno.test('(a) every tracked Dockerfile carries the init stub health-check block', async () => {
     const files = await trackedDockerfiles()
     // Without this, an empty listing (git missing, wrong cwd) passes.
     assert(files.includes(STUB_PATH), `the stub is not tracked: ${files}`)
@@ -136,7 +135,7 @@ test('(a) every tracked Dockerfile carries the init stub health-check block', as
 
 // (b) -----------------------------------------------------------------------
 
-test('(b) the health check polls /health on $PORT, a route the framework registers', async () => {
+Deno.test('(b) the health check polls /health on $PORT, a route the framework registers', async () => {
     const block = healthBlock(await Deno.readTextFile(STUB_DOCKERFILE))
     const path = probedPath(block)
     assertEquals(path, '/health')
@@ -155,7 +154,7 @@ test('(b) the health check polls /health on $PORT, a route the framework registe
 
 // (c) -----------------------------------------------------------------------
 
-test('(c) every kit scaffolds the one shared Dockerfile stub, and none overrides it', async () => {
+Deno.test('(c) every kit scaffolds the one shared Dockerfile stub, and none overrides it', async () => {
     for (const kit of KIT_NAMES) {
         assert(
             KITS[kit].base.includes('Dockerfile.stub'),
@@ -180,7 +179,7 @@ test('(c) every kit scaffolds the one shared Dockerfile stub, and none overrides
 
 // (d) -----------------------------------------------------------------------
 
-test('(d) every file the stub COPYs by name is one every kit scaffolds', async () => {
+Deno.test('(d) every file the stub COPYs by name is one every kit scaffolds', async () => {
     const sources = copySources(await Deno.readTextFile(STUB_DOCKERFILE))
     assert(sources.includes('deno.json'), `no COPY of deno.json: ${sources}`)
     for (const kit of KIT_NAMES) {
@@ -197,7 +196,7 @@ test('(d) every file the stub COPYs by name is one every kit scaffolds', async (
     }
 })
 
-test('(d) every kit defines the build task the stub runs', async () => {
+Deno.test('(d) every kit defines the build task the stub runs', async () => {
     const stub = await Deno.readTextFile(STUB_DOCKERFILE)
     assert(
         /^RUN deno task build\b/m.test(stub),
@@ -217,7 +216,7 @@ test('(d) every kit defines the build task the stub runs', async () => {
     }
 })
 
-test('(d) the CMD entrypoint is a file every kit takes from the shared base', async () => {
+Deno.test('(d) the CMD entrypoint is a file every kit takes from the shared base', async () => {
     const stub = await Deno.readTextFile(STUB_DOCKERFILE)
     const cmd = stub.match(/^CMD (\[.*\])$/m)
     assert(cmd !== null, 'no exec-form CMD in the stub')
@@ -232,7 +231,7 @@ test('(d) the CMD entrypoint is a file every kit takes from the shared base', as
     }
 })
 
-test('(d) the build context leaves out every env file but the example, and key files', async () => {
+Deno.test('(d) the build context leaves out every env file but the example, and key files', async () => {
     // `COPY . .` copies the whole project: anything not ignored here lands in
     // an image layer, readable by whoever can pull the image.
     const ignored = (await Deno.readTextFile(
@@ -263,7 +262,7 @@ test('(d) the build context leaves out every env file but the example, and key f
     )
 })
 
-test('(d) git ignores every env file but the example, and key files', async () => {
+Deno.test('(d) git ignores every env file but the example, and key files', async () => {
     // Git matches a slash-free pattern at any depth, so no `**/` is needed.
     const ignored = (await Deno.readTextFile(
         new URL('../packages/init/stubs/init/.gitignore.stub', import.meta.url),
@@ -287,7 +286,7 @@ test('(d) git ignores every env file but the example, and key files', async () =
     )
 })
 
-test('(d) the default DENO_VERSION is the version .dvmrc pins', async () => {
+Deno.test('(d) the default DENO_VERSION is the version .dvmrc pins', async () => {
     const stub = await Deno.readTextFile(STUB_DOCKERFILE)
     const arg = stub.match(/^ARG DENO_VERSION=(\S+)$/m)
     assert(arg !== null, 'no ARG DENO_VERSION default in the stub')

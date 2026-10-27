@@ -11,12 +11,11 @@
  * @module @lockness/redis/tests/backoff
  */
 
-import { test } from 'node:test'
 import { assert } from '@std/assert'
 import { nextDelay } from '../backoff.ts'
 import { pinRandom, TOP_DRAW } from './pinned_random.ts'
 
-test('#299: the delay grows exponentially until the cap, then stops', () => {
+Deno.test('#299: the delay grows exponentially until the cap, then stops', () => {
     const base = 100
     const max = 1000
     // Full jitter means each call is a draw from [1, ceiling], so the CEILING
@@ -49,7 +48,7 @@ test('#299: the delay grows exponentially until the cap, then stops', () => {
     }
 })
 
-test('#299: the delay is never zero', () => {
+Deno.test('#299: the delay is never zero', () => {
     // `Math.floor(Math.random() * ceiling)` is 0 whenever the sample lands in
     // the first 1/ceiling of the interval, and a zero delay is no delay at all
     // — the window would close the instant it opened.
@@ -58,7 +57,7 @@ test('#299: the delay is never zero', () => {
     }
 })
 
-test('#299: the cap binds regardless of how far the streak runs', () => {
+Deno.test('#299: the cap binds regardless of how far the streak runs', () => {
     // 2 ** 39 milliseconds is about 17 years; without the `min` it overflows
     // any sane window and the client stops retrying for the life of the
     // universe rather than the life of the outage.

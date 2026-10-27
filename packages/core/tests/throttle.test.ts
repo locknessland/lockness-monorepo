@@ -7,10 +7,9 @@
  * exists once the middleware chain has been assembled.
  */
 
-import { test } from 'node:test'
 import { assertEquals, assertThrows } from '@std/assert'
-import { Hono } from '@lockness/hono'
-import type { Context } from '@lockness/hono'
+import { Hono } from 'hono'
+import type { Context } from 'hono'
 import { parseTimeWindow } from '@lockness/contract'
 import {
     Controller,
@@ -53,19 +52,19 @@ async function hit(
 // parseTimeWindow
 // ============================================================================
 
-test('parseTimeWindow - converts every shorthand unit', () => {
+Deno.test('parseTimeWindow - converts every shorthand unit', () => {
     assertEquals(parseTimeWindow('30s'), 30_000)
     assertEquals(parseTimeWindow('15m'), 900_000)
     assertEquals(parseTimeWindow('2h'), 7_200_000)
     assertEquals(parseTimeWindow('1d'), 86_400_000)
 })
 
-test('parseTimeWindow - passes raw milliseconds through', () => {
+Deno.test('parseTimeWindow - passes raw milliseconds through', () => {
     assertEquals(parseTimeWindow(500), 500)
     assertEquals(parseTimeWindow(60_000), 60_000)
 })
 
-test('parseTimeWindow - rejects malformed input rather than defaulting', () => {
+Deno.test('parseTimeWindow - rejects malformed input rather than defaulting', () => {
     // A silently defaulted window would under-protect the route it guards, so
     // each of these must throw.
     for (const bad of ['1w', 'm', '', '10', 'abc', '-5s', '1 m']) {
@@ -78,13 +77,13 @@ test('parseTimeWindow - rejects malformed input rather than defaulting', () => {
     }
 })
 
-test('parseTimeWindow - rejects non-positive and non-finite numbers', () => {
+Deno.test('parseTimeWindow - rejects non-positive and non-finite numbers', () => {
     for (const bad of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
         assertThrows(() => parseTimeWindow(bad), TypeError)
     }
 })
 
-test('parseTimeWindow - accepts fractional quantities', () => {
+Deno.test('parseTimeWindow - accepts fractional quantities', () => {
     assertEquals(parseTimeWindow('0.5m' as never), 30_000)
 })
 
@@ -92,7 +91,7 @@ test('parseTimeWindow - accepts fractional quantities', () => {
 // Decorator validation
 // ============================================================================
 
-test('Throttle - rejects a non-positive or fractional limit at decoration time', () => {
+Deno.test('Throttle - rejects a non-positive or fractional limit at decoration time', () => {
     for (const bad of [0, -1, 2.5, Number.NaN]) {
         assertThrows(() => Throttle(bad, '1m'), TypeError)
     }
@@ -102,7 +101,7 @@ test('Throttle - rejects a non-positive or fractional limit at decoration time',
 // Single route
 // ============================================================================
 
-test('Throttle - allows up to the limit then rejects with 429', async () => {
+Deno.test('Throttle - allows up to the limit then rejects with 429', async () => {
     @Controller('/api')
     class C {
         @Get('/ping')
@@ -116,7 +115,7 @@ test('Throttle - allows up to the limit then rejects with 429', async () => {
     assertEquals(statuses, [200, 200, 200, 429, 429])
 })
 
-test('Throttle - counts each client separately', async () => {
+Deno.test('Throttle - counts each client separately', async () => {
     @Controller('/api')
     class C {
         @Get('/ping')
@@ -136,7 +135,7 @@ test('Throttle - counts each client separately', async () => {
     assertEquals(second, [200, 200, 429], 'a second client gets its own budget')
 })
 
-test('Throttle - an undecorated route is not limited', async () => {
+Deno.test('Throttle - an undecorated route is not limited', async () => {
     @Controller('/api')
     class C {
         @Get('/limited')
@@ -160,7 +159,7 @@ test('Throttle - an undecorated route is not limited', async () => {
 // Controller-wide, and method override
 // ============================================================================
 
-test('Throttle - a controller-wide rule covers every route', async () => {
+Deno.test('Throttle - a controller-wide rule covers every route', async () => {
     @Controller('/api')
     @Throttle(2, '1m')
     class C {
@@ -181,7 +180,7 @@ test('Throttle - a controller-wide rule covers every route', async () => {
     assertEquals(await hit(app, '/api/b', 3), [200, 200, 429])
 })
 
-test('Throttle - a method rule replaces the controller rule, and can loosen it', async () => {
+Deno.test('Throttle - a method rule replaces the controller rule, and can loosen it', async () => {
     @Controller('/api')
     @Throttle(1, '1m')
     class C {
@@ -206,7 +205,7 @@ test('Throttle - a method rule replaces the controller rule, and can loosen it',
     )
 })
 
-test('Throttle - a method rule can also tighten the controller rule', async () => {
+Deno.test('Throttle - a method rule can also tighten the controller rule', async () => {
     @Controller('/api')
     @Throttle(10, '1m')
     class C {
@@ -224,7 +223,7 @@ test('Throttle - a method rule can also tighten the controller rule', async () =
 // Options
 // ============================================================================
 
-test('Throttle - skip bypasses the limit without consuming budget', async () => {
+Deno.test('Throttle - skip bypasses the limit without consuming budget', async () => {
     @Controller('/api')
     class C {
         @Get('/ping')
@@ -250,7 +249,7 @@ test('Throttle - skip bypasses the limit without consuming budget', async () => 
     assertEquals(counted, [200, 429])
 })
 
-test('Throttle - by header gives each key its own budget', async () => {
+Deno.test('Throttle - by header gives each key its own budget', async () => {
     @Controller('/api')
     class C {
         @Get('/ping')
@@ -278,7 +277,7 @@ test('Throttle - by header gives each key its own budget', async () => {
     )
 })
 
-test('Throttle - a custom key generator is honoured', async () => {
+Deno.test('Throttle - a custom key generator is honoured', async () => {
     @Controller('/api')
     class C {
         @Get('/ping')
@@ -298,7 +297,7 @@ test('Throttle - a custom key generator is honoured', async () => {
     ])
 })
 
-test('Throttle - custom message and status code shape the rejection', async () => {
+Deno.test('Throttle - custom message and status code shape the rejection', async () => {
     @Controller('/api')
     class C {
         @Get('/ping')
@@ -317,7 +316,7 @@ test('Throttle - custom message and status code shape the rejection', async () =
     assertEquals(await res.text(), 'slow down')
 })
 
-test('Throttle - headers:false suppresses the RateLimit headers', async () => {
+Deno.test('Throttle - headers:false suppresses the RateLimit headers', async () => {
     @Controller('/api')
     class Loud {
         @Get('/ping')
@@ -351,7 +350,7 @@ test('Throttle - headers:false suppresses the RateLimit headers', async () => {
 // Presets
 // ============================================================================
 
-test('Throttle presets - each applies its documented limit', async () => {
+Deno.test('Throttle presets - each applies its documented limit', async () => {
     @Controller('/p')
     class C {
         @Get('/login')
@@ -391,7 +390,7 @@ test('Throttle presets - each applies its documented limit', async () => {
     )
 })
 
-test('ThrottleApi - allows 100 requests per minute at controller level', async () => {
+Deno.test('ThrottleApi - allows 100 requests per minute at controller level', async () => {
     @Controller('/api')
     @ThrottleApi()
     class C {

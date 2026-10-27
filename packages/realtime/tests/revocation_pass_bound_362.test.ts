@@ -33,7 +33,6 @@
  * @module @lockness/realtime/tests/revocation_pass_bound_362
  */
 
-import { test } from 'node:test'
 import {
     assert,
     assertEquals,
@@ -135,24 +134,24 @@ function refused(
     return message
 }
 
-test('#362 B1 an interval above half the revocation TTL is refused by the relation', () => {
+Deno.test('#362 B1 an interval above half the revocation TTL is refused by the relation', () => {
     const message = refused('relation', { interval: 10_000, ttl: 15 })
     assertStringIncludes(message, '(15000ms)')
     assertStringIncludes(message, 'presence.reconcileIntervalMs=10000ms')
     assertStringIncludes(message, 'revocationTtlSeconds=15s')
 })
 
-test('#362 B2 an interval of exactly half the revocation TTL constructs (the boundary)', () => {
+Deno.test('#362 B2 an interval of exactly half the revocation TTL constructs (the boundary)', () => {
     build({ interval: 10_000, ttl: 20 })
 })
 
-test('#362 B3 the defaults construct, through the constructor and fromConfig', async () => {
+Deno.test('#362 B3 the defaults construct, through the constructor and fromConfig', async () => {
     build({})
     const driver = RedisBroadcastDriver.fromConfig({ hostname: '127.0.0.1' })
     await driver.close()
 })
 
-test('#362 B4 a NaN, zero, negative or infinite interval is refused by the guard', () => {
+Deno.test('#362 B4 a NaN, zero, negative or infinite interval is refused by the guard', () => {
     for (const interval of [NaN, 0, -1, Infinity]) {
         const message = refused('guard', { interval, ttl: 300 })
         assertStringIncludes(
@@ -163,7 +162,7 @@ test('#362 B4 a NaN, zero, negative or infinite interval is refused by the guard
     }
 })
 
-test('#362 B5 a NaN, zero, negative or infinite revocation TTL is refused by the guard', () => {
+Deno.test('#362 B5 a NaN, zero, negative or infinite revocation TTL is refused by the guard', () => {
     for (const ttl of [NaN, 0, -1, Infinity]) {
         const message = refused('guard', { interval: 10_000, ttl })
         assertStringIncludes(message, `revocationTtlSeconds=${ttl}`)
@@ -171,7 +170,7 @@ test('#362 B5 a NaN, zero, negative or infinite revocation TTL is refused by the
     }
 })
 
-test('#362 B6 a fractional or timer-overflowing TTL and a sub-millisecond interval are refused by the guard', () => {
+Deno.test('#362 B6 a fractional or timer-overflowing TTL and a sub-millisecond interval are refused by the guard', () => {
     refused('guard', { interval: 1_000, ttl: 7.5 })
     refused('guard', { interval: 1_000, ttl: MAX_TTL_SECONDS + 1 })
     refused('guard', { interval: 0.5, ttl: 300 })
@@ -332,7 +331,7 @@ async function reachedNow(gate: CommandGate, time: FakeTime): Promise<boolean> {
     return reached
 }
 
-test('#362 D1 a command that never settles is reported once as STALLED, and no second pass starts', async () => {
+Deno.test('#362 D1 a command that never settles is reported once as STALLED, and no second pass starts', async () => {
     await withClock(async (time, logs) => {
         const { port, driver, listen } = instance({ interval: 1_000 })
         const page = port.hold(isPageRead)
@@ -353,7 +352,7 @@ test('#362 D1 a command that never settles is reported once as STALLED, and no s
     })
 })
 
-test('#362 D2 a failure run is reported once per episode, and a success re-arms', async () => {
+Deno.test('#362 D2 a failure run is reported once per episode, and a success re-arms', async () => {
     await withClock(async (time, logs) => {
         const { port, driver, listen } = instance({ interval: 3_000 })
         port.failFrom(isReap)
@@ -375,7 +374,7 @@ test('#362 D2 a failure run is reported once per episode, and a success re-arms'
     })
 })
 
-test('#362 D3 healthy passes never write a deadline line', async () => {
+Deno.test('#362 D3 healthy passes never write a deadline line', async () => {
     await withClock(async (time, logs) => {
         const { port, driver, listen } = instance({ interval: 1_000 })
         listen()
@@ -387,7 +386,7 @@ test('#362 D3 healthy passes never write a deadline line', async () => {
     })
 })
 
-test('#362 D4 (a) the deadline is anchored at the START of the last success', async () => {
+Deno.test('#362 D4 (a) the deadline is anchored at the START of the last success', async () => {
     await withClock(async (time, logs) => {
         const { port, driver, listen } = instance({ interval: 1_000 })
         const reply = port.hold(isReap)
@@ -406,7 +405,7 @@ test('#362 D4 (a) the deadline is anchored at the START of the last success', as
     })
 })
 
-test('#362 D4 (b) a pass held past the TTL is STALLED at the last success start + TTL, then MISSED at its end', async () => {
+Deno.test('#362 D4 (b) a pass held past the TTL is STALLED at the last success start + TTL, then MISSED at its end', async () => {
     await withClock(async (time, logs) => {
         const { port, driver, listen } = instance({ interval: 1_000 })
         listen()
@@ -431,7 +430,7 @@ test('#362 D4 (b) a pass held past the TTL is STALLED at the last success start 
     })
 })
 
-test('#362 D4b an overdue arm writes MISSED even when a trailing pass started first', async () => {
+Deno.test('#362 D4b an overdue arm writes MISSED even when a trailing pass started first', async () => {
     await withClock(async (time, logs) => {
         const { port, driver, listen, reconnect } = instance({
             interval: 1_000,
@@ -461,7 +460,7 @@ test('#362 D4b an overdue arm writes MISSED even when a trailing pass started fi
     })
 })
 
-test('#362 D4c an overdue MISSED carry survives a trailing pass that succeeds before its flush timer (#383)', async () => {
+Deno.test('#362 D4c an overdue MISSED carry survives a trailing pass that succeeds before its flush timer (#383)', async () => {
     await withClock(async (time, logs) => {
         const { port, driver, listen, reconnect } = instance({
             interval: 1_000,
@@ -504,7 +503,7 @@ test('#362 D4c an overdue MISSED carry survives a trailing pass that succeeds be
     })
 })
 
-test('#362 D5 (i) close() during a pass that then succeeds arms nothing', async () => {
+Deno.test('#362 D5 (i) close() during a pass that then succeeds arms nothing', async () => {
     await withClock(async (time, logs) => {
         const { port, driver, listen } = instance({ interval: 1_000 })
         const page = port.hold(isPageRead)
@@ -520,7 +519,7 @@ test('#362 D5 (i) close() during a pass that then succeeds arms nothing', async 
     })
 })
 
-test('#362 D5 (ii) close() clears a pending deadline', async () => {
+Deno.test('#362 D5 (ii) close() clears a pending deadline', async () => {
     await withClock(async (time, logs) => {
         const { driver, listen } = instance({ interval: 1_000 })
         listen()
@@ -531,7 +530,7 @@ test('#362 D5 (ii) close() clears a pending deadline', async () => {
     })
 })
 
-test('#362 D5 (iii) a registration after close() arms nothing', async () => {
+Deno.test('#362 D5 (iii) a registration after close() arms nothing', async () => {
     await withClock(async (time, logs) => {
         const { driver, listen } = instance({ interval: 1_000 })
         await driver.close()
@@ -541,7 +540,7 @@ test('#362 D5 (iii) a registration after close() arms nothing', async () => {
     })
 })
 
-test('#362 D5 (iv) a re-registration during a failure run does not postpone the deadline', async () => {
+Deno.test('#362 D5 (iv) a re-registration during a failure run does not postpone the deadline', async () => {
     await withClock(async (time, logs) => {
         const { port, driver, listen } = instance({ interval: 1_000 })
         port.failFrom(isReap)
@@ -558,7 +557,7 @@ test('#362 D5 (iv) a re-registration during a failure run does not postpone the 
     })
 })
 
-test('#362 D6 a wall-clock step during a pass does not move the deadline', async () => {
+Deno.test('#362 D6 a wall-clock step during a pass does not move the deadline', async () => {
     await withClock(async (time, logs) => {
         const { port, driver, listen, completed } = instance({
             interval: 1_000,
@@ -600,7 +599,7 @@ test('#362 D6 a wall-clock step during a pass does not move the deadline', async
     })
 })
 
-test('#362 D7 (i) a broker clock step of exactly one TTL between two successes is SKEWED, once', async () => {
+Deno.test('#362 D7 (i) a broker clock step of exactly one TTL between two successes is SKEWED, once', async () => {
     await withClock(async (time, logs) => {
         const { redis, driver, listen } = instance({ interval: 1_000 })
         listen()
@@ -618,7 +617,7 @@ test('#362 D7 (i) a broker clock step of exactly one TTL between two successes i
     })
 })
 
-test('#362 D7 (ii) a broker clock step shorter than one TTL is not reported', async () => {
+Deno.test('#362 D7 (ii) a broker clock step shorter than one TTL is not reported', async () => {
     await withClock(async (time, logs) => {
         const { redis, driver, listen } = instance({ interval: 1_000 })
         listen()
@@ -630,7 +629,7 @@ test('#362 D7 (ii) a broker clock step shorter than one TTL is not reported', as
     })
 })
 
-test('#362 D7 (iii) a broker clock step after the local deadline fired adds nothing', async () => {
+Deno.test('#362 D7 (iii) a broker clock step after the local deadline fired adds nothing', async () => {
     await withClock(async (time, logs) => {
         const { redis, port, driver, listen } = instance({ interval: 1_000 })
         listen()
@@ -647,7 +646,7 @@ test('#362 D7 (iii) a broker clock step after the local deadline fired adds noth
     })
 })
 
-test('#362 D7 (iv) a failure run after a SKEWED success is still reported at s + TTL', async () => {
+Deno.test('#362 D7 (iv) a failure run after a SKEWED success is still reported at s + TTL', async () => {
     await withClock(async (time, logs) => {
         const { redis, port, driver, listen } = instance({ interval: 1_000 })
         listen()
@@ -664,7 +663,7 @@ test('#362 D7 (iv) a failure run after a SKEWED success is still reported at s +
     })
 })
 
-test('#362 D7 (v) a decided SKEWED line survives a rerun that succeeds before its timer', async () => {
+Deno.test('#362 D7 (v) a decided SKEWED line survives a rerun that succeeds before its timer', async () => {
     await withClock(async (time, logs) => {
         const { redis, port, driver, listen, reconnect } = instance({
             interval: 1_000,
@@ -691,7 +690,7 @@ test('#362 D7 (v) a decided SKEWED line survives a rerun that succeeds before it
     })
 })
 
-test('#362 D7 (vi) an overdue MISSED carry suppresses a coinciding SKEWED: one line, not two (#383 item 5)', async () => {
+Deno.test('#362 D7 (vi) an overdue MISSED carry suppresses a coinciding SKEWED: one line, not two (#383 item 5)', async () => {
     await withClock(async (time, logs) => {
         const { redis, port, driver, listen, reconnect } = instance({
             interval: 1_000,
@@ -742,7 +741,7 @@ test('#362 D7 (vi) an overdue MISSED carry suppresses a coinciding SKEWED: one l
     })
 })
 
-test("#362 D9 the deadline timer is unref'd, never what keeps the process alive", async () => {
+Deno.test("#362 D9 the deadline timer is unref'd, never what keeps the process alive", async () => {
     await withClock(async (time) => {
         const { driver, listen } = instance({ interval: 1_000 })
         const unref = Deno.unrefTimer
@@ -770,7 +769,7 @@ test("#362 D9 the deadline timer is unref'd, never what keeps the process alive"
     })
 })
 
-test('#362 D8 (i) a throwing console.warn at the fire becomes one marked ERROR line', async () => {
+Deno.test('#362 D8 (i) a throwing console.warn at the fire becomes one marked ERROR line', async () => {
     await withClock(async (time, logs) => {
         const { port, driver, listen } = instance({ interval: 1_000 })
         const page = port.hold(isPageRead)
@@ -792,7 +791,7 @@ test('#362 D8 (i) a throwing console.warn at the fire becomes one marked ERROR l
     })
 })
 
-test('#362 D8 (ii) a rejecting pass chain is one marked ERROR line, and the passes and the deadline go on', async () => {
+Deno.test('#362 D8 (ii) a rejecting pass chain is one marked ERROR line, and the passes and the deadline go on', async () => {
     await withClock(async (time, logs) => {
         const { driver } = instance({ interval: 1_000 })
         try {
@@ -830,7 +829,7 @@ test('#362 D8 (ii) a rejecting pass chain is one marked ERROR line, and the pass
     })
 })
 
-test('#362 D8 (iii) a reconnect pass whose sink also fails still runs the #308 retry', async () => {
+Deno.test('#362 D8 (iii) a reconnect pass whose sink also fails still runs the #308 retry', async () => {
     await withClock(async (time, logs) => {
         // A wide interval (the relation allows up to 5 000ms at TTL=10) keeps
         // the ordinary periodic timer pass well outside this witness's
@@ -877,7 +876,7 @@ test('#362 D8 (iii) a reconnect pass whose sink also fails still runs the #308 r
 // #383 item 6 — a direct EnforcementDeadline unit witness (no driver needed)
 // ---------------------------------------------------------------------------
 
-test(
+Deno.test(
     "#383 (vi) passSucceeded arms ttlMs minus the pass's own elapsed time, not a full TTL",
     async () => {
         const time = new FakeTime(START)

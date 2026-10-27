@@ -2,8 +2,8 @@
 
 Internal, **test-only** helpers shared by the monorepo's own test suites — an
 HTTP client over `app.request`, an `actingAs`/`fakeUser` identity pair, and an
-in-memory `FakeTable`. It is published on JSR in lockstep (kept off npm) and
-must never be imported by runtime code.
+in-memory `FakeTable`. It is **never published** and must never be imported by
+runtime code.
 
 ## Invariants
 
@@ -13,12 +13,9 @@ must never be imported by runtime code.
 - **Runtime code never imports this package.** Consumers touch it only from
   `tests/` (which `scripts/deps_analyzer.ts` excludes from the graph), so it
   creates no runtime edge. A non-test import is a defect.
-- **Published on JSR in lockstep, kept off npm.** It carries the lockstep
-  version (since dcb877f4, so the atomic workspace publish would not abort) and
-  is on JSR at 0.4.0. `"private": true` in `package.json` affects npm only. So
-  `actingAs` IS reachable from JSR; its safety rests on the next invariant and
-  on consumers importing it from tests only — not on the package being
-  unpublished.
+- **Unpublished on purpose.** `deno.json` carries no `version` field; the
+  package stays out of the publish set. This is what makes `actingAs` safe — it
+  can never reach a consumer runtime as an auth-bypass primitive.
 - **`actingAs` sets identity on the request context only.** It never mints a
   real session or token, and never writes to a session/user store.
 - **Fixtures are synthetic.** `fakeUser` and every helper use placeholder values
@@ -36,8 +33,8 @@ must never be imported by runtime code.
 | **Must never import**                     | nothing — no package depends on this one   |
 
 Enforced by `deno task deps:analyze` against `deps.policy.jsonc`. A soft edge is
-an optional peer in this package's `package.json`, never a dependency: the
-consuming application installs it, or the feature stays off.
+deliberately **not** declared in this package's `deno.json`: the consuming
+application installs it, or the feature stays off.
 
 <!-- /generated:deps -->
 

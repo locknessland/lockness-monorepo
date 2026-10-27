@@ -4,14 +4,13 @@
  * @module @lockness/session/drivers
  */
 
-import type { Context } from '@lockness/hono'
+import type { Context } from 'hono'
 import type { SessionConfig, SessionDriver } from '../types.ts'
 import { CookieSessionDriver } from './cookie.ts'
 import { MemorySessionDriver } from './memory.ts'
 import { DenoKvSessionDriver } from './deno_kv.ts'
 import { RedisSessionDriver } from './redis.ts'
 import type { RevocationStore } from './revocation_store.ts'
-import { assertDenoKvRuntime } from '@lockness/contract/store/internal'
 
 // Re-export all drivers
 export { CookieSessionDriver } from './cookie.ts'
@@ -53,7 +52,6 @@ export function createDriver(
         case 'memory':
             return new MemorySessionDriver()
         case 'deno-kv':
-            assertDenoKvRuntime('session')
             return new DenoKvSessionDriver(config.kvPath)
         case 'redis':
             if (!config.redis) {

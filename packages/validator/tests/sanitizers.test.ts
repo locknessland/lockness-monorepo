@@ -2,7 +2,6 @@
  * Tests for @lockness/validator - Sanitizers
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import {
     defaultValue,
@@ -17,8 +16,8 @@ import {
     validator,
 } from '../mod.ts'
 
-test('Validator - Sanitizers', async (t) => {
-    await t.test('trim sanitizer', async () => {
+Deno.test('Validator - Sanitizers', async (t) => {
+    await t.step('trim sanitizer', async () => {
         const v = validator()
         v.sanitize('name', [trim()])
         v.field('name', [minLength(3)])
@@ -30,7 +29,7 @@ test('Validator - Sanitizers', async (t) => {
         assertEquals(sanitized.name, 'John')
     })
 
-    await t.test('lowercase and uppercase', () => {
+    await t.step('lowercase and uppercase', () => {
         const v = validator()
         v.sanitize('email', [lowercase()])
         v.sanitize('code', [uppercase()])
@@ -43,7 +42,7 @@ test('Validator - Sanitizers', async (t) => {
         assertEquals(sanitized.code, 'ABC123')
     })
 
-    await t.test('escapeHtml', () => {
+    await t.step('escapeHtml', () => {
         const v = validator()
         v.sanitize('content', [escapeHtml()])
 
@@ -56,7 +55,7 @@ test('Validator - Sanitizers', async (t) => {
         )
     })
 
-    await t.test('stripTags', () => {
+    await t.step('stripTags', () => {
         const v = validator()
         v.sanitize('text', [stripTags()])
 
@@ -66,7 +65,7 @@ test('Validator - Sanitizers', async (t) => {
         assertEquals(sanitized.text, 'Hello World')
     })
 
-    await t.test('toNumber and toBoolean', () => {
+    await t.step('toNumber and toBoolean', () => {
         const v = validator()
         v.sanitize('age', [toNumber()])
         v.sanitize('active', [toBoolean()])
@@ -79,7 +78,7 @@ test('Validator - Sanitizers', async (t) => {
         assertEquals(sanitized.active, true)
     })
 
-    await t.test('defaultValue', () => {
+    await t.step('defaultValue', () => {
         const v = validator()
         v.sanitize('status', [defaultValue('pending')])
 

@@ -8,7 +8,6 @@
  * @module @lockness/realtime/tests/websocket
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { buildEvents, makeConnection } from '../websocket.ts'
 import type { Connection, WSContext } from '../types.ts'
@@ -34,7 +33,7 @@ function fakeSocket() {
 
 const tick = () => new Promise((r) => setTimeout(r, 0))
 
-test('SC-001: onOpen/onMessage/onClose fire with a working Connection', async () => {
+Deno.test('SC-001: onOpen/onMessage/onClose fire with a working Connection', async () => {
     const seen: string[] = []
     let received: unknown
     const hooks: WebSocketHooks = {
@@ -69,7 +68,7 @@ test('SC-001: onOpen/onMessage/onClose fire with a working Connection', async ()
     assertEquals(received, 'hi')
 })
 
-test('SC-001: a throwing onMessage is routed to onError, not crashing', async () => {
+Deno.test('SC-001: a throwing onMessage is routed to onError, not crashing', async () => {
     let errored: unknown
     const hooks: WebSocketHooks = {
         onMessage: () => {
@@ -92,7 +91,7 @@ test('SC-001: a throwing onMessage is routed to onError, not crashing', async ()
     assertEquals((errored as Error).message, 'handler boom')
 })
 
-test('the same Connection instance is reused across events', () => {
+Deno.test('the same Connection instance is reused across events', () => {
     const seen: Connection[] = []
     const hooks: WebSocketHooks = {
         onOpen: (c) => void seen.push(c),
@@ -108,7 +107,7 @@ test('the same Connection instance is reused across events', () => {
     assert(seen[0] === seen[1])
 })
 
-test('onError forwards the real transport event as the error cause', async () => {
+Deno.test('onError forwards the real transport event as the error cause', async () => {
     let errored: unknown
     const events = buildEvents({ onError: (_c, e) => void (errored = e) }, null)
     const evt = new Event('error')
@@ -118,7 +117,7 @@ test('onError forwards the real transport event as the error cause', async () =>
     assertEquals((errored as Error).cause, evt)
 })
 
-test('makeConnection freezes metadata and delegates send/close', () => {
+Deno.test('makeConnection freezes metadata and delegates send/close', () => {
     const ws = fakeSocket()
     const conn = makeConnection(ws, 'id-1', null, { room: 'a' })
     conn.send('data')

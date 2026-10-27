@@ -14,11 +14,11 @@
  * @module @lockness/cli/tests/app_file
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { join } from '@std/path'
 import { Cli } from '../mod.ts'
 import { loadRouteControllers } from '../commands/router_commands.ts'
+import { discoverJobs } from '../commands/queue_commands.ts'
 import { loadTinkerContext } from '../commands/tinker_command.ts'
 import { collectListeners } from '../commands/debug_commands.ts'
 
@@ -75,7 +75,7 @@ const BROKEN = 'throw new Error("broken at load")\nexport {}\n'
 // Cli.discoverCommands
 // ============================================================================
 
-test("Cli.discoverCommands - registers a command under a path with '#' and a space", async () => {
+Deno.test("Cli.discoverCommands - registers a command under a path with '#' and a space", async () => {
     const key = `__lockness_477_command_${crypto.randomUUID()}`
     await withAwkwardDir({
         'greet_command.ts': `
@@ -95,7 +95,7 @@ export class GreetCommand {
     })
 })
 
-test('Cli.discoverCommands - reports a command file that fails to load', async () => {
+Deno.test('Cli.discoverCommands - reports a command file that fails to load', async () => {
     await withAwkwardDir({ 'broken_command.ts': BROKEN }, async ({ rel }) => {
         const output = await captured(() => new Cli().discoverCommands(rel))
         assertStringIncludes(output, 'broken_command.ts')
@@ -107,7 +107,7 @@ test('Cli.discoverCommands - reports a command file that fails to load', async (
 // router:list
 // ============================================================================
 
-test("loadRouteControllers - imports a controller under a path with '#' and a space", async () => {
+Deno.test("loadRouteControllers - imports a controller under a path with '#' and a space", async () => {
     await withAwkwardDir({
         'awkward_controller.ts':
             "export class AwkwardController { static _basePath = '/awkward' }\n",
@@ -120,7 +120,7 @@ test("loadRouteControllers - imports a controller under a path with '#' and a sp
     })
 })
 
-test('loadRouteControllers - reports a controller file that fails to load', async () => {
+Deno.test('loadRouteControllers - reports a controller file that fails to load', async () => {
     await withAwkwardDir({
         'broken_controller.ts': BROKEN,
     }, async ({ abs }) => {
@@ -132,7 +132,7 @@ test('loadRouteControllers - reports a controller file that fails to load', asyn
     })
 })
 
-test('loadRouteControllers - warns about a controller it cannot instantiate, and still lists it', async () => {
+Deno.test('loadRouteControllers - warns about a controller it cannot instantiate, and still lists it', async () => {
     await withAwkwardDir({
         'needy_controller.ts': `
 export class NeedyController {
@@ -152,10 +152,58 @@ export class NeedyController {
 })
 
 // ============================================================================
+// queue:work
+// ============================================================================
+
+const JOB = `
+export class AwkwardJob {
+    name = 'awkward-job'
+    payload = {}
+    async handle() {}
+}
+`
+
+Deno.test("discoverJobs - registers a job under a path with '#' and a space", async () => {
+    await withAwkwardDir({ 'awkward_job.ts': JOB }, async ({ abs }) => {
+        const registered: string[] = []
+        const count = await discoverJobs(
+            (job) => registered.push(job.name),
+            abs,
+        )
+        assertEquals(registered, ['AwkwardJob'])
+        assertEquals(count, 1)
+    })
+})
+
+Deno.test('discoverJobs - reports a job file that fails to load, and registers the others', async () => {
+    await withAwkwardDir({
+        'awkward_job.ts': JOB,
+        'broken_job.ts': BROKEN,
+    }, async ({ abs }) => {
+        const registered: string[] = []
+        const output = await captured(async () => {
+            await discoverJobs((job) => registered.push(job.name), abs)
+        })
+        assertEquals(registered, ['AwkwardJob'])
+        assertStringIncludes(output, 'broken_job.ts')
+        assertStringIncludes(output, 'broken at load')
+    })
+})
+
+Deno.test('discoverJobs - an absent directory is no jobs, and says nothing', async () => {
+    await withAwkwardDir({}, async ({ abs }) => {
+        const output = await captured(async () => {
+            assertEquals(await discoverJobs(() => {}, join(abs, 'job')), 0)
+        })
+        assertEquals(output, '')
+    })
+})
+
+// ============================================================================
 // tinker
 // ============================================================================
 
-test("loadTinkerContext - loads models and the kernel under a path with '#' and a space", async () => {
+Deno.test("loadTinkerContext - loads models and the kernel under a path with '#' and a space", async () => {
     await withAwkwardDir({
         'app/model/user.ts': 'export class User {}\n',
         'app/service/mailer.ts': 'export const mailer = "mailer"\n',
@@ -169,7 +217,7 @@ test("loadTinkerContext - loads models and the kernel under a path with '#' and 
     })
 })
 
-test('loadTinkerContext - reports a file and a kernel that fail to load', async () => {
+Deno.test('loadTinkerContext - reports a file and a kernel that fail to load', async () => {
     await withAwkwardDir({
         'app/model/broken.ts': BROKEN,
         'app/model/user.ts': 'export class User {}\n',
@@ -188,7 +236,7 @@ test('loadTinkerContext - reports a file and a kernel that fail to load', async 
 // debug:listeners
 // ============================================================================
 
-test("collectListeners - lists a listener under a path with '#' and a space", async () => {
+Deno.test("collectListeners - lists a listener under a path with '#' and a space", async () => {
     const fixtures = new URL('./fixtures/broken-import/', import.meta.url)
     const read = (name: string) => Deno.readTextFile(new URL(name, fixtures))
     await withAwkwardDir({
@@ -206,7 +254,7 @@ test("collectListeners - lists a listener under a path with '#' and a space", as
     })
 })
 
-test('loadTinkerContext - an app with none of the directories loads nothing, and warns of nothing', async () => {
+Deno.test('loadTinkerContext - an app with none of the directories loads nothing, and warns of nothing', async () => {
     await withAwkwardDir({}, async ({ abs }) => {
         const context: Record<string, unknown> = {}
         const output = await captured(() => loadTinkerContext(context, abs))

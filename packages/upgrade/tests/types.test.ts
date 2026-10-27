@@ -1,8 +1,7 @@
-import { test } from 'node:test'
 import { assertEquals, assertExists } from '@std/assert'
 import type { PackageUpgrade, UpgradeResult } from '../types.ts'
 
-test('types - PackageUpgrade structure validation', () => {
+Deno.test('types - PackageUpgrade structure validation', () => {
     const upgrade: PackageUpgrade = {
         name: '@lockness/core',
         currentVersion: '0.1.19',
@@ -17,7 +16,7 @@ test('types - PackageUpgrade structure validation', () => {
     assertEquals(typeof upgrade.targetVersion, 'string')
 })
 
-test('types - UpgradeResult successful upgrade', () => {
+Deno.test('types - UpgradeResult successful upgrade', () => {
     const result: UpgradeResult = {
         success: true,
         upgrades: [],
@@ -30,7 +29,7 @@ test('types - UpgradeResult successful upgrade', () => {
     assertEquals(result.error, undefined)
 })
 
-test('types - UpgradeResult with error', () => {
+Deno.test('types - UpgradeResult with error', () => {
     const result: UpgradeResult = {
         success: false,
         upgrades: [],
@@ -42,7 +41,7 @@ test('types - UpgradeResult with error', () => {
     assertEquals(result.error, 'File not found')
 })
 
-test('types - UpgradeResult dry run', () => {
+Deno.test('types - UpgradeResult dry run', () => {
     const result: UpgradeResult = {
         success: true,
         upgrades: [

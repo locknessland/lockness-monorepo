@@ -8,7 +8,6 @@
  * `console.error` instead of the application's own logging.
  */
 
-import { test } from 'node:test'
 import { assertEquals, assertRejects, assertStringIncludes } from '@std/assert'
 import { Scheduler, scheduler, setScheduler } from '@lockness/scheduler'
 import { schedulerStep } from '../kernel/bootstrap/steps/scheduler.ts'
@@ -102,7 +101,7 @@ async function withBootedScheduler(
     }
 }
 
-test('schedulerStep - logger: true boots with a reporter installed, so failures never reach console.error', async () => {
+Deno.test('schedulerStep - logger: true boots with a reporter installed, so failures never reach console.error', async () => {
     const errors: unknown[][] = []
     const originalError = console.error
     console.error = (...args: unknown[]) => void errors.push(args)
@@ -138,7 +137,7 @@ test('schedulerStep - logger: true boots with a reporter installed, so failures 
     }
 })
 
-test('schedulerStep - a logger whose transport rejects causes no unhandled rejection and writes one stderr line', async () => {
+Deno.test('schedulerStep - a logger whose transport rejects causes no unhandled rejection and writes one stderr line', async () => {
     // A `FileTransport` on a full disk, or a sink that is down, rejects. The
     // reporter used to `void` that promise, so the rejection went unhandled
     // and ended the process the first time a task failed.
@@ -188,7 +187,7 @@ test('schedulerStep - a logger whose transport rejects causes no unhandled rejec
     }
 })
 
-test("schedulerStep - an application's own reporter is not overwritten", async () => {
+Deno.test("schedulerStep - an application's own reporter is not overwritten", async () => {
     // docs/DOCS.md tells people to install one with
     // `setScheduler(new Scheduler({ … }))`. The step used to replace the shared
     // instance outright, so that reporter — and every task registered before
@@ -228,7 +227,7 @@ test("schedulerStep - an application's own reporter is not overwritten", async (
     })
 })
 
-test('schedulerStep - without logger: true no reporter is wired, and the logger is not imported', async () => {
+Deno.test('schedulerStep - without logger: true no reporter is wired, and the logger is not imported', async () => {
     // #505: the logger used to be wired whenever @lockness/logger resolved —
     // present in the import map for any reason. Now only the kernel key turns
     // it on, and the scheduler keeps its own console fallback otherwise.
@@ -238,7 +237,7 @@ test('schedulerStep - without logger: true no reporter is wired, and the logger 
     }, {})
 })
 
-test("KernelConfig.schedulerLock - driver 'redis' without a connection does not compile", () => {
+Deno.test("KernelConfig.schedulerLock - driver 'redis' without a connection does not compile", () => {
     // #517: one object type with an optional `redis` let this compile, and at
     // boot it installed no lock — every replica ran each onOneServer task.
     // @ts-expect-error - the 'redis' member requires `redis`
@@ -256,7 +255,7 @@ test("KernelConfig.schedulerLock - driver 'redis' without a connection does not 
     assertEquals([missing, stray, ...valid].length, 5)
 })
 
-test("schedulerStep - schedulerLock.driver 'redis' without a connection refuses the boot", async () => {
+Deno.test("schedulerStep - schedulerLock.driver 'redis' without a connection refuses the boot", async () => {
     // It used to match neither branch, install no lock and say nothing (#517).
     // The refusal comes before the package import, so it names the missing
     // connection whether or not @lockness/redis is installed.
@@ -265,12 +264,12 @@ test("schedulerStep - schedulerLock.driver 'redis' without a connection refuses 
     assertEquals(calls, [], 'no package is imported for a refused config')
 })
 
-test("schedulerStep - schedulerLock.driver 'redis' with a non-object connection refuses the boot", async () => {
+Deno.test("schedulerStep - schedulerLock.driver 'redis' with a non-object connection refuses the boot", async () => {
     const { error } = await bootRejectingLock({ driver: 'redis', redis: null })
     assertStringIncludes(error.message, 'schedulerLock.redis')
 })
 
-test('schedulerStep - an unknown schedulerLock.driver refuses the boot', async () => {
+Deno.test('schedulerStep - an unknown schedulerLock.driver refuses the boot', async () => {
     const { error, calls } = await bootRejectingLock({ driver: 'memcached' })
     assertStringIncludes(error.message, 'schedulerLock.driver')
     assertStringIncludes(error.message, '"memcached"')

@@ -10,7 +10,6 @@
 // async without awaiting anything. Same convention as compose.test.ts.
 // deno-lint-ignore-file require-await
 
-import { test } from 'node:test'
 import { assertEquals, assertRejects, assertThrows } from '@std/assert'
 import {
     Cached,
@@ -29,7 +28,7 @@ function resetCache() {
 // Hit / miss
 // ============================================================================
 
-test('Cached - second call with the same arguments does not run the method', async () => {
+Deno.test('Cached - second call with the same arguments does not run the method', async () => {
     resetCache()
     let calls = 0
 
@@ -47,7 +46,7 @@ test('Cached - second call with the same arguments does not run the method', asy
     assertEquals(calls, 1, 'the method ran once; the second call was a hit')
 })
 
-test('Cached - different arguments are cached separately', async () => {
+Deno.test('Cached - different arguments are cached separately', async () => {
     resetCache()
     let calls = 0
 
@@ -66,7 +65,7 @@ test('Cached - different arguments are cached separately', async () => {
     assertEquals(calls, 2, 'one run per distinct argument, then a hit')
 })
 
-test('Cached - argument objects key by structure, not by key order', async () => {
+Deno.test('Cached - argument objects key by structure, not by key order', async () => {
     resetCache()
     let calls = 0
 
@@ -84,7 +83,7 @@ test('Cached - argument objects key by structure, not by key order', async () =>
     assertEquals(calls, 1, 'the same call written two ways is one cache entry')
 })
 
-test('Cached - two classes with the same method name do not collide', async () => {
+Deno.test('Cached - two classes with the same method name do not collide', async () => {
     resetCache()
     const calls: string[] = []
 
@@ -108,7 +107,7 @@ test('Cached - two classes with the same method name do not collide', async () =
     assertEquals(calls, ['alpha', 'beta'])
 })
 
-test('Cached - works on async methods', async () => {
+Deno.test('Cached - works on async methods', async () => {
     resetCache()
     let calls = 0
 
@@ -127,7 +126,7 @@ test('Cached - works on async methods', async () => {
     assertEquals(calls, 1)
 })
 
-test('Cached - a null result is not cached', async () => {
+Deno.test('Cached - a null result is not cached', async () => {
     resetCache()
     let calls = 0
 
@@ -153,7 +152,7 @@ test('Cached - a null result is not cached', async () => {
 // Keys
 // ============================================================================
 
-test('Cached - a fixed string key is used verbatim', async () => {
+Deno.test('Cached - a fixed string key is used verbatim', async () => {
     resetCache()
 
     class Service {
@@ -167,7 +166,7 @@ test('Cached - a fixed string key is used verbatim', async () => {
     assertEquals(await get('the-answer'), 42)
 })
 
-test('Cached - a key generator receives the call arguments', async () => {
+Deno.test('Cached - a key generator receives the call arguments', async () => {
     resetCache()
     let calls = 0
 
@@ -189,7 +188,7 @@ test('Cached - a key generator receives the call arguments', async () => {
     assertEquals(calls, 1)
 })
 
-test('Cached - the derived key names the class and method', async () => {
+Deno.test('Cached - the derived key names the class and method', async () => {
     resetCache()
 
     class ReportService {
@@ -207,7 +206,7 @@ test('Cached - the derived key names the class and method', async () => {
 // condition
 // ============================================================================
 
-test('Cached - condition false bypasses the cache entirely', async () => {
+Deno.test('Cached - condition false bypasses the cache entirely', async () => {
     resetCache()
     let calls = 0
 
@@ -233,7 +232,7 @@ test('Cached - condition false bypasses the cache entirely', async () => {
 // Tags and invalidation
 // ============================================================================
 
-test('CacheInvalidate - flushing a tag drops the entries under it', async () => {
+Deno.test('CacheInvalidate - flushing a tag drops the entries under it', async () => {
     resetCache()
     let calls = 0
 
@@ -261,7 +260,7 @@ test('CacheInvalidate - flushing a tag drops the entries under it', async () => 
     assertEquals(calls, 2, 'the entry was dropped, so the method ran again')
 })
 
-test('CacheInvalidate - a fixed key is dropped', async () => {
+Deno.test('CacheInvalidate - a fixed key is dropped', async () => {
     resetCache()
     let calls = 0
 
@@ -288,7 +287,7 @@ test('CacheInvalidate - a fixed key is dropped', async () => {
     assertEquals(calls, 2)
 })
 
-test('CacheInvalidate - after is the default and does not run when the method throws', async () => {
+Deno.test('CacheInvalidate - after is the default and does not run when the method throws', async () => {
     resetCache()
     let calls = 0
 
@@ -319,7 +318,7 @@ test('CacheInvalidate - after is the default and does not run when the method th
     )
 })
 
-test('CacheInvalidate - before clears even when the method then throws', async () => {
+Deno.test('CacheInvalidate - before clears even when the method then throws', async () => {
     resetCache()
     let calls = 0
 
@@ -350,7 +349,7 @@ test('CacheInvalidate - before clears even when the method then throws', async (
 // TTL parsing
 // ============================================================================
 
-test('Cached - accepts every TTL form', async () => {
+Deno.test('Cached - accepts every TTL form', async () => {
     resetCache()
 
     class Service {
@@ -394,7 +393,7 @@ test('Cached - accepts every TTL form', async () => {
     )
 })
 
-test('Cached - rejects a malformed TTL when the class is defined', () => {
+Deno.test('Cached - rejects a malformed TTL when the class is defined', () => {
     for (const bad of [0, -1, '1w', 'abc', '']) {
         assertThrows(
             () => {

@@ -28,7 +28,6 @@
  * @module
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals, assertMatch } from '@std/assert'
 import {
     parseWorkflow,
@@ -333,7 +332,7 @@ const tree = await readWorkflows()
 
 // --- The real tree --------------------------------------------------------
 
-test('no workflow but publish.yml → publish can request an id-token', () => {
+Deno.test('no workflow but publish.yml → publish can request an id-token', () => {
     assertEquals(idTokenFindings(tree), [])
     // The holder exists and holds the grant, so this cannot pass on an empty
     // set of workflows.
@@ -344,24 +343,24 @@ test('no workflow but publish.yml → publish can request an id-token', () => {
     assertEquals(holder.permissions.scopes['id-token'], 'write')
 })
 
-test('publish.yml → publish keeps the shape #476 gave it', () => {
+Deno.test('publish.yml → publish keeps the shape #476 gave it', () => {
     assertEquals(holderShapeFindings(tree), [])
 })
 
 // --- The rule -------------------------------------------------------------
 
-test('an id-token in publish.yml → gate fails, naming it', () => {
+Deno.test('an id-token in publish.yml → gate fails, naming it', () => {
     const findings = findingsOf(grant(tree, 'publish.yml', 'gate', 'write'))
     assertEquals(heads(findings), [head('publish.yml', 'gate')])
 })
 
-test('an id-token in a test.yml job fails, naming that job', () => {
+Deno.test('an id-token in a test.yml job fails, naming that job', () => {
     const findings = findingsOf(grant(tree, 'test.yml', 'live-redis', 'write'))
     assertEquals(heads(findings), [head('test.yml', 'live-redis')])
     assert(findings[0].includes('in its own permissions'))
 })
 
-test('a top-level grant fails, and so does every job inheriting it', () => {
+Deno.test('a top-level grant fails, and so does every job inheriting it', () => {
     const inTest = findingsOf(
         editWorkflow(tree, 'test.yml', {
             permissions: scopes({ contents: 'read', 'id-token': 'write' }),
@@ -383,7 +382,7 @@ test('a top-level grant fails, and so does every job inheriting it', () => {
     assertEquals(heads(inPublish), [head('publish.yml', '(top level)')])
 })
 
-test('write-all fails at the top level and per job', () => {
+Deno.test('write-all fails at the top level and per job', () => {
     const top = findingsOf(
         editWorkflow(tree, 'test.yml', { permissions: WRITE_ALL }),
     )
@@ -408,7 +407,7 @@ test('write-all fails at the top level and per job', () => {
     ])
 })
 
-test('id-token: none passes anywhere; read and read-all fail', () => {
+Deno.test('id-token: none passes anywhere; read and read-all fail', () => {
     assertEquals(findingsOf(grant(tree, 'test.yml', 'kits', 'none')), [])
     assertEquals(
         findingsOf(
@@ -442,7 +441,7 @@ test('id-token: none passes anywhere; read and read-all fail', () => {
     )
 })
 
-test('a job with no permissions, in a workflow with none, fails', () => {
+Deno.test('a job with no permissions, in a workflow with none, fails', () => {
     const findings = findingsOf(
         editWorkflow(tree, 'test.yml', { permissions: undefined }),
     )
@@ -455,7 +454,7 @@ test('a job with no permissions, in a workflow with none, fails', () => {
     }
 })
 
-test('a reusable-workflow call is judged, and so is the file it calls', () => {
+Deno.test('a reusable-workflow call is judged, and so is the file it calls', () => {
     const caller: WorkflowJob = {
         id: 'call',
         keys: ['uses', 'permissions'],
@@ -491,7 +490,7 @@ test('a reusable-workflow call is judged, and so is the file it calls', () => {
     ])
 })
 
-test('an aliased grant fails on both jobs', () => {
+Deno.test('an aliased grant fails on both jobs', () => {
     const aliased = parseWorkflow(
         'alias.yml',
         [
@@ -513,7 +512,7 @@ test('an aliased grant fails on both jobs', () => {
     ])
 })
 
-test('the holder must hold the grant itself', () => {
+Deno.test('the holder must hold the grant itself', () => {
     // Inherited from the top level: the top-level grant fails, and so does
     // the holder, which no longer grants it in its own block.
     const inherited = editJob(
@@ -563,7 +562,7 @@ function assertShapeBroken(edited: readonly Workflow[]): void {
     assertEquals(new Set(heads(findings)), new Set([HOLDER]))
 }
 
-test('the holder refuses a second trigger', () => {
+Deno.test('the holder refuses a second trigger', () => {
     const publishYml = tree.find((w) => w.file === HOLDER_FILE)
     assert(publishYml !== undefined)
     assert(typeof publishYml.on === 'object' && publishYml.on !== null)
@@ -574,7 +573,7 @@ test('the holder refuses a second trigger', () => {
     )
 })
 
-test('the holder refuses an env: at the job or the workflow', () => {
+Deno.test('the holder refuses an env: at the job or the workflow', () => {
     const job = holderJob()
     assertShapeBroken(
         editJob(tree, HOLDER_FILE, HOLDER_JOB, { keys: [...job.keys, 'env'] }),
@@ -586,7 +585,7 @@ test('the holder refuses an env: at the job or the workflow', () => {
     )
 })
 
-test('the holder refuses an extra step', () => {
+Deno.test('the holder refuses an extra step', () => {
     const job = holderJob()
     const extra: WorkflowStep = { keys: ['run'], run: 'deno task x', with: {} }
     assertShapeBroken(
@@ -601,7 +600,7 @@ test('the holder refuses an extra step', () => {
     )
 })
 
-test('the holder refuses an action not pinned to a SHA', () => {
+Deno.test('the holder refuses an action not pinned to a SHA', () => {
     const [checkout, ...rest] = holderJob().steps
     assertShapeBroken(
         editJob(tree, HOLDER_FILE, HOLDER_JOB, {
@@ -610,13 +609,13 @@ test('the holder refuses an action not pinned to a SHA', () => {
     )
 })
 
-test('the holder refuses needs without gate', () => {
+Deno.test('the holder refuses needs without gate', () => {
     assertShapeBroken(
         editJob(tree, HOLDER_FILE, HOLDER_JOB, { needs: ['kits'] }),
     )
 })
 
-test('the holder refuses an environment: key', () => {
+Deno.test('the holder refuses an environment: key', () => {
     const job = holderJob()
     assertShapeBroken(
         editJob(tree, HOLDER_FILE, HOLDER_JOB, {
@@ -626,7 +625,7 @@ test('the holder refuses an environment: key', () => {
 })
 
 // Registered last, so every case above has run and recorded its findings.
-test('every finding starts with .github/workflows/<file> → <job>:', () => {
+Deno.test('every finding starts with .github/workflows/<file> → <job>:', () => {
     assert(seen.length > 20, `only ${seen.length} findings recorded`)
     for (const finding of seen) {
         assertMatch(

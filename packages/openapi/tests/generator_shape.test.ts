@@ -12,7 +12,6 @@
  * @module @lockness/openapi/tests/generator_shape
  */
 
-import { test } from 'node:test'
 import { assertEquals, assertFalse } from '@std/assert'
 import { Controller, Get, Post } from '@lockness/core'
 import { ApiDoc, generateOpenAPISpec } from '../mod.ts'
@@ -81,7 +80,7 @@ const asClasses = (...c: unknown[]) => c as ControllerClass[]
 
 // ---- Envelope + defaulting --------------------------------------------------
 
-test('generator - emits the 3.0.0 envelope with a default server', () => {
+Deno.test('generator - emits the 3.0.0 envelope with a default server', () => {
     new DefaultsController()
     const spec = generateOpenAPISpec(asClasses(DefaultsController), {
         title: 'API',
@@ -99,7 +98,7 @@ test('generator - emits the 3.0.0 envelope with a default server', () => {
     ])
 })
 
-test('generator - custom servers override the default', () => {
+Deno.test('generator - custom servers override the default', () => {
     new DefaultsController()
     const servers = [{ url: 'https://api.example.test', description: 'prod' }]
     const spec = generateOpenAPISpec(asClasses(DefaultsController), {
@@ -110,7 +109,7 @@ test('generator - custom servers override the default', () => {
     assertEquals(spec.servers, servers)
 })
 
-test('generator - derives operationId, tags and responses when omitted', () => {
+Deno.test('generator - derives operationId, tags and responses when omitted', () => {
     new DefaultsController()
     const spec = generateOpenAPISpec(asClasses(DefaultsController), {
         title: 'API',
@@ -129,7 +128,7 @@ test('generator - derives operationId, tags and responses when omitted', () => {
 
 // ---- Propagation ------------------------------------------------------------
 
-test('generator - propagates requestBody, security and explicit responses', () => {
+Deno.test('generator - propagates requestBody, security and explicit responses', () => {
     new RichController()
     const spec = generateOpenAPISpec(asClasses(RichController), {
         title: 'API',
@@ -149,7 +148,7 @@ test('generator - propagates requestBody, security and explicit responses', () =
 
 // ---- Path item merging ------------------------------------------------------
 
-test('generator - merges multiple methods onto one path item', () => {
+Deno.test('generator - merges multiple methods onto one path item', () => {
     new MultiMethodController()
     const spec = generateOpenAPISpec(asClasses(MultiMethodController), {
         title: 'API',
@@ -163,7 +162,7 @@ test('generator - merges multiple methods onto one path item', () => {
 
 // ---- Skip rule --------------------------------------------------------------
 
-test('generator - skips a controller with no @ApiDoc', () => {
+Deno.test('generator - skips a controller with no @ApiDoc', () => {
     new UndocumentedController()
     const spec = generateOpenAPISpec(asClasses(UndocumentedController), {
         title: 'API',

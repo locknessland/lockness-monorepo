@@ -7,11 +7,10 @@
  * test that needs infrastructure stops being run.
  */
 
-import { test } from 'node:test'
 import { assertEquals, assertStringIncludes } from '@std/assert'
 import app from '../main.ts'
 
-test('GET / renders the home page', async () => {
+Deno.test('GET / renders the home page', async () => {
     const response = await app.fetch(new Request('http://localhost/'))
 
     assertEquals(response.status, 200)
@@ -19,7 +18,7 @@ test('GET / renders the home page', async () => {
     assertStringIncludes(await response.text(), '<!DOCTYPE html>')
 })
 
-test('GET /auth/login renders the form', async () => {
+Deno.test('GET /auth/login renders the form', async () => {
     const response = await app.fetch(
         new Request('http://localhost/auth/login'),
     )
@@ -30,7 +29,7 @@ test('GET /auth/login renders the form', async () => {
     assertStringIncludes(html, 'name="password"')
 })
 
-test('GET /auth/profile without a session redirects to the form', async () => {
+Deno.test('GET /auth/profile without a session redirects to the form', async () => {
     const response = await app.fetch(
         new Request('http://localhost/auth/profile', { redirect: 'manual' }),
     )
@@ -41,7 +40,7 @@ test('GET /auth/profile without a session redirects to the form', async () => {
     assertEquals(response.headers.get('location'), '/auth/login')
 })
 
-test('an unknown route is a 404, not a crash', async () => {
+Deno.test('an unknown route is a 404, not a crash', async () => {
     const response = await app.fetch(new Request('http://localhost/nope'))
 
     assertEquals(response.status, 404)

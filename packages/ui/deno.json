@@ -1,8 +1,8 @@
 {
     "name": "@lockness/ui",
+    "description": "CLI for adding Hono JSX UI components (shadcn-style) to your Lockness project",
     "version": "0.4.0",
     "license": "MIT",
-    "description": "CLI for adding Hono JSX UI components (shadcn-style) to your Lockness project",
     "exports": {
         ".": "./mod.ts",
         "./components": "./components.ts",
@@ -16,27 +16,26 @@
         "exclude": [
             "tests/",
             "docs/",
-            ".github/",
-            "package.json",
-            "tsconfig.json"
+            ".github/"
         ]
-    },
-    "compilerOptions": {
-        "jsx": "precompile",
-        "jsxImportSource": "@lockness/hono"
     },
     "imports": {
         "@lockness/cli": "jsr:@lockness/cli@^0.4.0",
         "@lockness/hono": "jsr:@lockness/hono@^0.4.0",
+        "@lockness/hono/jsx-runtime": "jsr:@lockness/hono@^0.4.0/jsx-runtime",
         "@lockness/markdown": "jsr:@lockness/markdown@^0.4.0",
-        "clsx": "npm:clsx@2.1.1",
-        "highlight.js": "npm:highlight.js@11.11.1",
-        "tailwind-merge": "npm:tailwind-merge@2.6.0",
+        "@std/assert": "jsr:@std/assert@1",
         "@std/cli": "jsr:@std/cli@1",
         "@std/fs": "jsr:@std/fs@1",
         "@std/jsonc": "jsr:@std/jsonc@1",
         "@std/path": "jsr:@std/path@1",
-        "@std/assert": "jsr:@std/assert@1",
-        "@lockness/hono/jsx-runtime": "jsr:@lockness/hono@^0.4.0/jsx-runtime"
+        "clsx": "npm:clsx@2.1.1",
+        "highlight.js": "npm:highlight.js@11.11.1",
+        "hono": "jsr:@lockness/hono@^0.4.0",
+        "tailwind-merge": "npm:tailwind-merge@2.6.0"
+    },
+    "compilerOptions": {
+        "jsx": "precompile",
+        "jsxImportSource": "hono"
     }
 }

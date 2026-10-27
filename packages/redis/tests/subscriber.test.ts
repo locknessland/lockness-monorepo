@@ -12,7 +12,6 @@
  * @module @lockness/redis/tests/subscriber
  */
 
-import { test } from 'node:test'
 import {
     assert,
     assertEquals,
@@ -208,7 +207,7 @@ async function captureWarnings(
     return messages
 }
 
-test('subscriber - opens its own socket, PSUBSCRIBEs, and delivers pushed messages', async () => {
+Deno.test('subscriber - opens its own socket, PSUBSCRIBEs, and delivers pushed messages', async () => {
     const server = await startFakeServer()
     const sub = new RedisSubscribeConnection({
         hostname: '127.0.0.1',
@@ -231,7 +230,7 @@ test('subscriber - opens its own socket, PSUBSCRIBEs, and delivers pushed messag
     }
 })
 
-test('subscriber - on a wire fault it reconnects and re-issues every PSUBSCRIBE', async () => {
+Deno.test('subscriber - on a wire fault it reconnects and re-issues every PSUBSCRIBE', async () => {
     const server = await startFakeServer()
     const sub = new RedisSubscribeConnection({
         hostname: '127.0.0.1',
@@ -280,7 +279,7 @@ test('subscriber - on a wire fault it reconnects and re-issues every PSUBSCRIBE'
     )
 })
 
-test('subscriber - re-issues ALL active patterns after a reconnect', async () => {
+Deno.test('subscriber - re-issues ALL active patterns after a reconnect', async () => {
     const server = await startFakeServer()
     const sub = new RedisSubscribeConnection({
         hostname: '127.0.0.1',
@@ -315,7 +314,7 @@ test('subscriber - re-issues ALL active patterns after a reconnect', async () =>
     }
 })
 
-test('subscriber - authenticates via the shared primitive before subscribing', async () => {
+Deno.test('subscriber - authenticates via the shared primitive before subscribing', async () => {
     const server = await startFakeServer()
     let sub: RedisSubscribeConnection | undefined
     const warnings = await captureWarnings(async () => {
@@ -358,7 +357,7 @@ test('subscriber - authenticates via the shared primitive before subscribing', a
     )
 })
 
-test('subscriber - onReconnect fires once after a reconnect re-issues its patterns', async () => {
+Deno.test('subscriber - onReconnect fires once after a reconnect re-issues its patterns', async () => {
     const server = await startFakeServer()
     const sub = new RedisSubscribeConnection({
         hostname: '127.0.0.1',
@@ -398,7 +397,7 @@ test('subscriber - onReconnect fires once after a reconnect re-issues its patter
     })
 })
 
-test('subscriber - onReconnect does not fire when the re-dial itself fails', async () => {
+Deno.test('subscriber - onReconnect does not fire when the re-dial itself fails', async () => {
     const server = await startFakeServer()
     const sub = new RedisSubscribeConnection({
         hostname: '127.0.0.1',
@@ -449,7 +448,7 @@ test('subscriber - onReconnect does not fire when the re-dial itself fails', asy
     )
 })
 
-test('subscriber - a throwing onReconnect handler neither kills the read loop nor disarms the seam', async () => {
+Deno.test('subscriber - a throwing onReconnect handler neither kills the read loop nor disarms the seam', async () => {
     const server = await startFakeServer()
     const sub = new RedisSubscribeConnection({
         hostname: '127.0.0.1',
@@ -514,7 +513,7 @@ test('subscriber - a throwing onReconnect handler neither kills the read loop no
     )
 })
 
-test('subscriber - onReconnect replaces the previous handler rather than stacking one', async () => {
+Deno.test('subscriber - onReconnect replaces the previous handler rather than stacking one', async () => {
     const server = await startFakeServer()
     const sub = new RedisSubscribeConnection({
         hostname: '127.0.0.1',
@@ -605,7 +604,7 @@ function liveWarnings(): { messages: string[]; [Symbol.dispose]: () => void } {
     return { messages, [Symbol.dispose]: () => void (console.warn = real) }
 }
 
-test('#287: a captured console.warn is restored even when the body throws', () => {
+Deno.test('#287: a captured console.warn is restored even when the body throws', () => {
     // The test the first attempt got wrong: it called `restore()` itself inside
     // its own catch, so the mechanism it named was never exercised — and it
     // passed against the unfixed helper. Measured at the review gate.
@@ -637,7 +636,7 @@ function countOp(server: FakeServer, op: string): number {
     return server.commandLog.filter((c) => c[0]?.toUpperCase() === op).length
 }
 
-test('FR-018: a cadence set that cannot behave is refused at construction', () => {
+Deno.test('FR-018: a cadence set that cannot behave is refused at construction', () => {
     type Cadences = Partial<
         Record<
             'keepaliveMs' | 'livenessMs' | 'retryBaseMs' | 'retryMaxMs',
@@ -671,14 +670,14 @@ test('FR-018: a cadence set that cannot behave is refused at construction', () =
     }
 })
 
-test('FR-018: the production defaults satisfy their own invariant', () => {
+Deno.test('FR-018: the production defaults satisfy their own invariant', () => {
     // Guards the constants against a future edit that lowers the ratio: the
     // class would then be unconstructable with no argument at all.
     const sub = new RedisSubscribeConnection({ hostname: '127.0.0.1' })
     return sub.close()
 })
 
-test('FR-001/SC-001: an idle socket is NOT torn down (#274)', async () => {
+Deno.test('FR-001/SC-001: an idle socket is NOT torn down (#274)', async () => {
     const server = await startFakeServer()
     const sub = new RedisSubscribeConnection({
         hostname: '127.0.0.1',
@@ -718,7 +717,7 @@ test('FR-001/SC-001: an idle socket is NOT torn down (#274)', async () => {
     }
 })
 
-test('FR-008: no timer outlives the connection that armed it', async () => {
+Deno.test('FR-008: no timer outlives the connection that armed it', async () => {
     // A first draft asserted "no PING is written after close" — which is
     // satisfied by the interval callback's own `closed` guard, so deleting the
     // clear from close() left it green. The timer is unref'd, so --trace-leaks
@@ -781,7 +780,7 @@ test('FR-008: no timer outlives the connection that armed it', async () => {
     }
 })
 
-test('FR-011/SC-007: a RETRIED activation issues every recorded pattern', async () => {
+Deno.test('FR-011/SC-007: a RETRIED activation issues every recorded pattern', async () => {
     // The regression test for the plan audit's CRITICAL finding. A first draft
     // simply psubscribed two patterns and asserted both reached the wire — and
     // it passed identically against the pre-change one-pattern code, because
@@ -830,7 +829,7 @@ test('FR-011/SC-007: a RETRIED activation issues every recorded pattern', async 
     }
 })
 
-test('FR-013: concurrent writers never interleave on the socket', async () => {
+Deno.test('FR-013: concurrent writers never interleave on the socket', async () => {
     // This test was written twice. The first version psubscribed 25 small
     // patterns and asserted every logged command was a known op — and it stayed
     // GREEN with the write queue bypassed entirely, because a frame of tens of
@@ -973,7 +972,7 @@ test('FR-013: concurrent writers never interleave on the socket', async () => {
     }
 })
 
-test('FR-002/SC-002: a peer that answers nothing is detected inside the window', async () => {
+Deno.test('FR-002/SC-002: a peer that answers nothing is detected inside the window', async () => {
     const server = await startFakeServer()
     const sub = new RedisSubscribeConnection({
         hostname: '127.0.0.1',
@@ -1018,7 +1017,7 @@ test('FR-002/SC-002: a peer that answers nothing is detected inside the window',
     }
 })
 
-test('FR-014/SC-010: the HANDSHAKE is bounded by the liveness window too', async () => {
+Deno.test('FR-014/SC-010: the HANDSHAKE is bounded by the liveness window too', async () => {
     // With a password and a non-zero db, an activation runs AUTH and SELECT
     // through `exchange` before any liveness logic exists. Those took
     // readReply's 30s command-path default, so against a peer that accepts and
@@ -1063,7 +1062,7 @@ test('FR-014/SC-010: the HANDSHAKE is bounded by the liveness window too', async
     }
 })
 
-test('FR-004/SC-003: a re-dial that fails is retried until it succeeds (#275)', async () => {
+Deno.test('FR-004/SC-003: a re-dial that fails is retried until it succeeds (#275)', async () => {
     const server = await startFakeServer()
     const sub = new RedisSubscribeConnection({
         hostname: '127.0.0.1',
@@ -1119,7 +1118,7 @@ test('FR-004/SC-003: a re-dial that fails is retried until it succeeds (#275)', 
     }
 })
 
-test('FR-012/SC-008: a socket that failed an activation is never re-used', async () => {
+Deno.test('FR-012/SC-008: a socket that failed an activation is never re-used', async () => {
     // The failure the read loop cannot back-stop: on a FIRST activation the
     // PSUBSCRIBE writes run before `loopConn` is assigned, so nothing else will
     // ever discard that socket. Without the discard, `connect()` hands the same
@@ -1163,7 +1162,7 @@ test('FR-012/SC-008: a socket that failed an activation is never re-used', async
     }
 })
 
-test('FR-007/SC-005: a multi-attempt recovery fires the seam EXACTLY once', async () => {
+Deno.test('FR-007/SC-005: a multi-attempt recovery fires the seam EXACTLY once', async () => {
     const server = await startFakeServer()
     const sub = new RedisSubscribeConnection({
         hostname: '127.0.0.1',
@@ -1208,7 +1207,7 @@ test('FR-007/SC-005: a multi-attempt recovery fires the seam EXACTLY once', asyn
     }
 })
 
-test('FR-007: a retried FIRST connect fires nothing — there is nothing to reconcile', async () => {
+Deno.test('FR-007: a retried FIRST connect fires nothing — there is nothing to reconcile', async () => {
     const server = await startFakeServer()
     server.unreachable()
     const sub = new RedisSubscribeConnection({
@@ -1247,7 +1246,7 @@ test('FR-007: a retried FIRST connect fires nothing — there is nothing to reco
     }
 })
 
-test('FR-005: the cleartext-AUTH exposure is named, and only when it is real', async () => {
+Deno.test('FR-005: the cleartext-AUTH exposure is named, and only when it is real', async () => {
     const server = await startFakeServer()
     server.unreachable()
     const withPassword = new RedisSubscribeConnection({
@@ -1296,14 +1295,15 @@ test('FR-005: the cleartext-AUTH exposure is named, and only when it is real', a
     }
 })
 
-test(
-    'FR-020/SC-009: close() does not wait out an in-flight dial',
+Deno.test({
+    name: 'FR-020/SC-009: close() does not wait out an in-flight dial',
     // The dangling dial IS the subject: a connect to an unroutable address hangs
-    // until the OS SYN budget expires (~75s macOS, ~130s Linux). That op is
-    // deliberately still pending when the test ends — which is exactly the
-    // state close() must not block on. (node:test never runs Deno's op
-    // sanitizer, so the old `sanitizeOps: false` opt-out is no longer needed.)
-    async () => {
+    // until the OS SYN budget expires (~75s macOS, ~130s Linux). Sanitizers off
+    // because that op is deliberately still pending when the test ends — which
+    // is exactly the state close() must not block on.
+    sanitizeOps: false,
+    sanitizeResources: false,
+    fn: async () => {
         // RFC 5737 TEST-NET-1: guaranteed unroutable, so the dial blackholes
         // rather than being refused. Loopback cannot prove this — ECONNREFUSED
         // on 127.0.0.1 is instant, which is why the defect survived until now.
@@ -1341,9 +1341,9 @@ test(
             // `console.warn` on scope exit, whichever way this block leaves.
         }
     },
-)
+})
 
-test('FR-017: a coalesced retry chain latches toward "reconnect", never away', async () => {
+Deno.test('FR-017: a coalesced retry chain latches toward "reconnect", never away', async () => {
     // Two activations can fail into ONE retry slot with opposite identities: the
     // read loop's fault carries `true`, and a `psubscribe()` racing the same
     // broken socket carries `false`. Whichever lands last used to win, and when
@@ -1413,7 +1413,7 @@ test('FR-017: a coalesced retry chain latches toward "reconnect", never away', a
     }
 })
 
-test('FR-022: the activation that ENDS an outage is a reconnect, whichever caller drove it', async () => {
+Deno.test('FR-022: the activation that ENDS an outage is a reconnect, whichever caller drove it', async () => {
     // #290. The latch used to live only on the retry chain: `#scheduleRetry`
     // recorded the intent, and the timer callback CONSUMED it on the way into
     // `#activate`. So an ordinary `psubscribe()` — a user joining a new room —
@@ -1519,7 +1519,7 @@ test('FR-022: the activation that ENDS an outage is a reconnect, whichever calle
     }
 })
 
-test('FR-023: the reconnect intent is consumed ONCE — a later psubscribe on a healthy socket fires nothing', async () => {
+Deno.test('FR-023: the reconnect intent is consumed ONCE — a later psubscribe on a healthy socket fires nothing', async () => {
     // The other half of #290's latch: it is read at activation time, so it must
     // also be CLEARED there. Left set, every subsequent activation on a
     // perfectly healthy socket reports a reconnect that is not happening — and
@@ -1582,7 +1582,7 @@ test('FR-023: the reconnect intent is consumed ONCE — a later psubscribe on a 
     }
 })
 
-test('FR-025: two activations racing ONE outage fire the seam once, not twice', async () => {
+Deno.test('FR-025: two activations racing ONE outage fire the seam once, not twice', async () => {
     // The clear-before-await ordering at the consume site had a comment
     // claiming this guarantee and nothing exercising it (#290 review, MEDIUM).
     //
@@ -1650,7 +1650,7 @@ test('FR-025: two activations racing ONE outage fire the seam once, not twice', 
     }
 })
 
-test('FR-004: a socket that faults IMMEDIATELY after subscribing backs off too', async () => {
+Deno.test('FR-004: a socket that faults IMMEDIATELY after subscribing backs off too', async () => {
     // The review gate's HIGH, and the one no single seat could see: decision
     // row 3 governs a FAILED activation, and this is a SUCCESSFUL activation
     // that faults a moment later. The read loop's fault path re-dialled with no
@@ -1702,7 +1702,7 @@ test('FR-004: a socket that faults IMMEDIATELY after subscribing backs off too',
     }
 })
 
-test('FR-006: close() cancels a PENDING retry', async () => {
+Deno.test('FR-006: close() cancels a PENDING retry', async () => {
     // Untested until the review gate said so, and unfalsifiable by the obvious
     // route: the retry timer is unref'd (so --trace-leaks cannot see it) and
     // `#activate` returns early when `closed`, so a missing `#clearRetry()`
@@ -1806,10 +1806,12 @@ test('FR-006: close() cancels a PENDING retry', async () => {
     }
 })
 
-test(
-    'FR-014: the DIAL is bounded too, not only the handshake exchanges',
-    // As in SC-009, the blackholed dial is deliberately still pending.
-    async () => {
+Deno.test({
+    name: 'FR-014: the DIAL is bounded too, not only the handshake exchanges',
+    // Same reason as SC-009: the blackholed dial is deliberately still pending.
+    sanitizeOps: false,
+    sanitizeResources: false,
+    fn: async () => {
         // The review gate's MEDIUM, and it made a claim in this file's own
         // documentation false. `AUTH` and `SELECT` were bounded; the connect
         // that precedes them was not. A peer that completes TCP and then stalls
@@ -1847,9 +1849,9 @@ test(
             await sub.close()
         }
     },
-)
+})
 
-test('FR-014: a caller-supplied handshakeTimeoutMs is honoured, not overwritten', async () => {
+Deno.test('FR-014: a caller-supplied handshakeTimeoutMs is honoured, not overwritten', async () => {
     // `handshakeTimeoutMs` is inherited from AuthenticatedConnectionConfig and
     // is therefore part of this class's public surface. The constructor used to
     // overwrite it with livenessMs unconditionally, so a caller who set it was
@@ -1891,7 +1893,7 @@ test('FR-014: a caller-supplied handshakeTimeoutMs is honoured, not overwritten'
     }
 })
 
-test('FR-015: the backoff carries full jitter and respects its cap', async () => {
+Deno.test('FR-015: the backoff carries full jitter and respects its cap', async () => {
     // The review gate's MEDIUM: the backoff policy itself was asserted nowhere.
     // Without jitter, N instances that lose a broker at the same instant compute
     // identical schedules and re-dial it in lockstep forever, holding a
@@ -1954,7 +1956,7 @@ test('FR-015: the backoff carries full jitter and respects its cap', async () =>
     }
 })
 
-test('FR-020: close() during an in-flight activation leaves no timer armed', async () => {
+Deno.test('FR-020: close() during an in-flight activation leaves no timer armed', async () => {
     // WHAT THIS PROVES, precisely: closing mid-activation leaves no interval
     // armed. It does NOT discriminate `#activate`'s second `closed` re-check,
     // and saying so is the point.
@@ -2043,7 +2045,7 @@ test('FR-020: close() during an in-flight activation leaves no timer armed', asy
     }
 })
 
-test('FR-014: the activation budget is SHARED across its steps, not per step', async () => {
+Deno.test('FR-014: the activation budget is SHARED across its steps, not per step', async () => {
     // The review gate's HIGH, and the sharpest thing it found: `livenessMs` was
     // applied independently to the dial, `AUTH` and `SELECT`, so a peer that
     // answered each step just inside the window still cost three windows — 135
@@ -2117,7 +2119,7 @@ function stalledWriteConn(): Deno.Conn {
     } as unknown as Deno.Conn
 }
 
-test('#286: a PSUBSCRIBE write that never settles fails the activation instead of hanging it', async () => {
+Deno.test('#286: a PSUBSCRIBE write that never settles fails the activation instead of hanging it', async () => {
     // Before this, `#activate` awaited a write with no deadline: no error, no
     // retry, no log line. The `catch` that calls `#scheduleRetry` was never
     // entered, so every machine #245 built was bypassed by the one leg it did
@@ -2168,14 +2170,16 @@ test('#286: a PSUBSCRIBE write that never settles fails the activation instead o
     }
 })
 
-test(
-    '#286: the write budget is CAPPED, not the liveness window raw',
+Deno.test({
+    name: '#286: the write budget is CAPPED, not the liveness window raw',
     // ~5s by construction: the whole point is that a 20s liveness window does
     // NOT become a 20s write budget, and the only observable is the deadline
     // firing at the ceiling. A cheaper fixture cannot tell min() from identity,
     // because with a small window the two agree — which is exactly how this
     // decision would have shipped untested.
-    async function () {
+    sanitizeOps: false,
+    sanitizeResources: false,
+    async fn() {
         const real = Deno.connect
         Object.defineProperty(Deno, 'connect', {
             value: () => Promise.resolve(stalledWriteConn()),
@@ -2220,7 +2224,7 @@ test(
             await sub.close()
         }
     },
-)
+})
 
 /**
  * A socket whose writes take `writeMs`, and whose read can be faulted on demand.
@@ -2265,7 +2269,7 @@ function slowWriteConn(writeMs: number): {
     }
 }
 
-test('#286: a write queued against a socket that is then discarded REJECTS, and reaches no socket', async () => {
+Deno.test('#286: a write queued against a socket that is then discarded REJECTS, and reaches no socket', async () => {
     // The half of #286 that is not the deadline. `#writeChain` was
     // per-CONNECTION and `#discardSocket` did not reset it, so a write queued
     // against a dead socket sat ahead of every later write — including the
@@ -2413,7 +2417,7 @@ test('#286: a write queued against a socket that is then discarded REJECTS, and 
     }
 })
 
-test('#286: a keepalive write that times out DISCARDS the socket', async () => {
+Deno.test('#286: a keepalive write that times out DISCARDS the socket', async () => {
     // The obligation the keepalive used to owe and not pay. Its `.catch` logs
     // and deliberately does not schedule a recovery, on the reasoning that "the
     // read loop on this same socket is about to fault". Sound while every write
@@ -2508,7 +2512,7 @@ test('#286: a keepalive write that times out DISCARDS the socket', async () => {
     }
 })
 
-test('#296: a SYNCHRONOUS handler throw is contained, without a live broker', async () => {
+Deno.test('#296: a SYNCHRONOUS handler throw is contained, without a live broker', async () => {
     // #296's only test was live-env-gated, so the default `deno task test`
     // gate carried no coverage of it at all — the review gate's point. The
     // PROCESS-EXIT half genuinely needs a real broker (no in-process double
@@ -2558,7 +2562,7 @@ test('#296: a SYNCHRONOUS handler throw is contained, without a live broker', as
     }
 })
 
-test('#296: the pattern in a handler-fault report is ENCODED, not raw', async () => {
+Deno.test('#296: the pattern in a handler-fault report is ENCODED, not raw', async () => {
     // #305 found this gap by migrating the battery: the row that removes
     // `safeForLog` from this WARN survived 10 runs out of 10, because every
     // other test subscribes `app:*` — a pattern for which `safeForLog(p) === p`,
@@ -2613,7 +2617,7 @@ test('#296: the pattern in a handler-fault report is ENCODED, not raw', async ()
     }
 })
 
-test('#296: an ASYNC handler rejection is contained too', async () => {
+Deno.test('#296: an ASYNC handler rejection is contained too', async () => {
     // The gap the review gate found. `try/catch` sees a synchronous throw and
     // nothing else, so an `async` handler hands back a REJECTED promise that
     // nothing awaits — the unobserved rejection #296 is about, reached by
@@ -2744,7 +2748,7 @@ function scriptedConn(options: {
     }
 }
 
-test('#298/SC-001: a STALE discard leaves the LIVE generation armed', async () => {
+Deno.test('#298/SC-001: a STALE discard leaves the LIVE generation armed', async () => {
     // The highest-value uncovered guard in the #248 branch, named as such by
     // that battery's own `#286 the discard clear is made unconditional` row:
     // "constructible in principle and not constructed here". This constructs it.
@@ -2853,7 +2857,7 @@ test('#298/SC-001: a STALE discard leaves the LIVE generation armed', async () =
     }
 })
 
-test('#298/SC-012: a dropped generation stops pinging', async () => {
+Deno.test('#298/SC-012: a dropped generation stops pinging', async () => {
     // FR-014, and the reason the generation releases through a CALL rather than
     // by dropping the reference. `keepaliveTimer` is a `setInterval` id: losing
     // the object frees the field and leaves the interval running forever. The
@@ -2918,7 +2922,7 @@ test('#298/SC-012: a dropped generation stops pinging', async () => {
     }
 })
 
-test('#298/SC-002: the release is gated, the CLOSE is not', async () => {
+Deno.test('#298/SC-002: the release is gated, the CLOSE is not', async () => {
     // FR-004. `#discardSocket` gates what it releases on owning the socket, and
     // `this.conn.discard(conn)` sits inside it UNGATED. Gating that too is the
     // natural-looking tidy-up and it leaks an established, AUTH'd socket and a
@@ -2970,7 +2974,7 @@ test('#298/SC-002: the release is gated, the CLOSE is not', async () => {
     }
 })
 
-test('#298/SC-009: onReconnect fires on a recovery, and only on a recovery', async () => {
+Deno.test('#298/SC-009: onReconnect fires on a recovery, and only on a recovery', async () => {
     // FR-012's real stake, and the criterion that replaced one which passed
     // under its own regression. `wasDelivering` does NOT feed the recovery LOG —
     // it feeds `#scheduleRetry` → `#reconnectIntent` → `onReconnect` →
@@ -3088,7 +3092,7 @@ test('#298/SC-009: onReconnect fires on a recovery, and only on a recovery', asy
     )
 })
 
-test('#298/SC-003: a SECOND psubscribe on a live socket does not re-generation it', async () => {
+Deno.test('#298/SC-003: a SECOND psubscribe on a live socket does not re-generation it', async () => {
     // FR-003's install side, and the half the plan's first draft never
     // mentioned. `psubscribe()` on an established connection reaches `#activate`
     // and `connect()` hands back the CACHED socket — so a generation created per
@@ -3159,7 +3163,7 @@ test('#298/SC-003: a SECOND psubscribe on a live socket does not re-generation i
     }
 })
 
-test('#298/SC-004: close() still awaits the loop the discard faulted', async () => {
+Deno.test('#298/SC-004: close() still awaits the loop the discard faulted', async () => {
     // FR-006. `loopDone` is NOT a member of the generation, and this is the
     // reason: `close()` discards the socket and THEN awaits the loop's unwind,
     // so the promise has to outlive the drop. Folding it in would make `close()`
@@ -3236,7 +3240,7 @@ test('#298/SC-004: close() still awaits the loop the discard faulted', async () 
     }
 })
 
-test('#298/SC-013: no log line can carry a generation member', async () => {
+Deno.test('#298/SC-013: no log line can carry a generation member', async () => {
     // FR-009's second clause, re-phrased positively during the plan re-entry
     // because the original was satisfied VACUOUSLY: no member is a string
     // today, so "introduces no identifier into any log line" was true by
@@ -3402,7 +3406,7 @@ const PATIENT = {
     retryMaxMs: 60_000,
 } as const
 
-test('#295/SC-010: watch, unwatch, re-watch on ONE generation delivers again', async () => {
+Deno.test('#295/SC-010: watch, unwatch, re-watch on ONE generation delivers again', async () => {
     // The commonest lifecycle a chat deployment has, and the one an
     // append-only record turns into permanent silence: the re-watch computes
     // its delta, finds the pattern still recorded, issues nothing, and the
@@ -3453,7 +3457,7 @@ test('#295/SC-010: watch, unwatch, re-watch on ONE generation delivers again', a
     }
 })
 
-test('#295/SC-015: a re-watch BEFORE the +punsubscribe acknowledgement still issues', async () => {
+Deno.test('#295/SC-015: a re-watch BEFORE the +punsubscribe acknowledgement still issues', async () => {
     // SC-010 lets the unwatch settle. This is the window it cannot reach: the
     // erasure is written when the PUNSUBSCRIBE is ENQUEUED, so a re-watch
     // arriving before the broker has answered must still see an empty record.
@@ -3495,7 +3499,7 @@ test('#295/SC-015: a re-watch BEFORE the +punsubscribe acknowledgement still iss
     }
 })
 
-test('#295/SC-016: a STALE +psubscribe, landing after its retire, records nothing', async () => {
+Deno.test('#295/SC-016: a STALE +psubscribe, landing after its retire, records nothing', async () => {
     // Redis answers in order, so the acknowledgement for a subscribe that was
     // unwatched meanwhile lands AFTER the erasure. Recording it there re-asserts
     // a pattern the broker no longer holds, and the next watch is then skipped
@@ -3545,7 +3549,7 @@ test('#295/SC-016: a STALE +psubscribe, landing after its retire, records nothin
     }
 })
 
-test('#295/SC-009: a NEW generation records nothing from the old one', async () => {
+Deno.test('#295/SC-009: a NEW generation records nothing from the old one', async () => {
     // The half of SC-009 that is reachable, and the plan is amended to say so.
     //
     // "An acknowledgement arriving after its generation was DISCARDED" cannot be
@@ -3590,7 +3594,7 @@ test('#295/SC-009: a NEW generation records nothing from the old one', async () 
     }
 })
 
-test('#295/FR-010: the recovery line counts what the socket CARRIES, not what is wanted', async () => {
+Deno.test('#295/FR-010: the recovery line counts what the socket CARRIES, not what is wanted', async () => {
     // The delta split one number into two, and reporting the wrong one makes an
     // outage that ended look larger than it was. The desired set counts what the
     // caller WANTS; on a live socket an activation may have issued none of it.
@@ -3640,7 +3644,7 @@ test('#295/FR-010: the recovery line counts what the socket CARRIES, not what is
     }
 })
 
-test('#295/SC-005: a BURST of N watches puts N frames on the wire, not N(N+1)/2', async () => {
+Deno.test('#295/SC-005: a BURST of N watches puts N frames on the wire, not N(N+1)/2', async () => {
     // The defect the whole record exists for, and the one the measured baseline
     // pins at 36 / 528 / 8256 for N = 8 / 32 / 128 (`baseline.md`): `psubscribe`
     // re-issues the WHOLE recorded set, so watch #k writes k frames.
@@ -3743,7 +3747,7 @@ function recordingSlowConn(writeMs: number): {
     }
 }
 
-test('#295/FR-013: a pattern unwatched MID-activation is not issued by it', async () => {
+Deno.test('#295/FR-013: a pattern unwatched MID-activation is not issued by it', async () => {
     // `#activate` snapshots the desired set before its first await, and each
     // write is awaited. A `punsubscribe` landing while it is suspended must be
     // honoured by the REMAINING iterations — otherwise the activation creates a
@@ -3842,7 +3846,7 @@ test('#295/FR-013: a pattern unwatched MID-activation is not issued by it', asyn
     }
 })
 
-test('#295/SC-011: the reconnect seam fires after ONE write, not after N', async () => {
+Deno.test('#295/SC-011: the reconnect seam fires after ONE write, not after N', async () => {
     // R-8's mitigation, measured. `#fireReconnect` used to run after the whole
     // re-issue loop, so the framework's only revocation fast path sat behind
     // every hosted channel's frame — at a thousand channels, a thousand
@@ -3915,7 +3919,7 @@ test('#295/SC-011: the reconnect seam fires after ONE write, not after N', async
     }
 })
 
-test('#295/SC-012: a re-issue that fails part way still leaves the control topic subscribed', async () => {
+Deno.test('#295/SC-012: a re-issue that fails part way still leaves the control topic subscribed', async () => {
     // A throw at write k skips k..N. Which subscription survives used to be
     // decided by the order a consumer happened to register its seams in —
     // unstated, unpinned, and it INVERTS the moment `onMessage` stops
@@ -4021,7 +4025,7 @@ test('#295/SC-012: a re-issue that fails part way still leaves the control topic
     }
 })
 
-test('#295/FR-014: one broken handler on many channels is ONE report, and the tally names them all', async () => {
+Deno.test('#295/FR-014: one broken handler on many channels is ONE report, and the tally names them all', async () => {
     // The throttle used to be per pattern, which was one ERROR per generation
     // while a deployment held one prefix-wide subscription. Under per-channel
     // subscribe a single broken handler is registered against every hosted
@@ -4104,7 +4108,7 @@ test('#295/FR-014: one broken handler on many channels is ONE report, and the ta
     }
 })
 
-test('#295/FR-015: a watch does not reset the keepalive clock', async () => {
+Deno.test('#295/FR-015: a watch does not reset the keepalive clock', async () => {
     // `#activate` runs on every `psubscribe`, and re-arming clears the interval
     // and starts a fresh one. That was harmless while activations were rare;
     // under per-channel subscribe a JOIN is an activation, so an instance
@@ -4226,7 +4230,7 @@ function interceptWrite(
     }
 }
 
-test('#372: a failed unsubscribeOne write discards the socket and reconnects without re-subscribing the retired pattern', async () => {
+Deno.test('#372: a failed unsubscribeOne write discards the socket and reconnects without re-subscribing the retired pattern', async () => {
     const server = await startFakeServer()
     const real = Deno.connect
     const fault = interceptWrite(real, 'PUNSUBSCRIBE', 'reject')
@@ -4283,7 +4287,7 @@ test('#372: a failed unsubscribeOne write discards the socket and reconnects wit
     )
 })
 
-test('#372: a failed unsubscribeOne on a delivering socket still fires onReconnect once healed', async () => {
+Deno.test('#372: a failed unsubscribeOne on a delivering socket still fires onReconnect once healed', async () => {
     const server = await startFakeServer()
     const real = Deno.connect
     const fault = interceptWrite(real, 'PUNSUBSCRIBE', 'reject')
@@ -4325,7 +4329,7 @@ test('#372: a failed unsubscribeOne on a delivering socket still fires onReconne
     })
 })
 
-test('#372: an abandoned unsubscribe write does not re-discard a live replacement generation', async () => {
+Deno.test('#372: an abandoned unsubscribe write does not re-discard a live replacement generation', async () => {
     const server = await startFakeServer()
     const real = Deno.connect
     const fault = interceptWrite(real, 'PUNSUBSCRIBE', 'hold')

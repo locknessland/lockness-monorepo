@@ -28,4 +28,9 @@ export {
 } from './features.ts'
 export { type FlagDriver, MemoryFlagDriver } from './driver.ts'
 export { inRollout, stableHash } from './rollout.ts'
-export { FLAGS_DIR, registerFeaturesCommands } from './cli_commands.ts'
+export {
+    type Cli,
+    FLAGS_DIR,
+    isContained,
+    registerFeaturesCommands,
+} from './cli_commands.ts'

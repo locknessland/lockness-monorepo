@@ -158,8 +158,8 @@ export async function createDrizzleConfig(): Promise<boolean> {
  * The generated `drizzle.config.ts` imports `defineConfig` from
  * `drizzle-kit`, and `db:fresh` imports that file — so without the mapping
  * the config cannot be loaded. The specifier is the exactly pinned one the
- * `db:*` commands run; why it comes from npm is recorded at
- * {@link DRIZZLE_KIT_SPECIFIER}. An existing mapping is the
+ * `db:*` commands run; the `npm:` registry is a hard-rule-2 exception,
+ * justified at {@link DRIZZLE_KIT_SPECIFIER}. An existing mapping is the
  * project's choice and is left alone.
  *
  * @param path - The project's `deno.json`.

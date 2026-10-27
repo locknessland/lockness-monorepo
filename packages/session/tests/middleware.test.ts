@@ -2,12 +2,11 @@
  * Tests for @lockness/session - Middleware
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
-import { Hono } from '@lockness/hono'
+import { Hono } from 'hono'
 import { configureSession, getSession, sessionMiddleware } from '../mod.ts'
 
-test('sessionMiddleware - attaches session to context', async () => {
+Deno.test('sessionMiddleware - attaches session to context', async () => {
     configureSession({
         driver: 'memory',
         secret: 'test-secret-key-for-middleware',
@@ -27,7 +26,7 @@ test('sessionMiddleware - attaches session to context', async () => {
     assertEquals(res.status, 200)
 })
 
-test('sessionMiddleware - persists data across requests', async () => {
+Deno.test('sessionMiddleware - persists data across requests', async () => {
     // #142 / #138: this test used to request only `/set` and assert a status
     // code, so it stayed green through the whole life of a memory driver that
     // never persisted. It now makes the second request, carrying the session
@@ -67,7 +66,7 @@ test('sessionMiddleware - persists data across requests', async () => {
     )
 })
 
-test('sessionMiddleware - flash messages work', async () => {
+Deno.test('sessionMiddleware - flash messages work', async () => {
     configureSession({
         driver: 'memory',
         secret: 'test-flash',

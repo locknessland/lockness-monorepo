@@ -26,7 +26,6 @@
  * @module @lockness/realtime/tests/presence_join_rosterless_342
  */
 
-import { test } from 'node:test'
 import { assertEquals } from '@std/assert'
 import { ChannelManager } from '../manager.ts'
 import type { BroadcastDriver } from '../driver.ts'
@@ -65,7 +64,7 @@ const presenceFrames = (c: Recording, action: string) =>
         f.type === 'presence' && f.channel === CHANNEL && f.action === action
     )
 
-test('#342 a roster-less first join announces joined exactly once', async () => {
+Deno.test('#342 a roster-less first join announces joined exactly once', async () => {
     const published: Record<string, unknown>[] = []
     // NO `holdMember` / `releaseMember` / `readRoster` — the shape the contract
     // allows and neither built-in driver has.
@@ -108,7 +107,7 @@ test('#342 a roster-less first join announces joined exactly once', async () => 
     )
 })
 
-test('#342 a roster-less join overtaken by an unsubscribe announces nothing', async () => {
+Deno.test('#342 a roster-less join overtaken by an unsubscribe announces nothing', async () => {
     // The gate order is `#330 a superseded join announces nothing`'s, on a
     // driver with the watch pair and no roster ops: the join claims, suspends
     // at `#watch`, and the leave lands first. The projection then reads a

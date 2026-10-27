@@ -1,4 +1,3 @@
-import { test } from 'node:test'
 import { assertEquals, assertExists } from '@std/assert'
 import {
     ChannelManager,
@@ -12,19 +11,19 @@ import {
 // SSEChannel Tests
 // =============================================================================
 
-test('SSEChannel - should create channel with name', () => {
+Deno.test('SSEChannel - should create channel with name', () => {
     const channel = new SSEChannel('test')
     assertEquals(channel.name, 'test')
     assertEquals(channel.clientCount, 0)
 })
 
-test('SSEChannel - should use default options', () => {
+Deno.test('SSEChannel - should use default options', () => {
     const channel = new SSEChannel('test')
     assertEquals(channel.options.heartbeatInterval, 30000)
     assertEquals(channel.options.maxClients, Infinity)
 })
 
-test('SSEChannel - should use custom options', () => {
+Deno.test('SSEChannel - should use custom options', () => {
     const channel = new SSEChannel('test', {
         heartbeatInterval: 5000,
         maxClients: 100,
@@ -35,7 +34,7 @@ test('SSEChannel - should use custom options', () => {
     assertEquals(channel.options.headers['X-Custom'], 'value')
 })
 
-test('SSEChannel - should track client count', () => {
+Deno.test('SSEChannel - should track client count', () => {
     const channel = new SSEChannel('test', { heartbeatInterval: 0 })
 
     // Mock controller
@@ -57,7 +56,7 @@ test('SSEChannel - should track client count', () => {
     assertEquals(channel.clientCount, 0)
 })
 
-test('SSEChannel - should respect maxClients', () => {
+Deno.test('SSEChannel - should respect maxClients', () => {
     const channel = new SSEChannel('test', {
         heartbeatInterval: 0,
         maxClients: 2,
@@ -76,7 +75,7 @@ test('SSEChannel - should respect maxClients', () => {
     channel.close()
 })
 
-test('SSEChannel - should check client existence', () => {
+Deno.test('SSEChannel - should check client existence', () => {
     const channel = new SSEChannel('test', { heartbeatInterval: 0 })
 
     const controller = {
@@ -97,7 +96,7 @@ test('SSEChannel - should check client existence', () => {
     channel.close()
 })
 
-test('SSEChannel - should return client IDs', () => {
+Deno.test('SSEChannel - should return client IDs', () => {
     const channel = new SSEChannel('test', { heartbeatInterval: 0 })
 
     const controller = {
@@ -118,7 +117,7 @@ test('SSEChannel - should return client IDs', () => {
     channel.close()
 })
 
-test('SSEChannel - broadcast should return sent count', () => {
+Deno.test('SSEChannel - broadcast should return sent count', () => {
     const channel = new SSEChannel('test', { heartbeatInterval: 0 })
     const messages: string[] = []
 
@@ -144,7 +143,7 @@ test('SSEChannel - broadcast should return sent count', () => {
     channel.close()
 })
 
-test('SSEChannel - broadcastTo should filter clients', () => {
+Deno.test('SSEChannel - broadcastTo should filter clients', () => {
     const channel = new SSEChannel('test', { heartbeatInterval: 0 })
     const messages = new Map<string, string[]>()
 
@@ -179,7 +178,7 @@ test('SSEChannel - broadcastTo should filter clients', () => {
 // ChannelManager Tests
 // =============================================================================
 
-test('ChannelManager - should get or create channels', () => {
+Deno.test('ChannelManager - should get or create channels', () => {
     const manager = new ChannelManager()
     const ch1 = manager.getOrCreate('manager-test-1')
     const ch2 = manager.getOrCreate('manager-test-1') // Same channel
@@ -191,7 +190,7 @@ test('ChannelManager - should get or create channels', () => {
     manager.remove('manager-test-1')
 })
 
-test('ChannelManager - should list channel names', () => {
+Deno.test('ChannelManager - should list channel names', () => {
     const manager = new ChannelManager()
     manager.getOrCreate('list-test-a')
     manager.getOrCreate('list-test-b')
@@ -204,7 +203,7 @@ test('ChannelManager - should list channel names', () => {
     manager.remove('list-test-b')
 })
 
-test('ChannelManager - should remove channels', () => {
+Deno.test('ChannelManager - should remove channels', () => {
     const manager = new ChannelManager()
     manager.getOrCreate('remove-test')
     assertEquals(manager.has('remove-test'), true)
@@ -221,7 +220,7 @@ test('ChannelManager - should remove channels', () => {
 // sseHandler Tests
 // =============================================================================
 
-test('sseHandler - should return SSE response', () => {
+Deno.test('sseHandler - should return SSE response', () => {
     const channel = new SSEChannel('handler-test', { heartbeatInterval: 0 })
 
     const response = sseHandler(channel)
@@ -237,7 +236,7 @@ test('sseHandler - should return SSE response', () => {
 // createSSEStream Tests
 // =============================================================================
 
-test('createSSEStream - should return SSE response', async () => {
+Deno.test('createSSEStream - should return SSE response', async () => {
     const response = createSSEStream((controller) => {
         const encoder = new TextEncoder()
         controller.enqueue(encoder.encode('event: test\ndata: {"value":1}\n\n'))
@@ -264,7 +263,7 @@ test('createSSEStream - should return SSE response', async () => {
     assertEquals(events[0].includes('data: {"value":1}'), true)
 })
 
-test('createCustomSSEHandler - should provide helpers', async () => {
+Deno.test('createCustomSSEHandler - should provide helpers', async () => {
     const response = createCustomSSEHandler(async ({ send, close }) => {
         await send('count', { value: 1 })
         await send('count', { value: 2 })

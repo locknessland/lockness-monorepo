@@ -7,8 +7,8 @@
  * @module @lockness/core/static_file_server
  */
 
-import type { Hono } from '@lockness/hono'
-import { serveStatic } from '@lockness/hono/deno'
+import type { Hono } from 'hono'
+import { denoServeStatic as serveStatic } from 'hono'
 
 /**
  * Manages static file serving configuration for the application.

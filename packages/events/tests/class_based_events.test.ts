@@ -2,7 +2,6 @@
  * Tests for class-based events, EventDispatcher, and @Listener decorator
  */
 
-import { test } from 'node:test'
 import { assertEquals, assertExists, assertStrictEquals } from '@std/assert'
 import {
     BaseEvent,
@@ -52,20 +51,20 @@ class PaymentProcessed extends BaseEvent {
 // BaseEvent Tests
 // =============================================================================
 
-test('BaseEvent - has createdAt timestamp', () => {
+Deno.test('BaseEvent - has createdAt timestamp', () => {
     const event = new UserCreated('123', 'test@example.com')
 
     assertExists(event.createdAt)
     assertEquals(event.createdAt instanceof Date, true)
 })
 
-test('BaseEvent - has eventName property', () => {
+Deno.test('BaseEvent - has eventName property', () => {
     const event = new UserCreated('123', 'test@example.com')
 
     assertEquals(event.eventName, 'UserCreated')
 })
 
-test('BaseEvent - carries data correctly', () => {
+Deno.test('BaseEvent - carries data correctly', () => {
     const event = new OrderPlaced('ORD-123', 99.99)
 
     assertEquals(event.orderId, 'ORD-123')
@@ -76,7 +75,7 @@ test('BaseEvent - carries data correctly', () => {
 // EventDispatcher Tests
 // =============================================================================
 
-test('EventDispatcher - emit and listen to class-based events', async () => {
+Deno.test('EventDispatcher - emit and listen to class-based events', async () => {
     const dispatcher = new EventDispatcher()
     let received: UserCreated | null = null
 
@@ -91,7 +90,7 @@ test('EventDispatcher - emit and listen to class-based events', async () => {
     assertEquals((received as UserCreated).email, 'test@example.com')
 })
 
-test('EventDispatcher - multiple listeners receive same event', async () => {
+Deno.test('EventDispatcher - multiple listeners receive same event', async () => {
     const dispatcher = new EventDispatcher()
     const results: string[] = []
 
@@ -110,7 +109,7 @@ test('EventDispatcher - multiple listeners receive same event', async () => {
     assertEquals(results[1], 'listener2: 123')
 })
 
-test('EventDispatcher - listeners execute in priority order', async () => {
+Deno.test('EventDispatcher - listeners execute in priority order', async () => {
     const dispatcher = new EventDispatcher()
     const results: string[] = []
 
@@ -131,7 +130,7 @@ test('EventDispatcher - listeners execute in priority order', async () => {
     assertEquals(results, ['high', 'medium', 'low'])
 })
 
-test('EventDispatcher - once listener executes only once', async () => {
+Deno.test('EventDispatcher - once listener executes only once', async () => {
     const dispatcher = new EventDispatcher()
     let count = 0
 
@@ -145,7 +144,7 @@ test('EventDispatcher - once listener executes only once', async () => {
     assertEquals(count, 1)
 })
 
-test('EventDispatcher - off removes listener', async () => {
+Deno.test('EventDispatcher - off removes listener', async () => {
     const dispatcher = new EventDispatcher()
     let count = 0
 
@@ -162,7 +161,7 @@ test('EventDispatcher - off removes listener', async () => {
     assertEquals(count, 1)
 })
 
-test('EventDispatcher - onAny receives all events', async () => {
+Deno.test('EventDispatcher - onAny receives all events', async () => {
     const dispatcher = new EventDispatcher()
     const events: string[] = []
 
@@ -178,7 +177,7 @@ test('EventDispatcher - onAny receives all events', async () => {
     assertEquals(events[1], 'OrderPlaced')
 })
 
-test('EventDispatcher - listenerCount returns correct count', () => {
+Deno.test('EventDispatcher - listenerCount returns correct count', () => {
     const dispatcher = new EventDispatcher()
 
     dispatcher.on(UserCreated, () => {})
@@ -189,7 +188,7 @@ test('EventDispatcher - listenerCount returns correct count', () => {
     assertEquals(dispatcher.listenerCount(OrderPlaced), 1)
 })
 
-test('EventDispatcher - removeAllListeners works', async () => {
+Deno.test('EventDispatcher - removeAllListeners works', async () => {
     const dispatcher = new EventDispatcher()
     let count = 0
 
@@ -206,7 +205,7 @@ test('EventDispatcher - removeAllListeners works', async () => {
     assertEquals(count, 0)
 })
 
-test('EventDispatcher - emitString for backward compatibility', async () => {
+Deno.test('EventDispatcher - emitString for backward compatibility', async () => {
     const dispatcher = new EventDispatcher()
     let received: any = null
 
@@ -224,7 +223,7 @@ test('EventDispatcher - emitString for backward compatibility', async () => {
 // Global Dispatcher Tests
 // =============================================================================
 
-test('dispatcher - returns global dispatcher', () => {
+Deno.test('dispatcher - returns global dispatcher', () => {
     const d1 = dispatcher()
     const d2 = dispatcher()
 
@@ -235,7 +234,7 @@ test('dispatcher - returns global dispatcher', () => {
     assertStrictEquals(d1, d2)
 })
 
-test('configureEventDispatcher - creates new global dispatcher', () => {
+Deno.test('configureEventDispatcher - creates new global dispatcher', () => {
     const d1 = configureEventDispatcher()
     const d2 = dispatcher()
 
@@ -248,7 +247,7 @@ test('configureEventDispatcher - creates new global dispatcher', () => {
 // @Listener Decorator Tests
 // =============================================================================
 
-test('@Listener - stores metadata on class', () => {
+Deno.test('@Listener - stores metadata on class', () => {
     class TestListener {
         @Listener(UserCreated)
         handleUserCreated(_event: UserCreated) {
@@ -277,7 +276,7 @@ test('@Listener - stores metadata on class', () => {
 // Framework Events Tests
 // =============================================================================
 
-test('KernelBooted - creates event with properties', () => {
+Deno.test('KernelBooted - creates event with properties', () => {
     const event = new KernelBooted('MyApp', 'development')
 
     assertEquals(event.appName, 'MyApp')
@@ -286,7 +285,7 @@ test('KernelBooted - creates event with properties', () => {
     assertExists(event.createdAt)
 })
 
-test('RequestStarted - creates event with context', () => {
+Deno.test('RequestStarted - creates event with context', () => {
     const mockContext = {} as any
     const event = new RequestStarted(
         mockContext,
@@ -305,7 +304,7 @@ test('RequestStarted - creates event with context', () => {
 // Testing Utilities Tests
 // =============================================================================
 
-test('fake - captures emitted events', async () => {
+Deno.test('fake - captures emitted events', async () => {
     const fakeBuffer = fake()
 
     await dispatcher().emit(new UserCreated('123', 'test@example.com'))
@@ -316,7 +315,7 @@ test('fake - captures emitted events', async () => {
     restore()
 })
 
-test('fake - assertEmitted works', async () => {
+Deno.test('fake - assertEmitted works', async () => {
     const fakeBuffer = fake()
 
     await dispatcher().emit(new UserCreated('123', 'test@example.com'))
@@ -326,7 +325,7 @@ test('fake - assertEmitted works', async () => {
     restore()
 })
 
-test('fake - assertEmitted with predicate works', async () => {
+Deno.test('fake - assertEmitted with predicate works', async () => {
     const fakeBuffer = fake()
 
     await dispatcher().emit(new UserCreated('123', 'test@example.com'))
@@ -337,7 +336,7 @@ test('fake - assertEmitted with predicate works', async () => {
     restore()
 })
 
-test('fake - assertNotEmitted works', async () => {
+Deno.test('fake - assertNotEmitted works', async () => {
     const fakeBuffer = fake()
 
     await dispatcher().emit(new UserCreated('123', 'test@example.com'))
@@ -347,7 +346,7 @@ test('fake - assertNotEmitted works', async () => {
     restore()
 })
 
-test('fake - assertEmittedCount works', async () => {
+Deno.test('fake - assertEmittedCount works', async () => {
     const fakeBuffer = fake()
 
     await dispatcher().emit(new UserCreated('123', 'test@example.com'))
@@ -358,7 +357,7 @@ test('fake - assertEmittedCount works', async () => {
     restore()
 })
 
-test('fake - allOfType returns events of specific type', async () => {
+Deno.test('fake - allOfType returns events of specific type', async () => {
     const fakeBuffer = fake()
 
     await dispatcher().emit(new UserCreated('123', 'test@example.com'))
@@ -374,7 +373,7 @@ test('fake - allOfType returns events of specific type', async () => {
     restore()
 })
 
-test('fake - clear removes recorded events', async () => {
+Deno.test('fake - clear removes recorded events', async () => {
     const fakeBuffer = fake()
 
     await dispatcher().emit(new UserCreated('123', 'test@example.com'))
@@ -386,7 +385,7 @@ test('fake - clear removes recorded events', async () => {
     restore()
 })
 
-test('fake - countOfType returns correct count', async () => {
+Deno.test('fake - countOfType returns correct count', async () => {
     const fakeBuffer = fake()
 
     await dispatcher().emit(new UserCreated('123', 'test@example.com'))
@@ -404,7 +403,7 @@ test('fake - countOfType returns correct count', async () => {
 // Integration Tests
 // =============================================================================
 
-test('Integration - listener class with DI pattern', async () => {
+Deno.test('Integration - listener class with DI pattern', async () => {
     class EmailService {
         async sendEmail(_to: string, _subject: string): Promise<void> {
             // Mock email sending
@@ -459,7 +458,7 @@ test('Integration - listener class with DI pattern', async () => {
     }
 })
 
-test('EventDispatcher - forwards a signal and wires nothing itself', async () => {
+Deno.test('EventDispatcher - forwards a signal and wires nothing itself', async () => {
     // FR-005: the dispatcher is a pass-through. If it grew its own abort
     // handling there would be two decisions about when a listener dies, and the
     // wildcard path would have a third.
@@ -483,7 +482,7 @@ test('EventDispatcher - forwards a signal and wires nothing itself', async () =>
     assertEquals(wildcard, 1, 'and so was the wildcard one')
 })
 
-test('EventDispatcher - an already-aborted signal registers nothing', async () => {
+Deno.test('EventDispatcher - an already-aborted signal registers nothing', async () => {
     class Pong extends BaseEvent {}
 
     const dispatcher = new EventDispatcher()
@@ -497,7 +496,7 @@ test('EventDispatcher - an already-aborted signal registers nothing', async () =
     assertEquals(ran, 0)
 })
 
-test('removeAllListeners detaches EventBuffer’s recorder', async () => {
+Deno.test('removeAllListeners detaches EventBuffer’s recorder', async () => {
     // Not a defect being fixed — a trap being pinned. EventBuffer records by
     // registering an ordinary wildcard listener, and removeAllListeners()
     // clears wildcards. Any test that calls it kills the recorder, and every
@@ -523,7 +522,7 @@ test('removeAllListeners detaches EventBuffer’s recorder', async () => {
     }
 })
 
-test('EventDispatcher - anyEvent yields real frames and forwards its options', async () => {
+Deno.test('EventDispatcher - anyEvent yields real frames and forwards its options', async () => {
     // Its whole test was `typeof dispatcher().anyEvent === 'function'`, which
     // survives dropping the argument, dropping the body, and returning a stub.
     class Alpha extends BaseEvent {}

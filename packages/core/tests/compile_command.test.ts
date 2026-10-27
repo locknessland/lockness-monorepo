@@ -20,7 +20,6 @@
  * @module @lockness/core/tests/compile_command
  */
 
-import { test } from 'node:test'
 import {
     assert,
     assertEquals,
@@ -30,7 +29,7 @@ import {
 import { join } from '@std/path'
 import { CompileCommand, type StepRunner } from '../cli/compile_command.ts'
 import { CoreCommandFailure } from '../cli/command_failure.ts'
-import type { CommandContext } from '@lockness/contract/command'
+import type { CommandContext } from '../cli/compile_command.ts'
 
 /** One call the fake runner received. */
 interface RunnerCall {
@@ -123,7 +122,7 @@ function assertFailure(error: unknown, message: string): CoreCommandFailure {
     return error
 }
 
-test('compile - succeeds through the runner and reports the binary', async () => {
+Deno.test('compile - succeeds through the runner and reports the binary', async () => {
     await inApp(
         { 'app/kernel.ts': kernelSource({ compile: { output: 'dist/app' } }) },
         async (logs) => {
@@ -144,7 +143,7 @@ test('compile - succeeds through the runner and reports the binary', async () =>
     )
 })
 
-test('compile - no kernel file is a failure and runs nothing', async () => {
+Deno.test('compile - no kernel file is a failure and runs nothing', async () => {
     await inApp({}, async () => {
         const { runner, calls } = fakeRunner()
         const error = await assertRejects(() =>
@@ -158,7 +157,7 @@ test('compile - no kernel file is a failure and runs nothing', async () => {
     })
 })
 
-test('compile - a kernel file with no @Kernel class is a failure and runs nothing', async () => {
+Deno.test('compile - a kernel file with no @Kernel class is a failure and runs nothing', async () => {
     await inApp(
         { 'app/kernel.ts': 'export const notAKernel = 1\n' },
         async () => {
@@ -175,7 +174,7 @@ test('compile - a kernel file with no @Kernel class is a failure and runs nothin
     )
 })
 
-test('compile - a kernel that fails to load reaches the dispatcher as itself', async () => {
+Deno.test('compile - a kernel that fails to load reaches the dispatcher as itself', async () => {
     await inApp(
         { 'app/kernel.ts': 'throw new Error("kernel exploded")\n' },
         async () => {
@@ -189,7 +188,7 @@ test('compile - a kernel that fails to load reaches the dispatcher as itself', a
     )
 })
 
-test('compile - failed route generation is a failure with cause, before any step runs', async () => {
+Deno.test('compile - failed route generation is a failure with cause, before any step runs', async () => {
     await inApp(
         {
             'app/kernel.ts': kernelSource({
@@ -214,7 +213,7 @@ test('compile - failed route generation is a failure with cause, before any step
     )
 })
 
-test('compile - a failed pre-compile script is a failure and stops before deno compile', async () => {
+Deno.test('compile - a failed pre-compile script is a failure and stops before deno compile', async () => {
     await inApp(
         {
             'app/kernel.ts': kernelSource({
@@ -239,7 +238,7 @@ test('compile - a failed pre-compile script is a failure and stops before deno c
     )
 })
 
-test('compile - a pre-compile command runs its own program', async () => {
+Deno.test('compile - a pre-compile command runs its own program', async () => {
     await inApp(
         {
             'app/kernel.ts': kernelSource({
@@ -262,7 +261,7 @@ test('compile - a pre-compile command runs its own program', async () => {
     )
 })
 
-test('compile - a pre-compile program that cannot start is a failure with cause', async () => {
+Deno.test('compile - a pre-compile program that cannot start is a failure with cause', async () => {
     await inApp(
         {
             'app/kernel.ts': kernelSource({
@@ -284,7 +283,7 @@ test('compile - a pre-compile program that cannot start is a failure with cause'
     )
 })
 
-test('compile - a deno compile that cannot start is a failure with cause', async () => {
+Deno.test('compile - a deno compile that cannot start is a failure with cause', async () => {
     await inApp(
         { 'app/kernel.ts': kernelSource({ compile: {} }) },
         async (logs) => {
@@ -303,7 +302,7 @@ test('compile - a deno compile that cannot start is a failure with cause', async
     )
 })
 
-test('compile - a missing declared asset is a failure before deno compile', async () => {
+Deno.test('compile - a missing declared asset is a failure before deno compile', async () => {
     await inApp(
         {
             'app/kernel.ts': kernelSource({
@@ -322,7 +321,7 @@ test('compile - a missing declared asset is a failure before deno compile', asyn
     )
 })
 
-test('compile - a failed deno compile is a failure and reports no binary', async () => {
+Deno.test('compile - a failed deno compile is a failure and reports no binary', async () => {
     await inApp(
         { 'app/kernel.ts': kernelSource({ compile: {} }) },
         async (logs) => {
@@ -345,7 +344,7 @@ test('compile - a failed deno compile is a failure and reports no binary', async
 
 // The real runner, on a script only: it must hand the child's exit code back,
 // so a failing script stops the command before `deno compile` is ever spawned.
-test('compile - the default runner reports a script exit code', async () => {
+Deno.test('compile - the default runner reports a script exit code', async () => {
     await inApp(
         {
             'app/kernel.ts': kernelSource({

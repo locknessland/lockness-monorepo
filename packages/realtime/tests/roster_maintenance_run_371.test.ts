@@ -18,7 +18,6 @@
  * @module @lockness/realtime/tests/roster_maintenance_run_371
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import {
     ROSTER_MAINTENANCE_RUN_LOG_FAILED,
@@ -57,7 +56,7 @@ function gatedHandler() {
 const RUN_FAILED = 'a roster-maintenance run failed — the next successful ' +
     'heartbeat retries'
 
-test(
+Deno.test(
     '#371 W6 close() while a run is gated waits for it, and no run starts afterwards',
     async () => {
         const run = new RosterMaintenanceRun()
@@ -80,7 +79,7 @@ test(
     },
 )
 
-test(
+Deno.test(
     '#371 W6 a tick during the run is not run again once close() began',
     async () => {
         const run = new RosterMaintenanceRun()
@@ -101,7 +100,7 @@ test(
     },
 )
 
-test(
+Deno.test(
     'three ticks during a gated run give exactly one trailing run',
     async () => {
         const run = new RosterMaintenanceRun()
@@ -125,7 +124,7 @@ test(
     },
 )
 
-test('trigger() after close() never calls the handler', async () => {
+Deno.test('trigger() after close() never calls the handler', async () => {
     const run = new RosterMaintenanceRun()
     let calls = 0
     run.register(() => void calls++)
@@ -137,7 +136,7 @@ test('trigger() after close() never calls the handler', async () => {
     assertEquals(calls, 0)
 })
 
-test(
+Deno.test(
     'a handler that throws synchronously: one WARN, nothing escapes',
     async () => {
         await watchingEscapes(async (escaped) => {
@@ -170,7 +169,7 @@ test(
     },
 )
 
-test('a rejecting handler: one WARN, nothing escapes', async () => {
+Deno.test('a rejecting handler: one WARN, nothing escapes', async () => {
     await watchingEscapes(async (escaped) => {
         const warnings = captureWarnings()
         try {
@@ -189,7 +188,7 @@ test('a rejecting handler: one WARN, nothing escapes', async () => {
     })
 })
 
-test('a successful run logs nothing', async () => {
+Deno.test('a successful run logs nothing', async () => {
     const warnings = captureWarnings()
     try {
         const run = new RosterMaintenanceRun()
@@ -203,7 +202,7 @@ test('a successful run logs nothing', async () => {
     }
 })
 
-test(
+Deno.test(
     'register() replaces the handler, and trigger() with none registered starts nothing',
     async () => {
         const run = new RosterMaintenanceRun()
@@ -220,7 +219,7 @@ test(
     },
 )
 
-test(
+Deno.test(
     'close() with no run in flight resolves, and drops the handler',
     async () => {
         const run = new RosterMaintenanceRun()
@@ -234,7 +233,7 @@ test(
     },
 )
 
-test(
+Deno.test(
     'a throwing console.warn on a failed run: one marked fallback line, nothing escapes',
     async () => {
         await watchingEscapes(async (escaped) => {

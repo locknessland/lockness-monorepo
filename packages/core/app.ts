@@ -26,8 +26,8 @@ declare const Deno: {
     }
 }
 
-import { Hono, jsxRenderer } from '@lockness/hono'
-import type { Env, ExecutionContext, Schema } from '@lockness/hono'
+import { Hono, jsxRenderer } from 'hono'
+import type { Env, ExecutionContext, Schema } from 'hono'
 import type {
     AppConfig,
     ControllerClass,
@@ -51,7 +51,7 @@ import type { ShutdownReport } from './kernel/shutdown_sequence.ts'
 import type { ShutdownHookMethod } from './kernel/shutdown_decorators.ts'
 import type { ShutdownConfig } from './kernel/kernel_decorators.ts'
 import { installShutdownSignals } from './kernel/signals.ts'
-import { VERSION } from './version.generated.ts'
+import pkg from './deno.json' with { type: 'json' }
 
 /**
  * Information about a registered route.
@@ -558,7 +558,7 @@ export class App {
     listen(port: number): ReturnType<ServerListener['listen']> {
         const server = this.serverListener.listen(this.rootHono, {
             port,
-            version: VERSION,
+            version: pkg.version,
         })
 
         // Retained so `shutdown()` can stop it first. What comes back is a

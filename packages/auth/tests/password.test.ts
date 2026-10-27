@@ -9,7 +9,6 @@
  * @module @lockness/auth/tests/password
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { Hash } from '@lockness/crypto'
 import {
@@ -60,12 +59,12 @@ async function legacyHash(password: string): Promise<string> {
     return btoa(String.fromCharCode(...combined))
 }
 
-test('default PBKDF2 iterations meet current OWASP guidance (#168)', () => {
+Deno.test('default PBKDF2 iterations meet current OWASP guidance (#168)', () => {
     resetPasswordHashingConfig()
     assertEquals(getPasswordHashingConfig().iterations, 600000)
 })
 
-test('hashPassword emits a self-describing hash carrying its parameters (#168)', async () => {
+Deno.test('hashPassword emits a self-describing hash carrying its parameters (#168)', async () => {
     resetPasswordHashingConfig()
     const h = await hashPassword('correct horse battery staple')
     assert(h.includes('$'), 'new format must be parameterised, not bare base64')
@@ -78,14 +77,14 @@ test('hashPassword emits a self-describing hash carrying its parameters (#168)',
     )
 })
 
-test('hashPassword/verifyPassword round-trip and reject wrong passwords (#168)', async () => {
+Deno.test('hashPassword/verifyPassword round-trip and reject wrong passwords (#168)', async () => {
     resetPasswordHashingConfig()
     const h = await hashPassword('s3cret')
     assert(await verifyPassword('s3cret', h))
     assert(!(await verifyPassword('wrong', h)))
 })
 
-test('a hash verifies from its embedded params without matching global config (#168)', async () => {
+Deno.test('a hash verifies from its embedded params without matching global config (#168)', async () => {
     // Hash at an explicit low count, then verify with default config: the count
     // must be read FROM the hash, not from the current global config.
     resetPasswordHashingConfig()
@@ -98,7 +97,7 @@ test('a hash verifies from its embedded params without matching global config (#
     )
 })
 
-test('a legacy parameter-less 100k hash still verifies (#168)', async () => {
+Deno.test('a legacy parameter-less 100k hash still verifies (#168)', async () => {
     resetPasswordHashingConfig()
     const legacy = await legacyHash('legacy-pw')
     assert(
@@ -108,7 +107,7 @@ test('a legacy parameter-less 100k hash still verifies (#168)', async () => {
     assert(!(await verifyPassword('nope', legacy)))
 })
 
-test('a hash stored by pre-#264 auth still verifies after crypto convergence (#264)', async () => {
+Deno.test('a hash stored by pre-#264 auth still verifies after crypto convergence (#264)', async () => {
     resetPasswordHashingConfig()
     assert(
         await verifyPassword('planted-modern', PLANTED_MODERN),
@@ -117,7 +116,7 @@ test('a hash stored by pre-#264 auth still verifies after crypto convergence (#2
     assert(!(await verifyPassword('wrong', PLANTED_MODERN)))
 })
 
-test('a planted legacy parameter-less hash still verifies after crypto convergence (#264)', async () => {
+Deno.test('a planted legacy parameter-less hash still verifies after crypto convergence (#264)', async () => {
     resetPasswordHashingConfig()
     assert(
         await verifyPassword('planted-legacy', PLANTED_LEGACY),
@@ -126,7 +125,7 @@ test('a planted legacy parameter-less hash still verifies after crypto convergen
     assert(!(await verifyPassword('wrong', PLANTED_LEGACY)))
 })
 
-test('hashPassword output is verifiable by the @lockness/crypto Hash facade (#264)', async () => {
+Deno.test('hashPassword output is verifiable by the @lockness/crypto Hash facade (#264)', async () => {
     resetPasswordHashingConfig()
     const h = await hashPassword('shared-format')
     assert(
@@ -136,7 +135,7 @@ test('hashPassword output is verifiable by the @lockness/crypto Hash facade (#26
     assert(!(await Hash.check('nope', h)))
 })
 
-test('a @lockness/crypto Hash.make hash verifies through verifyPassword (#264)', async () => {
+Deno.test('a @lockness/crypto Hash.make hash verifies through verifyPassword (#264)', async () => {
     resetPasswordHashingConfig()
     const stored = await Hash.make('crypto-made')
     assert(

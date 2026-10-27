@@ -1,4 +1,3 @@
-import { test } from 'node:test'
 import { assertEquals, assertExists } from '@std/assert'
 import { RedisCacheDriver, type RedisClient } from '../drivers/redis_driver.ts'
 
@@ -154,11 +153,11 @@ class MockRedisClient implements RedisClient {
 // Tests
 // =============================================================================
 
-test('RedisCacheDriver - basic operations', async (t) => {
+Deno.test('RedisCacheDriver - basic operations', async (t) => {
     const redis = new MockRedisClient()
     const driver = new RedisCacheDriver(redis, { keyPrefix: 'test' })
 
-    await t.test('set and get work correctly', async () => {
+    await t.step('set and get work correctly', async () => {
         redis.clear()
         await driver.set('key1', { name: 'John' })
         const value = await driver.get<{ name: string }>('key1')
@@ -166,27 +165,27 @@ test('RedisCacheDriver - basic operations', async (t) => {
         assertEquals(value.name, 'John')
     })
 
-    await t.test('get returns null for non-existent key', async () => {
+    await t.step('get returns null for non-existent key', async () => {
         redis.clear()
         const value = await driver.get('nonexistent')
         assertEquals(value, null)
     })
 
-    await t.test('has checks key existence', async () => {
+    await t.step('has checks key existence', async () => {
         redis.clear()
         await driver.set('key1', 'value1')
         assertEquals(await driver.has('key1'), true)
         assertEquals(await driver.has('key2'), false)
     })
 
-    await t.test('forget deletes a key', async () => {
+    await t.step('forget deletes a key', async () => {
         redis.clear()
         await driver.set('key1', 'value1')
         await driver.forget('key1')
         assertEquals(await driver.has('key1'), false)
     })
 
-    await t.test('flush clears all cache', async () => {
+    await t.step('flush clears all cache', async () => {
         redis.clear()
         await driver.set('key1', 'value1')
         await driver.set('key2', 'value2')
@@ -196,11 +195,11 @@ test('RedisCacheDriver - basic operations', async (t) => {
     })
 })
 
-test('RedisCacheDriver - many operations', async (t) => {
+Deno.test('RedisCacheDriver - many operations', async (t) => {
     const redis = new MockRedisClient()
     const driver = new RedisCacheDriver(redis, { keyPrefix: 'test' })
 
-    await t.test('many returns multiple values', async () => {
+    await t.step('many returns multiple values', async () => {
         redis.clear()
         await driver.set('key1', 'value1')
         await driver.set('key2', 'value2')
@@ -212,7 +211,7 @@ test('RedisCacheDriver - many operations', async (t) => {
         assertEquals(result['key3'], null)
     })
 
-    await t.test('putMany sets multiple values', async () => {
+    await t.step('putMany sets multiple values', async () => {
         redis.clear()
         await driver.putMany({ a: 1, b: 2, c: 3 })
 
@@ -222,11 +221,11 @@ test('RedisCacheDriver - many operations', async (t) => {
     })
 })
 
-test('RedisCacheDriver - increment/decrement', async (t) => {
+Deno.test('RedisCacheDriver - increment/decrement', async (t) => {
     const redis = new MockRedisClient()
     const driver = new RedisCacheDriver(redis, { keyPrefix: 'test' })
 
-    await t.test('increment increases value', async () => {
+    await t.step('increment increases value', async () => {
         redis.clear()
         const result1 = await driver.increment('counter')
         assertEquals(result1, 1)
@@ -235,7 +234,7 @@ test('RedisCacheDriver - increment/decrement', async (t) => {
         assertEquals(result2, 6)
     })
 
-    await t.test('decrement decreases value', async () => {
+    await t.step('decrement decreases value', async () => {
         redis.clear()
         await driver.set('counter', 10)
 
@@ -244,11 +243,11 @@ test('RedisCacheDriver - increment/decrement', async (t) => {
     })
 })
 
-test('RedisCacheDriver - tag operations', async (t) => {
+Deno.test('RedisCacheDriver - tag operations', async (t) => {
     const redis = new MockRedisClient()
     const driver = new RedisCacheDriver(redis, { keyPrefix: 'test' })
 
-    await t.test('forgetByTag removes tagged entries', async () => {
+    await t.step('forgetByTag removes tagged entries', async () => {
         redis.clear()
 
         await driver.set('user:1', { id: 1 }, undefined, ['users'])
@@ -265,7 +264,7 @@ test('RedisCacheDriver - tag operations', async (t) => {
         assertEquals(await driver.has('product:1'), true)
     })
 
-    await t.test('flushByTag is alias for forgetByTag', async () => {
+    await t.step('flushByTag is alias for forgetByTag', async () => {
         redis.clear()
 
         await driver.set('item:1', 'value', undefined, ['items'])
@@ -275,11 +274,11 @@ test('RedisCacheDriver - tag operations', async (t) => {
     })
 })
 
-test('RedisCacheDriver - TTL handling', async (t) => {
+Deno.test('RedisCacheDriver - TTL handling', async (t) => {
     const redis = new MockRedisClient()
     const driver = new RedisCacheDriver(redis, { keyPrefix: 'test' })
 
-    await t.test('respects TTL expiration', async () => {
+    await t.step('respects TTL expiration', async () => {
         redis.clear()
 
         // Set with 1 second TTL
@@ -293,7 +292,7 @@ test('RedisCacheDriver - TTL handling', async (t) => {
     })
 })
 
-test('RedisCacheDriver - custom serialization', async (t) => {
+Deno.test('RedisCacheDriver - custom serialization', async (t) => {
     const redis = new MockRedisClient()
 
     // Custom serializer that adds a marker
@@ -308,7 +307,7 @@ test('RedisCacheDriver - custom serialization', async (t) => {
         },
     })
 
-    await t.test('uses custom serialization', async () => {
+    await t.step('uses custom serialization', async () => {
         redis.clear()
         await driver.set('custom', { data: 'test' })
         const value = await driver.get<{ data: string }>('custom')
@@ -317,11 +316,11 @@ test('RedisCacheDriver - custom serialization', async (t) => {
     })
 })
 
-test('RedisCacheDriver - handles corrupted data', async (t) => {
+Deno.test('RedisCacheDriver - handles corrupted data', async (t) => {
     const redis = new MockRedisClient()
     const driver = new RedisCacheDriver(redis, { keyPrefix: 'test' })
 
-    await t.test('returns null for invalid JSON', async () => {
+    await t.step('returns null for invalid JSON', async () => {
         redis.clear()
         // Manually set invalid JSON
         await redis.set('test:lockness:broken', 'not valid json')

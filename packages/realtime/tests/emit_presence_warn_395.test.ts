@@ -16,7 +16,6 @@
  * @module @lockness/realtime/tests/emit_presence_warn_395
  */
 
-import { test } from 'node:test'
 import { assert, assertEquals } from '@std/assert'
 import { ChannelManager, EMIT_PRESENCE_LOG_FAILED } from '../manager.ts'
 import type { BroadcastDriver } from '../driver.ts'
@@ -54,7 +53,7 @@ function conn(
     }
 }
 
-test("#395 (LOW) emitPresence: a later local socket still receives the frame when an earlier socket's WARN itself throws", async () => {
+Deno.test("#395 (LOW) emitPresence: a later local socket still receives the frame when an earlier socket's WARN itself throws", async () => {
     await watchingEscapes(async (escaped) => {
         const driver: BroadcastDriver = {
             publish: () => {},

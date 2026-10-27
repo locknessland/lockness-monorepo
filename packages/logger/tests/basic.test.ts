@@ -2,29 +2,28 @@
  * Tests for @lockness/logger - Basic Logging & Levels
  */
 
-import { test } from 'node:test'
 import { assertEquals, assertExists } from '@std/assert'
 import { Logger, LogLevel, MemoryTransport, TextFormatter } from '../mod.ts'
 
-test('Logger - Basic logging', async (t) => {
-    await t.test('creates logger with default config', () => {
+Deno.test('Logger - Basic logging', async (t) => {
+    await t.step('creates logger with default config', () => {
         const log = new Logger()
         assertExists(log)
         assertEquals(log.getLevel(), LogLevel.INFO)
     })
 
-    await t.test('creates logger with custom level', () => {
+    await t.step('creates logger with custom level', () => {
         const log = new Logger({ level: LogLevel.DEBUG })
         assertEquals(log.getLevel(), LogLevel.DEBUG)
     })
 
-    await t.test('setLevel changes log level', () => {
+    await t.step('setLevel changes log level', () => {
         const log = new Logger()
         log.setLevel(LogLevel.ERROR)
         assertEquals(log.getLevel(), LogLevel.ERROR)
     })
 
-    await t.test('logs to memory transport', async () => {
+    await t.step('logs to memory transport', async () => {
         const memory = new MemoryTransport()
         const log = new Logger({
             transports: [memory],
@@ -38,7 +37,7 @@ test('Logger - Basic logging', async (t) => {
         assertEquals(logs[0].level, LogLevel.INFO)
     })
 
-    await t.test('respects log level threshold', async () => {
+    await t.step('respects log level threshold', async () => {
         const memory = new MemoryTransport()
         const log = new Logger({
             level: LogLevel.WARN,
@@ -58,7 +57,7 @@ test('Logger - Basic logging', async (t) => {
     })
 })
 
-test('Logger - All log levels', async (t) => {
+Deno.test('Logger - All log levels', async (t) => {
     const memory = new MemoryTransport()
     const log = new Logger({
         level: LogLevel.DEBUG,
@@ -66,31 +65,31 @@ test('Logger - All log levels', async (t) => {
         formatter: new TextFormatter(),
     })
 
-    await t.test('debug level', async () => {
+    await t.step('debug level', async () => {
         await log.debug('Debug message')
         const logs = memory.getLogs()
         assertEquals(logs[logs.length - 1].level, LogLevel.DEBUG)
     })
 
-    await t.test('info level', async () => {
+    await t.step('info level', async () => {
         await log.info('Info message')
         const logs = memory.getLogs()
         assertEquals(logs[logs.length - 1].level, LogLevel.INFO)
     })
 
-    await t.test('warn level', async () => {
+    await t.step('warn level', async () => {
         await log.warn('Warn message')
         const logs = memory.getLogs()
         assertEquals(logs[logs.length - 1].level, LogLevel.WARN)
     })
 
-    await t.test('error level', async () => {
+    await t.step('error level', async () => {
         await log.error('Error message')
         const logs = memory.getLogs()
         assertEquals(logs[logs.length - 1].level, LogLevel.ERROR)
     })
 
-    await t.test('fatal level', async () => {
+    await t.step('fatal level', async () => {
         await log.fatal('Fatal message')
         const logs = memory.getLogs()
         assertEquals(logs[logs.length - 1].level, LogLevel.FATAL)

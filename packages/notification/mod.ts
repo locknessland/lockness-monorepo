@@ -72,7 +72,13 @@ export {
     SlackChannel,
     SmsChannel,
 } from './channels/mod.ts'
-export { registerNotificationCommands } from './cli_commands.ts'
+export {
+    type Cli,
+    createFile,
+    notificationNaming,
+    processStub,
+    registerNotificationCommands,
+} from './cli_commands.ts'
 export {
     getNotificationFactory,
     type HandleJobOptions,
