@@ -48,6 +48,7 @@ import { devtoolsMiddleware } from './middleware.ts'
 import { renderDashboard } from './dashboard.tsx'
 import { collector } from './collector.ts'
 import { authorizeDevtools, devtoolsActive } from './gate.ts'
+import { debugBarDefault } from './debug_bar.ts'
 import { currentRequestId } from './request_context.ts'
 import type { DevtoolsConfig, MailInfo, QueueJob, RouteInfo } from './types.ts'
 import { ComponentDependencyAnalyzer } from './utils/component_dependency_analyzer.ts'
@@ -66,15 +67,18 @@ let componentAnalyzer: ComponentDependencyAnalyzer | null = null
  * Covers only the operational fields. The authorization fields (`token`,
  * `authorize`) have no default — an absent one means "not configured", which the
  * gate resolves to the env var / loopback posture — so they are excluded here.
+ * `showDebugBar` is excluded too: its default comes from `DEBUG_BAR`, read when
+ * devtools is enabled rather than at module load (#630).
  * @internal
  */
-const DEFAULT_CONFIG: Required<Omit<DevtoolsConfig, 'token' | 'authorize'>> = {
+const DEFAULT_CONFIG: Required<
+    Omit<DevtoolsConfig, 'token' | 'authorize' | 'showDebugBar'>
+> = {
     enabled: true,
     basePath: '/_devtools',
     maxLogs: 1000,
     maxQueries: 500,
     maxRequests: 100,
-    showDebugBar: Deno.env.get('DEBUG_BAR') !== 'false',
 } as const
 
 // =============================================================================
@@ -173,6 +177,7 @@ export function enableDevtools(
         & Pick<DevtoolsConfig, 'token' | 'authorize'> = {
             ...DEFAULT_CONFIG,
             ...config,
+            showDebugBar: config.showDebugBar ?? debugBarDefault(),
         }
 
     // Fail closed: mount only when devtools is explicitly active (S1). A bare
