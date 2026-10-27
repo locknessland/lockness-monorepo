@@ -17,6 +17,7 @@
  */
 
 import { isExplicitlyDevelopment } from '@lockness/contract'
+import { readEnv } from '@lockness/contract/environment/read/internal'
 import { getConnInfo } from '@lockness/hono'
 import type { Context } from '@lockness/hono'
 import { collector } from './collector.ts'
@@ -28,9 +29,11 @@ import type { DevtoolsConfig } from './types.ts'
  * `true` only when the environment is **explicitly** development
  * (`APP_ENV` is `development`) or the operator opts in with
  * `LOCKNESS_DEVTOOLS=1`. Ambiguous, unset, production, and no-`--allow-env`
- * states all resolve to `false` (fail closed). Never throws.
+ * states all resolve to `false` (fail closed). An unreadable
+ * `LOCKNESS_DEVTOOLS` reads as off, and reading it never prompts.
  *
  * @returns `true` when devtools is allowed to be active.
+ * @throws Only an unexpected failure of the environment read itself.
  *
  * @example
  * ```typescript
@@ -39,11 +42,8 @@ import type { DevtoolsConfig } from './types.ts'
  */
 export function devtoolsActive(): boolean {
     if (isExplicitlyDevelopment()) return true
-    try {
-        return Deno.env.get('LOCKNESS_DEVTOOLS') === '1'
-    } catch {
-        return false
-    }
+    const read = readEnv('LOCKNESS_DEVTOOLS')
+    return read.state === 'set' && read.value === '1'
 }
 
 /**
@@ -96,18 +96,36 @@ function constantTimeEqual(a: string, b: string): boolean {
 }
 
 /**
- * Resolve the devtools token once: explicit config wins, else the env var.
+ * Resolve the devtools token: explicit config wins, else the env var.
  *
- * The env read is guarded — a missing `--allow-env` denies the *read*, not the
- * request, so the caller falls through to the loopback default rather than being
- * hard-denied.
+ * An unset variable means no token, and the caller falls back to loopback
+ * trust. An *unreadable* one does not (#627): the process cannot tell whether
+ * the operator set a token, so falling back would let any local process, or an
+ * SSRF to `127.0.0.1`, past a token that may exist. It throws instead, and
+ * {@link authorizeDevtools} denies and logs. The read never prompts.
+ *
+ * @throws {Error} When `LOCKNESS_DEVTOOLS_TOKEN` is not granted or not valid
+ *   Unicode. The message never contains the value.
  */
 function resolveToken(cfg: DevtoolsConfig): string | undefined {
     if (cfg.token) return cfg.token
-    try {
-        return Deno.env.get('LOCKNESS_DEVTOOLS_TOKEN') || undefined
-    } catch {
-        return undefined
+    const read = readEnv('LOCKNESS_DEVTOOLS_TOKEN')
+    switch (read.state) {
+        case 'set':
+            return read.value || undefined
+        case 'unset':
+            return undefined
+        case 'not-granted':
+            throw new Error(
+                'LOCKNESS_DEVTOOLS_TOKEN cannot be read (env permission not granted); ' +
+                    'refusing to fall back to loopback trust. Grant it with ' +
+                    '--allow-env=LOCKNESS_DEVTOOLS_TOKEN, or pass config.token.',
+            )
+        case 'not-unicode':
+            throw new Error(
+                'LOCKNESS_DEVTOOLS_TOKEN is set but is not valid Unicode; ' +
+                    'refusing to fall back to loopback trust.',
+            )
     }
 }
 
@@ -175,9 +193,10 @@ function hasMatchingBearer(c: Context, token: string): boolean {
  * 3. **default posture** — else, a loopback peer is trusted, hardened by
  *    FR-011 (a forwarding header revokes trust; the `Host` must be allowlisted).
  *
- * Fails **closed** (FR-005/FR-010): the `authorize` call and the `getConnInfo`
- * read are wrapped in a `try/catch` that denies **and** logs at WARN via the
- * collector — an undetectable peer, an internal error, or a throwing/rejecting
+ * Fails **closed** (FR-005/FR-010): the `authorize` call, the token read and
+ * the `getConnInfo` read are wrapped in a `try/catch` that denies **and** logs
+ * at WARN via the collector — an undetectable peer, an unreadable
+ * `LOCKNESS_DEVTOOLS_TOKEN` (#627), an internal error, or a throwing/rejecting
  * callback all yield `false`, never access. Does not touch {@link devtoolsActive}.
  *
  * @param c - The Hono request context for the incoming devtools request.
