@@ -6,8 +6,10 @@
  */
 
 import { assert, assertEquals } from '@std/assert'
-import { fromFileUrl } from '@std/path'
+import { Hono } from '@lockness/hono'
 import { debugBarDefault } from '../debug_bar.ts'
+import { enableDevtools } from '../mod.ts'
+import type { DevtoolsConfig } from '../types.ts'
 
 /** The stand-ins for one test: a permission per variable, and the values. */
 interface Stubs {
@@ -99,7 +101,7 @@ Deno.test('debug bar - a non-Unicode DEBUG_BAR keeps the default and does not th
 })
 
 Deno.test('debug bar - importing @lockness/devtools without env permission neither throws nor prompts', async () => {
-    const mod = fromFileUrl(new URL('../mod.ts', import.meta.url))
+    const mod = new URL('../mod.ts', import.meta.url).href
     const { code, stderr } = await new Deno.Command(Deno.execPath(), {
         args: ['run', '--no-prompt', '--allow-read', mod],
         stdout: 'null',
@@ -110,5 +112,48 @@ Deno.test('debug bar - importing @lockness/devtools without env permission neith
         code,
         0,
         `the import failed without env permission:\n${message}`,
+    )
+})
+
+/**
+ * Whether an HTML page served by an app with devtools enabled under `config`
+ * carries the debug toolbar, with `DEBUG_BAR=false` and devtools opted in.
+ */
+async function toolbarShown(config: DevtoolsConfig): Promise<boolean> {
+    const keys = ['DEBUG_BAR', 'LOCKNESS_DEVTOOLS']
+    const prev = Object.fromEntries(keys.map((k) => [k, Deno.env.get(k)]))
+    Deno.env.set('DEBUG_BAR', 'false')
+    Deno.env.set('LOCKNESS_DEVTOOLS', '1')
+    try {
+        const app = new Hono()
+        enableDevtools(app, config)
+        app.get('/page', (c) => c.html('<html><body>page</body></html>'))
+        const res = await app.request('/page')
+        return (await res.text()).includes('lockness-debug-toolbar')
+    } finally {
+        for (const k of keys) {
+            const v = prev[k]
+            v === undefined ? Deno.env.delete(k) : Deno.env.set(k, v)
+        }
+    }
+}
+
+Deno.test('debug bar - enableDevtools: DEBUG_BAR=false applies when showDebugBar is omitted or undefined', async () => {
+    assertEquals(
+        await toolbarShown({}),
+        false,
+        'omitted: DEBUG_BAR=false hides it',
+    )
+    assertEquals(
+        await toolbarShown({ showDebugBar: undefined }),
+        false,
+        'explicit undefined: DEBUG_BAR=false still hides it',
+    )
+})
+
+Deno.test('debug bar - enableDevtools: an explicit showDebugBar wins over DEBUG_BAR', async () => {
+    assert(
+        await toolbarShown({ showDebugBar: true }),
+        'showDebugBar: true shows it',
     )
 })
