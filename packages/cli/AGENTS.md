@@ -46,12 +46,13 @@ User-facing documentation: [README.md](README.md) ·
     `--allow-env`;
   - an unrecognised switch value throws — it would replace the error being
     reported. It reads as off and the hint becomes a notice. The same holds for
-    a read that fails (`InvalidData` on bytes that are not valid Unicode): every
-    throw but `NotCapable` becomes a `<not valid Unicode>` / `<unreadable>`
-    notice (#508);
+    a value that cannot be read: `not-unicode` and a reader that throws become a
+    `<not valid Unicode>` / `<unreadable>` notice, and `not-granted` reads as
+    off (#508);
   - the switch is read with a bare `Deno.env.get` — in a terminal Deno then
-    prompts for the permission mid-report. `readEnvWithoutPrompt` asks
-    `Deno.permissions.querySync` first;
+    prompts for the permission mid-report. It is read through contract's
+    `readEnv` (`@lockness/contract/environment/read/internal`), which asks
+    `Deno.permissions.querySync` first (#631);
   - a state prints twice or returns other than `1` — scripts read the status,
     and `cli_dispatch.test.ts` pins one `console.error` per state.
 - **`command_failure.ts`'s only import is `exit_status.ts`, which imports
