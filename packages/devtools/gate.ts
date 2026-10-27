@@ -126,6 +126,18 @@ function resolveToken(cfg: DevtoolsConfig): string | undefined {
                 'LOCKNESS_DEVTOOLS_TOKEN is set but is not valid Unicode; ' +
                     'refusing to fall back to loopback trust.',
             )
+        default: {
+            // A new EnvRead state must be handled, never fall through to
+            // loopback trust: a compile error first, a refusal at run time.
+            const unhandled: never = read
+            throw new Error(
+                `LOCKNESS_DEVTOOLS_TOKEN read returned an unhandled state ` +
+                    `(${
+                        (unhandled as { state: string }).state
+                    }); refusing to ` +
+                    'fall back to loopback trust.',
+            )
+        }
     }
 }
 
