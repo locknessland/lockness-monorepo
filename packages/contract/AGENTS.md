@@ -222,7 +222,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-16 test files for 35 source files:
+16 test files for 36 source files:
 
 - `packages/contract/tests/app_file.test.ts`
 - `packages/contract/tests/compile_diagnostic.test.ts`
@@ -230,7 +230,7 @@ Anything not listed is internal and free to change.
 - `packages/contract/tests/disposables.test.ts`
 - `packages/contract/tests/environment.test.ts`
 - `packages/contract/tests/environment_legacy.test.ts`
-- `packages/contract/tests/environment_read.test.ts`
+- `packages/contract/tests/environment_read_strict.test.ts`
 - `packages/contract/tests/error_code_491.test.ts`
 - `packages/contract/tests/error_frames_488.test.ts`
 - `packages/contract/tests/health.test.ts`
