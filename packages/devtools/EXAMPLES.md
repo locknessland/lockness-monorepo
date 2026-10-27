@@ -296,7 +296,8 @@ const devtoolsConfig = {
     maxLogs: parseInt(Deno.env.get('DEVTOOLS_MAX_LOGS') || '1000'),
     maxQueries: parseInt(Deno.env.get('DEVTOOLS_MAX_QUERIES') || '500'),
     maxRequests: parseInt(Deno.env.get('DEVTOOLS_MAX_REQUESTS') || '100'),
-    showDebugBar: Deno.env.get('DEBUG_BAR') !== 'false',
+    // showDebugBar is left out: its default already honours DEBUG_BAR=false,
+    // read when enableDevtools runs and without a permission prompt.
 }
 
 if (devtoolsConfig.enabled) {
