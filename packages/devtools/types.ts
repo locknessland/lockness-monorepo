@@ -502,7 +502,9 @@ export interface DevtoolsConfig {
 
     /**
      * Whether to show the debug toolbar on HTML pages.
-     * Can be disabled with `DEBUG_BAR=false` environment variable.
+     * When omitted, `DEBUG_BAR=false` in the environment disables it. The
+     * variable is read when `enableDevtools` runs, never at import, and one the
+     * process cannot read keeps the default without prompting.
      * @default true
      */
     readonly showDebugBar?: boolean

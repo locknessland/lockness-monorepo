@@ -105,7 +105,9 @@ like session structures, database queries, and environment details.
 
 Lockness automatically filters out the debug bar injection and dashboard routes
 if the `APP_ENV` is not set to `development`, or if you manually set
-`DEBUG_BAR=false` in your `.env`.
+`DEBUG_BAR=false` in your `.env`. `DEBUG_BAR` is read when `enableDevtools`
+runs, not when the package is imported; if the process may not read it, the
+debug bar keeps its default and no permission prompt is raised.
 
 ## 🔐 Securing the devtools endpoints
 
