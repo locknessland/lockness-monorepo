@@ -59,7 +59,9 @@ enableDevtools(app.getHono(), {
 
 The collector routes are gated: by default only a **loopback** peer is trusted;
 set a `token` (or `LOCKNESS_DEVTOOLS_TOKEN`) or an `authorize` callback to open
-access from any host. See
+access from any host. A `LOCKNESS_DEVTOOLS_TOKEN` the process cannot read (grant
+it with `--allow-env=LOCKNESS_DEVTOOLS_TOKEN`) denies every request rather than
+falling back to loopback trust. See
 [Securing the devtools endpoints](docs/DOCS.md#-securing-the-devtools-endpoints)
 for the default posture, the reverse-proxy caveat, and token hardening.
 
@@ -428,6 +430,28 @@ if (isExplicitlyDevelopment()) {
 - Middleware performance
 - Database query performance
 - Overall request metrics
+
+## Upgrading to v0.5.0
+
+One item. **Migration step:** none, unless you run with a narrowed `--allow-env`
+and rely on `LOCKNESS_DEVTOOLS_TOKEN`.
+
+### 1. An unreadable `LOCKNESS_DEVTOOLS_TOKEN` denies instead of trusting loopback
+
+Until v0.5.0 a `LOCKNESS_DEVTOOLS_TOKEN` the process could not read was treated
+as unset, so the gate fell back to trusting any loopback peer (#627). Another
+local process, or an SSRF to `127.0.0.1`, then reached devtools without the
+token.
+
+- **Newly refused:** every devtools request, when the variable is not granted (a
+  narrowed `--allow-env`, or a compiled binary with narrowed flags) or its value
+  is not valid Unicode. The request gets `401` and the collector logs a WARN
+  naming `--allow-env=LOCKNESS_DEVTOOLS_TOKEN`.
+- **The fix:** grant the read with `--allow-env=LOCKNESS_DEVTOOLS_TOKEN`, or
+  pass `config.token`, which is used without reading the environment.
+- **No longer prompts:** reading `LOCKNESS_DEVTOOLS_TOKEN` and
+  `LOCKNESS_DEVTOOLS` never raises a permission prompt. An unreadable
+  `LOCKNESS_DEVTOOLS` counts as off.
 
 ## License
 

@@ -149,11 +149,21 @@ compared in **constant time**; a configured token is not bypassed by the
 loopback default.
 
 ```ts
-enableDevtools(app, { token: Deno.env.get('LOCKNESS_DEVTOOLS_TOKEN') })
+enableDevtools(app, { token: '<128-bit CSPRNG secret>' })
+// or leave config.token out and set LOCKNESS_DEVTOOLS_TOKEN in the environment
 // caller: fetch('/_devtools/api/data', {
 //   headers: { Authorization: `Bearer ${token}` },
 // })
 ```
+
+**An unreadable `LOCKNESS_DEVTOOLS_TOKEN` denies every request.** When the
+process may not read the variable (a narrowed `--allow-env`, or a compiled
+binary with narrowed flags) or its value is not valid Unicode, the gate cannot
+tell whether a token was set, so it does not fall back to loopback trust: it
+answers `401` and logs a WARN in the collector. Grant the read with
+`--allow-env=LOCKNESS_DEVTOOLS_TOKEN`, or pass `config.token`, which is used
+without reading the environment. An unset variable still means no token. The
+read never raises a permission prompt.
 
 **Token hardening:** generate it with a CSPRNG and at least 128 bits of entropy
 (e.g. `crypto.getRandomValues`). There is **no per-attempt lockout**, so the
@@ -201,7 +211,8 @@ and a `deno compile` binary without `--allow-env` both resolve the environment
 name to `development` by default, so a plain `isDevelopment()` check would fail
 **open**; the gate requires a positive, explicit signal instead, and the same
 guard sits on the collection boundary so wiring `devtoolsMiddleware` directly
-cannot collect in production either.
+cannot collect in production either. A `LOCKNESS_DEVTOOLS` the process may not
+read counts as off, and reading it never raises a permission prompt.
 
 ### The `/_debug` route
 
