@@ -7,13 +7,15 @@
  */
 
 import { assertEquals, assertStringIncludes } from '@std/assert'
+import type { EnvReader } from '../raw_errors.ts'
 import { rawErrorsHint, readRawErrorsSwitch } from '../raw_errors.ts'
 
-/** A reader that answers `value` for the switch and nothing for anything else. */
-function reader(
-    value: string | undefined,
-): (name: string) => string | undefined {
-    return (name) => name === 'LOCKNESS_CLI_RAW_ERRORS' ? value : undefined
+/** A reader that answers `value` for the switch and unset for anything else. */
+function reader(value: string | undefined): EnvReader {
+    return (name) =>
+        name === 'LOCKNESS_CLI_RAW_ERRORS' && value !== undefined
+            ? { state: 'set', value }
+            : { state: 'unset' }
 }
 
 for (const value of ['1', 'true', 'on', 'yes', ' TRUE ', 'Yes\r', 'ON\n']) {
@@ -37,19 +39,13 @@ for (const value of ['2', 'maybe', 'enabled', 'true1', 'y']) {
     })
 }
 
-Deno.test('raw errors - a reader denied the environment (NotCapable) reads as off', () => {
-    const denied = () => {
-        throw new Deno.errors.NotCapable('Requires env access')
-    }
+Deno.test('raw errors - a variable the reader was not granted reads as off', () => {
+    const denied: EnvReader = () => ({ state: 'not-granted' })
     assertEquals(readRawErrorsSwitch(denied), { state: 'off' })
 })
 
-Deno.test('raw errors - a value that is not valid Unicode (InvalidData) reads as off, with a notice', () => {
-    const invalid = () => {
-        throw new Deno.errors.InvalidData(
-            'environment variable was not valid unicode',
-        )
-    }
+Deno.test('raw errors - a value that is not valid Unicode reads as off, with a notice', () => {
+    const invalid: EnvReader = () => ({ state: 'not-unicode' })
     assertEquals(readRawErrorsSwitch(invalid), {
         state: 'unreadable',
         placeholder: '<not valid Unicode>',
